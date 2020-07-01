@@ -44,8 +44,9 @@ static int agenda_day = 0;
 
 static int agenda_showing = true;
 
-class UniqueTextState : public TextAreaData {
+class UniqueTextState : public UserData {
 public:
+    TextState *state = new TextState;
     int day;
     int year;
     int month;
@@ -424,7 +425,7 @@ paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
         if (data->state->text.empty() && !container->active) {
             PangoLayout *text_layout = get_cached_pango_font(
                     client->back_cr, "Segoe UI", 11, PangoWeight::PANGO_WEIGHT_NORMAL);
-            std::string text("What's happening that day?");
+            std::string text("Write events here");
             pango_layout_set_text(text_layout, text.c_str(), text.length());
             PangoRectangle text_ink;
             PangoRectangle text_logical;
@@ -451,9 +452,9 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     int pad = 2;
     int width = 2;
 
-    for (auto *ds : unique_day_text_state) {
-        if (ds->day == data->day && ds->month == data->month && ds->year == data->year &&
-            !ds->state->text.empty()) {
+    for (auto *ud : unique_day_text_state) {
+        if (ud->day == data->day && ud->month == data->month && ud->year == data->year &&
+            !ud->state->text.empty()) {
             set_argb(cr, ArgbColor(.6, .6, .6, 1));
             paint_margins_rect(client, cr, container->real_bounds, 1, -1);
             cairo_fill(cr);
@@ -553,27 +554,22 @@ clicked_date(AppClient *client, cairo_t *cr, Container *container) {
     agenda_month = data->month;
     agenda_day = data->day;
 
-    bool found = false;
-    for (auto *ds : unique_day_text_state) {
-        if (ds->day == agenda_day && ds->year == agenda_year && ds->month == agenda_month) {
-            if (auto *c = container_by_name("main_text_area", client->root)) {
-                auto *data = (TextAreaData *) c->user_data;
-                data->state = ds->state;
-            }
-            found = true;
+    UniqueTextState *unique_day = nullptr;
+    for (auto *ud : unique_day_text_state) {
+        if (ud->day == agenda_day && ud->year == agenda_year && ud->month == agenda_month) {
+            unique_day = ud;
         }
     }
-    if (!found) {
-        auto *unique_date = new UniqueTextState;
-        unique_date->day = agenda_day;
-        unique_date->year = agenda_year;
-        unique_date->month = agenda_month;
-        unique_day_text_state.push_back(unique_date);
-
-        if (auto *c = container_by_name("main_text_area", client->root)) {
-            auto *data = (TextAreaData *) c->user_data;
-            data->state = unique_date->state;
-        }
+    if (unique_day == nullptr) {
+        unique_day = new UniqueTextState;
+        unique_day->day = agenda_day;
+        unique_day->year = agenda_year;
+        unique_day->month = agenda_month;
+        unique_day_text_state.push_back(unique_day);
+    }
+    if (auto *c = container_by_name("main_text_area", client->root)) {
+        auto *data = (TextAreaData *) c->user_data;
+        data->state = unique_day->state;
     }
 
     update_days(view_month, view_year);
@@ -662,18 +658,14 @@ clicked_clear_text(AppClient *client, cairo_t *cr, Container *container) {
     // TODO: go through agenda and clear that
     if (auto *c = container_by_name("main_text_area", client->root)) {
         auto *data = (TextAreaData *) c->user_data;
-        data->state->text = "";
-        data->state->cursor = 0;
-        data->state->preferred_x = 0;
-        data->state->selection_x = -1;
-        for (auto *a : data->state->redo_stack) {
-            delete a;
+        delete data->state;
+        data->state = new TextState;
+
+        for (auto ud : unique_day_text_state) {
+            if (ud->day == agenda_day && ud->month == agenda_month && ud->year == agenda_year) {
+                ud->state = data->state;
+            }
         }
-        data->state->redo_stack.clear();
-        for (auto *a : data->state->undo_stack) {
-            delete a;
-        }
-        data->state->undo_stack.clear();
     }
 }
 
@@ -832,6 +824,15 @@ fill_root(AppClient *client) {
     textarea->name = "main_text_area";
     textarea->parent->when_paint = paint_textarea_parent;
 
+
+    for (auto ud : unique_day_text_state) {
+        if (ud->day == agenda_day && ud->month == agenda_month && ud->year == agenda_year) {
+            delete data->state;
+            data->state = ud->state;
+            break;
+        }
+    }
+
     Container *agenda_hbox = root->child(::hbox, FILL_SPACE, 48);
     agenda_hbox->wanted_pad.x = 20;
     agenda_hbox->wanted_pad.w = 10;
@@ -908,6 +909,7 @@ read_agenda_from_disk(AppClient *client) {
     for (auto *ds : unique_day_text_state) {
         delete ds;
     }
+    unique_day_text_state.clear();
 
     const char *home = getenv("HOME");
     std::string calendarPath(home);
@@ -948,31 +950,33 @@ read_agenda_from_disk(AppClient *client) {
                 int month = -1;
                 int year = -1;
 
-                std::string s = ent->d_name;
+                {
+                    std::string s = ent->d_name;
 
-                std::string delimiter = "_";
+                    std::string delimiter = "_";
 
-                size_t pos = 0;
-                std::string token;
-                int group = 0;
-                while ((pos = s.find(delimiter)) != std::string::npos) {
-                    token = s.substr(0, pos);
-                    if (group == 0) {
-                        day = std::stoi(token);
-                    } else if (group == 1) {
-                        month = std::stoi(token);
+                    size_t pos = 0;
+                    std::string token;
+                    int group = 0;
+                    while ((pos = s.find(delimiter)) != std::string::npos) {
+                        token = s.substr(0, pos);
+                        if (group == 0) {
+                            day = std::stoi(token);
+                        } else if (group == 1) {
+                            month = std::stoi(token);
+                        }
+                        group++;
+                        s.erase(0, pos + delimiter.length());
                     }
-                    group++;
-                    s.erase(0, pos + delimiter.length());
-                }
 
-                delimiter = ".";
-                while ((pos = s.find(delimiter)) != std::string::npos) {
-                    token = s.substr(0, pos);
-                    if (group == 2) {
-                        year = std::stoi(token);
+                    delimiter = ".";
+                    while ((pos = s.find(delimiter)) != std::string::npos) {
+                        token = s.substr(0, pos);
+                        if (group == 2) {
+                            year = std::stoi(token);
+                        }
+                        s.erase(0, pos + delimiter.length());
                     }
-                    s.erase(0, pos + delimiter.length());
                 }
 
                 if (day != -1 && month != -1 && year != -1) {
@@ -985,6 +989,8 @@ read_agenda_from_disk(AppClient *client) {
                     for (auto *ds : unique_day_text_state) {
                         if (ds->day == day && ds->month == month && ds->year == year) {
                             found = true;
+                            delete ds->state;
+                            ds->state = new TextState;
                             ds->state->text = strStream.str();
                         }
                     }
@@ -994,8 +1000,7 @@ read_agenda_from_disk(AppClient *client) {
                         ds->month = month;
                         ds->year = year;
 
-                        ds->state->text = strStream.str();// str holds the content of the file
-
+                        ds->state->text = strStream.str(); // str holds the content of the file
                         unique_day_text_state.push_back(ds);
                     }
                 }
@@ -1090,9 +1095,9 @@ void start_date_menu() {
         t.detach();
     }
 
-    fill_root(client);
-
     read_agenda_from_disk(client);
+
+    fill_root(client);
 
     client_show(app, client);
 }
