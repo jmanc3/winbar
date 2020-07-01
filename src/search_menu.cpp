@@ -1292,7 +1292,7 @@ void load_historic_scripts() {
     std::ifstream status_file(scriptsPath);
     if (status_file.is_open()) {
         std::string line;
-        if (getline(status_file, line)) {
+        while (getline(status_file, line)) {
             auto *h = new HistoricalNameUsed;
             h->text = line;
             history_scripts.push_back(h);
@@ -1309,7 +1309,7 @@ void load_historic_apps() {
     std::ifstream status_file(scriptsPath);
     if (status_file.is_open()) {
         std::string line;
-        if (getline(status_file, line)) {
+        while (getline(status_file, line)) {
             auto *h = new HistoricalNameUsed;
             h->text = line;
             history_apps.push_back(h);
@@ -1356,7 +1356,7 @@ write_historic_scripts() {
     std::ofstream myfile;
     myfile.open(scriptsPath);
     for (HistoricalNameUsed *h : history_scripts) {
-        myfile << h->text << "\n";
+        myfile << h->text + "\n";
     }
     myfile.close();
 }
@@ -1396,7 +1396,7 @@ write_historic_apps() {
     std::ofstream myfile;
     myfile.open(scriptsPath);
     for (HistoricalNameUsed *h : history_apps) {
-        myfile << h->text << "\n";
+        myfile << h->text + "\n";
     }
     myfile.close();
 }
