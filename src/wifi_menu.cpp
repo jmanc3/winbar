@@ -103,9 +103,9 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, ArgbColor(.678, .678, .678, 1));
 
     if (up)
-        text = "Connected";
+        text = "Connected - Interface: " + config->interface;
     else
-        text = "Disconnected";
+        text = "Disconnected - Interface: " + config->interface;
     pango_layout_set_text(layout, text.c_str(), text.length());
     cairo_move_to(cr, text_x, text_y + height);
 

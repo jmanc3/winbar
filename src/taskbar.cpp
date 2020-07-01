@@ -1938,6 +1938,7 @@ void remove_window(App *app, xcb_window_t window) {
 
     update_pinned_items_file();
     icons_align(entity, icons, false);
+    client_paint(app, entity);
 }
 
 void stacking_order_changed(xcb_window_t *all_windows, int windows_count) {
