@@ -887,8 +887,16 @@ void load_desktop_files() {
 }
 
 void start_app_menu() {
-    if (auto *c = client_by_name(app, "app_menu")) {
+    if (auto *c = client_by_name(app, "search_menu")) {
         client_close(app, c);
+    }
+    if (auto *client = client_by_name(app, "taskbar")) {
+        if (auto *container = container_by_name("main_text_area", client->root)) {
+            auto *text_data = (TextAreaData *) container->user_data;
+            delete text_data->state;
+            text_data->state = new TextState;
+        }
+        request_refresh(client->app, client);
     }
 
     first_expose = true;
