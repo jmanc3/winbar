@@ -22,9 +22,16 @@ void
 start_search_menu();
 
 void
-on_key_press(AppClient* client, Container* container, xcb_generic_event_t* event);
+on_key_press(xcb_generic_event_t* event);
 
 void
 load_scripts();
 
+void
+load_historic_apps();
+
+void
+load_historic_scripts();
+
 #endif // APP_SEARCH_MENU_H
+

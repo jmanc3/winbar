@@ -57,6 +57,7 @@ update_active_window()
     // generate events therefore when we see that nothing or the root has focus we take it instead
     if (windows_count == 0 || windows[0] == app->screen->root || windows[0] == 0) {
         if (auto* client = client_by_name(app, "taskbar")) {
+            // TODO: Alt tab on openbox sets the active to 0 so this will screw us, we should wait some time and check that its still zero after some time
             //xcb_set_input_focus(
             //app->connection, XCB_INPUT_FOCUS_PARENT, client->window, XCB_CURRENT_TIME);
         }
@@ -115,29 +116,8 @@ meta_pressed()
     // printf("open or close search app lister and set main_text_area active\n");
     std::lock_guard lock(app->clients_mutex);
     bool already_open = client_by_name(app, "app_menu") != nullptr;
-    
-    if (auto* client = client_by_name(app, "taskbar")) {
-        if (auto* container = container_by_name("main_text_area", client->root)) {
-            auto* text_data = (TextAreaData*)container->user_data;
-            delete text_data->state;
-            text_data->state = new TextState;
-            container->parent->active = !already_open;
-            container->active = !already_open;
-            if (already_open) {
-                xcb_set_input_focus(
-                                    client->app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
-                xcb_flush(client->app->connection);
-            }
-        }
-    }
-    
-    if (already_open) {
-        if (auto* c = client_by_name(app, "app_menu")) {
-            client_close_threaded(app, c);
-        }
-    } else {
+    if (!already_open)
         start_app_menu();
-    }
 }
 
 void

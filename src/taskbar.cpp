@@ -1504,11 +1504,6 @@ clicked_super(AppClient* client, cairo_t* cr, Container* container)
             text_data->state = new TextState;
             container->parent->active = !already_open;
             container->active = !already_open;
-            if (already_open) {
-                xcb_set_input_focus(
-                                    client->app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
-                xcb_flush(client->app->connection);
-            }
         }
     }
     
@@ -1586,15 +1581,6 @@ paint_wifi(AppClient* client, cairo_t* cr, Container* container)
 }
 
 static void
-textarea_key_release(AppClient* client,
-                     cairo_t* cr,
-                     Container* container,
-                     xcb_generic_event_t* event)
-{
-    on_key_press(client, container, event);
-}
-
-static void
 fill_root(App* app, AppClient* client, Container* root)
 {
 #ifdef TRACY_ENABLE
@@ -1646,7 +1632,6 @@ fill_root(App* app, AppClient* client, Container* root)
     field_search->wanted_pad.x = 12 + 16 + 12;
     auto* con = field_search->child(FILL_SPACE, FILL_SPACE);
     Container* textarea = make_textarea(con, settings);
-    textarea->when_key_release = textarea_key_release;
     textarea->name = "main_text_area";
     textarea->parent->alignment = ALIGN_CENTER | ALIGN_LEFT;
     
@@ -1724,7 +1709,7 @@ fill_root(App* app, AppClient* client, Container* root)
     
     std::thread t(update_time);
     t.detach();
-
+    
     std::thread late(late_classes_update);
     late.detach();
     
@@ -1751,225 +1736,6 @@ when_taskbar_closed(AppClient* client)
 static bool
 taskbar_event_handler(App* app, xcb_generic_event_t* event)
 {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_MOTION_NOTIFY: {
-            auto* e = (xcb_motion_notify_event_t*)(event);
-            break;
-        }
-        case XCB_BUTTON_PRESS: {
-            auto* e = (xcb_button_press_event_t*)event;
-            
-            if (e->detail != XCB_BUTTON_INDEX_1 && e->detail != XCB_BUTTON_INDEX_2 &&
-                e->detail != XCB_BUTTON_INDEX_3) {
-                break;
-            }
-            if (auto* popup = client_by_window(app, popup_window_open)) {
-                if (!bounds_contains(*popup->bounds, e->root_x, e->root_y)) {
-                    if (auto* client = client_by_name(app, "taskbar")) {
-                        if (auto* container = container_by_name("main_text_area", client->root)) {
-                            container->parent->active = false;
-                            auto* data = (TextAreaData*)container->user_data;
-                            delete data->state;
-                            data->state = new TextState;
-                        }
-                        client_close_threaded(app, popup);
-                        xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
-                        xcb_flush(app->connection);
-                        app->grab_window = -1;
-                        popup_window_open = -1;
-                    }
-                }
-            }
-            
-            break;
-        }
-        case XCB_FOCUS_OUT: {
-            auto* e = (xcb_focus_out_event_t*)(event);
-            if (auto* popup = client_by_window(app, popup_window_open)) {
-                if (auto* client = client_by_name(app, "taskbar")) {
-                    if (auto* container = container_by_name("main_text_area", client->root)) {
-                        container->parent->active = false;
-                        auto* data = (TextAreaData*)container->user_data;
-                        delete data->state;
-                        data->state = new TextState;
-                    }
-                    client_close_threaded(app, popup);
-                    xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
-                    xcb_flush(app->connection);
-                    app->grab_window = -1;
-                    popup_window_open = -1;
-                }
-            }
-            //            auto input_focus_request = xcb_get_input_focus(app->connection);
-            //            auto input_focus_reply =
-            //                xcb_get_input_focus_reply(app->connection, input_focus_request,
-            //                nullptr);
-            //            break;
-            //
-            //            // If we end up focusing someone who is not the grab window then we close
-            //            it if (auto* c = client_by_window(app, input_focus_reply->focus)) {
-            //                // TODO: we should probably get the focus back here
-            //                // TODO: we could be causing fights here, detect that and give up
-            //                if (auto* client = client_by_name(app, "taskbar")) {
-            //                    AppClient* date_menu = client_by_name(app, "date_menu");
-            //                    if (date_menu) {
-            //                        if (date_menu->window != input_focus_reply->focus) {
-            //                            const static uint32_t values[] = { XCB_STACK_MODE_ABOVE };
-            //                            xcb_configure_window(app->connection,
-            //                                                 client->window,
-            //                                                 XCB_CONFIG_WINDOW_STACK_MODE,
-            //                                                 values);
-            //                            xcb_set_input_focus(
-            //                                                app->connection, XCB_NONE,
-            //                                                client->window, XCB_CURRENT_TIME);
-            //                            xcb_map_window(app->connection, client->window);
-            //                        }
-            //                    } else {
-            //                        const static uint32_t values[] = { XCB_STACK_MODE_ABOVE };
-            //                        xcb_configure_window(
-            //                                             app->connection, client->window,
-            //                                             XCB_CONFIG_WINDOW_STACK_MODE, values);
-            //                        xcb_set_input_focus(
-            //                                            app->connection, XCB_NONE, client->window,
-            //                                            XCB_CURRENT_TIME);
-            //                    }
-            //                }
-            //            } else {
-            //                bool someone_closed = false;
-            //                if (auto* c = client_by_name(app, "app_menu")) {
-            //                    someone_closed = true;
-            //                    client_close_threaded(app, c);
-            //                }
-            //                if (auto* c = client_by_name(app, "battery_menu")) {
-            //                    someone_closed = true;
-            //                    client_close_threaded(app, c);
-            //                }
-            //                if (auto* c = client_by_name(app, "date_menu")) {
-            //                    someone_closed = true;
-            //                    client_close_threaded(app, c);
-            //                }
-            //                if (auto* c = client_by_name(app, "right_click_menu")) {
-            //                    someone_closed = true;
-            //                    client_close_threaded(app, c);
-            //                }
-            //                if (auto* c = client_by_name(app, "search_menu")) {
-            //                    someone_closed = true;
-            //                    client_close_threaded(app, c);
-            //                }
-            //                if (auto* c = client_by_name(app, "display")) {
-            //                    someone_closed = true;
-            //                    client_close_threaded(app, c);
-            //                }
-            //                if (auto* c = client_by_name(app, "volume")) {
-            //                    someone_closed = true;
-            //                    client_close_threaded(app, c);
-            //                }
-            //                if (auto* c = client_by_name(app, "wifi_menu")) {
-            //                    someone_closed = true;
-            //                    client_close_threaded(app, c);
-            //                }
-            //                if (auto* c = client_by_name(app, "windows_selector")) {
-            //                    client_close_threaded(app, c);
-            //                    someone_closed = true;
-            //                }
-            //                if (someone_closed) {
-            //                    if (auto* c = client_by_name(app, "taskbar")) {
-            //                        if (auto* container = container_by_name("main_text_area",
-            //                        c->root)) {
-            //                            container->parent->active = false;
-            //                            auto* data = (TextAreaData*)container->user_data;
-            //                            delete data->state;
-            //                            data->state = new TextState;
-            //                        }
-            //                    }
-            //                    xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
-            //                    xcb_flush(app->connection);
-            //                    app->grab_window = -1;
-            //                }
-            //            }
-            break;
-        }
-        case XCB_KEY_PRESS: {
-            auto* e = (xcb_key_press_event_t*)event;
-            
-            if (auto* client = client_by_name(app, "taskbar")) {
-                xkb_keycode_t keycode = e->detail;
-                const xkb_keysym_t* keysyms;
-                int num_keysyms =
-                    xkb_state_key_get_syms(client->keyboard->state, keycode, &keysyms);
-                
-                if (num_keysyms > 0) {
-                    if (keysyms[0] == XKB_KEY_Escape) {
-                        set_textarea_inactive();
-                        if (auto* c = client_by_name(app, "app_menu")) {
-                            client_close_threaded(app, c);
-                        }
-                        if (auto* c = client_by_name(app, "search_menu")) {
-                            client_close_threaded(app, c);
-                        }
-                        break;
-                    }
-                }
-                
-                int size = xkb_state_key_get_utf8(client->keyboard->state, keycode, NULL, 0) + 1;
-                if (size > 1) {
-                    char* buffer = new char[size];
-                    int read =
-                        xkb_state_key_get_utf8(client->keyboard->state, keycode, buffer, size);
-                    if (read > 0) {
-                        if (isprint(buffer[0])) {
-                            if (auto* c = client_by_name(app, "app_menu")) {
-                                client_close_threaded(app, c);
-                            }
-                            if (client_by_name(app, "search_menu") == nullptr) {
-                                start_search_menu();
-                            }
-                            
-                            if (auto* container =
-                                container_by_name("main_text_area", client->root)) {
-                                if (!container->parent->active) {
-                                    container->parent->active = true;
-                                    auto* data = (TextAreaData*)container->user_data;
-                                    delete data->state;
-                                    data->state = new TextState;
-                                }
-                            }
-                        }
-                    }
-                    delete[] buffer;
-                }
-            }
-        } break;
-        case XCB_CONFIGURE_NOTIFY: {
-            auto* e = (xcb_configure_notify_event_t*)event;
-            bool needs_update = false;
-            if (e->x != 0 || e->y != app->bounds.h - config->taskbar_height ||
-                e->width != app->bounds.w || e->height != config->taskbar_height) {
-                needs_update = true;
-            }
-            
-            if (needs_update) {
-                if (resize_attempts++ <= max_resize_attempts) {
-                    uint32_t value_mask = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
-                        XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
-                    
-                    uint32_t value_list_resize[] = {
-                        (uint32_t)(0),
-                        (uint32_t)(app->bounds.h - config->taskbar_height),
-                        (uint32_t)(app->bounds.w),
-                        (uint32_t)(config->taskbar_height),
-                    };
-                    xcb_configure_window(app->connection, e->window, value_mask, value_list_resize);
-                    printf("x: %d, y: %d, w: %d, h: %d\n", e->x, e->y, e->width, e->height);
-                }
-            } else {
-                resize_attempts = 0;
-            }
-            
-            break;
-        }
-    }
-    
     return true;
 }
 
@@ -2548,10 +2314,9 @@ set_textarea_active()
         if (auto* container = container_by_name("main_text_area", client->root)) {
             auto* text_data = (TextAreaData*)container->user_data;
             container->parent->active = true;
-            xcb_set_input_focus(
-                                client->app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
-            xcb_flush(client->app->connection);
+            container->parent->active = true;
         }
+        request_refresh(client->app, client);
     }
 }
 
@@ -2563,10 +2328,9 @@ set_textarea_inactive()
             auto* text_data = (TextAreaData*)container->user_data;
             delete text_data->state;
             text_data->state = new TextState;
-            set_active(client->root, false);
-            xcb_set_input_focus(client->app->connection, XCB_NONE, active_window, XCB_CURRENT_TIME);
-            xcb_flush(client->app->connection);
+            container->parent->active = false;
         }
+        request_refresh(client->app, client);
     }
 }
 
@@ -2603,6 +2367,10 @@ register_popup(xcb_window_t window)
             app->grab_window = client->window;
         }
         
+        xcb_set_input_focus(app->connection,
+                            XCB_INPUT_FOCUS_PARENT,
+                            popup_window_open,
+                            XCB_CURRENT_TIME);
         for (auto* c : app->clients) {
             if (c->window != window) {
                 if (c->popup) {

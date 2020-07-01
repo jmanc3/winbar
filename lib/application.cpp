@@ -1778,6 +1778,10 @@ client_create_animation(App* app,
                         void (*finished)(),
                         bool relayout)
 {
+    // TODO: fix this
+//    *value = target;
+//    return;
+    
     bool break_out = false;
     
     for (animation_data* data : animations_list) {

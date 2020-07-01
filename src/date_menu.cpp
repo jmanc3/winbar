@@ -851,8 +851,6 @@ fill_root(AppClient* client)
 
     TextAreaSettings settings;
     settings.color = ArgbColor(1, 1, 1, 1);
-    settings.color_prompt = ArgbColor(.7, .7, .7, 1);
-    settings.prompt = "What's happening that day?";
     settings.color_cursor = ArgbColor(1, 1, 1, 1);
     settings.font = "Segoe UI";
     settings.font_size = 11;
@@ -861,33 +859,9 @@ fill_root(AppClient* client)
     settings.right_show_amount = 2;
     Container* textarea = make_textarea(events, settings);
     TextAreaData* data = (TextAreaData*)textarea->user_data;
-    delete data->state;
 
     textarea->name = "main_text_area";
     textarea->parent->when_paint = paint_textarea_parent;
-
-    bool found = false;
-    for (auto* ds : unique_day_text_state) {
-        if (ds->day == agenda_day && ds->year == agenda_year && ds->month == agenda_month) {
-            if (auto* c = container_by_name("main_text_area", client->root)) {
-                auto* data = (TextAreaData*)c->user_data;
-                data->state = ds->state;
-            }
-            found = true;
-        }
-    }
-    if (!found) {
-        auto* unique_date = new UniqueTextState;
-        unique_date->day = agenda_day;
-        unique_date->year = agenda_year;
-        unique_date->month = agenda_month;
-        unique_day_text_state.push_back(unique_date);
-
-        if (auto* c = container_by_name("main_text_area", client->root)) {
-            auto* data = (TextAreaData*)c->user_data;
-            data->state = unique_date->state;
-        }
-    }
 
     Container* agenda_hbox = root->child(::hbox, FILL_SPACE, 48);
     agenda_hbox->wanted_pad.x = 20;
@@ -964,6 +938,10 @@ write_agenda_to_disk(AppClient* client)
 static void
 read_agenda_from_disk(AppClient* client)
 {
+    for (auto* ds : unique_day_text_state) {
+        delete ds;
+    }
+
     const char* home = getenv("HOME");
     std::string calendarPath(home);
     calendarPath += "/.config/";
@@ -1031,24 +1009,24 @@ read_agenda_from_disk(AppClient* client)
                 }
 
                 if (day != -1 && month != -1 && year != -1) {
-                    bool found = false;
+                    std::ifstream inFile;
+                    inFile.open(calendarPath + ent->d_name);
+                    std::stringstream strStream;
+                    strStream << inFile.rdbuf();
 
+                    bool found = false;
                     for (auto* ds : unique_day_text_state) {
                         if (ds->day == day && ds->month == month && ds->year == year) {
                             found = true;
+                            ds->state->text = strStream.str();
                         }
                     }
-
                     if (!found) {
                         auto* ds = new UniqueTextState;
                         ds->day = day;
                         ds->month = month;
                         ds->year = year;
 
-                        std::ifstream inFile;
-                        inFile.open(calendarPath + ent->d_name);
-                        std::stringstream strStream;
-                        strStream << inFile.rdbuf();
                         ds->state->text = strStream.str(); // str holds the content of the file
 
                         unique_day_text_state.push_back(ds);
@@ -1152,10 +1130,9 @@ start_date_menu()
         t.detach();
     }
 
-    // Important that the read happens before the fill root
-    read_agenda_from_disk(client);
-
     fill_root(client);
+
+    read_agenda_from_disk(client);
 
     client_show(app, client);
 }

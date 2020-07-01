@@ -88,6 +88,13 @@ search_menu_event_handler(App* app, xcb_generic_event_t* event)
             register_popup(e->window);
             break;
         }
+        case XCB_KEY_PRESS: {
+            auto* e = (xcb_key_press_event_t*)(event);
+            
+            on_key_press(event);
+            
+            break;
+        }
         case XCB_FOCUS_OUT: {
             auto* e = (xcb_focus_out_event_t *)(event);
             auto* client = client_by_window(app, e->event);
@@ -96,6 +103,7 @@ search_menu_event_handler(App* app, xcb_generic_event_t* event)
                 xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
                 xcb_flush(app->connection);
                 app->grab_window = -1;
+                set_textarea_inactive();
             }
         }
     }
@@ -979,7 +987,7 @@ clicked_tab(AppClient* client, cairo_t* cr, Container* container)
                       std::lock_guard<std::mutex>(client->app->clients_mutex);
                       auto* data = (TabData*)container->user_data;
                       active_tab = data->name;
-                      on_key_press(nullptr, nullptr, nullptr);
+                      on_key_press(nullptr);
                   });
     t.detach();
 }
@@ -1226,13 +1234,13 @@ next_tab()
                       }
                       
                       active_item = 0;
-                      on_key_press(nullptr, nullptr, nullptr);
+                      on_key_press(nullptr);
                   });
     t.detach();
 }
 
 void
-on_key_press(AppClient* client, Container* container, xcb_generic_event_t* event)
+on_key_press(xcb_generic_event_t* event)
 {
     auto* search_menu_client = client_by_name(app, "search_menu");
     auto* taskbar_client = client_by_name(app, "taskbar");
@@ -1259,22 +1267,25 @@ on_key_press(AppClient* client, Container* container, xcb_generic_event_t* event
                     if (keysyms[0] == XKB_KEY_Up) {
                         active_item--;
                         break;
-                    } else if (keysyms[0] == XKB_KEY_Right) {
-                        return;
-                    } else if (keysyms[0] == XKB_KEY_Left) {
-                        return;
                     } else if (keysyms[0] == XKB_KEY_Down) {
                         active_item++;
+                        break;
+                    }  else if (keysyms[0] == XKB_KEY_Escape) {
+                        client_close_threaded(app, client);
+                        xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
+                        xcb_flush(app->connection);
+                        app->grab_window = -1;
+                        set_textarea_inactive();
                         break;
                     } else if (keysyms[0] == XKB_KEY_Tab) {
                         // next tab
                         next_tab();
-                        return;
+                        break;
                     } else if (keysyms[0] == XKB_KEY_Return) {
                         // launch active item
                         launch_active_item();
                         
-                        return;
+                        break;
                     }
                 }
                 
@@ -1284,10 +1295,10 @@ on_key_press(AppClient* client, Container* container, xcb_generic_event_t* event
         }
     }
     
-    if (container != nullptr)
-        textarea_handle_keypress(client->app, event, container);
-    
     if (auto* textarea = container_by_name("main_text_area", taskbar_client->root)) {
+        if (event != nullptr)
+            textarea_handle_keypress(taskbar_client->app, event, textarea);
+        
         auto* data = (TextAreaData*)textarea->user_data;
         
         auto* bottom = container_by_name("bottom", search_menu_client->root);
@@ -1310,9 +1321,11 @@ on_key_press(AppClient* client, Container* container, xcb_generic_event_t* event
     }
     client_layout(app, search_menu_client);
     client_paint(app, search_menu_client);
+    client_layout(app, taskbar_client);
+    client_paint(app, taskbar_client);
 }
 
-static void
+void
 load_historic_scripts()
 {
     const char* home = getenv("HOME");
@@ -1331,7 +1344,7 @@ load_historic_scripts()
     status_file.close();
 }
 
-static void
+void
 load_historic_apps()
 {
     const char* home = getenv("HOME");
@@ -1448,8 +1461,6 @@ search_menu_when_closed(AppClient* client)
     std::thread(load_scripts).detach();
 }
 
-static bool loaded_historic = false;
-
 void
 start_search_menu()
 {
@@ -1469,18 +1480,12 @@ start_search_menu()
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     settings.popup = true;
     
-    if (!loaded_historic) {
-        load_historic_scripts();
-        load_historic_apps();
-        load_scripts();
-        loaded_historic = true;
-    }
-    
     AppClient* client = client_new(app, settings, "search_menu");
     client->when_closed = search_menu_when_closed;
     fill_root(client);
     client_add_handler(app, client, search_menu_event_handler);
     client_show(app, client);
+    set_textarea_active();
 }
 
 #include <dirent.h>

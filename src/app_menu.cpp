@@ -10,6 +10,7 @@
 #include "icons.h"
 #include "main.h"
 #include "taskbar.h"
+#include "search_menu.h"
 
 #include <cmath>
 #include <pango/pangocairo.h>
@@ -752,6 +753,49 @@ app_menu_event_handler(App* app, xcb_generic_event_t* event)
             register_popup(e->window);
             break;
         }
+        case XCB_KEY_PRESS: {
+            auto* e = (xcb_key_press_event_t*)(event);
+            if (e->detail == 133) // super l key
+                break;
+            auto *client = client_by_window(app, e->event);
+            if (!valid_client(app, client)) {
+                break;
+            }
+            
+            xkb_keycode_t keycode = e->detail;
+            const xkb_keysym_t* keysyms;
+            int num_keysyms =
+                xkb_state_key_get_syms(client->keyboard->state, keycode, &keysyms);
+            
+            bool was_escape = false;
+            if (num_keysyms > 0) {
+                if (keysyms[0] == XKB_KEY_Escape) {
+                    was_escape = true;
+                }
+            }
+            
+            // No matter what key was pressed after this app_menu is open, it is closed
+            client_close_threaded(app, client);
+            xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
+            xcb_flush(app->connection);
+            app->grab_window = -1;
+            
+            // If it was escape than we leave
+            if (was_escape) {
+                set_textarea_inactive();
+            } else {
+                start_search_menu();
+                if (auto *client = client_by_name(app, "taskbar")) {
+                    if (auto* container =
+                        container_by_name("main_text_area", client->root)) {
+                        on_key_press(event);
+                        request_refresh(app, client);
+                    }
+                }
+            }
+            
+            break;
+        }
         case XCB_FOCUS_OUT: {
             auto* e = (xcb_focus_out_event_t *)(event);
             auto* client = client_by_window(app, e->event);
@@ -760,6 +804,7 @@ app_menu_event_handler(App* app, xcb_generic_event_t* event)
                 xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
                 xcb_flush(app->connection);
                 app->grab_window = -1;
+                set_textarea_inactive();
             }
         }
     }
@@ -896,8 +941,5 @@ start_app_menu()
     fill_root(client);
     client_show(app, client);
     
-    if (auto* client = client_by_name(app, "taskbar")) {
-        xcb_set_input_focus(
-                            app->connection, XCB_INPUT_FOCUS_PARENT, client->window, XCB_CURRENT_TIME);
-    }
+    set_textarea_active();
 }

@@ -39,6 +39,8 @@ main()
     //std::thread(load_desktop_files).detach();
     load_desktop_files();
     load_scripts(); // The scripts are reloaded everytime the search_menu window closes
+    load_historic_scripts();
+    load_historic_apps();
     
     client_show(app, taskbar);
     xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, taskbar->window, XCB_CURRENT_TIME);
