@@ -9,9 +9,8 @@
 #include <stack>
 #include <utility.h>
 
-class ScrollPaneSettings : public UserData
-{
-  public:
+class ScrollPaneSettings : public UserData {
+public:
     int right_width = 15;
     int right_arrow_height = 15;
 
@@ -28,33 +27,31 @@ class ScrollPaneSettings : public UserData
     // paint functions
 };
 
-Container*
-make_scrollpane(Container* parent, ScrollPaneSettings settings);
+Container *
+make_scrollpane(Container *parent, ScrollPaneSettings settings);
 
 Bounds
-right_thumb_bounds(Container* scrollpane, Bounds thumb_area);
+right_thumb_bounds(Container *scrollpane, Bounds thumb_area);
 
 Bounds
-bottom_thumb_bounds(Container* scrollpane, Bounds thumb_area);
+bottom_thumb_bounds(Container *scrollpane, Bounds thumb_area);
 
 void
-scrollpane_scrolled(AppClient* client,
-                    cairo_t* cr,
-                    Container* container,
+scrollpane_scrolled(AppClient *client,
+                    cairo_t *cr,
+                    Container *container,
                     int scroll_x,
                     int scroll_y);
 
-enum UndoType
-{
+enum UndoType {
     INSERT,
     DELETE,
     REPLACE,
     CURSOR,
 };
 
-class UndoAction
-{
-  public:
+class UndoAction {
+public:
     UndoType type;
 
     std::string inserted_text;
@@ -67,9 +64,8 @@ class UndoAction
     int selection_end = -1;
 };
 
-class TextState : public UserData
-{
-  public:
+class TextState : public UserData {
+public:
     std::string text;
     std::string prompt;
 
@@ -78,27 +74,25 @@ class TextState : public UserData
     int preferred_x = 0;
 
     int selection_x = -1; // when -1 means there is no selection
-    std::vector<UndoAction*> redo_stack;
-    std::vector<UndoAction*> undo_stack;
+    std::vector<UndoAction *> redo_stack;
+    std::vector<UndoAction *> undo_stack;
 
     bool first_bounds_update = true;
 
-    ~TextState()
-    {
-        for (auto* a : redo_stack) {
+    ~TextState() {
+        for (auto *a : redo_stack) {
             delete a;
         }
-        for (auto* a : undo_stack) {
+        for (auto *a : undo_stack) {
             delete a;
         }
     }
 };
 
-class TextAreaData : public UserData
-{
-  public:
+class TextAreaData : public UserData {
+public:
     // The state is the replaceable
-    TextState* state = new TextState;
+    TextState *state = new TextState;
 
     // The following variables are the style
     std::string font = "Arial";
@@ -115,14 +109,12 @@ class TextAreaData : public UserData
     int text_alignment = -1;
     int prompt_alignment = -1;
 
-    ~TextAreaData()
-    {
+    ~TextAreaData() {
     }
 };
 
-class TextAreaSettings : public ScrollPaneSettings
-{
-  public:
+class TextAreaSettings : public ScrollPaneSettings {
+public:
     std::string font = "Arial";
     int font_size = 15;
     bool single_line = false;
@@ -139,10 +131,10 @@ class TextAreaSettings : public ScrollPaneSettings
     double cursor_width = 1;
 };
 
-Container*
-make_textarea(Container* parent, TextAreaSettings settings);
+Container *
+make_textarea(Container *parent, TextAreaSettings settings);
 
 void
-textarea_handle_keypress(App* app, xcb_generic_event_t* event, Container* textarea);
+textarea_handle_keypress(App *app, xcb_generic_event_t *event, Container *textarea);
 
 #endif // SCROLL_COMPONENTS_H

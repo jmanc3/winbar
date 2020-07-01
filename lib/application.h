@@ -24,127 +24,121 @@
 #include <xcb/xcb_icccm.h>
 #include <zconf.h>
 
-struct Settings
-{
+struct Settings {
     int16_t x = 0;
     int16_t y = 0;
     uint16_t w = 800;
     uint16_t h = 600;
-    
+
     uint32_t background = 0xffffffff;
-    
+
     bool force_position = false;
     bool decorations = true;
-    
+
     bool reserve_side = false;
     uint32_t reserve_left = 0;
     uint32_t reserve_right = 0;
     uint32_t reserve_top = 0;
     uint32_t reserve_bottom = 0;
-    
+
     bool skip_taskbar = false;
     bool no_input_focus = false;
     bool dock = false;
     bool sticky = false;
     bool window_transparent = true;
     bool popup = false;
-    
+
     Settings() { reserve_side = false; }
 };
 
-struct client_container_info
-{
+struct client_container_info {
     // initial refers to the click
     int mouse_initial_x = 0;
-    
+
     int mouse_initial_y = 0;
-    
+
     int mouse_current_x = 0;
-    
+
     int mouse_current_y = 0;
 };
 
-struct client_animations
-{
+struct client_animations {
     int count = 0;
 };
 
-struct client_cairo_aspect
-{
+struct client_cairo_aspect {
     bool window_supports_transparency = false;
-    
-    cairo_t* cr = nullptr;
-    
+
+    cairo_t *cr = nullptr;
+
     uint32_t pixmap = 0;
-    
-    cairo_t* back_cr = nullptr;
-    
+
+    cairo_t *back_cr = nullptr;
+
     ~client_cairo_aspect();
 };
 
 struct Handler;
 
-struct App
-{
+struct App {
     xcb_ewmh_connection_t ewmh;
-    
+
     bool running = true;
-    
+
     Bounds bounds; // these are the bounds of the entire screen
-    
+
     // TODO: each client_entity should have its own mutex rather than locking all
     // clients
     std::mutex clients_mutex;
-    
-    std::vector<AppClient*> clients;
-    
-    std::vector<Handler*> handlers;
-    
+
+    std::vector<AppClient *> clients;
+
+    std::vector<Handler *> handlers;
+
     xcb_window_t grab_window;
-    
-    xcb_connection_t* connection = nullptr;
-    
-    xcb_visualtype_t* argb_visualtype = nullptr;
-    
-    xcb_visualtype_t* root_visualtype = nullptr;
-    
+
+    xcb_connection_t *connection = nullptr;
+
+    xcb_visualtype_t *argb_visualtype = nullptr;
+
+    xcb_visualtype_t *root_visualtype = nullptr;
+
     int screen_number = 0;
-    
-    xcb_screen_t* screen = nullptr;
-    
+
+    xcb_screen_t *screen = nullptr;
+
     int epoll_fd = 0;
-    
+
     int xcb_fd = 0;
-    
+
     int refresh_pipes[2];
-    
+
     int repaint_fd = 0;
-    
+
     // TODO: move atoms into their own things
     xcb_atom_t protocols_atom = 0;
-    
+
     xcb_atom_t delete_window_atom = 0;
-    
+
     xcb_atom_t MOTIF_WM_HINTS = 0;
-    
+
     App();
 };
 
-struct Handler
-{
+struct Handler {
     xcb_window_t target_window = 0;
-    
-    bool (*event_handler)(App* app, xcb_generic_event_t*) = nullptr;
+
+    bool (*event_handler)(App *app, xcb_generic_event_t *) = nullptr;
 };
 
 void
-init_client(AppClient* client);
+init_client(AppClient *client);
 
 void
-destroy_client(AppClient* client);
+destroy_client(AppClient *client);
 
 bool
-valid_client(App* app, AppClient* target_client);
+valid_client(App *app, AppClient *target_client);
 
 extern int refresh_rate;
 
@@ -165,112 +159,112 @@ extern int refresh_rate;
  */
 
 void
-handle_xcb_event(App* app, std::vector<xcb_window_t>* windows);
+handle_xcb_event(App *app, std::vector<xcb_window_t> *windows);
 
 void
 handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event);
 
-AppClient*
-client_new(App* app, Settings settings, const std::string& name);
+AppClient *
+client_new(App *app, Settings settings, const std::string &name);
 
-AppClient*
-client_by_name(App* app, const std::string& target_name);
+AppClient *
+client_by_name(App *app, const std::string &target_name);
 
-AppClient*
-client_by_window(App* app, xcb_window_t target_window);
-
-void
-client_add_handler(App* app,
-                   AppClient* client_entity,
-                   bool (*event_handler)(App* app, xcb_generic_event_t*));
+AppClient *
+client_by_window(App *app, xcb_window_t target_window);
 
 void
-client_show(App* app, AppClient* client_entity);
+client_add_handler(App *app,
+                   AppClient *client_entity,
+                   bool (*event_handler)(App *app, xcb_generic_event_t *));
 
 void
-client_hide(App* app, AppClient* client_entity);
+client_show(App *app, AppClient *client_entity);
 
 void
-request_refresh(App* app, AppClient* client_entity);
+client_hide(App *app, AppClient *client_entity);
 
 void
-client_register_animation(App* app, AppClient* client_entity);
+request_refresh(App *app, AppClient *client_entity);
 
 void
-client_create_animation(App* app,
-                        AppClient* client_entity,
-                        double* value,
+client_register_animation(App *app, AppClient *client_entity);
+
+void
+client_create_animation(App *app,
+                        AppClient *client_entity,
+                        double *value,
                         double length,
                         easingFunction easing,
                         double target);
 
 void
-client_create_animation(App* app,
-                        AppClient* client_entity,
-                        double* value,
+client_create_animation(App *app,
+                        AppClient *client_entity,
+                        double *value,
                         double length,
                         easingFunction easing,
                         double target,
                         void (*finished)());
 
 void
-client_create_animation(App* app,
-                        AppClient* client,
-                        double* value,
+client_create_animation(App *app,
+                        AppClient *client,
+                        double *value,
                         double length,
                         easingFunction easing,
                         double target,
                         bool relayout);
 
 void
-client_unregister_animation(App* app, AppClient* client_entity);
+client_unregister_animation(App *app, AppClient *client_entity);
 
 void
-client_close(App* app, AppClient* client_entity);
+client_close(App *app, AppClient *client_entity);
 
 void
-client_close_threaded(App* app, AppClient* client_entity);
+client_close_threaded(App *app, AppClient *client_entity);
 
 void
-client_paint(App* app, AppClient* client_entity);
+client_paint(App *app, AppClient *client_entity);
 
 void
-client_paint(App* app, AppClient* client, bool force_repaint);
+client_paint(App *app, AppClient *client, bool force_repaint);
 
 void
-client_replace_root(App* app, AppClient* client_entity, Container* new_root);
+client_replace_root(App *app, AppClient *client_entity, Container *new_root);
 
 void
-client_layout(App* app, AppClient* client_entity);
+client_layout(App *app, AppClient *client_entity);
 
 void
-handle_mouse_motion(App* app, AppClient* client, int x, int y);
+handle_mouse_motion(App *app, AppClient *client, int x, int y);
 
 int
-desktops_current(App* app);
+desktops_current(App *app);
 
 int
-desktops_count(App* app);
+desktops_count(App *app);
 
 void
-desktops_change(App* app, long desktop_index);
+desktops_change(App *app, long desktop_index);
 
-App*
+App *
 app_new();
 
 void
-app_main(App* app);
+app_main(App *app);
 
 void
-app_clean(App* app);
+app_clean(App *app);
 
 void
-set_active(Container* c, bool state);
+set_active(Container *c, bool state);
 
 void
-init_xkb(App* app, AppClient* client);
+init_xkb(App *app, AppClient *client);
 
 void
-process_xkb_event(xcb_generic_event_t* generic_event, ClientKeyboard* keyboard);
+process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard);
 
 #endif

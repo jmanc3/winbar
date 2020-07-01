@@ -4,7 +4,7 @@
 #define WIFI_MENU_H
 
 void
-wifi_state(bool* up, bool* wired);
+wifi_state(bool *up, bool *wired);
 
 void
 start_wifi_menu();

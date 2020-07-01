@@ -40,23 +40,22 @@
 static xcb_atom_t backlight, backlight_new, backlight_legacy;
 
 static long
-backlight_get(xcb_connection_t* conn, xcb_randr_output_t output)
-{
-    xcb_generic_error_t* error;
-    xcb_randr_get_output_property_reply_t* prop_reply = NULL;
+backlight_get(xcb_connection_t *conn, xcb_randr_output_t output) {
+    xcb_generic_error_t *error;
+    xcb_randr_get_output_property_reply_t *prop_reply = NULL;
     xcb_randr_get_output_property_cookie_t prop_cookie;
     long value;
 
     backlight = backlight_new;
     if (backlight != XCB_ATOM_NONE) {
         prop_cookie =
-          xcb_randr_get_output_property(conn, output, backlight, XCB_ATOM_NONE, 0, 4, 0, 0);
+                xcb_randr_get_output_property(conn, output, backlight, XCB_ATOM_NONE, 0, 4, 0, 0);
         prop_reply = xcb_randr_get_output_property_reply(conn, prop_cookie, &error);
         if (error != NULL || prop_reply == NULL) {
             backlight = backlight_legacy;
             if (backlight != XCB_ATOM_NONE) {
                 prop_cookie =
-                  xcb_randr_get_output_property(conn, output, backlight, XCB_ATOM_NONE, 0, 4, 0, 0);
+                        xcb_randr_get_output_property(conn, output, backlight, XCB_ATOM_NONE, 0, 4, 0, 0);
                 prop_reply = xcb_randr_get_output_property_reply(conn, prop_cookie, &error);
                 if (error != NULL || prop_reply == NULL) {
                     return -1;
@@ -69,7 +68,7 @@ backlight_get(xcb_connection_t* conn, xcb_randr_output_t output)
         prop_reply->format != 32) {
         value = -1;
     } else {
-        value = *((int32_t*)xcb_randr_get_output_property_data(prop_reply));
+        value = *((int32_t *) xcb_randr_get_output_property_data(prop_reply));
     }
 
     free(prop_reply);
@@ -77,8 +76,7 @@ backlight_get(xcb_connection_t* conn, xcb_randr_output_t output)
 }
 
 static void
-backlight_set(xcb_connection_t* conn, xcb_randr_output_t output, long value)
-{
+backlight_set(xcb_connection_t *conn, xcb_randr_output_t output, long value) {
     xcb_randr_change_output_property(conn,
                                      output,
                                      backlight,
@@ -86,27 +84,26 @@ backlight_set(xcb_connection_t* conn, xcb_randr_output_t output, long value)
                                      32,
                                      XCB_PROP_MODE_REPLACE,
                                      1,
-                                     (unsigned char*)&value);
+                                     (unsigned char *) &value);
 }
 
 // Value between 0 and 100
 int
-backlight_set_brightness(int amount)
-{
-    char* dpy_name = NULL;
+backlight_set_brightness(int amount) {
+    char *dpy_name = NULL;
     int value = amount;
     int i;
     int total_time = 200; /* ms */
     int steps = 20;
 
-    xcb_connection_t* conn;
-    xcb_generic_error_t* error;
+    xcb_connection_t *conn;
+    xcb_generic_error_t *error;
 
     xcb_randr_query_version_cookie_t ver_cookie;
-    xcb_randr_query_version_reply_t* ver_reply;
+    xcb_randr_query_version_reply_t *ver_reply;
 
     xcb_intern_atom_cookie_t backlight_cookie[2];
-    xcb_intern_atom_reply_t* backlight_reply;
+    xcb_intern_atom_reply_t *backlight_reply;
 
     xcb_screen_iterator_t iter;
 
@@ -157,12 +154,12 @@ backlight_set_brightness(int amount)
 
     iter = xcb_setup_roots_iterator(xcb_get_setup(conn));
     while (iter.rem) {
-        xcb_screen_t* screen = iter.data;
+        xcb_screen_t *screen = iter.data;
         xcb_window_t root = screen->root;
-        xcb_randr_output_t* outputs;
+        xcb_randr_output_t *outputs;
 
         xcb_randr_get_screen_resources_cookie_t resources_cookie;
-        xcb_randr_get_screen_resources_reply_t* resources_reply;
+        xcb_randr_get_screen_resources_reply_t *resources_reply;
 
         resources_cookie = xcb_randr_get_screen_resources(conn, root);
         resources_reply = xcb_randr_get_screen_resources_reply(conn, resources_cookie, &error);
@@ -182,7 +179,7 @@ backlight_set_brightness(int amount)
             cur = backlight_get(conn, output);
             if (cur != -1) {
                 xcb_randr_query_output_property_cookie_t prop_cookie;
-                xcb_randr_query_output_property_reply_t* prop_reply;
+                xcb_randr_query_output_property_reply_t *prop_reply;
 
                 prop_cookie = xcb_randr_query_output_property(conn, output, backlight);
                 prop_reply = xcb_randr_query_output_property_reply(conn, prop_cookie, &error);
@@ -192,7 +189,7 @@ backlight_set_brightness(int amount)
 
                 if (prop_reply->range &&
                     xcb_randr_query_output_property_valid_values_length(prop_reply) == 2) {
-                    int32_t* values = xcb_randr_query_output_property_valid_values(prop_reply);
+                    int32_t *values = xcb_randr_query_output_property_valid_values(prop_reply);
                     min = values[0];
                     max = values[1];
 
@@ -208,7 +205,7 @@ backlight_set_brightness(int amount)
                             cur = new_something;
                         else
                             cur += step;
-                        backlight_set(conn, output, (long)cur);
+                        backlight_set(conn, output, (long) cur);
                         xcb_flush(conn);
                         usleep(total_time * 1000 / steps);
                     }
@@ -226,18 +223,17 @@ backlight_set_brightness(int amount)
 }
 
 int
-backlight_get_brightness()
-{
-    char* dpy_name = NULL;
+backlight_get_brightness() {
+    char *dpy_name = NULL;
 
-    xcb_connection_t* conn;
-    xcb_generic_error_t* error;
+    xcb_connection_t *conn;
+    xcb_generic_error_t *error;
 
     xcb_randr_query_version_cookie_t ver_cookie;
-    xcb_randr_query_version_reply_t* ver_reply;
+    xcb_randr_query_version_reply_t *ver_reply;
 
     xcb_intern_atom_cookie_t backlight_cookie[2];
-    xcb_intern_atom_reply_t* backlight_reply;
+    xcb_intern_atom_reply_t *backlight_reply;
 
     xcb_screen_iterator_t iter;
 
@@ -288,12 +284,12 @@ backlight_get_brightness()
 
     iter = xcb_setup_roots_iterator(xcb_get_setup(conn));
     while (iter.rem) {
-        xcb_screen_t* screen = iter.data;
+        xcb_screen_t *screen = iter.data;
         xcb_window_t root = screen->root;
-        xcb_randr_output_t* outputs;
+        xcb_randr_output_t *outputs;
 
         xcb_randr_get_screen_resources_cookie_t resources_cookie;
-        xcb_randr_get_screen_resources_reply_t* resources_reply;
+        xcb_randr_get_screen_resources_reply_t *resources_reply;
 
         resources_cookie = xcb_randr_get_screen_resources(conn, root);
         resources_reply = xcb_randr_get_screen_resources_reply(conn, resources_cookie, &error);
@@ -312,7 +308,7 @@ backlight_get_brightness()
             cur = backlight_get(conn, output);
             if (cur != -1) {
                 xcb_randr_query_output_property_cookie_t prop_cookie;
-                xcb_randr_query_output_property_reply_t* prop_reply;
+                xcb_randr_query_output_property_reply_t *prop_reply;
 
                 prop_cookie = xcb_randr_query_output_property(conn, output, backlight);
                 prop_reply = xcb_randr_query_output_property_reply(conn, prop_cookie, &error);
@@ -322,7 +318,7 @@ backlight_get_brightness()
 
                 if (prop_reply->range &&
                     xcb_randr_query_output_property_valid_values_length(prop_reply) == 2) {
-                    int32_t* values = xcb_randr_query_output_property_valid_values(prop_reply);
+                    int32_t *values = xcb_randr_query_output_property_valid_values(prop_reply);
                     min = values[0];
                     max = values[1];
 

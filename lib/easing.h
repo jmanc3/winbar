@@ -1,7 +1,6 @@
 #pragma once
 
-enum easing_functions
-{
+enum easing_functions {
     EaseInSine,
     EaseOutSine,
     EaseInOutSine,

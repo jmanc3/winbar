@@ -9,21 +9,18 @@
 #include <string>
 #include <vector>
 
-struct Audio
-{
+struct Audio {
     uint32_t index;
     int mute_state;
     pa_cvolume volume;
 };
 
-struct AudioClient : Audio
-{
+struct AudioClient : Audio {
     std::string client_name;
     std::string application_name;
 };
 
-struct AudioOutput : Audio
-{
+struct AudioOutput : Audio {
     std::string output_name;
     std::string output_description;
 };
@@ -31,8 +28,8 @@ struct AudioOutput : Audio
 // These two vectors will get filled when calling audio_all_clients and
 // audio_all_outputs
 extern bool audio_connected;
-extern std::vector<AudioClient*> audio_clients;
-extern std::vector<AudioOutput*> audio_outputs;
+extern std::vector<AudioClient *> audio_clients;
+extern std::vector<AudioOutput *> audio_outputs;
 
 void
 audio_start();

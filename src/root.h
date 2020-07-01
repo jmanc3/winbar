@@ -6,7 +6,7 @@
 #include "application.h"
 
 void
-root_start(App* app);
+root_start(App *app);
 
 void
 update_stacking_order();

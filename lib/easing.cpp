@@ -8,76 +8,64 @@
 #endif
 
 double
-easeInSine(double t)
-{
+easeInSine(double t) {
     return sin(1.5707963 * t);
 }
 
 double
-easeOutSine(double t)
-{
+easeOutSine(double t) {
     return 1 + sin(1.5707963 * (--t));
 }
 
 double
-easeInOutSine(double t)
-{
+easeInOutSine(double t) {
     return 0.5 * (1 + sin(3.1415926 * (t - 0.5)));
 }
 
 double
-easeInQuad(double t)
-{
+easeInQuad(double t) {
     return t * t;
 }
 
 double
-easeOutQuad(double t)
-{
+easeOutQuad(double t) {
     return t * (2 - t);
 }
 
 double
-easeInOutQuad(double t)
-{
+easeInOutQuad(double t) {
     return t < 0.5 ? 2 * t * t : t * (4 - 2 * t) - 1;
 }
 
 double
-easeInCubic(double t)
-{
+easeInCubic(double t) {
     return t * t * t;
 }
 
 double
-easeOutCubic(double t)
-{
+easeOutCubic(double t) {
     return 1 + (--t) * t * t;
 }
 
 double
-easeInOutCubic(double t)
-{
+easeInOutCubic(double t) {
     return t < 0.5 ? 4 * t * t * t : 1 + (--t) * (2 * (--t)) * (2 * t);
 }
 
 double
-easeInQuart(double t)
-{
+easeInQuart(double t) {
     t *= t;
     return t * t;
 }
 
 double
-easeOutQuart(double t)
-{
+easeOutQuart(double t) {
     t = (--t) * t;
     return 1 - t * t;
 }
 
 double
-easeInOutQuart(double t)
-{
+easeInOutQuart(double t) {
     if (t < 0.5) {
         t *= t;
         return 8 * t * t;
@@ -88,22 +76,19 @@ easeInOutQuart(double t)
 }
 
 double
-easeInQuint(double t)
-{
+easeInQuint(double t) {
     double t2 = t * t;
     return t * t2 * t2;
 }
 
 double
-easeOutQuint(double t)
-{
+easeOutQuint(double t) {
     double t2 = (--t) * t;
     return 1 + t * t2 * t2;
 }
 
 double
-easeInOutQuint(double t)
-{
+easeInOutQuint(double t) {
     double t2;
     if (t < 0.5) {
         t2 = t * t;
@@ -115,20 +100,17 @@ easeInOutQuint(double t)
 }
 
 double
-easeInExpo(double t)
-{
+easeInExpo(double t) {
     return (pow(2, 8 * t) - 1) / 255;
 }
 
 double
-easeOutExpo(double t)
-{
+easeOutExpo(double t) {
     return 1 - pow(2, -8 * t);
 }
 
 double
-easeInOutExpo(double t)
-{
+easeInOutExpo(double t) {
     if (t < 0.5) {
         return (pow(2, 16 * t) - 1) / 510;
     } else {
@@ -137,20 +119,17 @@ easeInOutExpo(double t)
 }
 
 double
-easeInCirc(double t)
-{
+easeInCirc(double t) {
     return 1 - sqrt(1 - t);
 }
 
 double
-easeOutCirc(double t)
-{
+easeOutCirc(double t) {
     return sqrt(t);
 }
 
 double
-easeInOutCirc(double t)
-{
+easeInOutCirc(double t) {
     if (t < 0.5) {
         return (1 - sqrt(1 - 2 * t)) * 0.5;
     } else {
@@ -159,20 +138,17 @@ easeInOutCirc(double t)
 }
 
 double
-easeInBack(double t)
-{
+easeInBack(double t) {
     return t * t * (2.70158 * t - 1.70158);
 }
 
 double
-easeOutBack(double t)
-{
+easeOutBack(double t) {
     return 1 + (--t) * t * (2.70158 * t + 1.70158);
 }
 
 double
-easeInOutBack(double t)
-{
+easeInOutBack(double t) {
     if (t < 0.5) {
         return t * t * (7 * t - 2.5) * 2;
     } else {
@@ -181,22 +157,19 @@ easeInOutBack(double t)
 }
 
 double
-easeInElastic(double t)
-{
+easeInElastic(double t) {
     double t2 = t * t;
     return t2 * t2 * sin(t * PI * 4.5);
 }
 
 double
-easeOutElastic(double t)
-{
+easeOutElastic(double t) {
     double t2 = (t - 1) * (t - 1);
     return 1 - t2 * t2 * cos(t * PI * 4.5);
 }
 
 double
-easeInOutElastic(double t)
-{
+easeInOutElastic(double t) {
     double t2;
     if (t < 0.45) {
         t2 = t * t;
@@ -210,20 +183,17 @@ easeInOutElastic(double t)
 }
 
 double
-easeInBounce(double t)
-{
+easeInBounce(double t) {
     return pow(2, 6 * (t - 1)) * abs(sin(t * PI * 3.5));
 }
 
 double
-easeOutBounce(double t)
-{
+easeOutBounce(double t) {
     return 1 - pow(2, -6 * t) * abs(cos(t * PI * 3.5));
 }
 
 double
-easeInOutBounce(double t)
-{
+easeInOutBounce(double t) {
     if (t < 0.5) {
         return 8 * pow(2, 8 * (t - 1)) * abs(sin(t * PI * 7));
     } else {
@@ -232,8 +202,7 @@ easeInOutBounce(double t)
 }
 
 easingFunction
-getEasingFunction(easing_functions function)
-{
+getEasingFunction(easing_functions function) {
     static std::map<easing_functions, easingFunction> easingFunctions;
     if (easingFunctions.empty()) {
         easingFunctions.insert(std::make_pair(EaseInSine, easeInSine));

@@ -44,341 +44,309 @@
 
 namespace rapidcsv {
 
-static const bool sPlatformHasCR = false;
+    static const bool sPlatformHasCR = false;
 
-struct ConverterParams
-{
-    explicit ConverterParams(
-      const bool pHasDefaultConverter = false,
-      const long double pDefaultFloat = std::numeric_limits<long double>::signaling_NaN(),
-      const long long pDefaultInteger = 0)
-      : mHasDefaultConverter(pHasDefaultConverter)
-      , mDefaultFloat(pDefaultFloat)
-      , mDefaultInteger(pDefaultInteger)
-    {}
+    struct ConverterParams {
+        explicit ConverterParams(
+                const bool pHasDefaultConverter = false,
+                const long double pDefaultFloat = std::numeric_limits<long double>::signaling_NaN(),
+                const long long pDefaultInteger = 0)
+                : mHasDefaultConverter(pHasDefaultConverter), mDefaultFloat(pDefaultFloat),
+                  mDefaultInteger(pDefaultInteger) {}
 
-    bool mHasDefaultConverter;
+        bool mHasDefaultConverter;
 
-    long double mDefaultFloat;
+        long double mDefaultFloat;
 
-    long long mDefaultInteger;
-};
+        long long mDefaultInteger;
+    };
 
-class no_converter : public std::exception
-{
+    class no_converter : public std::exception {
 
-    const char* what() const noexcept override { return "unsupported conversion datatype"; }
-};
+        const char *what() const noexcept override { return "unsupported conversion datatype"; }
+    };
 
-template<typename T>
-class Converter
-{
-  public:
-    explicit Converter(const ConverterParams& pConverterParams)
-      : mConverterParams(pConverterParams)
-    {}
+    template<typename T>
+    class Converter {
+    public:
+        explicit Converter(const ConverterParams &pConverterParams)
+                : mConverterParams(pConverterParams) {}
 
-    void ToVal(const std::string& pStr, T& pVal) const
-    {
-        try {
-            if (typeid(T) == typeid(int)) {
-                pVal = static_cast<T>(std::stoi(pStr));
-                return;
-            } else if (typeid(T) == typeid(long)) {
-                pVal = static_cast<T>(std::stol(pStr));
-                return;
-            } else if (typeid(T) == typeid(long long)) {
-                pVal = static_cast<T>(std::stoll(pStr));
-                return;
-            } else if (typeid(T) == typeid(unsigned)) {
-                pVal = static_cast<T>(std::stoul(pStr));
-                return;
-            } else if (typeid(T) == typeid(unsigned long)) {
-                pVal = static_cast<T>(std::stoul(pStr));
-                return;
-            } else if (typeid(T) == typeid(unsigned long long)) {
-                pVal = static_cast<T>(std::stoull(pStr));
-                return;
+        void ToVal(const std::string &pStr, T &pVal) const {
+            try {
+                if (typeid(T) == typeid(int)) {
+                    pVal = static_cast<T>(std::stoi(pStr));
+                    return;
+                } else if (typeid(T) == typeid(long)) {
+                    pVal = static_cast<T>(std::stol(pStr));
+                    return;
+                } else if (typeid(T) == typeid(long long)) {
+                    pVal = static_cast<T>(std::stoll(pStr));
+                    return;
+                } else if (typeid(T) == typeid(unsigned)) {
+                    pVal = static_cast<T>(std::stoul(pStr));
+                    return;
+                } else if (typeid(T) == typeid(unsigned long)) {
+                    pVal = static_cast<T>(std::stoul(pStr));
+                    return;
+                } else if (typeid(T) == typeid(unsigned long long)) {
+                    pVal = static_cast<T>(std::stoull(pStr));
+                    return;
+                }
+            } catch (...) {
+                if (!mConverterParams.mHasDefaultConverter) {
+                    throw;
+                } else {
+                    pVal = static_cast<T>(mConverterParams.mDefaultInteger);
+                    return;
+                }
             }
-        } catch (...) {
-            if (!mConverterParams.mHasDefaultConverter) {
-                throw;
+
+            try {
+                if (typeid(T) == typeid(float)) {
+                    pVal = static_cast<T>(std::stof(pStr));
+                    return;
+                } else if (typeid(T) == typeid(double)) {
+                    pVal = static_cast<T>(std::stod(pStr));
+                    return;
+                } else if (typeid(T) == typeid(long double)) {
+                    pVal = static_cast<T>(std::stold(pStr));
+                    return;
+                }
+            } catch (...) {
+                if (!mConverterParams.mHasDefaultConverter) {
+                    throw;
+                } else {
+                    pVal = static_cast<T>(mConverterParams.mDefaultFloat);
+                    return;
+                }
+            }
+
+            if (typeid(T) == typeid(char)) {
+                pVal = static_cast<T>(pStr[0]);
+                return;
             } else {
-                pVal = static_cast<T>(mConverterParams.mDefaultInteger);
-                return;
+                throw no_converter();
             }
         }
 
-        try {
-            if (typeid(T) == typeid(float)) {
-                pVal = static_cast<T>(std::stof(pStr));
-                return;
-            } else if (typeid(T) == typeid(double)) {
-                pVal = static_cast<T>(std::stod(pStr));
-                return;
-            } else if (typeid(T) == typeid(long double)) {
-                pVal = static_cast<T>(std::stold(pStr));
-                return;
-            }
-        } catch (...) {
-            if (!mConverterParams.mHasDefaultConverter) {
-                throw;
-            } else {
-                pVal = static_cast<T>(mConverterParams.mDefaultFloat);
-                return;
-            }
-        }
+    private:
+        const ConverterParams &mConverterParams;
+    };
 
-        if (typeid(T) == typeid(char)) {
-            pVal = static_cast<T>(pStr[0]);
-            return;
-        } else {
-            throw no_converter();
-        }
+    template<>
+    inline void
+    Converter<std::string>::ToVal(const std::string &pStr, std::string &pVal) const {
+        pVal = pStr;
     }
 
-  private:
-    const ConverterParams& mConverterParams;
-};
+    struct LabelParams {
+        explicit LabelParams(const int pColumnNameIdx = 0, const int pRowNameIdx = 0)
+                : mColumnNameIdx(pColumnNameIdx), mRowNameIdx(pRowNameIdx) {}
 
-template<>
-inline void
-Converter<std::string>::ToVal(const std::string& pStr, std::string& pVal) const
-{
-    pVal = pStr;
-}
+        int mColumnNameIdx;
 
-struct LabelParams
-{
-    explicit LabelParams(const int pColumnNameIdx = 0, const int pRowNameIdx = 0)
-      : mColumnNameIdx(pColumnNameIdx)
-      , mRowNameIdx(pRowNameIdx)
-    {}
+        int mRowNameIdx;
+    };
 
-    int mColumnNameIdx;
+    struct SeparatorParams {
+        explicit SeparatorParams(const char pSeparator = ',',
+                                 const bool pTrim = false,
+                                 const bool pHasCR = sPlatformHasCR)
+                : mSeparator(pSeparator), mTrim(pTrim), mHasCR(pHasCR) {}
 
-    int mRowNameIdx;
-};
+        char mSeparator;
 
-struct SeparatorParams
-{
-    explicit SeparatorParams(const char pSeparator = ',',
-                             const bool pTrim = false,
-                             const bool pHasCR = sPlatformHasCR)
-      : mSeparator(pSeparator)
-      , mTrim(pTrim)
-      , mHasCR(pHasCR)
-    {}
+        bool mTrim;
 
-    char mSeparator;
+        bool mHasCR;
+    };
 
-    bool mTrim;
-
-    bool mHasCR;
-};
-
-class Document
-{
-  public:
-    explicit Document(std::string pPath = std::string(),
-                      const LabelParams& pLabelParams = LabelParams(),
-                      const SeparatorParams& pSeparatorParams = SeparatorParams(),
-                      const ConverterParams& pConverterParams = ConverterParams())
-      : mPath(std::move(pPath))
-      , mLabelParams(pLabelParams)
-      , mSeparatorParams(pSeparatorParams)
-      , mConverterParams(pConverterParams)
-    {
-        if (!mPath.empty()) {
-            ReadCsv();
-        }
-    }
-
-    Document(const Document& pDocument)
-      : mPath(pDocument.mPath)
-      , mLabelParams(pDocument.mLabelParams)
-      , mSeparatorParams(pDocument.mSeparatorParams)
-      , mConverterParams(pDocument.mConverterParams)
-      , mData(pDocument.mData)
-      , mColumnNames(pDocument.mColumnNames)
-      , mRowNames(pDocument.mRowNames)
-    {}
-
-    template<typename T>
-    std::vector<T> GetColumn(const size_t pColumnIdx) const
-    {
-        const ssize_t columnIdx = pColumnIdx + (mLabelParams.mRowNameIdx + 1);
-        std::vector<T> column;
-        Converter<T> converter(mConverterParams);
-        for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow) {
-            if (std::distance(mData.begin(), itRow) > mLabelParams.mColumnNameIdx) {
-                T val;
-                converter.ToVal(itRow->at(columnIdx), val);
-                column.push_back(val);
+    class Document {
+    public:
+        explicit Document(std::string pPath = std::string(),
+                          const LabelParams &pLabelParams = LabelParams(),
+                          const SeparatorParams &pSeparatorParams = SeparatorParams(),
+                          const ConverterParams &pConverterParams = ConverterParams())
+                : mPath(std::move(pPath)), mLabelParams(pLabelParams), mSeparatorParams(pSeparatorParams),
+                  mConverterParams(pConverterParams) {
+            if (!mPath.empty()) {
+                ReadCsv();
             }
         }
-        return column;
-    }
 
-    template<typename T>
-    std::vector<T> GetColumn(const std::string& pColumnName) const
-    {
-        const ssize_t columnIdx = GetColumnIdx(pColumnName);
-        if (columnIdx < 0) {
-            throw std::out_of_range("column not found: " + pColumnName);
-        }
-        return GetColumn<T>(columnIdx);
-    }
+        Document(const Document &pDocument)
+                : mPath(pDocument.mPath), mLabelParams(pDocument.mLabelParams),
+                  mSeparatorParams(pDocument.mSeparatorParams), mConverterParams(pDocument.mConverterParams),
+                  mData(pDocument.mData), mColumnNames(pDocument.mColumnNames), mRowNames(pDocument.mRowNames) {}
 
-    template<typename T>
-    T GetCell(const size_t pColumnIdx, const size_t pRowIdx) const
-    {
-        const ssize_t columnIdx = pColumnIdx + (mLabelParams.mRowNameIdx + 1);
-        const ssize_t rowIdx = pRowIdx + (mLabelParams.mColumnNameIdx + 1);
-
-        T val;
-        Converter<T> converter(mConverterParams);
-        converter.ToVal(mData.at(rowIdx).at(columnIdx), val);
-        return val;
-    }
-
-    template<typename T>
-    T GetCell(const std::string& pColumnName, const size_t pRowIdx) const
-    {
-        const ssize_t columnIdx = GetColumnIdx(pColumnName);
-        if (columnIdx < 0) {
-            throw std::out_of_range("column not found: " + pColumnName);
+        template<typename T>
+        std::vector<T> GetColumn(const size_t pColumnIdx) const {
+            const ssize_t columnIdx = pColumnIdx + (mLabelParams.mRowNameIdx + 1);
+            std::vector<T> column;
+            Converter<T> converter(mConverterParams);
+            for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow) {
+                if (std::distance(mData.begin(), itRow) > mLabelParams.mColumnNameIdx) {
+                    T val;
+                    converter.ToVal(itRow->at(columnIdx), val);
+                    column.push_back(val);
+                }
+            }
+            return column;
         }
 
-        return GetCell<T>(columnIdx, pRowIdx);
-    }
-
-  private:
-    void ReadCsv()
-    {
-        std::ifstream stream;
-        stream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-        stream.open(mPath, std::ios::binary);
-        {
-            stream.seekg(0, std::ios::beg);
-            ReadCsv(stream);
+        template<typename T>
+        std::vector<T> GetColumn(const std::string &pColumnName) const {
+            const ssize_t columnIdx = GetColumnIdx(pColumnName);
+            if (columnIdx < 0) {
+                throw std::out_of_range("column not found: " + pColumnName);
+            }
+            return GetColumn<T>(columnIdx);
         }
-    }
 
-    void ReadCsv(std::istream& pStream)
-    {
-        pStream.seekg(0, std::ios::end);
-        std::streamsize fileLength = pStream.tellg();
-        pStream.seekg(0, std::ios::beg);
-        const std::streamsize bufLength = 64 * 1024;
-        std::vector<char> buffer(bufLength);
-        std::vector<std::string> row;
-        std::string cell;
-        bool quoted = false;
-        int cr = 0;
-        int lf = 0;
+        template<typename T>
+        T GetCell(const size_t pColumnIdx, const size_t pRowIdx) const {
+            const ssize_t columnIdx = pColumnIdx + (mLabelParams.mRowNameIdx + 1);
+            const ssize_t rowIdx = pRowIdx + (mLabelParams.mColumnNameIdx + 1);
 
-        while (fileLength > 0) {
-            std::streamsize readLength = std::min(fileLength, bufLength);
-            pStream.read(buffer.data(), readLength);
-            for (int i = 0; i < readLength; ++i) {
-                if (buffer[i] == '"') {
-                    if (cell.empty() || cell[0] == '"') {
-                        quoted = !quoted;
-                    }
-                    cell += buffer[i];
-                } else if (buffer[i] == mSeparatorParams.mSeparator) {
-                    if (!quoted) {
+            T val;
+            Converter<T> converter(mConverterParams);
+            converter.ToVal(mData.at(rowIdx).at(columnIdx), val);
+            return val;
+        }
+
+        template<typename T>
+        T GetCell(const std::string &pColumnName, const size_t pRowIdx) const {
+            const ssize_t columnIdx = GetColumnIdx(pColumnName);
+            if (columnIdx < 0) {
+                throw std::out_of_range("column not found: " + pColumnName);
+            }
+
+            return GetCell<T>(columnIdx, pRowIdx);
+        }
+
+    private:
+        void ReadCsv() {
+            std::ifstream stream;
+            stream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+            stream.open(mPath, std::ios::binary);
+            {
+                stream.seekg(0, std::ios::beg);
+                ReadCsv(stream);
+            }
+        }
+
+        void ReadCsv(std::istream &pStream) {
+            pStream.seekg(0, std::ios::end);
+            std::streamsize fileLength = pStream.tellg();
+            pStream.seekg(0, std::ios::beg);
+            const std::streamsize bufLength = 64 * 1024;
+            std::vector<char> buffer(bufLength);
+            std::vector<std::string> row;
+            std::string cell;
+            bool quoted = false;
+            int cr = 0;
+            int lf = 0;
+
+            while (fileLength > 0) {
+                std::streamsize readLength = std::min(fileLength, bufLength);
+                pStream.read(buffer.data(), readLength);
+                for (int i = 0; i < readLength; ++i) {
+                    if (buffer[i] == '"') {
+                        if (cell.empty() || cell[0] == '"') {
+                            quoted = !quoted;
+                        }
+                        cell += buffer[i];
+                    } else if (buffer[i] == mSeparatorParams.mSeparator) {
+                        if (!quoted) {
+                            row.push_back(mSeparatorParams.mTrim ? Trim(cell) : cell);
+                            cell.clear();
+                        } else {
+                            cell += buffer[i];
+                        }
+                    } else if (buffer[i] == '\r') {
+                        ++cr;
+                    } else if (buffer[i] == '\n') {
+                        ++lf;
                         row.push_back(mSeparatorParams.mTrim ? Trim(cell) : cell);
                         cell.clear();
+                        mData.push_back(row);
+                        row.clear();
+                        quoted = false; // disallow line breaks in quoted string, by
+                        // auto-unquote at linebreak
                     } else {
                         cell += buffer[i];
                     }
-                } else if (buffer[i] == '\r') {
-                    ++cr;
-                } else if (buffer[i] == '\n') {
-                    ++lf;
-                    row.push_back(mSeparatorParams.mTrim ? Trim(cell) : cell);
-                    cell.clear();
-                    mData.push_back(row);
-                    row.clear();
-                    quoted = false; // disallow line breaks in quoted string, by
-                    // auto-unquote at linebreak
-                } else {
-                    cell += buffer[i];
+                }
+                fileLength -= readLength;
+            }
+
+            // Handle last line without linebreak
+            if (!cell.empty() || !row.empty()) {
+                row.push_back(mSeparatorParams.mTrim ? Trim(cell) : cell);
+                cell.clear();
+                mData.push_back(row);
+                row.clear();
+            }
+
+            // Assume CR/LF if at least half the linebreaks have CR
+            mSeparatorParams.mHasCR = (cr > (lf / 2));
+
+            // Set up column labels
+            if ((mLabelParams.mColumnNameIdx >= 0) && (!mData.empty())) {
+                int i = 0;
+                for (auto &columnName : mData[mLabelParams.mColumnNameIdx]) {
+                    mColumnNames[columnName] = i++;
                 }
             }
-            fileLength -= readLength;
-        }
 
-        // Handle last line without linebreak
-        if (!cell.empty() || !row.empty()) {
-            row.push_back(mSeparatorParams.mTrim ? Trim(cell) : cell);
-            cell.clear();
-            mData.push_back(row);
-            row.clear();
-        }
-
-        // Assume CR/LF if at least half the linebreaks have CR
-        mSeparatorParams.mHasCR = (cr > (lf / 2));
-
-        // Set up column labels
-        if ((mLabelParams.mColumnNameIdx >= 0) && (!mData.empty())) {
-            int i = 0;
-            for (auto& columnName : mData[mLabelParams.mColumnNameIdx]) {
-                mColumnNames[columnName] = i++;
+            // Set up row labels
+            if ((mLabelParams.mRowNameIdx >= 0) &&
+                (static_cast<ssize_t>(mData.size()) > (mLabelParams.mColumnNameIdx + 1))) {
+                int i = 0;
+                for (auto &dataRow : mData) {
+                    mRowNames[dataRow[mLabelParams.mRowNameIdx]] = i++;
+                }
             }
         }
 
-        // Set up row labels
-        if ((mLabelParams.mRowNameIdx >= 0) &&
-            (static_cast<ssize_t>(mData.size()) > (mLabelParams.mColumnNameIdx + 1))) {
-            int i = 0;
-            for (auto& dataRow : mData) {
-                mRowNames[dataRow[mLabelParams.mRowNameIdx]] = i++;
+        ssize_t GetColumnIdx(const std::string &pColumnName) const {
+            if (mLabelParams.mColumnNameIdx >= 0) {
+                if (mColumnNames.find(pColumnName) != mColumnNames.end()) {
+                    return mColumnNames.at(pColumnName) - (mLabelParams.mRowNameIdx + 1);
+                }
             }
+            return -1;
         }
-    }
 
-    ssize_t GetColumnIdx(const std::string& pColumnName) const
-    {
-        if (mLabelParams.mColumnNameIdx >= 0) {
-            if (mColumnNames.find(pColumnName) != mColumnNames.end()) {
-                return mColumnNames.at(pColumnName) - (mLabelParams.mRowNameIdx + 1);
-            }
+        static std::string Trim(const std::string &pStr) {
+            std::string str = pStr;
+
+            // ltrim
+            str.erase(str.begin(),
+                      std::find_if(str.begin(), str.end(), [](int ch) { return !isspace(ch); }));
+
+            // rtrim
+            str.erase(
+                    std::find_if(str.rbegin(), str.rend(), [](int ch) { return !isspace(ch); }).base(),
+                    str.end());
+
+            return str;
         }
-        return -1;
-    }
 
-    static std::string Trim(const std::string& pStr)
-    {
-        std::string str = pStr;
-
-        // ltrim
-        str.erase(str.begin(),
-                  std::find_if(str.begin(), str.end(), [](int ch) { return !isspace(ch); }));
-
-        // rtrim
-        str.erase(
-          std::find_if(str.rbegin(), str.rend(), [](int ch) { return !isspace(ch); }).base(),
-          str.end());
-
-        return str;
-    }
-
-  private:
-    std::string mPath;
-    LabelParams mLabelParams;
-    SeparatorParams mSeparatorParams;
-    ConverterParams mConverterParams;
-    std::vector<std::vector<std::string>> mData;
-    std::map<std::string, size_t> mColumnNames;
-    std::map<std::string, size_t> mRowNames;
+    private:
+        std::string mPath;
+        LabelParams mLabelParams;
+        SeparatorParams mSeparatorParams;
+        ConverterParams mConverterParams;
+        std::vector<std::vector<std::string>> mData;
+        std::map<std::string, size_t> mColumnNames;
+        std::map<std::string, size_t> mRowNames;
 #ifdef HAS_CODECVT
-    bool mIsUtf16 = false;
-    bool mIsLE = false;
+        bool mIsUtf16 = false;
+        bool mIsLE = false;
 #endif
-};
+    };
 }
 
 /**
@@ -392,8 +360,7 @@ class Document
 #include <dirent.h>
 
 bool
-get_current_theme_name(std::string* active_theme)
-{
+get_current_theme_name(std::string *active_theme) {
     std::string gtk_settings_file_path(getenv("HOME"));
     gtk_settings_file_path += "/.config/gtk-3.0/settings.ini";
 
@@ -412,8 +379,7 @@ get_current_theme_name(std::string* active_theme)
 // does this right, but we do. https://github.com/Foggalong/hardcode-fixer
 //
 std::string
-fix_wm_class(const std::string& wm_class)
-{
+fix_wm_class(const std::string &wm_class) {
     std::string hard_code_fixer(getenv("HOME"));
     hard_code_fixer += "/.config/winbar/tofix.csv";
 
@@ -424,28 +390,26 @@ fix_wm_class(const std::string& wm_class)
 
         int i = 0;
         for (std::string launcher : launchers) {
-            std::for_each(launcher.begin(), launcher.end(), [](char& c) { c = std::tolower(c); });
+            std::for_each(launcher.begin(), launcher.end(), [](char &c) { c = std::tolower(c); });
 
             if (launcher == wm_class) {
                 return doc.GetCell<std::string>("Icon Name", i);
             }
             i++;
         }
-    } catch (const std::exception& ex) {
+    } catch (const std::exception &ex) {
         return wm_class;
     }
     return wm_class;
 }
 
 static inline bool
-prefix(const char* pre, const char* str)
-{
+prefix(const char *pre, const char *str) {
     return strncmp(pre, str, strlen(pre)) == 0;
 }
 
 std::string
-find_icon(std::string wm_class, int size, bool recursive, std::string theme_name)
-{
+find_icon(std::string wm_class, int size, bool recursive, std::string theme_name) {
     // read that themes index file to find apps folder at correct size
     std::string base_icon_path("/usr/share/icons/");
     std::string theme_index_file_path = base_icon_path + theme_name + "/index.theme";
@@ -472,14 +436,14 @@ find_icon(std::string wm_class, int size, bool recursive, std::string theme_name
 
         std::string path = base_icon_path + theme_name + "/" + section;
 
-        const char* file_name_c = wm_class.c_str();
-        const char* path_c = path.c_str();
+        const char *file_name_c = wm_class.c_str();
+        const char *path_c = path.c_str();
 
-        DIR* dp;
+        DIR *dp;
         if ((dp = opendir(path_c)) == NULL)
             return "";
 
-        struct dirent* dirp;
+        struct dirent *dirp;
         while ((dirp = readdir(dp)) != NULL) {
             if (!prefix(file_name_c, dirp->d_name) != 0)
                 continue;
@@ -519,8 +483,7 @@ find_icon(std::string wm_class, int size, bool recursive, std::string theme_name
 }
 
 std::string
-find_icon(std::string wm_class, int size)
-{
+find_icon(std::string wm_class, int size) {
     // find current set theme
     std::string theme_name;
     bool found_current_theme = get_current_theme_name(&theme_name);

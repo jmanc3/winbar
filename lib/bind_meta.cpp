@@ -5,8 +5,7 @@
 #include <xcb/xcb.h>
 
 /* for this struct, refer to libxnee */
-typedef union
-{
+typedef union {
     unsigned char type;
     xEvent event;
     xResourceReq req;
@@ -19,18 +18,17 @@ typedef union
  * FIXME: We need define a private struct for callback function,
  * to store cur_x, cur_y, data_disp, ctrl_disp etc.
  */
-static xcb_connection_t* data_disp = NULL;
-static xcb_connection_t* ctrl_disp = NULL;
+static xcb_connection_t *data_disp = NULL;
+static xcb_connection_t *ctrl_disp = NULL;
 
 /* stop flag */
 static int stop = 0;
 
 size_t
-event_callback(xcb_record_enable_context_reply_t* reply, uint8_t* data_);
+event_callback(xcb_record_enable_context_reply_t *reply, uint8_t *data_);
 
 void
-watch_meta_key()
-{
+watch_meta_key() {
     ctrl_disp = xcb_connect(NULL, NULL);
     data_disp = xcb_connect(NULL, NULL);
 
@@ -39,17 +37,17 @@ watch_meta_key()
         exit(1);
     }
 
-    const xcb_query_extension_reply_t* query_ext =
-      xcb_get_extension_data(ctrl_disp, &xcb_record_id);
+    const xcb_query_extension_reply_t *query_ext =
+            xcb_get_extension_data(ctrl_disp, &xcb_record_id);
     if (!query_ext) {
         fprintf(stderr, "RECORD extension not supported on this X server!\n");
         exit(2);
     }
 
-    xcb_record_query_version_reply_t* version_reply = xcb_record_query_version_reply(
-      ctrl_disp,
-      xcb_record_query_version(ctrl_disp, XCB_RECORD_MAJOR_VERSION, XCB_RECORD_MINOR_VERSION),
-      NULL);
+    xcb_record_query_version_reply_t *version_reply = xcb_record_query_version_reply(
+            ctrl_disp,
+            xcb_record_query_version(ctrl_disp, XCB_RECORD_MAJOR_VERSION, XCB_RECORD_MINOR_VERSION),
+            NULL);
     if (!version_reply) {
         fprintf(stderr, "This should not happen: Can't get RECORD version\n");
         exit(2);
@@ -65,8 +63,8 @@ watch_meta_key()
     rcs = XCB_RECORD_CS_ALL_CLIENTS;
 
     xcb_void_cookie_t create_cookie =
-      xcb_record_create_context_checked(ctrl_disp, rc, 0, 1, 1, &rcs, &rr);
-    xcb_generic_error_t* error = xcb_request_check(ctrl_disp, create_cookie);
+            xcb_record_create_context_checked(ctrl_disp, rc, 0, 1, 1, &rcs, &rr);
+    xcb_generic_error_t *error = xcb_request_check(ctrl_disp, create_cookie);
     if (error) {
         fprintf(stderr, "Could not create a record context!\n");
         free(error);
@@ -81,8 +79,8 @@ watch_meta_key()
     xcb_record_enable_context_cookie_t cookie = xcb_record_enable_context(data_disp, rc);
 
     while (!stop) {
-        xcb_record_enable_context_reply_t* reply =
-          xcb_record_enable_context_reply(data_disp, cookie, NULL);
+        xcb_record_enable_context_reply_t *reply =
+                xcb_record_enable_context_reply(data_disp, cookie, NULL);
         if (!reply)
             break;
         if (reply->client_swapped) {
@@ -91,7 +89,7 @@ watch_meta_key()
 
         if (reply->category == 0 /* XRecordFromServer */) {
             size_t offset = 0;
-            uint8_t* data = xcb_record_enable_context_data(reply);
+            uint8_t *data = xcb_record_enable_context_data(reply);
             while (offset < reply->length << 2) {
                 offset += event_callback(reply, &data[offset]);
             }
@@ -113,9 +111,8 @@ static int keys_down_count = 0;
 static bool clean = true;
 
 size_t
-event_callback(xcb_record_enable_context_reply_t* reply, uint8_t* data_)
-{
-    XRecordDatum* data = (XRecordDatum*)data_;
+event_callback(xcb_record_enable_context_reply_t *reply, uint8_t *data_) {
+    XRecordDatum *data = (XRecordDatum *) data_;
 
     int event_type = data->type;
 
@@ -146,7 +143,7 @@ event_callback(xcb_record_enable_context_reply_t* reply, uint8_t* data_)
 
     if (data_[0] == 0)
         /* reply */
-        return ((*(uint32_t*)&data_[4]) + 8) << 2;
+        return ((*(uint32_t *) &data_[4]) + 8) << 2;
     /* Error or event TODO: What about XGE events? */
     return 32;
 }

@@ -8,17 +8,15 @@
 #include "taskbar.h"
 #include <cairo.h>
 
-class volume_surfaces : HoverableButton
-{
-  public:
-    cairo_surface_t* none = nullptr;
-    cairo_surface_t* low = nullptr;
-    cairo_surface_t* medium = nullptr;
-    cairo_surface_t* high = nullptr;
-    cairo_surface_t* mute = nullptr;
+class volume_surfaces : HoverableButton {
+public:
+    cairo_surface_t *none = nullptr;
+    cairo_surface_t *low = nullptr;
+    cairo_surface_t *medium = nullptr;
+    cairo_surface_t *high = nullptr;
+    cairo_surface_t *mute = nullptr;
 
-    ~volume_surfaces()
-    {
+    ~volume_surfaces() {
         if (none)
             cairo_surface_destroy(none);
         if (low)

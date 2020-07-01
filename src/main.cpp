@@ -8,52 +8,51 @@
 #include "taskbar.h"
 #include "bind_meta.h"
 
-App* app;
+App *app;
 
 int
-main()
-{
+main() {
     setenv("DISPLAY", ":1", true);
-    
+
     // Open connection to app
     app = app_new();
-    
+
     if (app == nullptr) {
         printf("Couldn't start application\n");
         return -1;
     }
-    
+
     // Add listeners and grabs on the root window
     root_start(app);
-    
+
     // Start the pulseaudio connection
     audio_start();
-    
+
     // We need to register as the systray
     start_systray();
-    
+
     // Open our windows
     AppClient *taskbar = create_taskbar(app);
-    
+
     // We only want to load the desktop files once at the start of the program
     //std::thread(load_desktop_files).detach();
     load_desktop_files();
     load_scripts(); // The scripts are reloaded everytime the search_menu window closes
     load_historic_scripts();
     load_historic_apps();
-    
+
     client_show(app, taskbar);
     xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, taskbar->window, XCB_CURRENT_TIME);
-    
+
     on_meta_key_pressed = meta_pressed;
-    
+
     // Start our listening loop until the end of the program
     app_main(app);
-    
+
     // Clean up
     app_clean(app);
-    
+
     audio_stop();
-    
+
     return 0;
 }
