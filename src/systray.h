@@ -8,10 +8,8 @@
 #include <vector>
 #include <xcb/xproto.h>
 
-void
-start_systray();
+void start_systray();
 
-void
-open_systray();
+void open_systray();
 
-#endif // APP_SYSTRAY_H
+#endif// APP_SYSTRAY_H

@@ -6,14 +6,11 @@
 #include <regex>
 #include <sys/stat.h>
 
-Config* config = new Config;
+Config *config = new Config;
 
-bool
-config_parse(libconfig::Config& cfg);
+bool config_parse(libconfig::Config &cfg);
 
-void
-load_hex(const libconfig::Setting& theme, std::string value_name, ArgbColor* target_color)
-{
+void load_hex(const libconfig::Setting &theme, std::string value_name, ArgbColor *target_color) {
     std::string temp;
     bool success = theme.lookupValue(value_name, temp);
     std::string name;
@@ -46,9 +43,7 @@ load_hex(const libconfig::Setting& theme, std::string value_name, ArgbColor* tar
     }
 }
 
-void
-config_load()
-{
+void config_load() {
     config->order.clear();
     config->order.push_back("windows");
     config->order.push_back("textfield");
@@ -77,26 +72,26 @@ config_load()
     success = cfg.lookupValue("date_single_line", config->date_single_line);
 
     try {
-        libconfig::Setting& order = cfg.lookup("order");
+        libconfig::Setting &order = cfg.lookup("order");
         config->order.clear();
 
         for (int i = 0; order.getLength(); i++) {
             config->order.push_back(order[i]);
         }
-    } catch (const libconfig::SettingNotFoundException& nfex) {
+    } catch (const libconfig::SettingNotFoundException &nfex) {
     }
 
     std::string active_theme;
     success = cfg.lookupValue("active_theme", active_theme);
 
     if (success) {
-        const libconfig::Setting& root = cfg.getRoot();
+        const libconfig::Setting &root = cfg.getRoot();
 
         try {
-            const libconfig::Setting& themes = root["themes"];
+            const libconfig::Setting &themes = root["themes"];
 
             for (int i = 0; themes.getLength(); i++) {
-                const libconfig::Setting& theme = themes[i];
+                const libconfig::Setting &theme = themes[i];
 
                 std::string name;
 
@@ -143,16 +138,16 @@ config_load()
                                  "sound_line_background_active",
                                  &config->sound_line_background_active);
                         load_hex(
-                          theme, "sound_line_marker_default", &config->sound_line_marker_default);
+                                theme, "sound_line_marker_default", &config->sound_line_marker_default);
                         load_hex(
-                          theme, "sound_line_marker_hovered", &config->sound_line_marker_hovered);
+                                theme, "sound_line_marker_hovered", &config->sound_line_marker_hovered);
                         load_hex(
-                          theme, "sound_line_marker_pressed", &config->sound_line_marker_pressed);
+                                theme, "sound_line_marker_pressed", &config->sound_line_marker_pressed);
 
                         load_hex(
-                          theme, "textfield_border_default", &config->textfield_border_default);
+                                theme, "textfield_border_default", &config->textfield_border_default);
                         load_hex(
-                          theme, "textfield_border_highlight", &config->textfield_border_highlight);
+                                theme, "textfield_border_highlight", &config->textfield_border_highlight);
 
                         load_hex(theme, "show_desktop_stripe", &config->show_desktop_stripe);
 
@@ -162,15 +157,15 @@ config_load()
                                                     config->sound_menu_transparency);
                         if (!success) {
                             std::cout
-                              << "sound_menu_transparency not set in active_theme: " << active_theme
-                              << std::endl;
+                                    << "sound_menu_transparency not set in active_theme: " << active_theme
+                                    << std::endl;
                         }
                         success =
-                          theme.lookupValue("taskbar_transparency", config->taskbar_transparency);
+                                theme.lookupValue("taskbar_transparency", config->taskbar_transparency);
                         if (!success) {
                             std::cout
-                              << "taskbar_transparency not set in active_theme: " << active_theme
-                              << std::endl;
+                                    << "taskbar_transparency not set in active_theme: " << active_theme
+                                    << std::endl;
                         }
                         success = theme.lookupValue("icon_bar_height", config->icon_bar_height);
                         if (!success) {
@@ -183,15 +178,13 @@ config_load()
                     printf("One of the themes you defined doesn't have a name\n");
                 }
             }
-        } catch (const libconfig::SettingNotFoundException& nfex) {
+        } catch (const libconfig::SettingNotFoundException &nfex) {
         }
     }
 }
 
-bool
-config_parse(libconfig::Config& cfg)
-{
-    char* home = getenv("HOME");
+bool config_parse(libconfig::Config &cfg) {
+    char *home = getenv("HOME");
 
     std::string config_directory(home);
     config_directory += "/.config/winbar";
@@ -201,10 +194,10 @@ config_parse(libconfig::Config& cfg)
 
     try {
         cfg.readFile(config_file.c_str());
-    } catch (const libconfig::FileIOException& fioex) {
+    } catch (const libconfig::FileIOException &fioex) {
         std::cout << "IO error:  " << config_file << std::endl;
         return false;
-    } catch (const libconfig::ParseException& pex) {
+    } catch (const libconfig::ParseException &pex) {
         std::cout << "Parsing error:  " << config_file << std::endl;
         return false;
     }

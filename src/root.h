@@ -5,16 +5,12 @@
 
 #include "application.h"
 
-void
-root_start(App* app);
+void root_start(App *app);
 
-void
-update_stacking_order();
+void update_stacking_order();
 
-void
-update_active_window();
+void update_active_window();
 
-void
-meta_pressed();
+void meta_pressed();
 
-#endif // ROOT_H
+#endif// ROOT_H

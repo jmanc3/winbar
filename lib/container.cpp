@@ -6,8 +6,7 @@
 
 // Sum of non filler child height and spacing
 double
-reserved_height(Container* box)
-{
+reserved_height(Container *box) {
     double space = 0;
     for (auto child : box->children) {
         if (child->wanted_bounds.h == FILL_SPACE) {
@@ -17,21 +16,19 @@ reserved_height(Container* box)
         }
         space += box->spacing;
     }
-    space -= box->spacing; // Remove spacing after last child
+    space -= box->spacing;// Remove spacing after last child
     return space;
 }
 
 // The reserved height plus the relevant padding
 double
-true_height(Container* box)
-{
+true_height(Container *box) {
     return reserved_height(box) + box->wanted_pad.y + box->wanted_pad.h - box->real_bounds.h;
 }
 
 // returns the height filler children should be
 double
-single_filler_height(Container* container)
-{
+single_filler_height(Container *container) {
     double reserved_h = reserved_height(container);
     double available_h = container->children_bounds.h - reserved_h;
     double single_fill_size = 0;
@@ -50,8 +47,7 @@ single_filler_height(Container* container)
 }
 
 static void
-modify_all(Container* container, double x_change, double y_change)
-{
+modify_all(Container *container, double x_change, double y_change) {
     for (auto child : container->children) {
         modify_all(child, x_change, y_change);
     }
@@ -60,9 +56,7 @@ modify_all(Container* container, double x_change, double y_change)
     container->real_bounds.y += y_change;
 }
 
-void
-layout_vbox(Container* container, const Bounds& bounds)
-{
+void layout_vbox(Container *container, const Bounds &bounds) {
     double fill_h = single_filler_height(container);
 
     double offset = 0;
@@ -155,8 +149,7 @@ layout_vbox(Container* container, const Bounds& bounds)
 
 // Sum of non filler child widths and spacing
 double
-reserved_width(Container* box)
-{
+reserved_width(Container *box) {
     double space = 0;
     for (auto child : box->children) {
         if (child) {
@@ -170,21 +163,19 @@ reserved_width(Container* box)
             space += box->spacing;
         }
     }
-    space -= box->spacing; // Remove spacing after last child
+    space -= box->spacing;// Remove spacing after last child
     return space;
 }
 
 // The reserved width plus the relevant padding
 double
-true_width(Container* box)
-{
+true_width(Container *box) {
     return reserved_width(box) + box->wanted_pad.x + box->wanted_pad.w - box->real_bounds.w;
 }
 
 // returns the width filler children should be
 double
-single_filler_width(Container* container)
-{
+single_filler_width(Container *container) {
     double reserved_w = reserved_width(container);
     double available_w = container->children_bounds.w - reserved_w;
     double single_fill_size = 0;
@@ -204,9 +195,7 @@ single_filler_width(Container* container)
     return single_fill_size;
 }
 
-void
-layout_hbox(Container* container, const Bounds& bounds)
-{
+void layout_hbox(Container *container, const Bounds &bounds) {
     double fill_w = single_filler_width(container);
 
     double offset = 0;
@@ -300,9 +289,7 @@ layout_hbox(Container* container, const Bounds& bounds)
     }
 }
 
-void
-layout_stack(Container* container, const Bounds& bounds)
-{
+void layout_stack(Container *container, const Bounds &bounds) {
     for (auto child : container->children) {
         layout(child, container->children_bounds);
     }
@@ -312,15 +299,13 @@ layout_stack(Container* container, const Bounds& bounds)
 // [required] right_box
 // [required] bottom_box
 // [required] content_area
-void
-layout_scrollpane(Container* container, const Bounds& bounds)
-{
+void layout_scrollpane(Container *container, const Bounds &bounds) {
     assert(container->children.size() == 3 && !container->children[2]->children.empty());
 
-    auto* r_bar = container->children[0];
-    auto* b_bar = container->children[1];
-    auto* content_area = container->children[2];
-    auto* content = container->children[2]->children[0];
+    auto *r_bar = container->children[0];
+    auto *b_bar = container->children[1];
+    auto *content_area = container->children[2];
+    auto *content = container->children[2]->children[0];
 
     int rv = content_area->scroll_v_real;
     int rh = content_area->scroll_h_real;
@@ -347,7 +332,7 @@ layout_scrollpane(Container* container, const Bounds& bounds)
 
     } else if (options & scrollpane_r_never) {
         r_w = 0;
-    } else if (options & scrollpane_r_sometimes) { // sometimes
+    } else if (options & scrollpane_r_sometimes) {// sometimes
         if (options & scrollpane_inline_r) {
             if (target_h <= container->real_bounds.h) {
                 r_w = 0;
@@ -359,7 +344,7 @@ layout_scrollpane(Container* container, const Bounds& bounds)
 
             } else if (options & scrollpane_b_never) {
                 future_b_h = 0;
-            } else { // sometimes
+            } else {// sometimes
                 if (options & scrollpane_inline_b) {
                     if (target_w <= container->real_bounds.w) {
                         future_b_h = 0;
@@ -380,7 +365,7 @@ layout_scrollpane(Container* container, const Bounds& bounds)
 
     } else if (options & scrollpane_b_never) {
         b_h = 0;
-    } else if (options & scrollpane_b_sometimes) { // sometimes
+    } else if (options & scrollpane_b_sometimes) {// sometimes
         if (options & scrollpane_inline_b) {
             if (target_w <= container->real_bounds.w) {
                 b_h = 0;
@@ -411,9 +396,7 @@ layout_scrollpane(Container* container, const Bounds& bounds)
         layout(b_bar, Bounds(bounds.x, bounds.y + bounds.h - b_h, bounds.w - r_w, b_h));
 }
 
-void
-layout(Container* container, const Bounds& bounds, bool generate_event)
-{
+void layout(Container *container, const Bounds &bounds, bool generate_event) {
     container->real_bounds.x = bounds.x;
     container->real_bounds.y = bounds.y;
 
@@ -425,9 +408,9 @@ layout(Container* container, const Bounds& bounds, bool generate_event)
     container->children_bounds.x = container->real_bounds.x + container->wanted_pad.x;
     container->children_bounds.y = container->real_bounds.y + container->wanted_pad.y;
     container->children_bounds.w =
-      container->real_bounds.w - container->wanted_pad.x - container->wanted_pad.w;
+            container->real_bounds.w - container->wanted_pad.x - container->wanted_pad.w;
     container->children_bounds.h =
-      container->real_bounds.h - container->wanted_pad.y - container->wanted_pad.h;
+            container->real_bounds.h - container->wanted_pad.y - container->wanted_pad.h;
 
     if (container->children.empty())
         return;
@@ -467,26 +450,21 @@ layout(Container* container, const Bounds& bounds, bool generate_event)
     }
 }
 
-void
-layout(Container* container, const Bounds& bounds)
-{
+void layout(Container *container, const Bounds &bounds) {
     layout(container, bounds, true);
 }
 
-Container*
-layout_copy(Container* container, const Bounds& bounds)
-{
-    auto* copy = new Container(*container);
+Container *
+layout_copy(Container *container, const Bounds &bounds) {
+    auto *copy = new Container(*container);
     layout(copy, bounds);
     return copy;
 }
 
-Container*
-container_by_name(std::string name, Container* root)
-{
+Container *
+container_by_name(std::string name, Container *root) {
     if (root->name == name) {
-        return root;
-        ;
+        return root;;
     }
 
     for (auto child : root->children) {
@@ -498,18 +476,14 @@ container_by_name(std::string name, Container* root)
     return nullptr;
 }
 
-bool
-overlaps(Bounds a, Bounds b)
-{
+bool overlaps(Bounds a, Bounds b) {
     if (a.x > (b.x + b.w) || b.x > (a.x + a.w))
         return false;
 
     return !(a.y > (b.y + b.h) || b.y > (a.y + a.h));
 }
 
-bool
-bounds_contains(const Bounds& bounds, int x, int y)
-{
+bool bounds_contains(const Bounds &bounds, int x, int y) {
     int bounds_x = std::round(bounds.x);
     int bounds_y = std::round(bounds.y);
     int bounds_w = std::round(bounds.w);
@@ -518,64 +492,56 @@ bounds_contains(const Bounds& bounds, int x, int y)
     return x >= bounds_x && x <= bounds_x + bounds_w && y >= bounds_y && y <= bounds_y + bounds_h;
 }
 
-Bounds::Bounds(double x, double y, double w, double h)
-{
+Bounds::Bounds(double x, double y, double w, double h) {
     this->x = x;
     this->y = y;
     this->w = w;
     this->h = h;
 }
 
-Bounds::Bounds(const Bounds& b)
-{
+Bounds::Bounds(const Bounds &b) {
     x = b.x;
     y = b.y;
     w = b.w;
     h = b.h;
 }
 
-Bounds::Bounds()
-{
+Bounds::Bounds() {
     x = 0;
     y = 0;
     w = 0;
     h = 0;
 }
 
-Container*
-Container::child(int wanted_width, int wanted_height)
-{
-    Container* child_container = new Container(wanted_width, wanted_height);
+Container *
+Container::child(int wanted_width, int wanted_height) {
+    Container *child_container = new Container(wanted_width, wanted_height);
     child_container->parent = this;
     this->children.push_back(child_container);
     return child_container;
 }
 
-Container*
-Container::child(int type, int wanted_width, int wanted_height)
-{
-    Container* child_container = new Container(wanted_width, wanted_height);
+Container *
+Container::child(int type, int wanted_width, int wanted_height) {
+    Container *child_container = new Container(wanted_width, wanted_height);
     child_container->type = type;
     child_container->parent = this;
     this->children.push_back(child_container);
     return child_container;
 }
 
-Container::Container(layout_type type, double wanted_width, double wanted_height)
-{
+Container::Container(layout_type type, double wanted_width, double wanted_height) {
     this->type = type;
     wanted_bounds.w = wanted_width;
     wanted_bounds.h = wanted_height;
 }
 
-Container::Container(double wanted_width, double wanted_height)
-{
+Container::Container(double wanted_width, double wanted_height) {
     wanted_bounds.w = wanted_width;
     wanted_bounds.h = wanted_height;
 }
 
-Container::Container(const Container& c)
-{
+Container::Container(const Container &c) {
     parent = c.parent;
     name = c.name;
 
@@ -608,17 +574,15 @@ Container::Container(const Container& c)
     when_clicked = c.when_clicked;
 }
 
-Container::~Container()
-{
+Container::~Container() {
     for (auto child : children) {
         delete child;
     }
-    auto data = static_cast<UserData*>(user_data);
+    auto data = static_cast<UserData *>(user_data);
     delete data;
 }
 
-Container::Container()
-{
+Container::Container() {
     parent = nullptr;
     type = layout_type::hbox;
     z_index = 0;

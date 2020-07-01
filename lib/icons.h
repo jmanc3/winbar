@@ -11,4 +11,4 @@
 std::string
 find_icon(std::string wm_class, int size);
 
-#endif // APP_ICONS_H
+#endif// APP_ICONS_H

@@ -3,7 +3,6 @@
 #ifndef DATE_MENU_H
 #define DATE_MENU_H
 
-void
-start_date_menu();
+void start_date_menu();
 
-#endif // DATE_MENU_H
+#endif// DATE_MENU_H

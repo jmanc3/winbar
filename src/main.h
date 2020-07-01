@@ -5,6 +5,6 @@
 
 #include "application.h"
 
-extern App* app;
+extern App *app;
 
-#endif // MAIN_H
+#endif// MAIN_H

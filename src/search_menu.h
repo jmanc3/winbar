@@ -9,29 +9,22 @@
 #include <string>
 #include <xcb/xcb.h>
 
-class Sortable
-{
-    public:
+class Sortable {
+public:
     std::string name;
     std::string lowercase_name;
     int priority = -1;
     int historical_ranking = -1;
 };
 
-void
-start_search_menu();
+void start_search_menu();
 
-void
-on_key_press(xcb_generic_event_t* event);
+void on_key_press_search_bar(xcb_generic_event_t *event);
 
-void
-load_scripts();
+void load_scripts();
 
-void
-load_historic_apps();
+void load_historic_apps();
 
-void
-load_historic_scripts();
+void load_historic_scripts();
 
-#endif // APP_SEARCH_MENU_H
-
+#endif// APP_SEARCH_MENU_H

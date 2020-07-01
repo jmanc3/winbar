@@ -9,24 +9,21 @@
 #include <string>
 #include <vector>
 
-class Launcher : public Sortable
-{
-  public:
+class Launcher : public Sortable {
+public:
     std::string icon;
     std::string exec;
 
-    cairo_surface_t* icon_16 = nullptr;
-    cairo_surface_t* icon_32 = nullptr;
-    cairo_surface_t* icon_24 = nullptr;
-    cairo_surface_t* icon_64 = nullptr;
+    cairo_surface_t *icon_16 = nullptr;
+    cairo_surface_t *icon_32 = nullptr;
+    cairo_surface_t *icon_24 = nullptr;
+    cairo_surface_t *icon_64 = nullptr;
 };
 
-extern std::vector<Launcher*> launchers;
+extern std::vector<Launcher *> launchers;
 
-void
-start_app_menu();
+void start_app_menu();
 
-void
-load_desktop_files();
+void load_desktop_files();
 
-#endif // APP_MENU_H
+#endif// APP_MENU_H

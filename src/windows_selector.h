@@ -3,7 +3,6 @@
 
 #include "container.h"
 
-void
-start_windows_selector(Container* container);
+void start_windows_selector(Container *container);
 
-#endif // WINDOWS_SELECTOR_H
+#endif// WINDOWS_SELECTOR_H

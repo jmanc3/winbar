@@ -18,43 +18,42 @@ https://github.com/benhoyt/inih
 
 /* Make this header file easier to include in C++ code */
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 #include <stdio.h>
 
-    /* Typedef for prototype of handler function. */
-    typedef int (*ini_handler)(void* user,
-                               const char* section,
-                               const char* name,
-                               const char* value);
+/* Typedef for prototype of handler function. */
+typedef int (*ini_handler)(void *user,
+                           const char *section,
+                           const char *name,
+                           const char *value);
 
-    /* Typedef for prototype of fgets-style reader function. */
-    typedef char* (*ini_reader)(char* str, int num, void* stream);
+/* Typedef for prototype of fgets-style reader function. */
+typedef char *(*ini_reader)(char *str, int num, void *stream);
 
-    /* Parse given INI-style file. May have [section]s, name=value pairs
-       (whitespace stripped), and comments starting with ';' (semicolon). Section
-       is "" if name=value pair parsed before any section heading. name:value
-       pairs are also supported as a concession to Python's configparser.
+/* Parse given INI-style file. May have [section]s, name=value pairs
+   (whitespace stripped), and comments starting with ';' (semicolon). Section
+   is "" if name=value pair parsed before any section heading. name:value
+   pairs are also supported as a concession to Python's configparser.
 
-       For each name=value pair parsed, call handler function with given user
-       pointer as well as section, name, and value (data only valid for duration
-       of handler call). Handler should return nonzero on success, zero on error.
+   For each name=value pair parsed, call handler function with given user
+   pointer as well as section, name, and value (data only valid for duration
+   of handler call). Handler should return nonzero on success, zero on error.
 
-       Returns 0 on success, line number of first error on parse error (doesn't
-       stop on first error), -1 on file open error, or -2 on memory allocation
-       error (only when INI_USE_STACK is zero).
-    */
-    int ini_parse(const char* filename, ini_handler handler, void* user);
+   Returns 0 on success, line number of first error on parse error (doesn't
+   stop on first error), -1 on file open error, or -2 on memory allocation
+   error (only when INI_USE_STACK is zero).
+*/
+int ini_parse(const char *filename, ini_handler handler, void *user);
 
-    /* Same as ini_parse(), but takes a FILE* instead of filename. This doesn't
-       close the file when it's finished -- the caller must do that. */
-    int ini_parse_file(FILE* file, ini_handler handler, void* user);
+/* Same as ini_parse(), but takes a FILE* instead of filename. This doesn't
+   close the file when it's finished -- the caller must do that. */
+int ini_parse_file(FILE *file, ini_handler handler, void *user);
 
-    /* Same as ini_parse(), but takes an ini_reader function pointer instead of
-       filename. Used for implementing custom or string-based I/O. */
-    int ini_parse_stream(ini_reader reader, void* stream, ini_handler handler, void* user);
+/* Same as ini_parse(), but takes an ini_reader function pointer instead of
+   filename. Used for implementing custom or string-based I/O. */
+int ini_parse_stream(ini_reader reader, void *stream, ini_handler handler, void *user);
 
 /* Nonzero to allow multi-line value parsing, in the style of Python's
    configparser. If allowed, ini_parse() will call the handler with the same
@@ -91,9 +90,9 @@ extern "C"
 
 /* Maximum line length for any line in INI file. */
 #ifndef INI_MAX_LINE
-#define INI_MAX_LINE                                                                               \
-    64000 // @Important: Might seem too large but the directories listing can info
-          // quite long
+#define INI_MAX_LINE \
+    64000// @Important: Might seem too large but the directories listing can info
+// quite long
 #endif
 
 #ifdef __cplusplus
@@ -127,35 +126,32 @@ https://github.com/benhoyt/inih
 #define MAX_NAME 50
 
 /* Strip whitespace chars off end of given string, in place. Return s. */
-inline static char*
-rstrip(char* s)
-{
-    char* p = s + strlen(s);
-    while (p > s && isspace((unsigned char)(*--p)))
+inline static char *
+rstrip(char *s) {
+    char *p = s + strlen(s);
+    while (p > s && isspace((unsigned char) (*--p)))
         *p = '\0';
     return s;
 }
 
 /* Return pointer to first non-whitespace char in given string. */
-inline static char*
-lskip(const char* s)
-{
-    while (*s && isspace((unsigned char)(*s)))
+inline static char *
+lskip(const char *s) {
+    while (*s && isspace((unsigned char) (*s)))
         s++;
-    return (char*)s;
+    return (char *) s;
 }
 
 /* Return pointer to first char (of chars) or inline comment in given string,
    or pointer to null at end of string if neither found. Inline comment must
    be prefixed by a whitespace character to register as a comment. */
-inline static char*
-find_chars_or_comment(const char* s, const char* chars)
-{
+inline static char *
+find_chars_or_comment(const char *s, const char *chars) {
 #if INI_ALLOW_INLINE_COMMENTS
     int was_space = 0;
     while (*s && (!chars || !strchr(chars, *s)) &&
            !(was_space && strchr(INI_INLINE_COMMENT_PREFIXES, *s))) {
-        was_space = isspace((unsigned char)(*s));
+        was_space = isspace((unsigned char) (*s));
         s++;
     }
 #else
@@ -163,13 +159,12 @@ find_chars_or_comment(const char* s, const char* chars)
         s++;
     }
 #endif
-    return (char*)s;
+    return (char *) s;
 }
 
 /* Version of strncpy that ensures dest (size bytes) is null-terminated. */
-inline static char*
-strncpy0(char* dest, const char* src, size_t size)
-{
+inline static char *
+strncpy0(char *dest, const char *src, size_t size) {
     strncpy(dest, src, size);
     dest[size - 1] = '\0';
     return dest;
@@ -177,26 +172,25 @@ strncpy0(char* dest, const char* src, size_t size)
 
 /* See documentation in header file. */
 inline int
-ini_parse_stream(ini_reader reader, void* stream, ini_handler handler, void* user)
-{
+ini_parse_stream(ini_reader reader, void *stream, ini_handler handler, void *user) {
     /* Uses a fair bit of stack (use heap instead if you need to) */
 #if INI_USE_STACK
     char line[INI_MAX_LINE];
 #else
-    char* line;
+    char *line;
 #endif
     char section[MAX_SECTION] = "";
     char prev_name[MAX_NAME] = "";
 
-    char* start;
-    char* end;
-    char* name;
-    char* value;
+    char *start;
+    char *end;
+    char *name;
+    char *value;
     int lineno = 0;
     int error = 0;
 
 #if !INI_USE_STACK
-    line = (char*)malloc(INI_MAX_LINE);
+    line = (char *) malloc(INI_MAX_LINE);
     if (!line) {
         return -2;
     }
@@ -208,8 +202,8 @@ ini_parse_stream(ini_reader reader, void* stream, ini_handler handler, void* use
 
         start = line;
 #if INI_ALLOW_BOM
-        if (lineno == 1 && (unsigned char)start[0] == 0xEF && (unsigned char)start[1] == 0xBB &&
-            (unsigned char)start[2] == 0xBF) {
+        if (lineno == 1 && (unsigned char) start[0] == 0xEF && (unsigned char) start[1] == 0xBB &&
+            (unsigned char) start[2] == 0xBF) {
             start += 3;
         }
 #endif
@@ -285,16 +279,14 @@ ini_parse_stream(ini_reader reader, void* stream, ini_handler handler, void* use
 
 /* See documentation in header file. */
 inline int
-ini_parse_file(FILE* file, ini_handler handler, void* user)
-{
-    return ini_parse_stream((ini_reader)fgets, file, handler, user);
+ini_parse_file(FILE *file, ini_handler handler, void *user) {
+    return ini_parse_stream((ini_reader) fgets, file, handler, user);
 }
 
 /* See documentation in header file. */
 inline int
-ini_parse(const char* filename, ini_handler handler, void* user)
-{
-    FILE* file;
+ini_parse(const char *filename, ini_handler handler, void *user) {
+    FILE *file;
     int error;
 
     file = fopen(filename, "r");
@@ -316,11 +308,10 @@ ini_parse(const char* filename, ini_handler handler, void* user)
 
 // Read an INI file into easy-to-access name/value pairs. (Note that I've gone
 // for simplicity here rather than speed, but it should be pretty decent.)
-class INIReader
-{
-  public:
+class INIReader {
+public:
     // Empty Constructor
-    INIReader(){};
+    INIReader() {};
 
     // Construct INIReader and parse given filename. See ini.h for more nomral
     // about the parsing.
@@ -328,14 +319,14 @@ class INIReader
 
     // Construct INIReader and parse given file. See ini.h for more nomral
     // about the parsing.
-    INIReader(FILE* file);
+    INIReader(FILE *file);
 
     // Return the result of ini_parse(), i.e., 0 on success, line number of
     // first error on parse error, or -1 on file open error.
     int ParseError() const;
 
     // Return the list of sections found in ini file
-    const std::set<std::string>& Sections() const;
+    const std::set<std::string> &Sections() const;
 
     // Get a string value from INI file, returning default_value if not found.
     std::string Get(std::string section, std::string name, std::string default_value) const;
@@ -355,17 +346,17 @@ class INIReader
     // sensitive).
     bool GetBoolean(std::string section, std::string name, bool default_value) const;
 
-  protected:
+protected:
     int _error;
     std::map<std::string, std::string> _values;
     std::set<std::string> _sections;
 
     static std::string MakeKey(std::string section, std::string name);
 
-    static int ValueHandler(void* user, const char* section, const char* name, const char* value);
+    static int ValueHandler(void *user, const char *section, const char *name, const char *value);
 };
 
-#endif // __INIREADER_H__
+#endif// __INIREADER_H__
 
 #ifndef __INIREADER__
 #define __INIREADER__
@@ -374,59 +365,51 @@ class INIReader
 #include <cctype>
 #include <cstdlib>
 
-inline INIReader::INIReader(std::string filename)
-{
+inline INIReader::INIReader(std::string filename) {
     _error = ini_parse(filename.c_str(), ValueHandler, this);
 }
 
-inline INIReader::INIReader(FILE* file)
-{
+inline INIReader::INIReader(FILE *file) {
     _error = ini_parse_file(file, ValueHandler, this);
 }
 
 inline int
-INIReader::ParseError() const
-{
+INIReader::ParseError() const {
     return _error;
 }
 
-inline const std::set<std::string>&
-INIReader::Sections() const
-{
+inline const std::set<std::string> &
+INIReader::Sections() const {
     return _sections;
 }
 
 inline std::string
-INIReader::Get(std::string section, std::string name, std::string default_value) const
-{
+INIReader::Get(std::string section, std::string name, std::string default_value) const {
     std::string key = MakeKey(section, name);
     return _values.count(key) ? _values.at(key) : default_value;
 }
 
 inline long
-INIReader::GetInteger(std::string section, std::string name, long default_value) const
-{
+INIReader::GetInteger(std::string section, std::string name, long default_value) const {
     std::string valstr = Get(section, name, "");
-    const char* value = valstr.c_str();
-    char* end;
+    const char *value = valstr.c_str();
+    char *end;
     // This parses "1234" (decimal) and also "0x4D2" (hex)
     long n = strtol(value, &end, 0);
     return end > value ? n : default_value;
 }
 
 inline double
-INIReader::GetReal(std::string section, std::string name, double default_value) const
-{
+INIReader::GetReal(std::string section, std::string name, double default_value) const {
     std::string valstr = Get(section, name, "");
-    const char* value = valstr.c_str();
-    char* end;
+    const char *value = valstr.c_str();
+    char *end;
     double n = strtod(value, &end);
     return end > value ? n : default_value;
 }
 
 inline bool
-INIReader::GetBoolean(std::string section, std::string name, bool default_value) const
-{
+INIReader::GetBoolean(std::string section, std::string name, bool default_value) const {
     std::string valstr = Get(section, name, "");
     // Convert to lower case to make string comparisons case-insensitive
     std::transform(valstr.begin(), valstr.end(), valstr.begin(), ::tolower);
@@ -439,8 +422,7 @@ INIReader::GetBoolean(std::string section, std::string name, bool default_value)
 }
 
 inline std::string
-INIReader::MakeKey(std::string section, std::string name)
-{
+INIReader::MakeKey(std::string section, std::string name) {
     std::string key = section + "=" + name;
     // Convert to lower case to make section/name lookups case-insensitive
     std::transform(key.begin(), key.end(), key.begin(), ::tolower);
@@ -448,9 +430,8 @@ INIReader::MakeKey(std::string section, std::string name)
 }
 
 inline int
-INIReader::ValueHandler(void* user, const char* section, const char* name, const char* value)
-{
-    INIReader* reader = (INIReader*)user;
+INIReader::ValueHandler(void *user, const char *section, const char *name, const char *value) {
+    INIReader *reader = (INIReader *) user;
     std::string key = MakeKey(section, name);
     if (reader->_values[key].size() > 0)
         reader->_values[key] += "\n";
@@ -459,4 +440,4 @@ INIReader::ValueHandler(void* user, const char* section, const char* name, const
     return 1;
 }
 
-#endif // __INIREADER__
+#endif// __INIREADER__

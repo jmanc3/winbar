@@ -1,8 +1,10 @@
 
 #include "taskbar.h"
+
 #ifdef TRACY_ENABLE
 #include "../tracy/Tracy.hpp"
 #endif
+
 #include "app_menu.h"
 #include "battery_menu.h"
 #include "components.h"
@@ -26,16 +28,15 @@
 #include <iomanip>
 #include <pango/pangocairo.h>
 
-class WorkspaceButton : public HoverableButton
-{
-    public:
-    cairo_surface_t* surface = nullptr;
-    cairo_surface_t* surface_hover = nullptr;
-    
+class WorkspaceButton : public HoverableButton {
+public:
+    cairo_surface_t *surface = nullptr;
+    cairo_surface_t *surface_hover = nullptr;
+
     ~WorkspaceButton() { cairo_surface_destroy(surface); }
 };
 
-static Container* active_container = nullptr;
+static Container *active_container = nullptr;
 static xcb_window_t active_window = 0;
 static xcb_window_t backup_active_window = 0;
 
@@ -46,49 +47,46 @@ static xcb_window_t popup_window_open = -1;
 static int max_resize_attempts = 10;
 static int resize_attempts = 0;
 
-// Every function in this file
 static void
-paint_background(AppClient* client, cairo_t* cr, Container* container);
+paint_background(AppClient *client, cairo_t *cr, Container *container);
 
 static void
-paint_button(AppClient* client, cairo_t* cr, Container* container);
+paint_button(AppClient *client, cairo_t *cr, Container *container);
 
 static void
-paint_icon_background(AppClient* client, cairo_t* cr, Container* container);
+paint_icon_background(AppClient *client, cairo_t *cr, Container *container);
 
 static void
-paint_date(AppClient* client, cairo_t* cr, Container* container);
+paint_date(AppClient *client, cairo_t *cr, Container *container);
 
 static void
-paint_search(AppClient* client, cairo_t* cr, Container* container);
+paint_search(AppClient *client, cairo_t *cr, Container *container);
 
 static void
-fill_root(Container* root);
+fill_root(Container *root);
 
 static void
 late_classes_update();
 
 static void
-paint_background(AppClient* client, cairo_t* cr, Container* container)
-{
+paint_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
+
     set_rect(cr, container->real_bounds);
     set_argb(cr, ArgbColor(0, 0, 0, .93));
     cairo_fill(cr);
 }
 
 static void
-paint_button(AppClient* client, cairo_t* cr, Container* container)
-{
+paint_button(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    IconButton* data = (IconButton*)container->user_data;
-    
+
+    IconButton *data = (IconButton *) container->user_data;
+
     double max_amount = .8;
     if (container->state.mouse_pressing) {
         max_amount = 1;
@@ -96,7 +94,7 @@ paint_button(AppClient* client, cairo_t* cr, Container* container)
         max_amount = .9;
     }
     max_amount *= .27;
-    
+
     if (container->state.mouse_hovering) {
         if (!data->hovered) {
             data->hovered = true;
@@ -106,38 +104,37 @@ paint_button(AppClient* client, cairo_t* cr, Container* container)
         data->hovered = false;
         client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
     }
-    
+
     set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
-    
+
     int border = 0;
-    
+
     cairo_rectangle(cr,
                     container->real_bounds.x + border,
                     container->real_bounds.y + border,
                     container->real_bounds.w - border * 2,
                     container->real_bounds.h - border * 2);
     cairo_fill(cr);
-    
+
     if (data->surface) {
         // Assumes the size of the surface to be 16x16 and tries to draw it centered
         cairo_set_source_surface(
-                                 cr,
-                                 data->surface,
-                                 (int)(container->real_bounds.x + container->real_bounds.w / 2 - 8),
-                                 (int)(container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                cr,
+                data->surface,
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
         cairo_paint(cr);
     }
 }
 
 static void
-paint_super(AppClient* client, cairo_t* cr, Container* container)
-{
+paint_super(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    IconButton* data = (IconButton*)container->user_data;
-    
+
+    IconButton *data = (IconButton *) container->user_data;
+
     double max_amount = .8;
     if (container->state.mouse_pressing) {
         max_amount = 1;
@@ -145,7 +142,7 @@ paint_super(AppClient* client, cairo_t* cr, Container* container)
         max_amount = .9;
     }
     max_amount *= .27;
-    
+
     if (container->state.mouse_hovering) {
         if (!data->hovered) {
             data->hovered = true;
@@ -155,18 +152,18 @@ paint_super(AppClient* client, cairo_t* cr, Container* container)
         data->hovered = false;
         client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
     }
-    
+
     set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
-    
+
     int border = 0;
-    
+
     cairo_rectangle(cr,
                     container->real_bounds.x + border,
                     container->real_bounds.y + border,
                     container->real_bounds.w - border * 2,
                     container->real_bounds.h - border * 2);
     cairo_fill(cr);
-    
+
     if (data->surface) {
         // Assumes the size of the surface to be 16x16 and tries to draw it centered
         ArgbColor color = config->main_accent;
@@ -180,38 +177,38 @@ paint_super(AppClient* client, cairo_t* cr, Container* container)
         } else {
             dye_surface(data->surface, ArgbColor(1, 1, 1, 1));
         }
-        
+
         cairo_set_source_surface(
-                                 cr,
-                                 data->surface,
-                                 (int)(container->real_bounds.x + container->real_bounds.w / 2 - 8),
-                                 (int)(container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                cr,
+                data->surface,
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
         cairo_paint(cr);
     }
 }
 
 static void
-paint_volume(AppClient* client, cairo_t* cr, Container* container)
-{
-    paint_button(client, cr, container);
+paint_volume(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    auto surfaces = (volume_surfaces*)container->user_data;
-    
+    paint_button(client, cr, container);
+
+    auto surfaces = (volume_surfaces *) container->user_data;
+
     if (surfaces->mute == nullptr || surfaces->high == nullptr || surfaces->low == nullptr ||
         surfaces->medium == nullptr)
         return;
-    
+
     int val = 100;
     bool mute_state = false;
     if (!audio_outputs.empty()) {
-        double scalar = ((double)audio_outputs[0]->volume.values[0]) / ((double)65535);
-        val = (int)(scalar * 100);
+        double scalar = ((double) audio_outputs[0]->volume.values[0]) / ((double) 65535);
+        val = (int) (scalar * 100);
         mute_state = audio_outputs[0]->mute_state;
     }
-    
-    cairo_surface_t* surface = nullptr;
+
+    cairo_surface_t *surface = nullptr;
     if (mute_state) {
         surface = surfaces->mute;
     } else if (val == 0) {
@@ -223,27 +220,26 @@ paint_volume(AppClient* client, cairo_t* cr, Container* container)
     } else {
         surface = surfaces->high;
     }
-    
+
     dye_surface(surface, config->icons_colors);
-    
+
     cairo_set_source_surface(cr,
                              surface,
-                             (int)(container->real_bounds.x + container->real_bounds.w / 2 -
-                                   cairo_image_surface_get_width(surface) / 2),
-                             (int)(container->real_bounds.y + container->real_bounds.h / 2 -
-                                   cairo_image_surface_get_height(surface) / 2));
+                             (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                                    cairo_image_surface_get_width(surface) / 2),
+                             (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                                    cairo_image_surface_get_height(surface) / 2));
     cairo_paint(cr);
 }
 
 static void
-paint_workspace(AppClient* client, cairo_t* cr, Container* container)
-{
+paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    WorkspaceButton* data = (WorkspaceButton*)container->user_data;
-    
+
+    WorkspaceButton *data = (WorkspaceButton *) container->user_data;
+
     double max_amount = .8;
     if (container->state.mouse_pressing) {
         max_amount = 1;
@@ -251,7 +247,7 @@ paint_workspace(AppClient* client, cairo_t* cr, Container* container)
         max_amount = .9;
     }
     max_amount *= .27;
-    
+
     if (container->state.mouse_hovering) {
         if (!data->hovered) {
             data->hovered = true;
@@ -261,147 +257,143 @@ paint_workspace(AppClient* client, cairo_t* cr, Container* container)
         data->hovered = false;
         client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
     }
-    
+
     set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
-    
+
     int border = 0;
-    
+
     cairo_rectangle(cr,
                     container->real_bounds.x + border,
                     container->real_bounds.y + border,
                     container->real_bounds.w - border * 2,
                     container->real_bounds.h - border * 2);
     cairo_fill(cr);
-    
+
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (data->surface_hover) {
             // Assumes the size of the surface to be 16x16 and tries to draw it centered
             cairo_set_source_surface(
-                                     cr,
-                                     data->surface_hover,
-                                     (int)(container->real_bounds.x + container->real_bounds.w / 2 - 8),
-                                     (int)(container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                    cr,
+                    data->surface_hover,
+                    (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
+                    (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
             cairo_paint(cr);
         }
     } else {
         if (data->surface) {
             // Assumes the size of the surface to be 16x16 and tries to draw it centered
             cairo_set_source_surface(
-                                     cr,
-                                     data->surface,
-                                     (int)(container->real_bounds.x + container->real_bounds.w / 2 - 8),
-                                     (int)(container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                    cr,
+                    data->surface,
+                    (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
+                    (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
             cairo_paint(cr);
         }
     }
 }
 
 static void
-paint_double_bar(cairo_t* cr,
-                 Container* container,
+paint_double_bar(cairo_t *cr,
+                 Container *container,
                  ArgbColor bar_l_c,
                  ArgbColor bar_m_c,
-                 ArgbColor bar_r_c)
-{
+                 ArgbColor bar_r_c) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    LaunchableButton* data = (LaunchableButton*)container->user_data;
-    
+
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
+
     double bar_amount = std::max(data->hover_amount, data->active_amount);
     double bar_inset = 4 * (1 - bar_amount);
     double bar_right = 4 + (4 * (1 - bar_amount));
-    
+
     Bounds bar_rect = Bounds(container->real_bounds.x + bar_inset,
                              container->real_bounds.y + container->real_bounds.h - 2,
                              container->real_bounds.w - bar_inset * 2,
                              2);
-    
+
     set_argb(cr, bar_r_c);
     set_rect(cr, bar_rect);
     cairo_fill(cr);
-    
+
     bar_rect.w -= (bar_right - 1);
-    
+
     set_argb(cr, bar_m_c);
     set_rect(cr, bar_rect);
     cairo_fill(cr);
-    
+
     bar_rect.w -= 1;
-    
+
     set_argb(cr, bar_l_c);
     set_rect(cr, bar_rect);
     cairo_fill(cr);
 }
 
 static void
-paint_double_bg(cairo_t* cr, Bounds bounds, ArgbColor bg_l_c, ArgbColor bg_m_c, ArgbColor bg_r_c)
-{
+paint_double_bg(cairo_t *cr, Bounds bounds, ArgbColor bg_l_c, ArgbColor bg_m_c, ArgbColor bg_r_c) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
+
     set_rect(cr, bounds);
     set_argb(cr, bg_r_c);
     cairo_fill(cr);
-    
+
     bounds.w -= 3;
-    
+
     set_rect(cr, bounds);
     set_argb(cr, bg_m_c);
     cairo_fill(cr);
-    
+
     bounds.w -= 1;
-    
+
     set_rect(cr, bounds);
     set_argb(cr, bg_l_c);
     cairo_fill(cr);
 }
 
 static void
-paint_icon_surface(AppClient* client, cairo_t* cr, Container* container)
-{
-    LaunchableButton* data = (LaunchableButton*)container->user_data;
-    
+paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
+
     if (data->surface) {
         // Assumes the size of the surface to be 16x16 and tries to draw it centered
         cairo_set_source_surface(
-                                 cr,
-                                 data->surface,
-                                 (int)(container->real_bounds.x + container->real_bounds.w / 2 - 12),
-                                 (int)(container->real_bounds.y + container->real_bounds.h / 2 - 12));
+                cr,
+                data->surface,
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 12),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 12));
         cairo_paint(cr);
     }
 }
 
 static void
-paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
-{
+paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    LaunchableButton* data = (LaunchableButton*)container->user_data;
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
     // This is the real underlying color
     ArgbColor real = ArgbColor(1, 1, 1, 1);
     double r_c = 1;
     double g_c = 1;
     double b_c = 1;
-    
+
     int windows_count = data->windows.size();
     bool active = active_container == container;
     bool pressed = container->state.mouse_pressing;
     bool hovered = container->state.mouse_hovering;
     bool dragging = container->state.mouse_dragging;
-    
+
     int highlight_height = 2;
-    
+
     double bar_amount = std::max(data->hover_amount, data->active_amount);
     double highlight_inset = 4 * (1 - bar_amount);
-    
+
     double bg_openess = highlight_inset;
     double right_size = 0;
-    
+
     // Three things we need to paint, the first and most obvious is the accent bar at the bottom.
     // The width of that thing is determined by our two variables hover_amount and active_amount. It
     // takes the highest of the two and determines the width it should be drawn at. The second thing
@@ -412,7 +404,7 @@ paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
     // height is determined by the active_amount. Side note we need to render to a temporary surface
     // since we draw over eachother with the true final transperancy and it would come out wrong if
     // we just did it directly to the final surface
-    
+
     cairo_push_group(cr);
     if (windows_count == 0) {
         if (pressed) {
@@ -433,7 +425,7 @@ paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
                 set_argb(cr, ArgbColor(r_c, g_c, b_c, .153 * data->hover_amount));
             else
                 set_argb(cr, ArgbColor(r_c, g_c, b_c, 0 * data->hover_amount));
-            
+
             cairo_rectangle(cr,
                             container->real_bounds.x,
                             container->real_bounds.y,
@@ -441,10 +433,10 @@ paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
                             container->real_bounds.h - highlight_height);
             cairo_fill(cr);
         }
-        
+
         double bar_x = container->real_bounds.x + highlight_inset;
         double bar_w = container->real_bounds.w - highlight_inset * 2;
-        
+
         if (data->active_amount != 0) {
             if (dragging)
                 set_argb(cr, ArgbColor(r_c, g_c, b_c, .106));
@@ -454,7 +446,7 @@ paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
                 set_argb(cr, ArgbColor(r_c, g_c, b_c, .278));
             else
                 set_argb(cr, ArgbColor(r_c, g_c, b_c, .2));
-            
+
             double bg_height = (container->real_bounds.h - highlight_height) * data->active_amount;
             cairo_rectangle(cr,
                             bar_x,
@@ -464,7 +456,7 @@ paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
                             bg_height);
             cairo_fill(cr);
         }
-        
+
         set_argb(cr, ArgbColor(.486, .737, .933, 1));
         cairo_rectangle(cr,
                         bar_x,
@@ -476,9 +468,9 @@ paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
         cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
         if (data->hover_amount != 0) {
             Bounds bounds = container->real_bounds;
-            
+
             ArgbColor blank(r_c, g_c, b_c, 0);
-            
+
             if (pressed)
                 paint_double_bg(cr,
                                 bounds,
@@ -494,10 +486,10 @@ paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
             else
                 paint_double_bg(cr, bounds, blank, blank, blank);
         }
-        
+
         double bar_x = container->real_bounds.x + highlight_inset;
         double bar_w = container->real_bounds.w - highlight_inset * 2;
-        
+
         if (data->active_amount != 0) {
             double bg_height = (container->real_bounds.h - highlight_height) * data->active_amount;
             Bounds bounds = Bounds(bar_x,
@@ -505,7 +497,7 @@ paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
                                    highlight_height - bg_height,
                                    bar_w,
                                    bg_height);
-            
+
             if (dragging)
                 paint_double_bg(cr,
                                 bounds,
@@ -531,14 +523,14 @@ paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
                                 ArgbColor(r_c, g_c, b_c, .122),
                                 ArgbColor(r_c, g_c, b_c, .161));
         }
-        
+
         paint_double_bar(cr,
                          container,
                          ArgbColor(.486, .737, .937, 1),
                          ArgbColor(.290, .443, .561, 1),
                          ArgbColor(.388, .588, .745, 1));
     }
-    
+
     cairo_pop_group_to_source(cr);
     cairo_paint(cr);
     /*
@@ -690,16 +682,15 @@ paint_icon_background(AppClient* client, cairo_t* cr, Container* container)
 
 // TODO order is not correct
 static void
-paint_all_icons(AppClient* client_entity, cairo_t* cr, Container* container)
-{
+paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
     std::vector<int> render_order;
     for (int i = 0; i < container->children.size(); i++) {
         render_order.push_back(i);
     }
     std::sort(render_order.begin(), render_order.end(), [container](int a, int b) -> bool {
-                  return container->children[a]->z_index < container->children[b]->z_index;
-              });
-    
+        return container->children[a]->z_index < container->children[b]->z_index;
+    });
+
     for (auto index : render_order) {
         paint_icon_background(client_entity, cr, container->children[index]);
     }
@@ -709,31 +700,28 @@ paint_all_icons(AppClient* client_entity, cairo_t* cr, Container* container)
 }
 
 static void
-pinned_icon_mouse_enters(AppClient* client, cairo_t* cr, Container* container)
-{
+pinned_icon_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    LaunchableButton* data = (LaunchableButton*)container->user_data;
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
     client_create_animation(app, client, &data->hover_amount, 70, 0, 1);
 }
 
 static void
-pinned_icon_mouse_leaves(AppClient* client, cairo_t* cr, Container* container)
-{
+pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    LaunchableButton* data = (LaunchableButton*)container->user_data;
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
     client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
 }
 
 std::string
-return_current_time_and_date()
-{
+return_current_time_and_date() {
     auto now = std::chrono::system_clock::now();
     auto in_time_t = std::chrono::system_clock::to_time_t(now);
-    
+
     std::stringstream ss;
     ss << std::put_time(std::localtime(&in_time_t), "%I:%M %p");
     if (config->date_single_line) {
@@ -741,52 +729,50 @@ return_current_time_and_date()
     } else {
         ss << '\n';
     }
-    
+
     std::stringstream month;
     month << std::put_time(std::localtime(&in_time_t), "%m");
-    
+
     std::string real_month;
     if (month.str().at(0) == '0') {
         real_month = month.str().erase(0, 1);
     } else {
         real_month = month.str();
     }
-    
+
     std::stringstream day;
     day << std::put_time(std::localtime(&in_time_t), "%d");
     auto s = day.str();
-    
+
     std::string real_day;
     if (day.str().at(0) == '0') {
         real_day = day.str().erase(0, 1);
     } else {
         real_day = day.str();
     }
-    
+
     std::stringstream year;
     year << std::put_time(std::localtime(&in_time_t), "%Y");
-    
+
     ss << real_month << "/" << real_day << "/" << year.str();
-    
+
     return ss.str();
 }
 
-void
-update_time()
-{
+void update_time() {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Time Thread");
 #endif
-    
+
     std::unique_lock lock(app->clients_mutex);
     while (app->running) {
-        AppClient* client_entity = client_by_name(app, "taskbar");
+        AppClient *client_entity = client_by_name(app, "taskbar");
         if (client_entity != nullptr) {
             std::string date = return_current_time_and_date();
             if (date[0] == '0')
                 date.erase(0, 1);
             time_text = date;
-            
+
             client_layout(app, client_entity);
             request_refresh(app, client_entity);
             lock.unlock();
@@ -796,32 +782,30 @@ update_time()
     }
 }
 
-void
-active_window_changed(xcb_window_t new_active_window)
-{
+void active_window_changed(xcb_window_t new_active_window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     active_window = new_active_window;
-    
-    AppClient* entity = client_by_name(app, "taskbar");
+
+    AppClient *entity = client_by_name(app, "taskbar");
     if (!entity)
         return;
-    auto* root = entity->root;
+    auto *root = entity->root;
     if (!root)
         return;
-    auto* icons = container_by_name("icons", root);
+    auto *icons = container_by_name("icons", root);
     if (!icons)
         return;
-    
-    for (Container* icon : icons->children) {
-        LaunchableButton* data = (LaunchableButton*)icon->user_data;
-        
+
+    for (Container *icon : icons->children) {
+        LaunchableButton *data = (LaunchableButton *) icon->user_data;
+
         if (active_container) {
-            LaunchableButton* old_data = (LaunchableButton*)active_container->user_data;
+            LaunchableButton *old_data = (LaunchableButton *) active_container->user_data;
             client_create_animation(app, entity, &old_data->active_amount, 45, 0, 0);
         }
-        
+
         for (xcb_window_t window : data->windows) {
             if (window == new_active_window) {
                 active_container = icon;
@@ -834,12 +818,11 @@ active_window_changed(xcb_window_t new_active_window)
 }
 
 static void
-finished_icon_animation()
-{
-    AppClient* client = client_by_name(app, "taskbar");
-    Container* icons = container_by_name("icons", client->root);
-    for (Container* child : icons->children) {
-        auto* data = static_cast<LaunchableButton*>(child->user_data);
+finished_icon_animation() {
+    AppClient *client = client_by_name(app, "taskbar");
+    Container *icons = container_by_name("icons", client->root);
+    for (Container *child : icons->children) {
+        auto *data = static_cast<LaunchableButton *>(child->user_data);
         if (data->animating) {
             if (data->target == child->real_bounds.x) {
                 data->animating = false;
@@ -850,31 +833,30 @@ finished_icon_animation()
 }
 
 static void
-icons_align(AppClient* client_entity, Container* icon_container, bool all_except_dragged)
-{
+icons_align(AppClient *client_entity, Container *icon_container, bool all_except_dragged) {
     update_pinned_items_file();
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    auto* icon_container_copy = new Container(*icon_container);
+    auto *icon_container_copy = new Container(*icon_container);
     icon_container_copy->should_layout_children = true;
     layout(icon_container_copy, icon_container_copy->real_bounds);
-    
+
     for (int i = 0; i < icon_container->children.size(); ++i) {
-        auto* real_icon = icon_container->children[i];
-        auto* real_data = static_cast<LaunchableButton*>(real_icon->user_data);
-        auto* laid_icon = icon_container_copy->children[i];
-        
+        auto *real_icon = icon_container->children[i];
+        auto *real_data = static_cast<LaunchableButton *>(real_icon->user_data);
+        auto *laid_icon = icon_container_copy->children[i];
+
         // the real icon is already in the correct position
         if (real_icon->real_bounds.x == laid_icon->real_bounds.x) {
             continue;
         }
-        
+
         // we don't want to align the real_icon if its the one the user is dragging
         if (all_except_dragged && real_icon->state.mouse_dragging) {
             continue;
         }
-        
+
         if (real_data->animating) {
             if (real_data->target != laid_icon->real_bounds.x) {
                 client_create_animation(app,
@@ -899,51 +881,49 @@ icons_align(AppClient* client_entity, Container* icon_container, bool all_except
 }
 
 static void
-pinned_icon_drag_start(AppClient* client_entity, cairo_t* cr, Container* container)
-{
+pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     backup_active_window = active_window;
     active_window_changed(-1);
     container->parent->should_layout_children = false;
-    auto* data = static_cast<LaunchableButton*>(container->user_data);
+    auto *data = static_cast<LaunchableButton *>(container->user_data);
     data->initial_mouse_click_before_drag_offset_x =
-        container->real_bounds.x - client_entity->mouse_initial_x;
+            container->real_bounds.x - client_entity->mouse_initial_x;
     container->z_index = 1;
-    
+
     icons_align(client_entity, container->parent, true);
 }
 
 static void
-pinned_icon_drag(AppClient* client_entity, cairo_t* cr, Container* container)
-{
+pinned_icon_drag(AppClient *client_entity, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    auto* data = static_cast<LaunchableButton*>(container->user_data);
+    auto *data = static_cast<LaunchableButton *>(container->user_data);
     container->real_bounds.x =
-        client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
+            client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
     container->real_bounds.x =
-        client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
+            client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
     container->real_bounds.x = std::max(container->parent->real_bounds.x, container->real_bounds.x);
     container->real_bounds.x =
-        std::min(container->parent->real_bounds.x + container->parent->real_bounds.w -
-                 container->real_bounds.w,
-                 container->real_bounds.x);
-    
-    auto* copy_parent = new Container(*container->parent);
+            std::min(container->parent->real_bounds.x + container->parent->real_bounds.w -
+                     container->real_bounds.w,
+                     container->real_bounds.x);
+
+    auto *copy_parent = new Container(*container->parent);
     copy_parent->should_layout_children = true;
     layout(copy_parent, copy_parent->real_bounds);
-    
+
     std::vector<int> centers;
     for (auto child : copy_parent->children) {
         centers.push_back(child->real_bounds.x + child->real_bounds.w / 2);
     }
     delete copy_parent;
-    
+
     int our_center = container->real_bounds.x + container->real_bounds.w / 2;
-    
+
     int new_index = 0;
     int center_diff = 100000;
     for (int i = 0; i < centers.size(); i++) {
@@ -953,7 +933,7 @@ pinned_icon_drag(AppClient* client_entity, cairo_t* cr, Container* container)
             center_diff = diff;
         }
     }
-    
+
     for (int x = 0; x < container->parent->children.size(); x++) {
         if (container->parent->children.at(x) == container) {
             if (x == new_index) {
@@ -964,23 +944,22 @@ pinned_icon_drag(AppClient* client_entity, cairo_t* cr, Container* container)
         }
     }
     container->parent->children.insert(container->parent->children.begin() + new_index, container);
-    
+
     container->real_bounds.x =
-        client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
+            client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
     container->real_bounds.x =
-        client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
+            client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
     container->real_bounds.x = std::max(container->parent->real_bounds.x, container->real_bounds.x);
     container->real_bounds.x =
-        std::min(container->parent->real_bounds.x + container->parent->real_bounds.w -
-                 container->real_bounds.w,
-                 container->real_bounds.x);
-    
+            std::min(container->parent->real_bounds.x + container->parent->real_bounds.w -
+                     container->real_bounds.w,
+                     container->real_bounds.x);
+
     icons_align(client_entity, container->parent, true);
 }
 
 static void
-pinned_icon_drag_end(AppClient* client_entity, cairo_t* cr, Container* container)
-{
+pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -991,16 +970,15 @@ pinned_icon_drag_end(AppClient* client_entity, cairo_t* cr, Container* container
 }
 
 uint32_t
-get_wm_state(xcb_window_t window)
-{
+get_wm_state(xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    xcb_get_property_reply_t* reply;
+    xcb_get_property_reply_t *reply;
     xcb_get_property_cookie_t cookie;
-    uint32_t* statep;
+    uint32_t *statep;
     uint32_t state = 0;
-    
+
     cookie = xcb_get_property(app->connection,
                               false,
                               window,
@@ -1008,29 +986,28 @@ get_wm_state(xcb_window_t window)
                               get_cached_atom(app, "WM_STATE"),
                               0,
                               sizeof(int32_t));
-    
+
     reply = xcb_get_property_reply(app->connection, cookie, NULL);
     if (NULL == reply) {
         fprintf(stderr, "mcwm: Couldn't get properties for win %d\n", window);
         return -1;
     }
-    
+
     /* Length is 0 if we didn't find it. */
     if (0 == xcb_get_property_value_length(reply)) {
         goto bad;
     }
-    
-    statep = static_cast<uint32_t*>(xcb_get_property_value(reply));
+
+    statep = static_cast<uint32_t *>(xcb_get_property_value(reply));
     state = *statep;
-    
+
     bad:
     free(reply);
     return state;
 }
 
 static void
-minimize_window(xcb_window_t window)
-{
+minimize_window(xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1040,88 +1017,86 @@ minimize_window(xcb_window_t window)
     event.sequence = 0;
     event.window = window;
     event.type = get_cached_atom(app, "WM_CHANGE_STATE");
-    event.data.data32[0] = XCB_ICCCM_WM_STATE_ICONIC; // IconicState
+    event.data.data32[0] = XCB_ICCCM_WM_STATE_ICONIC;// IconicState
     event.data.data32[1] = 0;
     event.data.data32[2] = 0;
     event.data.data32[3] = 0;
     event.data.data32[4] = 0;
-    
+
     xcb_send_event(app->connection,
                    0,
                    app->screen->root,
                    XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
-                   reinterpret_cast<char*>(&event));
+                   reinterpret_cast<char *>(&event));
     xcb_flush(app->connection);
 }
 
 static void
-update_minimize_icon_positions()
-{
+update_minimize_icon_positions() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    AppClient* client_entity = client_by_name(app, "taskbar");
-    auto* root = client_entity->root;
+    AppClient *client_entity = client_by_name(app, "taskbar");
+    auto *root = client_entity->root;
     if (!root)
         return;
-    auto* icons = container_by_name("icons", root);
+    auto *icons = container_by_name("icons", root);
     if (!icons)
         return;
-    auto* bounds = client_entity->bounds;
-    
+    auto *bounds = client_entity->bounds;
+
     for (auto icon : icons->children) {
-        auto* data = static_cast<LaunchableButton*>(icon->user_data);
-        
+        auto *data = static_cast<LaunchableButton *>(icon->user_data);
+
         if (!data)
             continue;
-        
+
         for (auto window : data->windows) {
-            double value[] = { bounds->x + icon->real_bounds.x,
-                bounds->y + icon->real_bounds.y,
-                icon->real_bounds.w,
-                icon->real_bounds.h };
-            
+            double value[] = {bounds->x + icon->real_bounds.x,
+                              bounds->y + icon->real_bounds.y,
+                              icon->real_bounds.w,
+                              icon->real_bounds.h};
+
             xcb_ewmh_set_wm_icon_geometry(
-                                          &app->ewmh, window, value[0], value[1], value[2], value[3]);
+                    &app->ewmh, window, value[0], value[1], value[2], value[3]);
         }
     }
 }
 
 static void
-scrolled_volume(AppClient* client_entity,
-                cairo_t* cr,
-                Container* container,
+scrolled_volume(AppClient *client_entity,
+                cairo_t *cr,
+                Container *container,
                 int horizontal_scroll,
-                int vertical_scroll)
-{
+                int vertical_scroll) {
     if (!audio_connected) {
         return;
     }
-    
+
     audio_all_outputs();
-    
+
     if (audio_outputs.empty()) {
         return;
     }
-    
+
     if (client_by_name(app, "volume") == nullptr) {
         open_volume_menu();
     }
-    
-    Audio* client = audio_outputs[0];
-    
+
+    Audio *client = audio_outputs[0];
+
     pa_cvolume copy = client->volume;
     double val = client->volume.values[0];
     val += 655.35 * vertical_scroll;
-    val -= 655.35 * horizontal_scroll; // we subtract to correct the direction
-    
+    val -= 655.35 * horizontal_scroll;// we subtract to correct the direction
+
     if (val < 0) {
         val = 0;
     } else if (val > 65535) {
         val = 65535;
     }
-    client->volume.values[0] = (int)val;
-    
+    client->volume.values[0] = (int) val;
+
     if (client->volume.values[0] < 0) {
         client->volume.values[0] = 0;
     } else if (client->volume.values[0] > 65535) {
@@ -1141,13 +1116,12 @@ scrolled_volume(AppClient* client_entity,
 }
 
 static void
-pinned_icon_mouse_clicked(AppClient* client, cairo_t* cr, Container* container)
-{
+pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    LaunchableButton* data = (LaunchableButton*)container->user_data;
-    
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
+
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
         if (data->windows.empty()) {
             launch_command(data->command_launched_by);
@@ -1156,13 +1130,13 @@ pinned_icon_mouse_clicked(AppClient* client, cairo_t* cr, Container* container)
         } else {
             // TODO: choose window if there are more then one
             xcb_window_t window = data->windows[0];
-            
+
             uint32_t state = get_wm_state(window);
-            
+
             if (state == XCB_ICCCM_WM_STATE_NORMAL) {
                 bool is_active_window = false;
                 if (active_container) {
-                    LaunchableButton* button_data = (LaunchableButton*)active_container->user_data;
+                    LaunchableButton *button_data = (LaunchableButton *) active_container->user_data;
                     if (button_data) {
                         for (xcb_window_t active_window : button_data->windows) {
                             if (active_window == window)
@@ -1196,13 +1170,12 @@ pinned_icon_mouse_clicked(AppClient* client, cairo_t* cr, Container* container)
 }
 
 static void
-paint_minimize(AppClient* client, cairo_t* cr, Container* container)
-{
+paint_minimize(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     paint_button(client, cr, container);
-    
+
     Bounds bounds = container->real_bounds;
     bounds.w = 1;
     set_rect(cr, bounds);
@@ -1211,23 +1184,22 @@ paint_minimize(AppClient* client, cairo_t* cr, Container* container)
 }
 
 static void
-paint_date(AppClient* client, cairo_t* cr, Container* container)
-{
+paint_date(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     paint_button(client, cr, container);
-    
-    PangoLayout* layout =
-        get_cached_pango_font(cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
     PangoAlignment initial_alignment = pango_layout_get_alignment(layout);
     pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_CENTER);
-    
+
     int width;
     int height;
     pango_layout_set_text(layout, time_text.c_str(), time_text.size());
     pango_layout_get_pixel_size(layout, &width, &height);
-    
+
     int pad = 16;
     if (container->wanted_bounds.w != width + pad) {
         container->wanted_bounds.w = width + pad;
@@ -1235,49 +1207,43 @@ paint_date(AppClient* client, cairo_t* cr, Container* container)
         request_refresh(app, client);
         return;
     }
-    
+
     set_argb(cr, ArgbColor(1, 1, 1, 1));
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
                   container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
     pango_cairo_show_layout(cr, layout);
-    
+
     pango_layout_set_alignment(layout, initial_alignment);
 }
 
 static void
-clicked_date(AppClient* client, cairo_t* cr, Container* container)
-{
+clicked_date(AppClient *client, cairo_t *cr, Container *container) {
     start_date_menu();
 }
 
 static void
-clicked_wifi(AppClient* client, cairo_t* cr, Container* container)
-{
+clicked_wifi(AppClient *client, cairo_t *cr, Container *container) {
     start_wifi_menu();
 }
 
 static void
-clicked_systray(AppClient* client, cairo_t* cr, Container* container)
-{
+clicked_systray(AppClient *client, cairo_t *cr, Container *container) {
     open_systray();
 }
 
 static void
-clicked_battery(AppClient* client, cairo_t* cr, Container* container)
-{
+clicked_battery(AppClient *client, cairo_t *cr, Container *container) {
     start_battery_menu();
 }
 
 static void
-clicked_volume(AppClient* client, cairo_t* cr, Container* container)
-{
+clicked_volume(AppClient *client, cairo_t *cr, Container *container) {
     open_volume_menu();
 }
 
 static void
-clicked_minimize(AppClient* client, cairo_t* cr, Container* container)
-{
+clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
     while (!app->clients.empty()) {
         for (int i = 0; i < app->clients.size(); i++) {
             client_close(app, app->clients[i]);
@@ -1286,8 +1252,7 @@ clicked_minimize(AppClient* client, cairo_t* cr, Container* container)
 }
 
 static void
-clicked_search(AppClient* client, cairo_t* cr, Container* container)
-{
+clicked_search(AppClient *client, cairo_t *cr, Container *container) {
     set_textarea_active();
     if (client_by_name(app, "search_menu") == nullptr) {
         start_search_menu();
@@ -1295,34 +1260,33 @@ clicked_search(AppClient* client, cairo_t* cr, Container* container)
 }
 
 static void
-paint_search(AppClient* client, cairo_t* cr, Container* container)
-{
-    IconButton* data = (IconButton*)container->user_data;
-    
+paint_search(AppClient *client, cairo_t *cr, Container *container) {
+    IconButton *data = (IconButton *) container->user_data;
+
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     ArgbColor border_color = ArgbColor(.6, .6, .6, 1);
     int border = 1;
-    
+
     bool active = false;
-    if (auto* con = container_by_name("main_text_area", container)) {
-        auto* text_data = (TextAreaData*)con->user_data;
+    if (auto *con = container_by_name("main_text_area", container)) {
+        auto *text_data = (TextAreaData *) con->user_data;
         active = con->parent->active;
     }
-    
+
     if (active) {
         border_color = config->main_accent;
         border = 2;
     }
     if (container->state.mouse_hovering)
         border = 2;
-    
+
     // Paint border
     set_rect(cr, container->real_bounds);
     set_argb(cr, border_color);
     cairo_fill(cr);
-    
+
     // Paint background
     set_argb(cr, ArgbColor(1, 1, 1, 1));
     cairo_rectangle(cr,
@@ -1331,30 +1295,30 @@ paint_search(AppClient* client, cairo_t* cr, Container* container)
                     container->real_bounds.w - border * 2,
                     container->real_bounds.h - border * 2);
     cairo_fill(cr);
-    
+
     // Paint search icon
     if (data->surface) {
         // Assumes the size of the surface to be 16x16 and tries to draw it centered
         cairo_set_source_surface(
-                                 cr,
-                                 data->surface,
-                                 (int)(container->real_bounds.x + 12),
-                                 (int)(container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                cr,
+                data->surface,
+                (int) (container->real_bounds.x + 12),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
         cairo_paint(cr);
     }
-    
+
     if (!active) {
-        PangoLayout* layout =
-            get_cached_pango_font(cr, "Segoe UI", 12, PangoWeight::PANGO_WEIGHT_NORMAL);
+        PangoLayout *layout =
+                get_cached_pango_font(cr, "Segoe UI", 12, PangoWeight::PANGO_WEIGHT_NORMAL);
         std::string text("Search here");
         pango_layout_set_text(layout, text.c_str(), text.size());
-        
+
         set_argb(cr, ArgbColor(.36, .36, .36, 1));
-        
+
         PangoRectangle ink;
         PangoRectangle logical;
         pango_layout_get_extents(layout, &ink, &logical);
-        
+
         cairo_move_to(cr,
                       container->real_bounds.x + 12 + 16 + 12,
                       container->real_bounds.y + container->real_bounds.h / 2 -
@@ -1363,16 +1327,14 @@ paint_search(AppClient* client, cairo_t* cr, Container* container)
     }
 }
 
-void
-paint_battery(AppClient* client_entity, cairo_t* cr, Container* container)
-{
+void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) {
     paint_button(client_entity, cr, container);
-    
-    auto* data = static_cast<data_battery_surfaces*>(container->user_data);
+
+    auto *data = static_cast<data_battery_surfaces *>(container->user_data);
     assert(data);
     assert(!data->normal_surfaces.empty());
     assert(!data->charging_surfaces.empty());
-    
+
     std::string line;
     std::ifstream status("/sys/class/power_supply/BAT0/status");
     if (status.is_open()) {
@@ -1384,7 +1346,7 @@ paint_battery(AppClient* client_entity, cairo_t* cr, Container* container)
     } else {
         data->status = "Missing BAT0";
     }
-    
+
     std::ifstream capacity("/sys/class/power_supply/BAT0/capacity");
     if (capacity.is_open()) {
         data->capacity = "0";
@@ -1395,15 +1357,15 @@ paint_battery(AppClient* client_entity, cairo_t* cr, Container* container)
     } else {
         data->capacity = "0";
     }
-    
-    int capacity_index = std::floor(((double)(std::stoi(data->capacity))) / 10.0);
-    
+
+    int capacity_index = std::floor(((double) (std::stoi(data->capacity))) / 10.0);
+
     if (capacity_index > 9)
         capacity_index = 9;
     if (capacity_index < 0)
         capacity_index = 0;
-    
-    cairo_surface_t* surface;
+
+    cairo_surface_t *surface;
     if (data->status == "Charging") {
         surface = data->charging_surfaces[capacity_index];
     } else {
@@ -1412,43 +1374,42 @@ paint_battery(AppClient* client_entity, cairo_t* cr, Container* container)
     if (surface) {
         dye_surface(surface, config->sound_hovered_icon);
         cairo_set_source_surface(
-                                 cr,
-                                 surface,
-                                 (int)(container->real_bounds.x + container->real_bounds.w / 2 - 16 / 2),
-                                 (int)(container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2));
+                cr,
+                surface,
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 16 / 2),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2));
         cairo_paint(cr);
     }
 }
 
 static void
-make_battery_button(Container* parent, AppClient* client_entity)
-{
-    auto* c = new Container();
+make_battery_button(Container *parent, AppClient *client_entity) {
+    auto *c = new Container();
     c->parent = parent;
     c->type = hbox;
     c->wanted_bounds.w = 20;
     c->wanted_bounds.h = FILL_SPACE;
     c->when_paint = paint_battery;
     c->when_clicked = clicked_battery;
-    
-    auto* data = new data_battery_surfaces;
+
+    auto *data = new data_battery_surfaces;
     for (int i = 0; i <= 9; i++) {
-        auto* normal_surface = accelerated_surface(app, client_entity, 16, 16);
+        auto *normal_surface = accelerated_surface(app, client_entity, 16, 16);
         paint_surface_with_image(
-                                 normal_surface,
-                                 as_resource_path("battery/16/normal/" + std::to_string(i) + ".png"),
-                                 nullptr);
+                normal_surface,
+                as_resource_path("battery/16/normal/" + std::to_string(i) + ".png"),
+                nullptr);
         data->normal_surfaces.push_back(normal_surface);
-        
-        auto* charging_surface = accelerated_surface(app, client_entity, 16, 16);
+
+        auto *charging_surface = accelerated_surface(app, client_entity, 16, 16);
         paint_surface_with_image(
-                                 charging_surface,
-                                 as_resource_path("battery/16/charging/" + std::to_string(i) + ".png"),
-                                 nullptr);
+                charging_surface,
+                as_resource_path("battery/16/charging/" + std::to_string(i) + ".png"),
+                nullptr);
         data->charging_surfaces.push_back(charging_surface);
     }
     c->user_data = data;
-    
+
     std::string line;
     std::ifstream capacity("/sys/class/power_supply/BAT0/type");
     if (capacity.is_open()) {
@@ -1464,16 +1425,15 @@ make_battery_button(Container* parent, AppClient* client_entity)
 };
 
 static void
-scrolled_workspace(AppClient* client_entity,
-                   cairo_t* cr,
-                   Container* container,
+scrolled_workspace(AppClient *client_entity,
+                   cairo_t *cr,
+                   Container *container,
                    int horizontal_scroll,
-                   int vertical_scroll)
-{
+                   int vertical_scroll) {
     int current = desktops_current(app);
     current += vertical_scroll;
-    current -= horizontal_scroll; // we subtract to correct the direction
-    
+    current -= horizontal_scroll;// we subtract to correct the direction
+
     int count = desktops_count(app);
     if (current < 0)
         current = count - 1;
@@ -1483,44 +1443,23 @@ scrolled_workspace(AppClient* client_entity,
 }
 
 static void
-clicked_workspace(AppClient* client_entity, cairo_t* cr, Container* container)
-{
-    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) { // left
+clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {// left
         scrolled_workspace(client_entity, cr, container, 0, 1);
-    } else { // right
+    } else {// right
         scrolled_workspace(client_entity, cr, container, 0, -1);
     }
 }
 
 static void
-clicked_super(AppClient* client, cairo_t* cr, Container* container)
-{
-    bool already_open = client_by_name(app, "app_menu") != nullptr;
-    
-    if (auto* client = client_by_name(app, "taskbar")) {
-        if (auto* container = container_by_name("main_text_area", client->root)) {
-            auto* text_data = (TextAreaData*)container->user_data;
-            delete text_data->state;
-            text_data->state = new TextState;
-            container->parent->active = !already_open;
-            container->active = !already_open;
-        }
-    }
-    
-    if (already_open) {
-        if (auto* c = client_by_name(app, "app_menu")) {
-            client_close_threaded(app, c);
-        }
-    } else {
-        start_app_menu();
-    }
+clicked_super(AppClient *client, cairo_t *cr, Container *container) {
+    start_app_menu();
 }
 
 static void
-paint_wifi(AppClient* client, cairo_t* cr, Container* container)
-{
-    auto* data = (wifi_surfaces*)container->user_data;
-    
+paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
+    auto *data = (wifi_surfaces *) container->user_data;
+
     double max_amount = .8;
     if (container->state.mouse_pressing) {
         max_amount = 1;
@@ -1528,7 +1467,7 @@ paint_wifi(AppClient* client, cairo_t* cr, Container* container)
         max_amount = .9;
     }
     max_amount *= .27;
-    
+
     if (container->state.mouse_hovering) {
         if (!data->hovered) {
             data->hovered = true;
@@ -1538,23 +1477,23 @@ paint_wifi(AppClient* client, cairo_t* cr, Container* container)
         data->hovered = false;
         client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
     }
-    
+
     set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
-    
+
     int border = 0;
-    
+
     cairo_rectangle(cr,
                     container->real_bounds.x + border,
                     container->real_bounds.y + border,
                     container->real_bounds.w - border * 2,
                     container->real_bounds.h - border * 2);
     cairo_fill(cr);
-    
+
     bool up = false;
     bool wired = false;
     wifi_state(&up, &wired);
-    
-    cairo_surface_t* surface = nullptr;
+
+    cairo_surface_t *surface = nullptr;
     if (up) {
         if (wired) {
             surface = data->wired_up;
@@ -1568,48 +1507,47 @@ paint_wifi(AppClient* client, cairo_t* cr, Container* container)
             surface = data->wireless_down;
         }
     }
-    
+
     if (surface) {
         dye_surface(surface, config->icons_colors);
         cairo_set_source_surface(
-                                 cr,
-                                 surface,
-                                 (int)(container->real_bounds.x + container->real_bounds.w / 2 - 16 / 2),
-                                 (int)(container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2));
+                cr,
+                surface,
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 16 / 2),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2));
         cairo_paint(cr);
     }
 }
 
 static void
-fill_root(App* app, AppClient* client, Container* root)
-{
+fill_root(App *app, AppClient *client, Container *root) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     root->when_paint = paint_background;
     root->type = hbox;
     root->spacing = 0;
-    
+
     double fill_amount = 10;
-    Container* button_super = root->child(48, FILL_SPACE);
-    Container* field_search = root->child(344, FILL_SPACE);
-    Container* button_workspace = root->child(48, FILL_SPACE);
-    Container* container_icons = root->child(FILL_SPACE, FILL_SPACE);
-    Container* button_systray = root->child(20, FILL_SPACE);
+    Container *button_super = root->child(48, FILL_SPACE);
+    Container *field_search = root->child(344, FILL_SPACE);
+    Container *button_workspace = root->child(48, FILL_SPACE);
+    Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
+    Container *button_systray = root->child(20, FILL_SPACE);
     make_battery_button(root, client);
-    Container* button_wifi = root->child(20, FILL_SPACE);
-    Container* button_volume = root->child(20, FILL_SPACE);
-    Container* button_date = root->child(80, FILL_SPACE);
-    Container* button_minimize = root->child(5, FILL_SPACE);
-    
+    Container *button_wifi = root->child(20, FILL_SPACE);
+    Container *button_volume = root->child(20, FILL_SPACE);
+    Container *button_date = root->child(80, FILL_SPACE);
+    Container *button_minimize = root->child(5, FILL_SPACE);
+
     button_super->when_paint = paint_super;
     button_super->user_data = new IconButton;
     button_super->when_clicked = clicked_super;
     load_icon_full_path(app,
                         client,
-                        &((IconButton*)button_super->user_data)->surface,
+                        &((IconButton *) button_super->user_data)->surface,
                         as_resource_path("windows.png"));
-    
+
     field_search->when_paint = paint_search;
     field_search->when_mouse_down = clicked_search;
     field_search->receive_events_even_if_obstructed = true;
@@ -1617,9 +1555,9 @@ fill_root(App* app, AppClient* client, Container* root)
     field_search->name = "field_search";
     load_icon_full_path(app,
                         client,
-                        &((IconButton*)field_search->user_data)->surface,
+                        &((IconButton *) field_search->user_data)->surface,
                         as_resource_path("search.png"));
-    
+
     TextAreaSettings settings;
     settings.font_size = 12;
     settings.font = "Segoe UI";
@@ -1630,55 +1568,55 @@ fill_root(App* app, AppClient* client, Container* root)
     settings.right_show_amount = 2;
     settings.bottom_show_amount = 2;
     field_search->wanted_pad.x = 12 + 16 + 12;
-    auto* con = field_search->child(FILL_SPACE, FILL_SPACE);
-    Container* textarea = make_textarea(con, settings);
+    auto *con = field_search->child(FILL_SPACE, FILL_SPACE);
+    Container *textarea = make_textarea(con, settings);
     textarea->name = "main_text_area";
     textarea->parent->alignment = ALIGN_CENTER | ALIGN_LEFT;
-    
+
     button_workspace->when_paint = paint_workspace;
     button_workspace->user_data = new WorkspaceButton;
     button_workspace->when_scrolled = scrolled_workspace;
     button_workspace->when_clicked = clicked_workspace;
     load_icon_full_path(app,
                         client,
-                        &((WorkspaceButton*)button_workspace->user_data)->surface,
+                        &((WorkspaceButton *) button_workspace->user_data)->surface,
                         as_resource_path("taskview.png"));
     load_icon_full_path(app,
                         client,
-                        &((WorkspaceButton*)button_workspace->user_data)->surface_hover,
+                        &((WorkspaceButton *) button_workspace->user_data)->surface_hover,
                         as_resource_path("taskview-hovered.png"));
-    
+
     container_icons->spacing = 1;
     container_icons->type = hbox;
     container_icons->name = "icons";
     container_icons->when_paint = paint_all_icons;
-    
+
     button_systray->when_paint = paint_button;
     button_systray->user_data = new IconButton;
     button_systray->when_clicked = clicked_systray;
     button_systray->name = "systray";
     load_icon_full_path(app,
                         client,
-                        &((IconButton*)button_systray->user_data)->surface,
+                        &((IconButton *) button_systray->user_data)->surface,
                         as_resource_path("arrow.png"));
-    
+
     button_wifi->when_paint = paint_wifi;
     button_wifi->when_clicked = clicked_wifi;
     auto wifi_data = new wifi_surfaces;
     wifi_data->wired_up = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(
-                             wifi_data->wired_up, as_resource_path("wifi/16/wired_up.png"), nullptr);
+            wifi_data->wired_up, as_resource_path("wifi/16/wired_up.png"), nullptr);
     wifi_data->wired_down = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(
-                             wifi_data->wired_down, as_resource_path("wifi/16/wired_down.png"), nullptr);
+            wifi_data->wired_down, as_resource_path("wifi/16/wired_down.png"), nullptr);
     wifi_data->wireless_down = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(
-                             wifi_data->wireless_down, as_resource_path("wifi/16/wireless_down.png"), nullptr);
+            wifi_data->wireless_down, as_resource_path("wifi/16/wireless_down.png"), nullptr);
     wifi_data->wireless_up = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(
-                             wifi_data->wireless_up, as_resource_path("wifi/16/wireless_up.png"), nullptr);
+            wifi_data->wireless_up, as_resource_path("wifi/16/wireless_up.png"), nullptr);
     button_wifi->user_data = wifi_data;
-    
+
     button_volume->when_paint = paint_volume;
     button_volume->when_clicked = clicked_volume;
     button_volume->when_scrolled = scrolled_volume;
@@ -1694,7 +1632,7 @@ fill_root(App* app, AppClient* client, Container* root)
     surfaces->mute = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute16.png"), nullptr);
     button_volume->user_data = surfaces;
-    
+
     double opacity_diff = .5;
     double opacity_thresh = 200;
     dye_opacity(surfaces->none, opacity_diff, opacity_thresh);
@@ -1702,17 +1640,17 @@ fill_root(App* app, AppClient* client, Container* root)
     dye_opacity(surfaces->medium, opacity_diff, opacity_thresh);
     dye_opacity(surfaces->high, opacity_diff, opacity_thresh);
     dye_opacity(surfaces->mute, opacity_diff, opacity_thresh);
-    
+
     button_date->when_paint = paint_date;
     button_date->when_clicked = clicked_date;
     button_date->user_data = new IconButton;
-    
+
     std::thread t(update_time);
     t.detach();
-    
+
     std::thread late(late_classes_update);
     late.detach();
-    
+
     button_minimize->when_paint = paint_minimize;
     button_minimize->user_data = new IconButton;
     button_minimize->when_clicked = clicked_minimize;
@@ -1722,8 +1660,7 @@ static void
 load_pinned_icons();
 
 static void
-when_taskbar_closed(AppClient* client)
-{
+when_taskbar_closed(AppClient *client) {
     while (app->clients.size() != 1) {
         for (int i = 0; i < app->clients.size(); i++) {
             if (app->clients[i] != client) {
@@ -1734,19 +1671,17 @@ when_taskbar_closed(AppClient* client)
 }
 
 static bool
-taskbar_event_handler(App* app, xcb_generic_event_t* event)
-{
+taskbar_event_handler(App *app, xcb_generic_event_t *event) {
     return true;
 }
 
-AppClient*
-create_taskbar(App* app)
-{
+AppClient *
+create_taskbar(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     app = app;
-    
+
     // Set window startup settings
     Settings settings;
     settings.window_transparent = true;
@@ -1761,45 +1696,44 @@ create_taskbar(App* app)
     settings.h = config->taskbar_height;
     settings.sticky = true;
     settings.force_position = true;
-    
+
     // Create the window
-    
-    AppClient* taskbar = client_new(app, settings, "taskbar");
+
+    AppClient *taskbar = client_new(app, settings, "taskbar");
     taskbar->when_closed = when_taskbar_closed;
-    
+
     client_add_handler(app, taskbar, taskbar_event_handler);
-    
+
     // Lay it out
     fill_root(app, taskbar, taskbar->root);
     update_active_window();
-    
+
     load_pinned_icons();
-    
+
     if (audio_connected) {
         audio_all_clients();
         audio_all_outputs();
     }
-    
+
     return taskbar;
 }
 
 std::string
-class_name(App* app, xcb_window_t window)
-{
+class_name(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    xcb_generic_error_t* error = NULL;
+    xcb_generic_error_t *error = NULL;
     xcb_get_property_cookie_t c = xcb_icccm_get_wm_class_unchecked(app->connection, window);
-    xcb_get_property_reply_t* r = xcb_get_property_reply(app->connection, c, &error);
-    
+    xcb_get_property_reply_t *r = xcb_get_property_reply(app->connection, c, &error);
+
     if (error) {
         std::free(error);
     } else if (r) {
         xcb_icccm_get_wm_class_reply_t wm_class;
         if (xcb_icccm_get_wm_class_from_reply(&wm_class, r)) {
             std::string name;
-            
+
             if (wm_class.class_name) {
                 name = std::string(wm_class.class_name);
             } else if (wm_class.instance_name) {
@@ -1807,9 +1741,9 @@ class_name(App* app, xcb_window_t window)
             } else {
             }
             xcb_icccm_get_wm_class_reply_wipe(&wm_class);
-            
-            std::for_each(name.begin(), name.end(), [](char& c) { c = std::tolower(c); });
-            
+
+            std::for_each(name.begin(), name.end(), [](char &c) { c = std::tolower(c); });
+
             return name;
         } else {
             std::free(r);
@@ -1818,41 +1752,39 @@ class_name(App* app, xcb_window_t window)
     return std::to_string(window);
 }
 
-void
-add_window(App* app, xcb_window_t window)
-{
+void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
+
     std::vector<xcb_window_t> old_windows;
-    AppClient* client = client_by_name(app, "taskbar");
+    AppClient *client = client_by_name(app, "taskbar");
     if (!client)
         return;
-    auto* root = client->root;
+    auto *root = client->root;
     if (!root)
         return;
-    auto* icons = container_by_name("icons", root);
+    auto *icons = container_by_name("icons", root);
     if (!icons)
         return;
-    
+
     std::string window_class_name = class_name(app, window);
     for (auto icon : icons->children) {
-        auto* data = static_cast<LaunchableButton*>(icon->user_data);
+        auto *data = static_cast<LaunchableButton *>(icon->user_data);
         if (data->class_name == window_class_name) {
             data->windows.push_back(window);
             client_paint(app, client);
             return;
         }
     }
-    
-    xcb_generic_error_t* err = nullptr;
+
+    xcb_generic_error_t *err = nullptr;
     xcb_get_property_cookie_t cookie = xcb_get_property(
-                                                        app->connection, 0, window, get_cached_atom(app, "_NET_WM_STATE"), XCB_ATOM_ATOM, 0, BUFSIZ);
-    xcb_get_property_reply_t* reply = xcb_get_property_reply(app->connection, cookie, &err);
+            app->connection, 0, window, get_cached_atom(app, "_NET_WM_STATE"), XCB_ATOM_ATOM, 0, BUFSIZ);
+    xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, &err);
     if (reply) {
         if (reply->type == XCB_ATOM_ATOM) {
-            xcb_atom_t* state_atoms = (xcb_atom_t*)xcb_get_property_value(reply);
+            xcb_atom_t *state_atoms = (xcb_atom_t *) xcb_get_property_value(reply);
             for (unsigned int a = 0; a < sizeof(xcb_atom_t); a++) {
                 // TODO: on first launch xterm has this true????
                 if (state_atoms[a] == get_cached_atom(app, "_NET_WM_STATE_SKIP_TASKBAR")) {
@@ -1872,8 +1804,8 @@ add_window(App* app, xcb_window_t window)
         free(err);
         err = nullptr;
     }
-    
-    Container* a = icons->child(48, FILL_SPACE);
+
+    Container *a = icons->child(48, FILL_SPACE);
     a->when_drag_end_is_click = false;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
     a->when_mouse_leaves_container = pinned_icon_mouse_leaves;
@@ -1881,57 +1813,57 @@ add_window(App* app, xcb_window_t window)
     a->when_drag_end = pinned_icon_drag_end;
     a->when_drag_start = pinned_icon_drag_start;
     a->when_drag = pinned_icon_drag;
-    LaunchableButton* data = new LaunchableButton();
+    LaunchableButton *data = new LaunchableButton();
     data->windows.push_back(window);
     data->class_name = window_class_name;
     data->icon_name = window_class_name;
     a->user_data = data;
-    
+
     xcb_get_property_cookie_t prop_cookie = xcb_ewmh_get_wm_pid(&app->ewmh, window);
     uint32_t pid = -1;
     xcb_ewmh_get_wm_pid_reply(&app->ewmh, prop_cookie, &pid, NULL);
     if (pid != -1) {
         std::string line;
-        
+
         std::ifstream cmdline("/proc/" + std::to_string(pid) + "/cmdline");
         std::getline((cmdline), line);
-        
+
         size_t index = 0;
         while (true) {
             /* Locate the substring to replace. */
             index = line.find('\000', index);
             if (index == std::string::npos)
                 break;
-            
+
             /* Make the replacement. */
             line.replace(index, 1, " ");
-            
+
             /* Advance index forward so the next iteration doesn't pick it up as well. */
             index += 1;
         }
-        
+
         data->has_launchable_info = true;
         data->command_launched_by = line;
     }
-    
+
     std::string path = find_icon(window_class_name, 24);
     if (!path.empty()) {
         load_icon_full_path(app, client, &data->surface, path);
     } else {
-        xcb_generic_error_t* error;
+        xcb_generic_error_t *error;
         xcb_get_property_cookie_t c = xcb_ewmh_get_wm_icon(&app->ewmh, window);
-        
+
         xcb_ewmh_get_wm_icon_reply_t wm_icon;
         memset(&wm_icon, 0, sizeof(xcb_ewmh_get_wm_icon_reply_t));
         xcb_ewmh_get_wm_icon_reply(&app->ewmh, c, &wm_icon, &error);
-        
+
         if (error) {
             std::free(error);
         } else if (0 < xcb_ewmh_get_wm_icon_length(&wm_icon)) {
             uint32_t width = 0;
             uint32_t height = 0;
-            uint32_t* icon_data = NULL;
-            
+            uint32_t *icon_data = NULL;
+
             xcb_ewmh_wm_icon_iterator_t iter = xcb_ewmh_get_wm_icon_iterator(&wm_icon);
             for (; iter.rem; xcb_ewmh_get_wm_icon_next(&iter)) {
                 if (iter.width > width) {
@@ -1945,273 +1877,266 @@ add_window(App* app, xcb_window_t window)
             }
             auto stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
             auto surface = cairo_image_surface_create_for_data(
-                                                               (unsigned char*)icon_data, CAIRO_FORMAT_ARGB32, width, height, stride);
-            
-            cairo_pattern_t* pattern = cairo_pattern_create_for_surface(surface);
+                    (unsigned char *) icon_data, CAIRO_FORMAT_ARGB32, width, height, stride);
+
+            cairo_pattern_t *pattern = cairo_pattern_create_for_surface(surface);
             cairo_pattern_set_filter(pattern, CAIRO_FILTER_BEST);
-            
+
             data->surface = accelerated_surface(app, client, 24, 24);
-            cairo_t* cr = cairo_create(data->surface);
-            
+            cairo_t *cr = cairo_create(data->surface);
+
             cairo_save(cr);
             double taskbar_icon_size = 24;
             cairo_scale(cr, taskbar_icon_size / (width), taskbar_icon_size / (width));
             cairo_set_source(cr, pattern);
             cairo_paint(cr);
             cairo_restore(cr);
-            
+
             cairo_destroy(cr);
             xcb_ewmh_get_wm_icon_reply_wipe(&wm_icon);
         }
     }
-    
+
     update_pinned_items_file();
-    
+
     client_layout(app, client);
     request_refresh(app, client);
     //    client_paint(app, entity, true);
 }
 
-void
-remove_window(App* app, xcb_window_t window)
-{
+void remove_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
+
     std::vector<xcb_window_t> old_windows;
-    AppClient* entity = client_by_name(app, "taskbar");
+    AppClient *entity = client_by_name(app, "taskbar");
     if (!entity)
         return;
-    auto* root = entity->root;
+    auto *root = entity->root;
     if (!root)
         return;
-    auto* icons = container_by_name("icons", root);
+    auto *icons = container_by_name("icons", root);
     if (!icons)
         return;
-    
+
     for (int j = 0; j < icons->children.size(); j++) {
-        Container* container = icons->children[j];
-        LaunchableButton* data = (LaunchableButton*)container->user_data;
+        Container *container = icons->children[j];
+        LaunchableButton *data = (LaunchableButton *) container->user_data;
         for (int i = 0; i < data->windows.size(); i++) {
             if (data->windows[i] == window) {
                 data->windows.erase(data->windows.begin() + i);
-                
+
                 if (data->windows.size() == 0 && !data->pinned) {
                     icons->children.erase(icons->children.begin() + j);
                 }
-                
+
                 break;
             }
         }
     }
-    
+
     update_pinned_items_file();
     icons_align(entity, icons, false);
 }
 
-void
-stacking_order_changed(xcb_window_t* all_windows, int windows_count)
-{
+void stacking_order_changed(xcb_window_t *all_windows, int windows_count) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
+
     std::vector<xcb_window_t> new_windows;
     for (int i = 0; i < windows_count; i++) {
         new_windows.push_back(all_windows[i]);
     }
-    
+
     std::vector<xcb_window_t> old_windows;
-    AppClient* entity = client_by_name(app, "taskbar");
+    AppClient *entity = client_by_name(app, "taskbar");
     if (!entity)
         return;
-    auto* root = entity->root;
+    auto *root = entity->root;
     if (!root)
         return;
-    auto* icons = container_by_name("icons", root);
+    auto *icons = container_by_name("icons", root);
     if (!icons)
         return;
-    
+
     for (auto icon : icons->children) {
-        auto* data = static_cast<LaunchableButton*>(icon->user_data);
+        auto *data = static_cast<LaunchableButton *>(icon->user_data);
         for (auto window : data->windows) {
             old_windows.emplace_back(window);
         }
     }
-    
+
     for (auto new_window : new_windows) {
         bool found = false;
         for (auto old_window : old_windows)
             if (old_window == new_window)
-            found = true;
+                found = true;
         if (!found) {
             add_window(app, new_window);
         }
     }
-    
+
     for (int i = 0; i < old_windows.size(); i++) {
         xcb_window_t old_window = old_windows[i];
         bool found = false;
         for (auto new_window : new_windows)
             if (old_window == new_window)
-            found = true;
+                found = true;
         if (!found) {
             remove_window(app, old_window);
         }
     }
 }
 
-void
-remove_non_pinned_icons()
-{
-    AppClient* client_entity = client_by_name(app, "taskbar");
+void remove_non_pinned_icons() {
+    AppClient *client_entity = client_by_name(app, "taskbar");
     if (!valid_client(app, client_entity))
         return;
-    auto* root = client_entity->root;
+    auto *root = client_entity->root;
     if (!root)
         return;
-    auto* icons = container_by_name("icons", root);
+    auto *icons = container_by_name("icons", root);
     if (!icons)
         return;
-    
+
     icons->children.erase(std::remove_if(icons->children.begin(),
                                          icons->children.end(),
-                                         [](Container* icon) {
-                                             auto* data =
-                                                 static_cast<LaunchableButton*>(icon->user_data);
-                                             
+                                         [](Container *icon) {
+                                             auto *data =
+                                                     static_cast<LaunchableButton *>(icon->user_data);
+
                                              return data->windows.empty() && !data->pinned;
                                          }),
                           icons->children.end());
-    
+
     update_pinned_items_file();
     icons_align(client_entity, icons, false);
 }
 
 #include <INIReader.h>
 #include <sys/stat.h>
+#include <xcb/xcb_aux.h>
 
 /**
  * Save the pinned items to a file on disk so we can load them on the next session
  */
-void
-update_pinned_items_file()
-{
-    const char* home = getenv("HOME");
+void update_pinned_items_file() {
+    const char *home = getenv("HOME");
     std::string itemsPath(home);
     itemsPath += "/.config/";
-    
+
     if (mkdir(itemsPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
         if (errno != EEXIST) {
             printf("Couldn't mkdir %s\n", itemsPath.c_str());
             return;
         }
     }
-    
+
     itemsPath += "/winbar/";
-    
+
     if (mkdir(itemsPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
         if (errno != EEXIST) {
             printf("Couldn't mkdir %s\n", itemsPath.c_str());
             return;
         }
     }
-    
+
     itemsPath += "items.ini";
-    
+
     std::ofstream itemsFile(itemsPath);
-    
+
     if (!itemsFile.is_open())
         return;
-    
-    AppClient* client_entity = client_by_name(app, "taskbar");
-    auto* root = client_entity->root;
+
+    AppClient *client_entity = client_by_name(app, "taskbar");
+    auto *root = client_entity->root;
     if (!root)
         return;
-    auto* icons = container_by_name("icons", root);
+    auto *icons = container_by_name("icons", root);
     if (!icons)
         return;
-    
+
     update_minimize_icon_positions();
-    
+
     int i = 0;
     for (auto icon : icons->children) {
-        auto* data = static_cast<LaunchableButton*>(icon->user_data);
-        
+        auto *data = static_cast<LaunchableButton *>(icon->user_data);
+
         if (!data)
             continue;
         if (!data->pinned)
             continue;
-        
+
         itemsFile << "[PinnedIcon" << i++ << "]" << std::endl;
-        
+
         itemsFile << "#The class_name is a property that windows set on themselves so that they "
-            "can be stacked with windows of the same kind as them. If when you click this "
-            "pinned icon button, it launches a window that creates an icon button that "
-            "doesn't stack with this one then the this wm_class is wrong and you're going "
-            "to have to fix it by running xprop in your console and clicking the window "
-            "that opened to find the real WM_CLASS that should be set."
-            << std::endl;
+                     "can be stacked with windows of the same kind as them. If when you click this "
+                     "pinned icon button, it launches a window that creates an icon button that "
+                     "doesn't stack with this one then the this wm_class is wrong and you're going "
+                     "to have to fix it by running xprop in your console and clicking the window "
+                     "that opened to find the real WM_CLASS that should be set."
+                  << std::endl;
         itemsFile << "class_name=" << data->class_name << std::endl;
-        
+
         itemsFile << "#Usually the same as the class_name but feel free to change it to any other "
-            "name of an icon if it's not behaving as you want"
-            << std::endl;
+                     "name of an icon if it's not behaving as you want"
+                  << std::endl;
         itemsFile << "icon_name=" << data->icon_name << std::endl;
-        
+
         itemsFile << "#The command that is run when the icon is clicked" << std::endl;
-        itemsFile << "command=" << data->command_launched_by << std::endl << std::endl;
+        itemsFile << "command=" << data->command_launched_by << std::endl
+                  << std::endl;
         itemsFile << std::endl;
     }
-    
+
     itemsFile.close();
 }
 
 static void
-load_pinned_icons()
-{
-    AppClient* client_entity = client_by_name(app, "taskbar");
-    auto* root = client_entity->root;
+load_pinned_icons() {
+    AppClient *client_entity = client_by_name(app, "taskbar");
+    auto *root = client_entity->root;
     if (!root)
         return;
-    auto* icons = container_by_name("icons", root);
+    auto *icons = container_by_name("icons", root);
     if (!icons)
         return;
-    
-    const char* home = getenv("HOME");
+
+    const char *home = getenv("HOME");
     std::string itemsPath(home);
     itemsPath += "/.config/";
-    
+
     if (mkdir(itemsPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
         if (errno != EEXIST) {
             printf("Couldn't mkdir %s\n", itemsPath.c_str());
             return;
         }
     }
-    
+
     itemsPath += "/winbar/";
-    
+
     if (mkdir(itemsPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
         if (errno != EEXIST) {
             printf("Couldn't mkdir %s\n", itemsPath.c_str());
             return;
         }
     }
-    
+
     itemsPath += "items.ini";
-    
+
     // READ INI FILE
     INIReader itemFile(itemsPath);
     if (itemFile.ParseError() != 0)
         return;
-    
-    for (const std::string& section_title : itemFile.Sections()) {
-        auto* child = new Container();
+
+    for (const std::string &section_title : itemFile.Sections()) {
+        auto *child = new Container();
         child->parent = icons;
         child->wanted_bounds.h = FILL_SPACE;
         child->wanted_bounds.w = 48;
-        
+
         child->when_drag_end_is_click = false;
         child->when_mouse_enters_container = pinned_icon_mouse_enters;
         child->when_mouse_leaves_container = pinned_icon_mouse_leaves;
@@ -2219,8 +2144,8 @@ load_pinned_icons()
         child->when_drag_end = pinned_icon_drag_end;
         child->when_drag_start = pinned_icon_drag_start;
         child->when_drag = pinned_icon_drag;
-        
-        auto* data = new LaunchableButton;
+
+        auto *data = new LaunchableButton;
         data->class_name = itemFile.Get(section_title, "class_name", "NONE");
         data->icon_name = itemFile.Get(section_title, "icon_name", "NONE");
         data->pinned = true;
@@ -2229,90 +2154,85 @@ load_pinned_icons()
             data->has_launchable_info = true;
             data->command_launched_by = command;
         }
-        
+
         std::string path = find_icon(data->icon_name, 24);
         if (!path.empty()) {
             load_icon_full_path(app, client_entity, &data->surface, path);
         } else {
             data->surface = accelerated_surface(app, client_entity, 24, 24);
-            char* string = getenv("HOME");
+            char *string = getenv("HOME");
             std::string home(string);
             home += "/.config/winbar/cached_icons/" + data->class_name + ".png";
             bool b = paint_surface_with_image(data->surface, home, nullptr);
             if (!b) {
                 paint_surface_with_image(
-                                         data->surface, as_resource_path("unknown-24.svg"), nullptr);
+                        data->surface, as_resource_path("unknown-24.svg"), nullptr);
             }
         }
-        
+
         child->user_data = data;
-        
+
         icons->children.push_back(child);
     }
 }
 
 static void
-late_classes_update()
-{
+late_classes_update() {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Late WM_CLASS Thread");
 #endif
-    
+
     std::unique_lock lock(app->clients_mutex);
     while (app->running) {
-        AppClient* client_entity = client_by_name(app, "taskbar");
+        AppClient *client_entity = client_by_name(app, "taskbar");
         if (!valid_client(app, client_entity))
             break;
-        auto* root = client_entity->root;
+        auto *root = client_entity->root;
         if (!root)
             break;
-        auto* icons = container_by_name("icons", root);
+        auto *icons = container_by_name("icons", root);
         if (!icons)
             break;
-        
+
         for (auto icon : icons->children) {
-            auto data = static_cast<LaunchableButton*>(icon->user_data);
-            
+            auto data = static_cast<LaunchableButton *>(icon->user_data);
+
             // since when windows don't have real classes on them we set their names to their class.
             // they should only be stacked by one
             if (data->windows.size() == 1) {
                 auto name = class_name(app, data->windows[0]);
-                
+
                 if (name != data->class_name) {
                     remove_window(app, data->windows[0]);
                     add_window(app, data->windows[0]);
                 }
             }
         }
-        
+
         lock.unlock();
         usleep(1000 * 1000);
         lock.lock();
     }
 }
 
-void
-update_taskbar_volume_icon()
-{
-    if (auto* client = client_by_name(app, "taskbar")) {
-        auto* event = new xcb_expose_event_t;
-        
+void update_taskbar_volume_icon() {
+    if (auto *client = client_by_name(app, "taskbar")) {
+        auto *event = new xcb_expose_event_t;
+
         event->response_type = XCB_EXPOSE;
         event->window = client->window;
-        
-        xcb_send_event(app->connection, true, event->window, XCB_EVENT_MASK_EXPOSURE, (char*)event);
+
+        xcb_send_event(app->connection, true, event->window, XCB_EVENT_MASK_EXPOSURE, (char *) event);
         xcb_flush(app->connection);
-        
+
         delete event;
     }
 }
 
-void
-set_textarea_active()
-{
-    if (auto* client = client_by_name(app, "taskbar")) {
-        if (auto* container = container_by_name("main_text_area", client->root)) {
-            auto* text_data = (TextAreaData*)container->user_data;
+void set_textarea_active() {
+    if (auto *client = client_by_name(app, "taskbar")) {
+        if (auto *container = container_by_name("main_text_area", client->root)) {
+            auto *text_data = (TextAreaData *) container->user_data;
             container->parent->active = true;
             container->parent->active = true;
         }
@@ -2320,12 +2240,10 @@ set_textarea_active()
     }
 }
 
-void
-set_textarea_inactive()
-{
-    if (auto* client = client_by_name(app, "taskbar")) {
-        if (auto* container = container_by_name("main_text_area", client->root)) {
-            auto* text_data = (TextAreaData*)container->user_data;
+void set_textarea_inactive() {
+    if (auto *client = client_by_name(app, "taskbar")) {
+        if (auto *container = container_by_name("main_text_area", client->root)) {
+            auto *text_data = (TextAreaData *) container->user_data;
             delete text_data->state;
             text_data->state = new TextState;
             container->parent->active = false;
@@ -2334,44 +2252,43 @@ set_textarea_inactive()
     }
 }
 
-void
-register_popup(xcb_window_t window)
-{
+void register_popup(xcb_window_t window) {
     // Close every other popup
-    auto* client = client_by_window(app, window);
+    xcb_aux_sync(app->connection);
+
+    auto *client = client_by_window(app, window);
     if (!valid_client(app, client))
         return;
     popup_window_open = window;
-    
+
     // TODO why don't we grab the pointer instead?
     xcb_void_cookie_t grab_cookie =
-        xcb_grab_button_checked(app->connection,
-                                True,
-                                app->screen->root,
-                                XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE,
-                                XCB_GRAB_MODE_SYNC,
-                                XCB_GRAB_MODE_ASYNC,
-                                XCB_NONE,
-                                XCB_NONE,
-                                XCB_BUTTON_INDEX_ANY,
-                                XCB_MOD_MASK_ANY);
-    xcb_generic_error_t* error = xcb_request_check(app->connection, grab_cookie);
-    
+            xcb_grab_button_checked(app->connection,
+                                    True,
+                                    app->screen->root,
+                                    XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE,
+                                    XCB_GRAB_MODE_SYNC,
+                                    XCB_GRAB_MODE_ASYNC,
+                                    XCB_NONE,
+                                    XCB_NONE,
+                                    XCB_BUTTON_INDEX_ANY,
+                                    XCB_MOD_MASK_ANY);
+    xcb_generic_error_t *error = xcb_request_check(app->connection, grab_cookie);
+
     if (error != NULL) {
         printf("Could not grab pointer for the window %d\n", window);
         client_close_threaded(app, client);
     } else {
-        if (auto* c = client_by_name(app, "taskbar")) {
-            app->grab_window = c->window;
+        if (auto *c = client_by_name(app, "taskbar")) {
+            app->grab_window = popup_window_open;
         } else {
-            app->grab_window = client->window;
+            app->grab_window = popup_window_open;
         }
-        
-        xcb_set_input_focus(app->connection,
-                            XCB_INPUT_FOCUS_PARENT,
-                            popup_window_open,
-                            XCB_CURRENT_TIME);
-        for (auto* c : app->clients) {
+
+
+        xcb_set_input_focus(
+                app->connection, XCB_INPUT_FOCUS_PARENT, popup_window_open, XCB_CURRENT_TIME);
+        for (auto *c : app->clients) {
             if (c->window != window) {
                 if (c->popup) {
                     client_close_threaded(app, c);
