@@ -1,5 +1,5 @@
 ## Before building
-Make sure pkg-config can find these libs on your system
+Make sure the following are on your system
 
 Requirements | Reason
 ------------ | -------------
@@ -24,17 +24,30 @@ xkbcommon-x11 | to handle translating key presses to actual text
 libconfig++ | to parse config files
 xcb-keysyms | to translate keysyms
 xcb-image | to manipulate images
+unzip | to unzip the resources
 
 On voidlinux you can run the following to get set up for compiling
 ```bash
-sudo xbps-install -S git gcc cmake make pango-devel cairo-devel librsvg-devel libxcb-devel xcb-util-devel pulseaudio-devel xbc-util-wm-devel libxkbcommon-devel libxkbcommon-x11 libconfig++-devel xcb-util-keysyms-devel xcb-util-image-devel
+sudo xbps-install -S git gcc cmake make pango-devel cairo-devel librsvg-devel libxcb-devel xcb-util-devel pulseaudio-devel xcb-util-wm-devel libxkbcommon-devel libxkbcommon-x11 libconfig++-devel xcb-util-keysyms-devel xcb-util-image-devel papirus-icon-theme lxappearance unzip
 ```
 
 ## Installation
-Make sure you have all the requirements laid out above. If compilation fails, it should tell you what you're missing
+* Download the source and enter the folder
 ```bash
 git clone https://github.com/jmanc3/winbar
 cd winbar
-./install.sh
 ```
+* Put the resources where they are needed or you'll have missing icons
+```bash
+unzip winbar.zip -d ~/.config
+```
+* It's recommended you set Papirus as your systems icon theme (you can use something like lxappearance to do that)
+
+
+* Finally once you've done everything above, do the following.
+```bash
+./install.sh
+``` 
+If compilation fails, it should tell you what headers are missing and you can look up what you need to install for your distribution to get that library.
+
 

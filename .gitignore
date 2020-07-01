@@ -1,0 +1,10 @@
+.*
+*.sh
+out/*
+cmake*/
+build/*
+release/*
+tracy*
+*.4coder
+!.gitignore
+!install.sh
