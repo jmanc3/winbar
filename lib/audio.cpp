@@ -4,7 +4,6 @@
 
 #include "audio.h"
 #include <iostream>
-#include <string.h>
 #include <thread>
 
 std::vector<AudioClient *> audio_clients;
@@ -81,8 +80,7 @@ void on_sink_input_info_list_response(pa_context *c,
         const void *data = nullptr;
         pa_proplist_get(l->proplist, PA_PROP_APPLICATION_NAME, &data, &nbytes);
         if (data) {
-            auto result = strndup(reinterpret_cast<const char *>(data), nbytes);
-            audio_client->application_name = result;
+            audio_client->application_name = std::string((const char *) data, nbytes);
         }
     }
 
@@ -134,9 +132,13 @@ void context_state_callback(pa_context *c, void *userdata) {
 }
 
 void audio_start() {
-    mainloop = pa_threaded_mainloop_new();
-    api = pa_threaded_mainloop_get_api(mainloop);
-    pa_threaded_mainloop_start(mainloop);
+    if (!(mainloop = pa_threaded_mainloop_new())) {
+        return;
+    }
+
+    if (!(api = pa_threaded_mainloop_get_api(mainloop))) {
+        return;
+    }
 
     pa_proplist *prop_list = pa_proplist_new();
     pa_proplist_sets(prop_list, PA_PROP_APPLICATION_NAME, ("Winbar Volume Control"));
@@ -144,19 +146,44 @@ void audio_start() {
     pa_proplist_sets(prop_list, PA_PROP_APPLICATION_ICON_NAME, "audio-card");
     pa_proplist_sets(prop_list, PA_PROP_APPLICATION_VERSION, "1");
 
-    context = pa_context_new_with_proplist(api, "Winbar Volume Control", prop_list);
+    if (!(context = pa_context_new_with_proplist(api, "Winbar Volume Control", prop_list))) {
+        return;
+    }
 
     pa_proplist_free(prop_list);
 
-    pa_context_connect(context, NULL, PA_CONTEXT_NOFAIL, NULL);
     pa_context_set_state_callback(context, context_state_callback, NULL);
 
-    while (pa_context_get_state(context) != PA_CONTEXT_READY &&
-           pa_context_get_state(context) != PA_CONTEXT_FAILED &&
-           pa_context_get_state(context) != PA_CONTEXT_TERMINATED) {
+    char *server;
+    if (pa_context_connect(context, server, PA_CONTEXT_NOFLAGS, NULL) < 0) {
+        int error = pa_context_errno(context);
+        return;
     }
 
-    audio_connected = pa_context_get_state(context) == PA_CONTEXT_READY;
+    pa_threaded_mainloop_lock(mainloop);
+
+    if (pa_threaded_mainloop_start(mainloop) < 0) {
+        return;
+    }
+    pa_threaded_mainloop_unlock(mainloop);
+
+    while (true) {
+        pa_context_state_t state;
+
+        state = pa_context_get_state(context);
+
+        if (state == PA_CONTEXT_READY)
+            break;
+
+        if (!PA_CONTEXT_IS_GOOD(state)) {
+            int error = pa_context_errno(context);
+            return;
+        }
+
+        pa_threaded_mainloop_wait(mainloop);
+    }
+
+    audio_connected = true;
 }
 
 void audio_stop() {

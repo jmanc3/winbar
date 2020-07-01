@@ -1232,7 +1232,7 @@ void handle_mouse_enter_notify(App *app) {
 #endif
     auto *e = (xcb_enter_notify_event_t *) (event);
     if (e->mode != XCB_NOTIFY_MODE_NORMAL)// clicks generate leave and enter
-        // notifies wtf xlib
+        // notifies when you're grabbing wtf xlib
         return;
 
     auto client = client_by_window(app, e->event);
@@ -1248,7 +1248,7 @@ void handle_mouse_leave_notify(App *app) {
 #endif
     auto *e = (xcb_leave_notify_event_t *) (event);
     if (e->mode != XCB_NOTIFY_MODE_NORMAL)// clicks generate leave and enter
-        // notifies wtf xlib
+        // notifies when you're grabbing wtf xlib
         return;
 
     auto client = client_by_window(app, e->event);
@@ -1538,7 +1538,6 @@ void update_animations(App *app) {
             }
         }
 
-        // TODO: this is slow, since we will layout a client as many animations as it has on it, instead of just doing it once at the end
         if (animation->relayout) {
             to_layout.push_back(animation->client);
         }
