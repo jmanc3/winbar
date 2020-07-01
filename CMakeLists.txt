@@ -21,14 +21,14 @@ if (PROFILE)
     # run git clone https://github.com/wolfpld/tracy.git if you want to do this
     add_definitions(-DTRACY_ENABLE)
     add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB} ../tracy/TracyClient.cpp)
+
+    set(DL_LIB dl)
+    set(PTHREAD_LIB pthread)
+    target_link_libraries(${project_name} PUBLIC ${PTHREAD_LIB} ${DL_LIB})
 else ()
     # otherwise just compile
     add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB})
 endif ()
-
-set(DL_LIB dl)
-set(PTHREAD_LIB pthread)
-target_link_libraries(${project_name} PUBLIC ${PTHREAD_LIB} ${DL_LIB})
 
 find_package(PkgConfig)
 
@@ -47,11 +47,31 @@ function(try_to_add_dependency lib_name)
     endif ()
 endfunction(try_to_add_dependency)
 
+#[[ just keeping this here in case we ever need to use them
 set(LIBS pangocairo;pango;gobject-2.0;glib-2.0;cairo; # Pango libraries (mainly for font rendering and cairo for image rendering)
         x11;xcomposite;xrender;xext;xdamage; # xlib headers so we can communicate with xserver
         librsvg-2.0;libconfig++;
         xcb;xcb-util;xcb-icccm;x11-xcb;xcb-ewmh;xcb-aux;libpulse;
         xkbcommon-x11;xcb-xkb;xcb-keysyms;xcb-randr;xcb-image;xcb-errors;xcb-record) # svg library and config file parser library
+]]
+
+set(
+        LIBS
+        cairo # for painting rectangles and stuff
+        pango # for loading fonts and laying them out
+        librsvg-2.0 # to load svg icons
+        xcb # to open windows with the Xorg server
+        pangocairo # to paint pango text layouts using cairo
+        xcb-randr # to gain brightness control
+        xcb-aux # to force the Xorg server to really finish with all the events before xcb_sync_aux called
+        xcb-record # to open the app_menu when the windows key is pressed
+        libpulse # to be able to modify audio volume and mute state
+        xcb-ewmh # to make it easier to handle extended windows manager hints requests
+        xcb-icccm # to make it easier to handle icccm request
+        xcb-xkb # to handle translating key presses to actual text
+        xkbcommon-x11 # to handle translating key presses to actual text
+        libconfig++ # to parse config files
+)
 
 foreach (LIB IN LISTS LIBS)
     pkg_check_modules(D_${LIB} ${LIB})
