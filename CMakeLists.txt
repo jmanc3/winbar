@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-set(project_name fixapp)
+set(project_name winbar)
 project(${project_name})
 
 set(CMAKE_CXX_STANDARD 17) ## or 14 !!
