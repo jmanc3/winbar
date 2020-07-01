@@ -11,8 +11,7 @@
 #include <pango/pangocairo.h>
 #include <zconf.h>
 
-void
-dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
+void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -52,8 +51,7 @@ dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
     }
 }
 
-void
-dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold) {
+void dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -113,20 +111,17 @@ lerp_argb(double scalar, ArgbColor start_color, ArgbColor target_color) {
     return color;
 }
 
-long
-get_current_time_in_ms() {
+long get_current_time_in_ms() {
     using namespace std::chrono;
     milliseconds currentTime = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
     return currentTime.count();
 }
 
-void
-set_argb(cairo_t *cr, ArgbColor color) {
+void set_argb(cairo_t *cr, ArgbColor color) {
     cairo_set_source_rgba(cr, color.r, color.g, color.b, color.a);
 }
 
-void
-set_rect(cairo_t *cr, Bounds bounds) {
+void set_rect(cairo_t *cr, Bounds bounds) {
     cairo_rectangle(cr, bounds.x, bounds.y, bounds.w, bounds.h);
 }
 
@@ -172,21 +167,20 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
     return font->layout;
 }
 
-void
-cleanup_cached_fonts() {
+void cleanup_cached_fonts() {
     for (auto font : cached_fonts) {
         delete font;
     }
     cached_fonts.clear();
 }
 
-#define get_window_from_casted_event__explicit_member(X, Y, W)                                     \
-case X: {                                                                                      \
-auto* e = (Y##_event_t*)(event);                                                           \
-return e->W;                                                                               \
-}
-#define get_window_from_casted_event(X, Y)                                                         \
-get_window_from_casted_event__explicit_member(X, Y, event)
+#define get_window_from_casted_event__explicit_member(X, Y, W) \
+    case X: {                                                  \
+        auto *e = (Y##_event_t *) (event);                     \
+        return e->W;                                           \
+    }
+#define get_window_from_casted_event(X, Y) \
+    get_window_from_casted_event__explicit_member(X, Y, event)
 
 xcb_window_t
 get_window(xcb_generic_event_t *event) {
@@ -271,23 +265,20 @@ get_cached_atom(App *app, std::string name) {
     return cached_atom->atom;
 }
 
-void
-cleanup_cached_atoms() {
+void cleanup_cached_atoms() {
     for (auto cached_atom : cached_atoms) {
         delete cached_atom;
     }
 }
 
-void
-close_all_fds() {
+void close_all_fds() {
     long maxfd = sysconf(_SC_OPEN_MAX);
     for (int fd = 3; fd < maxfd; fd++) {
         close(fd);
     }
 }
 
-void
-reset_signals() {
+void reset_signals() {
     for (int sig = 1; sig < 32; sig++) {
         signal(sig, SIG_DFL);
     }
@@ -296,8 +287,7 @@ reset_signals() {
     sigprocmask(SIG_SETMASK, &signal_set, NULL);
 }
 
-void
-launch_command(std::string command) {
+void launch_command(std::string command) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -344,8 +334,7 @@ lighten(ArgbColor b, double amount) {
     return b;
 }
 
-void
-load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surface, std::string path) {
+void load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surface, std::string path) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -392,8 +381,7 @@ as_resource_path(std::string path) {
     return home;
 }
 
-bool
-paint_svg_to_surface(cairo_surface_t *surface, std::string path) {
+bool paint_svg_to_surface(cairo_surface_t *surface, std::string path) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -423,8 +411,7 @@ paint_svg_to_surface(cairo_surface_t *surface, std::string path) {
     return true;
 }
 
-bool
-paint_png_to_surface(cairo_surface_t *surface, std::string path) {
+bool paint_png_to_surface(cairo_surface_t *surface, std::string path) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -448,8 +435,7 @@ paint_png_to_surface(cairo_surface_t *surface, std::string path) {
     return true;
 }
 
-bool
-paint_surface_with_image(cairo_surface_t *surface, std::string path, void (*upon_completion)(bool)) {
+bool paint_surface_with_image(cairo_surface_t *surface, std::string path, void (*upon_completion)(bool)) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -482,7 +468,6 @@ accelerated_surface(App *app, AppClient *client_entity, int w, int h) {
     return fast_surface;
 }
 
-void
-paint_surface_with_data(cairo_surface_t *surface, uint32_t *icon_data) {
+void paint_surface_with_data(cairo_surface_t *surface, uint32_t *icon_data) {
     unsigned char *data = cairo_image_surface_get_data(surface);
 }

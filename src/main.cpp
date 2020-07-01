@@ -3,15 +3,14 @@
 #include "app_menu.h"
 #include "application.h"
 #include "audio.h"
+#include "bind_meta.h"
 #include "root.h"
 #include "systray.h"
 #include "taskbar.h"
-#include "bind_meta.h"
 
 App *app;
 
-int
-main() {
+int main() {
     setenv("DISPLAY", ":1", true);
 
     // Open connection to app
@@ -37,7 +36,7 @@ main() {
     // We only want to load the desktop files once at the start of the program
     //std::thread(load_desktop_files).detach();
     load_desktop_files();
-    load_scripts(); // The scripts are reloaded everytime the search_menu window closes
+    load_scripts();// The scripts are reloaded everytime the search_menu window closes
     load_historic_scripts();
     load_historic_apps();
 

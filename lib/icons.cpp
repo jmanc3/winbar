@@ -272,7 +272,7 @@ namespace rapidcsv {
                         cell.clear();
                         mData.push_back(row);
                         row.clear();
-                        quoted = false; // disallow line breaks in quoted string, by
+                        quoted = false;// disallow line breaks in quoted string, by
                         // auto-unquote at linebreak
                     } else {
                         cell += buffer[i];
@@ -347,7 +347,7 @@ namespace rapidcsv {
         bool mIsLE = false;
 #endif
     };
-}
+}// namespace rapidcsv
 
 /**
  * My stuff
@@ -359,8 +359,7 @@ namespace rapidcsv {
 #include <cstring>
 #include <dirent.h>
 
-bool
-get_current_theme_name(std::string *active_theme) {
+bool get_current_theme_name(std::string *active_theme) {
     std::string gtk_settings_file_path(getenv("HOME"));
     gtk_settings_file_path += "/.config/gtk-3.0/settings.ini";
 
@@ -432,7 +431,7 @@ find_icon(std::string wm_class, int size, bool recursive, std::string theme_name
 
         // try to find icon
         wm_class = fix_wm_class(wm_class);
-        wm_class += "."; // so we only find exact matches with file_name
+        wm_class += ".";// so we only find exact matches with file_name
 
         std::string path = base_icon_path + theme_name + "/" + section;
 

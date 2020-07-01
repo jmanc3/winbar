@@ -186,11 +186,11 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
         cairo_fill(cr);
     }
 
-    bool active = container->state.mouse_pressing || container->state.mouse_hovering || // US
+    bool active = container->state.mouse_pressing || container->state.mouse_hovering ||// US
                   container->parent->children[0]->state.mouse_pressing ||
-                  container->parent->children[0]->state.mouse_hovering || // TITLE
+                  container->parent->children[0]->state.mouse_hovering ||// TITLE
                   container->parent->parent->children[1]->state.mouse_pressing ||
-                  container->parent->parent->children[1]->state.mouse_hovering; // BODY
+                  container->parent->parent->children[1]->state.mouse_hovering;// BODY
 
     if (data->surface && active) {
         dye_surface(data->surface, ArgbColor(1, 1, 1, 1));
@@ -323,8 +323,7 @@ windows_selector_event_handler(App *app, xcb_generic_event_t *event) {
     return true;
 }
 
-void
-start_windows_selector(Container *container) {
+void start_windows_selector(Container *container) {
     first_expose = true;
     data_container = container;
     data = static_cast<LaunchableButton *>(container->user_data);

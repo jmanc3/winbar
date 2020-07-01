@@ -47,7 +47,6 @@ static xcb_window_t popup_window_open = -1;
 static int max_resize_attempts = 10;
 static int resize_attempts = 0;
 
-// Every function in this file
 static void
 paint_background(AppClient *client, cairo_t *cr, Container *container);
 
@@ -190,10 +189,11 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_volume(AppClient *client, cairo_t *cr, Container *container) {
-    paint_button(client, cr, container);
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    paint_button(client, cr, container);
+
     auto surfaces = (volume_surfaces *) container->user_data;
 
     if (surfaces->mute == nullptr || surfaces->high == nullptr || surfaces->low == nullptr ||
@@ -759,8 +759,7 @@ return_current_time_and_date() {
     return ss.str();
 }
 
-void
-update_time() {
+void update_time() {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Time Thread");
 #endif
@@ -783,8 +782,7 @@ update_time() {
     }
 }
 
-void
-active_window_changed(xcb_window_t new_active_window) {
+void active_window_changed(xcb_window_t new_active_window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1019,7 +1017,7 @@ minimize_window(xcb_window_t window) {
     event.sequence = 0;
     event.window = window;
     event.type = get_cached_atom(app, "WM_CHANGE_STATE");
-    event.data.data32[0] = XCB_ICCCM_WM_STATE_ICONIC; // IconicState
+    event.data.data32[0] = XCB_ICCCM_WM_STATE_ICONIC;// IconicState
     event.data.data32[1] = 0;
     event.data.data32[2] = 0;
     event.data.data32[3] = 0;
@@ -1090,7 +1088,7 @@ scrolled_volume(AppClient *client_entity,
     pa_cvolume copy = client->volume;
     double val = client->volume.values[0];
     val += 655.35 * vertical_scroll;
-    val -= 655.35 * horizontal_scroll; // we subtract to correct the direction
+    val -= 655.35 * horizontal_scroll;// we subtract to correct the direction
 
     if (val < 0) {
         val = 0;
@@ -1329,8 +1327,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
-void
-paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) {
+void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) {
     paint_button(client_entity, cr, container);
 
     auto *data = static_cast<data_battery_surfaces *>(container->user_data);
@@ -1435,7 +1432,7 @@ scrolled_workspace(AppClient *client_entity,
                    int vertical_scroll) {
     int current = desktops_current(app);
     current += vertical_scroll;
-    current -= horizontal_scroll; // we subtract to correct the direction
+    current -= horizontal_scroll;// we subtract to correct the direction
 
     int count = desktops_count(app);
     if (current < 0)
@@ -1447,9 +1444,9 @@ scrolled_workspace(AppClient *client_entity,
 
 static void
 clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
-    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) { // left
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {// left
         scrolled_workspace(client_entity, cr, container, 0, 1);
-    } else { // right
+    } else {// right
         scrolled_workspace(client_entity, cr, container, 0, -1);
     }
 }
@@ -1755,8 +1752,7 @@ class_name(App *app, xcb_window_t window) {
     return std::to_string(window);
 }
 
-void
-add_window(App *app, xcb_window_t window) {
+void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1908,8 +1904,7 @@ add_window(App *app, xcb_window_t window) {
     //    client_paint(app, entity, true);
 }
 
-void
-remove_window(App *app, xcb_window_t window) {
+void remove_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1945,8 +1940,7 @@ remove_window(App *app, xcb_window_t window) {
     icons_align(entity, icons, false);
 }
 
-void
-stacking_order_changed(xcb_window_t *all_windows, int windows_count) {
+void stacking_order_changed(xcb_window_t *all_windows, int windows_count) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1996,8 +1990,7 @@ stacking_order_changed(xcb_window_t *all_windows, int windows_count) {
     }
 }
 
-void
-remove_non_pinned_icons() {
+void remove_non_pinned_icons() {
     AppClient *client_entity = client_by_name(app, "taskbar");
     if (!valid_client(app, client_entity))
         return;
@@ -2029,8 +2022,7 @@ remove_non_pinned_icons() {
 /**
  * Save the pinned items to a file on disk so we can load them on the next session
  */
-void
-update_pinned_items_file() {
+void update_pinned_items_file() {
     const char *home = getenv("HOME");
     std::string itemsPath(home);
     itemsPath += "/.config/";
@@ -2094,7 +2086,8 @@ update_pinned_items_file() {
         itemsFile << "icon_name=" << data->icon_name << std::endl;
 
         itemsFile << "#The command that is run when the icon is clicked" << std::endl;
-        itemsFile << "command=" << data->command_launched_by << std::endl << std::endl;
+        itemsFile << "command=" << data->command_launched_by << std::endl
+                  << std::endl;
         itemsFile << std::endl;
     }
 
@@ -2222,8 +2215,7 @@ late_classes_update() {
     }
 }
 
-void
-update_taskbar_volume_icon() {
+void update_taskbar_volume_icon() {
     if (auto *client = client_by_name(app, "taskbar")) {
         auto *event = new xcb_expose_event_t;
 
@@ -2237,8 +2229,7 @@ update_taskbar_volume_icon() {
     }
 }
 
-void
-set_textarea_active() {
+void set_textarea_active() {
     if (auto *client = client_by_name(app, "taskbar")) {
         if (auto *container = container_by_name("main_text_area", client->root)) {
             auto *text_data = (TextAreaData *) container->user_data;
@@ -2249,8 +2240,7 @@ set_textarea_active() {
     }
 }
 
-void
-set_textarea_inactive() {
+void set_textarea_inactive() {
     if (auto *client = client_by_name(app, "taskbar")) {
         if (auto *container = container_by_name("main_text_area", client->root)) {
             auto *text_data = (TextAreaData *) container->user_data;
@@ -2262,8 +2252,7 @@ set_textarea_inactive() {
     }
 }
 
-void
-register_popup(xcb_window_t window) {
+void register_popup(xcb_window_t window) {
     // Close every other popup
     xcb_aux_sync(app->connection);
 

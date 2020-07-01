@@ -16,7 +16,7 @@ reserved_height(Container *box) {
         }
         space += box->spacing;
     }
-    space -= box->spacing; // Remove spacing after last child
+    space -= box->spacing;// Remove spacing after last child
     return space;
 }
 
@@ -56,8 +56,7 @@ modify_all(Container *container, double x_change, double y_change) {
     container->real_bounds.y += y_change;
 }
 
-void
-layout_vbox(Container *container, const Bounds &bounds) {
+void layout_vbox(Container *container, const Bounds &bounds) {
     double fill_h = single_filler_height(container);
 
     double offset = 0;
@@ -164,7 +163,7 @@ reserved_width(Container *box) {
             space += box->spacing;
         }
     }
-    space -= box->spacing; // Remove spacing after last child
+    space -= box->spacing;// Remove spacing after last child
     return space;
 }
 
@@ -196,8 +195,7 @@ single_filler_width(Container *container) {
     return single_fill_size;
 }
 
-void
-layout_hbox(Container *container, const Bounds &bounds) {
+void layout_hbox(Container *container, const Bounds &bounds) {
     double fill_w = single_filler_width(container);
 
     double offset = 0;
@@ -291,8 +289,7 @@ layout_hbox(Container *container, const Bounds &bounds) {
     }
 }
 
-void
-layout_stack(Container *container, const Bounds &bounds) {
+void layout_stack(Container *container, const Bounds &bounds) {
     for (auto child : container->children) {
         layout(child, container->children_bounds);
     }
@@ -302,8 +299,7 @@ layout_stack(Container *container, const Bounds &bounds) {
 // [required] right_box
 // [required] bottom_box
 // [required] content_area
-void
-layout_scrollpane(Container *container, const Bounds &bounds) {
+void layout_scrollpane(Container *container, const Bounds &bounds) {
     assert(container->children.size() == 3 && !container->children[2]->children.empty());
 
     auto *r_bar = container->children[0];
@@ -336,7 +332,7 @@ layout_scrollpane(Container *container, const Bounds &bounds) {
 
     } else if (options & scrollpane_r_never) {
         r_w = 0;
-    } else if (options & scrollpane_r_sometimes) { // sometimes
+    } else if (options & scrollpane_r_sometimes) {// sometimes
         if (options & scrollpane_inline_r) {
             if (target_h <= container->real_bounds.h) {
                 r_w = 0;
@@ -348,7 +344,7 @@ layout_scrollpane(Container *container, const Bounds &bounds) {
 
             } else if (options & scrollpane_b_never) {
                 future_b_h = 0;
-            } else { // sometimes
+            } else {// sometimes
                 if (options & scrollpane_inline_b) {
                     if (target_w <= container->real_bounds.w) {
                         future_b_h = 0;
@@ -369,7 +365,7 @@ layout_scrollpane(Container *container, const Bounds &bounds) {
 
     } else if (options & scrollpane_b_never) {
         b_h = 0;
-    } else if (options & scrollpane_b_sometimes) { // sometimes
+    } else if (options & scrollpane_b_sometimes) {// sometimes
         if (options & scrollpane_inline_b) {
             if (target_w <= container->real_bounds.w) {
                 b_h = 0;
@@ -400,8 +396,7 @@ layout_scrollpane(Container *container, const Bounds &bounds) {
         layout(b_bar, Bounds(bounds.x, bounds.y + bounds.h - b_h, bounds.w - r_w, b_h));
 }
 
-void
-layout(Container *container, const Bounds &bounds, bool generate_event) {
+void layout(Container *container, const Bounds &bounds, bool generate_event) {
     container->real_bounds.x = bounds.x;
     container->real_bounds.y = bounds.y;
 
@@ -455,8 +450,7 @@ layout(Container *container, const Bounds &bounds, bool generate_event) {
     }
 }
 
-void
-layout(Container *container, const Bounds &bounds) {
+void layout(Container *container, const Bounds &bounds) {
     layout(container, bounds, true);
 }
 
@@ -482,16 +476,14 @@ container_by_name(std::string name, Container *root) {
     return nullptr;
 }
 
-bool
-overlaps(Bounds a, Bounds b) {
+bool overlaps(Bounds a, Bounds b) {
     if (a.x > (b.x + b.w) || b.x > (a.x + a.w))
         return false;
 
     return !(a.y > (b.y + b.h) || b.y > (a.y + a.h));
 }
 
-bool
-bounds_contains(const Bounds &bounds, int x, int y) {
+bool bounds_contains(const Bounds &bounds, int x, int y) {
     int bounds_x = std::round(bounds.x);
     int bounds_y = std::round(bounds.y);
     int bounds_w = std::round(bounds.w);

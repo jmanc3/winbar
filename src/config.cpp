@@ -8,11 +8,9 @@
 
 Config *config = new Config;
 
-bool
-config_parse(libconfig::Config &cfg);
+bool config_parse(libconfig::Config &cfg);
 
-void
-load_hex(const libconfig::Setting &theme, std::string value_name, ArgbColor *target_color) {
+void load_hex(const libconfig::Setting &theme, std::string value_name, ArgbColor *target_color) {
     std::string temp;
     bool success = theme.lookupValue(value_name, temp);
     std::string name;
@@ -45,8 +43,7 @@ load_hex(const libconfig::Setting &theme, std::string value_name, ArgbColor *tar
     }
 }
 
-void
-config_load() {
+void config_load() {
     config->order.clear();
     config->order.push_back("windows");
     config->order.push_back("textfield");
@@ -186,8 +183,7 @@ config_load() {
     }
 }
 
-bool
-config_parse(libconfig::Config &cfg) {
+bool config_parse(libconfig::Config &cfg) {
     char *home = getenv("HOME");
 
     std::string config_directory(home);

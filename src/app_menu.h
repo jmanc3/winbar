@@ -22,10 +22,8 @@ public:
 
 extern std::vector<Launcher *> launchers;
 
-void
-start_app_menu();
+void start_app_menu();
 
-void
-load_desktop_files();
+void load_desktop_files();
 
-#endif // APP_MENU_H
+#endif// APP_MENU_H

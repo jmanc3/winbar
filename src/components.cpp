@@ -22,12 +22,11 @@ static std::atomic<bool> dragging = false;
 
 static std::atomic<bool> mouse_down_arrow_held = false;
 
-void
-scrollpane_scrolled(AppClient *client,
-                    cairo_t *cr,
-                    Container *container,
-                    int scroll_x,
-                    int scroll_y) {
+void scrollpane_scrolled(AppClient *client,
+                         cairo_t *cr,
+                         Container *container,
+                         int scroll_x,
+                         int scroll_y) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -100,7 +99,7 @@ mouse_down_thread(AppClient *client,
                   int vertical_change) {
     App *app = client->app;
 
-    usleep(1000 * 400); // first skip should be slower than the rest
+    usleep(1000 * 400);// first skip should be slower than the rest
 
     std::unique_lock guard(client->app->clients_mutex);
     while (mouse_down_arrow_held.load() && valid_client(app, client) && app->running) {
@@ -808,12 +807,12 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
         double maxy = std::max(selection_strong_pos.y, cursor_strong_pos.y) / PANGO_SCALE;
         double h = selection_strong_pos.height / PANGO_SCALE;
 
-        if (maxy == miny) { // Same line
+        if (maxy == miny) {// Same line
             cairo_rectangle(
                     cr, container->real_bounds.x + minx, container->real_bounds.y + miny, maxx - minx, h);
             cairo_fill(cr);
         } else {
-            if ((maxy - miny) > h) { // More than one line off difference
+            if ((maxy - miny) > h) {// More than one line off difference
                 cairo_rectangle(cr,
                                 container->real_bounds.x,
                                 container->real_bounds.y + miny + h,
@@ -856,7 +855,7 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
             }
             cairo_fill(cr);
         }
-    } // END Selection background
+    }// END Selection background
 
     // SHOW TEXT LAYOUT
     set_argb(cr, data->color);
@@ -1018,25 +1017,25 @@ drag_start_textarea(AppClient *client, cairo_t *cr, Container *container) {
             bool modified_x = false;
             bool modified_y = false;
 
-            if (x < bounds.x) { // off the left side
+            if (x < bounds.x) {// off the left side
                 modified_x = true;
                 double multiplier =
                         std::min((double) scroll_amount * 3, bounds.x - x) / scroll_amount;
                 content_area->scroll_h_real += scroll_amount * multiplier;
             }
-            if (x > bounds.x + bounds.w) { // off the right side
+            if (x > bounds.x + bounds.w) {// off the right side
                 modified_x = true;
                 double multiplier =
                         std::min((double) scroll_amount * 3, x - (bounds.x + bounds.w)) / scroll_amount;
                 content_area->scroll_h_real -= scroll_amount * multiplier;
             }
-            if (y < bounds.y) { // off the top
+            if (y < bounds.y) {// off the top
                 modified_y = true;
                 double multiplier =
                         std::min((double) scroll_amount * 3, bounds.y - y) / scroll_amount;
                 content_area->scroll_v_real += scroll_amount * multiplier;
             }
-            if (y > bounds.y + bounds.h) { // off the bottom
+            if (y > bounds.y + bounds.h) {// off the bottom
                 modified_y = true;
                 double multiplier =
                         std::min((double) scroll_amount * 3, y - (bounds.y + bounds.h)) / scroll_amount;
@@ -1354,9 +1353,9 @@ public:
     group starting_group_to_left;
     group starting_group_to_right;
 
-    bool same_token_type_to_left_and_right; // we are always inside a group but this means that to
+    bool same_token_type_to_left_and_right;// we are always inside a group but this means that to
     // either side is the same group type
-    bool different_token_type_to_atleast_one_side; // at the end of a group
+    bool different_token_type_to_atleast_one_side;// at the end of a group
 
     group group_at(int pos) {
         if (pos < 0 || pos >= state->text.size()) {
@@ -1513,8 +1512,7 @@ move_vertically_lines(AppClient *client,
     put_cursor_on_screen(client, textarea);
 }
 
-void
-textarea_handle_keypress(App *app, xcb_generic_event_t *event, Container *textarea) {
+void textarea_handle_keypress(App *app, xcb_generic_event_t *event, Container *textarea) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif

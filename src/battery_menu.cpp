@@ -362,8 +362,7 @@ battery_menu_event_handler(App *app, xcb_generic_event_t *event) {
     return true;
 }
 
-void
-start_battery_menu() {
+void start_battery_menu() {
     if (valid_client(app, battery_entity)) {
         client_close(app, battery_entity);
     }

@@ -17,8 +17,7 @@ public:
     Bounds cached_real_bounds;
 };
 
-void
-wifi_state(bool *up, bool *wired) {
+void wifi_state(bool *up, bool *wired) {
     std::string status = "down";
     std::ifstream status_file("/sys/class/net/" + std::string(config->interface) + "/operstate");
     if (status_file.is_open()) {
@@ -271,12 +270,11 @@ wifi_menu_event_handler(App *app, xcb_generic_event_t *event) {
     return true;
 }
 
-void
-start_wifi_menu() {
+void start_wifi_menu() {
     first_expose = true;
 
     Settings settings;
-    settings.h = 12 * 2 + 55 + 71; // number based on fill_root
+    settings.h = 12 * 2 + 55 + 71;// number based on fill_root
     settings.w = 360;
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;

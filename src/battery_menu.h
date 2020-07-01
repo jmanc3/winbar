@@ -36,7 +36,6 @@ struct data_battery_surfaces : public data_fading_button {
     }
 };
 
-void
-start_battery_menu();
+void start_battery_menu();
 
-#endif // APP_BATTERY_MENU_H
+#endif// APP_BATTERY_MENU_H

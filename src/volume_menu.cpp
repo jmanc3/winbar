@@ -376,8 +376,7 @@ drag_whenever(AppClient *client_entity, cairo_t *cr, Container *container) {
     drag(client_entity, cr, container, false);
 }
 
-void
-fill_root(Container *root) {
+void fill_root(Container *root) {
     root->when_paint = paint_root;
     root->type = vbox;
 
@@ -567,18 +566,15 @@ volume_menu_event_handler(App *app, xcb_generic_event_t *event) {
     return true;
 }
 
-void
-close_volume_menu() {}
+void close_volume_menu() {}
 
-void
-updates() {
+void updates() {
     if (valid_client(app, client_entity)) {
         request_refresh(app, client_entity);
     }
 }
 
-void
-open_volume_menu() {
+void open_volume_menu() {
     if (audio_connected) {
         audio_all_clients();
         audio_all_outputs();

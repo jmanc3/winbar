@@ -42,8 +42,8 @@ enum layout_type {
     stack = 1 << 2,
 
     scrollpane = 1 << 3,
-    scrollpane_inline_r = 1 << 4, // optional flag for scrollpane to inline the right thumb
-    scrollpane_inline_b = 1 << 4, // optional flag for scrollpane to inline the bottom thumb
+    scrollpane_inline_r = 1 << 4,// optional flag for scrollpane to inline the right thumb
+    scrollpane_inline_b = 1 << 4,// optional flag for scrollpane to inline the bottom thumb
     scrollpane_r_always = 1 << 5,
     scrollpane_r_sometimes = 1 << 6,
     scrollpane_r_never = 1 << 7,
@@ -316,11 +316,9 @@ struct Container {
 Bounds
 scroll_bounds(Container *container);
 
-void
-layout(Container *container, const Bounds &bounds, bool generate_event);
+void layout(Container *container, const Bounds &bounds, bool generate_event);
 
-void
-layout(Container *container, const Bounds &bounds);
+void layout(Container *container, const Bounds &bounds);
 
 Container *
 layout_copy(Container *container, const Bounds &bounds);
@@ -328,11 +326,9 @@ layout_copy(Container *container, const Bounds &bounds);
 Container *
 container_by_name(std::string name, Container *root);
 
-bool
-overlaps(Bounds a, Bounds b);
+bool overlaps(Bounds a, Bounds b);
 
-bool
-bounds_contains(const Bounds &bounds, int x, int y);
+bool bounds_contains(const Bounds &bounds, int x, int y);
 
 double
 reserved_width(Container *box);

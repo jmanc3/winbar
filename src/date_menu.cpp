@@ -13,7 +13,7 @@
 #include <iostream>
 #include <iterator>
 #include <pango/pangocairo.h>
-#include <sstream> //std::stringstream
+#include <sstream>//std::stringstream
 #include <stdio.h>
 #include <sys/stat.h>
 
@@ -67,8 +67,7 @@ GetDaysInMonth(int year, int month) {
 }
 
 // d starts at 1, m is 0-11, y is what you'd expect
-int
-day(int d, int m, int y) {
+int day(int d, int m, int y) {
     /*The following, invented by Mike Keith and published in Journal of Recreational Mathematics,
      Vol. 22, No. 4, 1990, p. 280,
      is conjectured to be the shortest expression of a day-of-the-week algorithm: */
@@ -90,7 +89,7 @@ update_days(int month, int year) {
         previous_month_day_count = GetDaysInMonth(year, month - 1);
     }
     int current_month_day_count = GetDaysInMonth(year, month);
-    int weekday = day(1, month + 1, year); // 0 for sunday, 6 for sat
+    int weekday = day(1, month + 1, year);// 0 for sunday, 6 for sat
     int start_number = previous_month_day_count - weekday;
 
     int i = 0;
@@ -186,8 +185,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
 
     const char *months[] = {
             "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
-    };
+            "July", "August", "September", "October", "November", "December"};
 
     int hour = ltm->tm_hour;
     if (hour > 12) {
@@ -366,8 +364,7 @@ static void
 paint_month_year_label(AppClient *client, cairo_t *cr, Container *container) {
     const char *months[] = {
             "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
-    };
+            "July", "August", "September", "October", "November", "December"};
 
     std::string text = months[view_month];
     text += " " + std::to_string(view_year);
@@ -642,8 +639,7 @@ clicked_agenda(AppClient *client, cairo_t *cr, Container *container) {
             xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
         } else {
             uint32_t value_list_resize[] = {
-                    (uint32_t) (app->bounds.h - config->taskbar_height - 735), (uint32_t) (735)
-            };
+                    (uint32_t) (app->bounds.h - config->taskbar_height - 735), (uint32_t) (735)};
             xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
         }
         xcb_flush(app->connection);
@@ -998,7 +994,7 @@ read_agenda_from_disk(AppClient *client) {
                         ds->month = month;
                         ds->year = year;
 
-                        ds->state->text = strStream.str(); // str holds the content of the file
+                        ds->state->text = strStream.str();// str holds the content of the file
 
                         unique_day_text_state.push_back(ds);
                     }
@@ -1045,8 +1041,7 @@ date_menu_closed(AppClient *client) {
 
 static bool time_update_thread_updated = false;
 
-void
-start_date_menu() {
+void start_date_menu() {
     Settings settings;
     settings.w = 360;
     if (agenda_showing) {

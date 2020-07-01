@@ -161,7 +161,7 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
     }
 
     if (!window_is_systray_icon) {
-        return true; // Let someone else handle the event
+        return true;// Let someone else handle the event
     }
 
     uint8_t type = XCB_EVENT_RESPONSE_TYPE(generic_event);
@@ -189,7 +189,7 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
 
     layout_invalid = true;
 
-    return false; // No one else should see this event since for a systray_icon window and we just
+    return false;// No one else should see this event since for a systray_icon window and we just
     // handled it
 }
 
@@ -246,9 +246,9 @@ layout_systray() {
     int x = 0;
     int y = 0;
     int w = closest_square_root_above(systray_icons.size());
-    if (w == 0) { // even if the systray has no icons we want to show a 1x1
+    if (w == 0) {// even if the systray has no icons we want to show a 1x1
         w = 1;
-    } else if (w > 4) { // after we reach a width of 4 icons we just want to grow upwards
+    } else if (w > 4) {// after we reach a width of 4 icons we just want to grow upwards
         w = 4;
     }
 
@@ -267,8 +267,7 @@ layout_systray() {
                 (uint32_t) (x * container_size + container_size / 2 - icon_size / 2),
                 (uint32_t) (y * container_size + container_size / 2 - icon_size / 2),
                 icon_size,
-                icon_size
-        };
+                icon_size};
         xcb_configure_window(app->connection, icon->window, value_mask, value_list_resize);
 
         x++;
@@ -309,8 +308,7 @@ when_systray_closed(AppClient *client) {
     display_close(false);
 }
 
-void
-start_systray() {
+void start_systray() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -322,7 +320,7 @@ start_systray() {
 
     auto icon_windows_event_handler = new Handler();
     icon_windows_event_handler->target_window =
-            INT_MAX; // INT_MAX means give us every event irregardless of the window number
+            INT_MAX;// INT_MAX means give us every event irregardless of the window number
     icon_windows_event_handler->event_handler = icon_event_handler;
     app->handlers.push_back(icon_windows_event_handler);
 
@@ -351,8 +349,7 @@ start_systray() {
     xcb_send_event_checked(app->connection, false, app->screen->root, 0xFFFFFF, (char *) &ev);
 }
 
-void
-open_systray() {
+void open_systray() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif

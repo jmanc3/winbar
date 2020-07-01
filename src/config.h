@@ -35,8 +35,8 @@ struct Config {
     ArgbColor button_pressed = {1, 1, 1, .2};
 
     double taskbar_transparency = .85;
-    ArgbColor icon_default = {1, 1, 1, 0};          // nothing
-    ArgbColor icon_background_back = {1, 1, 1, .1}; //
+    ArgbColor icon_default = {1, 1, 1, 0};         // nothing
+    ArgbColor icon_background_back = {1, 1, 1, .1};//
     ArgbColor icon_background_front = {1, 1, 1, .15};
     ArgbColor icon_pressed = {1, 1, 1, .2};
     double icon_bar_height = 2;
@@ -87,7 +87,6 @@ struct Config {
 
 extern Config *config;
 
-void
-config_load();
+void config_load();
 
 #endif

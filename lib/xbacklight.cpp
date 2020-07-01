@@ -88,8 +88,7 @@ backlight_set(xcb_connection_t *conn, xcb_randr_output_t output, long value) {
 }
 
 // Value between 0 and 100
-int
-backlight_set_brightness(int amount) {
+int backlight_set_brightness(int amount) {
     char *dpy_name = NULL;
     int value = amount;
     int i;
@@ -222,8 +221,7 @@ backlight_set_brightness(int amount) {
     return 0;
 }
 
-int
-backlight_get_brightness() {
+int backlight_get_brightness() {
     char *dpy_name = NULL;
 
     xcb_connection_t *conn;

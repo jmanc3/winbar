@@ -86,9 +86,9 @@ select_xkb_events_for_device(xcb_connection_t *conn, int32_t device_id) {
 
     xcb_void_cookie_t cookie = xcb_xkb_select_events_aux_checked(conn,
                                                                  device_id,
-                                                                 required_events, /* affectWhich */
-                                                                 0,               /* clear */
-                                                                 0,               /* selectAll */
+                                                                 required_events,    /* affectWhich */
+                                                                 0,                  /* clear */
+                                                                 0,                  /* selectAll */
                                                                  required_map_parts, /* affectMap */
                                                                  required_map_parts, /* map */
                                                                  &details);          /* details */
@@ -137,8 +137,7 @@ init_keyboard(ClientKeyboard *kbd,
     return -1;
 }
 
-void
-init_xkb(App *app, AppClient *client) {
+void init_xkb(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -195,8 +194,7 @@ deinit_keyboard(App *app, AppClient *client, ClientKeyboard *keyboard) {
     client->keyboard = nullptr;
 }
 
-void
-process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard) {
+void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -238,8 +236,7 @@ process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard) 
     }
 }
 
-bool
-poll_descriptor(App *app, int real_file_descriptor, int target_file_descriptor) {
+bool poll_descriptor(App *app, int real_file_descriptor, int target_file_descriptor) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -293,11 +290,9 @@ get_visualtype(xcb_screen_t *s) {
 }
 
 App::App() {
-
 }
 
-App *
-app_new() {
+App *app_new() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -591,8 +586,7 @@ client_new(App *app, Settings settings, const std::string &name) {
     return client;
 }
 
-void
-init_client(AppClient *client) {
+void init_client(AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -610,8 +604,7 @@ init_client(AppClient *client) {
     client->back_cr = 0;
 }
 
-void
-destroy_client(App *app, AppClient *client) {
+void destroy_client(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -640,8 +633,7 @@ client_by_window(App *app, xcb_window_t target_window) {
     return nullptr;
 }
 
-bool
-valid_client(App *app, AppClient *target_client) {
+bool valid_client(App *app, AppClient *target_client) {
     if (target_client == nullptr)
         return false;
 
@@ -652,10 +644,9 @@ valid_client(App *app, AppClient *target_client) {
     return false;
 }
 
-void
-client_add_handler(App *app,
-                   AppClient *client_entity,
-                   bool (*event_handler)(App *app, xcb_generic_event_t *)) {
+void client_add_handler(App *app,
+                        AppClient *client_entity,
+                        bool (*event_handler)(App *app, xcb_generic_event_t *)) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -665,8 +656,7 @@ client_add_handler(App *app,
     app->handlers.push_back(handler);
 }
 
-void
-client_show(App *app, AppClient *client) {
+void client_show(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -681,8 +671,7 @@ client_show(App *app, AppClient *client) {
     client_paint(app, client, true);
 }
 
-void
-client_hide(App *app, AppClient *client) {
+void client_hide(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -693,8 +682,7 @@ client_hide(App *app, AppClient *client) {
     xcb_flush(app->connection);
 }
 
-int
-desktops_current(App *app) {
+int desktops_current(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -705,8 +693,7 @@ desktops_current(App *app) {
     return current_desktop;
 }
 
-int
-desktops_count(App *app) {
+int desktops_count(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -717,8 +704,7 @@ desktops_count(App *app) {
     return number_of_desktops;
 }
 
-void
-desktops_change(App *app, long desktop_index) {
+void desktops_change(App *app, long desktop_index) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -727,8 +713,7 @@ desktops_change(App *app, long desktop_index) {
     xcb_flush(app->connection);
 }
 
-void
-request_refresh(App *app, AppClient *client) {
+void request_refresh(App *app, AppClient *client) {
     if (app == nullptr || !valid_client(app, client))
         return;
 
@@ -745,8 +730,7 @@ request_refresh(App *app, AppClient *client) {
 
 int refresh_rate = 12;
 
-void
-client_register_animation(App *app, AppClient *client) {
+void client_register_animation(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -757,8 +741,7 @@ client_register_animation(App *app, AppClient *client) {
     client->animation_count += 1;
 }
 
-void
-client_unregister_animation(App *app, AppClient *client) {
+void client_unregister_animation(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -772,8 +755,7 @@ client_unregister_animation(App *app, AppClient *client) {
     int length = read(app->refresh_pipes[0], buf, 1);
 }
 
-void
-client_close(App *app, AppClient *client) {
+void client_close(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -809,23 +791,20 @@ client_close(App *app, AppClient *client) {
     }
 }
 
-void
-client_close_threaded(App *app, AppClient *client) {
+void client_close_threaded(App *app, AppClient *client) {
     if (client) {
         client->marked_to_close = true;
     }
 }
 
-void
-client_replace_root(App *app, AppClient *client, Container *new_root) {
+void client_replace_root(App *app, AppClient *client, Container *new_root) {
     if (valid_client(app, client)) {
         delete client->root;
         client->root = new_root;
     }
 }
 
-void
-client_layout(App *app, AppClient *client) {
+void client_layout(App *app, AppClient *client) {
     if (valid_client(app, client)) {
         Bounds copy = *client->bounds;
         copy.x = 0;
@@ -834,8 +813,7 @@ client_layout(App *app, AppClient *client) {
     }
 }
 
-void
-paint_container(App *app, AppClient *client, Container *container) {
+void paint_container(App *app, AppClient *client, Container *container) {
     if (container == nullptr || !container->exists) {
         return;
     }
@@ -875,8 +853,7 @@ paint_container(App *app, AppClient *client, Container *container) {
 }
 
 // TODO: double buffering not really working
-void
-client_paint(App *app, AppClient *client, bool force_repaint) {
+void client_paint(App *app, AppClient *client, bool force_repaint) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -909,8 +886,7 @@ client_paint(App *app, AppClient *client, bool force_repaint) {
     }
 }
 
-void
-client_paint(App *app, AppClient *client) {
+void client_paint(App *app, AppClient *client) {
     client_paint(app, client, false);
 }
 
@@ -939,8 +915,7 @@ hovered_container(App *app, Container *root, int x, int y) {
 
 static xcb_generic_event_t *event;
 
-void
-fill_list_with_concerned(std::vector<Container *> &containers, Container *parent) {
+void fill_list_with_concerned(std::vector<Container *> &containers, Container *parent) {
     for (auto child : parent->children) {
         fill_list_with_concerned(containers, child);
     }
@@ -959,8 +934,7 @@ concerned_containers(App *app, AppClient *client) {
     return containers;
 }
 
-void
-fill_list_with_pierced(std::vector<Container *> &containers, Container *parent, int x, int y) {
+void fill_list_with_pierced(std::vector<Container *> &containers, Container *parent, int x, int y) {
     for (auto child : parent->children) {
         fill_list_with_pierced(containers, child, x, y);
     }
@@ -987,8 +961,7 @@ pierced_containers(App *app, AppClient *client, int x, int y) {
     return containers;
 }
 
-bool
-is_pierced(Container *c, std::vector<Container *> &pierced) {
+bool is_pierced(Container *c, std::vector<Container *> &pierced) {
     for (auto container : pierced) {
         if (container == c) {
             return true;
@@ -997,8 +970,7 @@ is_pierced(Container *c, std::vector<Container *> &pierced) {
     return false;
 }
 
-void
-handle_mouse_motion(App *app, AppClient *client, int x, int y) {
+void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1098,8 +1070,7 @@ handle_mouse_motion(App *app, AppClient *client, int x, int y) {
     }
 }
 
-void
-handle_mouse_motion(App *app) {
+void handle_mouse_motion(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1111,8 +1082,7 @@ handle_mouse_motion(App *app) {
     handle_mouse_motion(app, client, e->event_x, e->event_y);
 }
 
-void
-set_active(Container *c, bool state) {
+void set_active(Container *c, bool state) {
     for (auto child : c->children) {
         set_active(child, state);
     }
@@ -1120,8 +1090,7 @@ set_active(Container *c, bool state) {
     c->active = state;
 }
 
-void
-handle_mouse_button_press(App *app) {
+void handle_mouse_button_press(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1162,7 +1131,7 @@ handle_mouse_button_press(App *app) {
             }
         }
 
-        p->state.concerned = true; // Make sure this container is concerned
+        p->state.concerned = true;// Make sure this container is concerned
 
         // Check if its a scroll event and call when_scrolled if so
         if (e->detail >= 4 && e->detail <= 7) {
@@ -1184,7 +1153,7 @@ handle_mouse_button_press(App *app) {
 
         // Update state and call when_mouse_down
         p->state.mouse_hovering =
-                true; // If this container is pressed then clearly we are hovered as well
+                true;// If this container is pressed then clearly we are hovered as well
         p->state.mouse_pressing = true;
         p->state.mouse_button_pressed = e->detail;
 
@@ -1199,8 +1168,7 @@ handle_mouse_button_press(App *app) {
     }
 }
 
-bool
-handle_mouse_button_release(App *app) {
+bool handle_mouse_button_release(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1258,13 +1226,12 @@ handle_mouse_button_release(App *app) {
     return false;
 }
 
-void
-handle_mouse_enter_notify(App *app) {
+void handle_mouse_enter_notify(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     auto *e = (xcb_enter_notify_event_t *) (event);
-    if (e->mode != XCB_NOTIFY_MODE_NORMAL) // clicks generate leave and enter
+    if (e->mode != XCB_NOTIFY_MODE_NORMAL)// clicks generate leave and enter
         // notifies wtf xlib
         return;
 
@@ -1275,13 +1242,12 @@ handle_mouse_enter_notify(App *app) {
     handle_mouse_motion(app, client, e->event_x, e->event_y);
 }
 
-void
-handle_mouse_leave_notify(App *app) {
+void handle_mouse_leave_notify(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     auto *e = (xcb_leave_notify_event_t *) (event);
-    if (e->mode != XCB_NOTIFY_MODE_NORMAL) // clicks generate leave and enter
+    if (e->mode != XCB_NOTIFY_MODE_NORMAL)// clicks generate leave and enter
         // notifies wtf xlib
         return;
 
@@ -1309,8 +1275,7 @@ handle_mouse_leave_notify(App *app) {
     }
 }
 
-void
-handle_configure_notify(App *app) {
+void handle_configure_notify(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1373,8 +1338,7 @@ send_key(App *app, AppClient *client, Container *container) {
     }
 }
 
-void
-handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event) {
+void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1382,7 +1346,7 @@ handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *even
     int event_type = XCB_EVENT_RESPONSE_TYPE(event);
 
 #ifdef TRACY_ENABLE
-    const char* string = xcb_event_get_label(event_type);
+    const char *string = xcb_event_get_label(event_type);
     std::string info = "Window: " + std::to_string(window_number) + " EventType: ";
     if (string) {
         info += string;
@@ -1480,8 +1444,7 @@ handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *even
     client_paint(app, client_by_window(app, window_number), true);
 }
 
-void
-handle_xcb_event(App *app) {
+void handle_xcb_event(App *app) {
     bool should_handle_event = true;
     xcb_window_t window_number = get_window(event);
 
@@ -1537,8 +1500,7 @@ timer_start() {
 }
 
 // call this function to end a timer, returning nanoseconds elapsed as a long
-long
-timer_end(struct timespec start_time) {
+long timer_end(struct timespec start_time) {
     struct timespec end_time;
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end_time);
     long diffInNanos =
@@ -1546,8 +1508,7 @@ timer_end(struct timespec start_time) {
     return diffInNanos;
 }
 
-void
-update_animations(App *app) {
+void update_animations(App *app) {
     int start_empty = animations_list.empty();
 
     std::vector<AppClient *> to_layout;
@@ -1614,8 +1575,7 @@ update_animations(App *app) {
     }
 }
 
-void
-render_loop(App *app) {
+void render_loop(App *app) {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Render Thread");
 #endif
@@ -1640,8 +1600,7 @@ render_loop(App *app) {
     }
 }
 
-void
-app_main(App *app) {
+void app_main(App *app) {
     if (app == nullptr) {
         printf("App * passed to app_main was nullptr so couldn't run\n");
         return;
@@ -1681,8 +1640,7 @@ app_main(App *app) {
     }
 }
 
-void
-app_clean(App *app) {
+void app_clean(App *app) {
     for (AppClient *client : app->clients) {
         client_close(app, client);
     }
@@ -1704,15 +1662,14 @@ client_cairo_aspect::~client_cairo_aspect() {
     cairo_destroy(back_cr);
 }
 
-void
-client_create_animation(App *app,
-                        AppClient *client,
-                        double *value,
-                        double length,
-                        easingFunction easing,
-                        double target,
-                        void (*finished)(),
-                        bool relayout) {
+void client_create_animation(App *app,
+                             AppClient *client,
+                             double *value,
+                             double length,
+                             easingFunction easing,
+                             double target,
+                             void (*finished)(),
+                             bool relayout) {
     // TODO: fix this
     *value = target;
     if (relayout) {
@@ -1759,34 +1716,31 @@ client_create_animation(App *app,
     client_register_animation(app, client);
 }
 
-void
-client_create_animation(App *app,
-                        AppClient *client,
-                        double *value,
-                        double length,
-                        easingFunction easing,
-                        double target) {
+void client_create_animation(App *app,
+                             AppClient *client,
+                             double *value,
+                             double length,
+                             easingFunction easing,
+                             double target) {
     client_create_animation(app, client, value, length, easing, target, nullptr, false);
 }
 
-void
-client_create_animation(App *app,
-                        AppClient *client,
-                        double *value,
-                        double length,
-                        easingFunction easing,
-                        double target,
-                        void (*finished)()) {
+void client_create_animation(App *app,
+                             AppClient *client,
+                             double *value,
+                             double length,
+                             easingFunction easing,
+                             double target,
+                             void (*finished)()) {
     client_create_animation(app, client, value, length, easing, target, finished, false);
 }
 
-void
-client_create_animation(App *app,
-                        AppClient *client,
-                        double *value,
-                        double length,
-                        easingFunction easing,
-                        double target,
-                        bool relayout) {
+void client_create_animation(App *app,
+                             AppClient *client,
+                             double *value,
+                             double length,
+                             easingFunction easing,
+                             double target,
+                             bool relayout) {
     client_create_animation(app, client, value, length, easing, target, nullptr, relayout);
 }

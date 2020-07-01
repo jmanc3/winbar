@@ -18,8 +18,7 @@ https://github.com/benhoyt/inih
 
 /* Make this header file easier to include in C++ code */
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 #include <stdio.h>
@@ -91,8 +90,8 @@ int ini_parse_stream(ini_reader reader, void *stream, ini_handler handler, void 
 
 /* Maximum line length for any line in INI file. */
 #ifndef INI_MAX_LINE
-#define INI_MAX_LINE                                                                               \
-    64000 // @Important: Might seem too large but the directories listing can info
+#define INI_MAX_LINE \
+    64000// @Important: Might seem too large but the directories listing can info
 // quite long
 #endif
 
@@ -357,7 +356,7 @@ protected:
     static int ValueHandler(void *user, const char *section, const char *name, const char *value);
 };
 
-#endif // __INIREADER_H__
+#endif// __INIREADER_H__
 
 #ifndef __INIREADER__
 #define __INIREADER__
@@ -441,4 +440,4 @@ INIReader::ValueHandler(void *user, const char *section, const char *name, const
     return 1;
 }
 
-#endif // __INIREADER__
+#endif// __INIREADER__

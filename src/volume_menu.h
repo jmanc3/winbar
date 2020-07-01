@@ -30,7 +30,6 @@ public:
     }
 };
 
-void
-open_volume_menu();
+void open_volume_menu();
 
-#endif // APP_VOLUME_MENU_H
+#endif// APP_VOLUME_MENU_H

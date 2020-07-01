@@ -6,11 +6,9 @@
 #define APP_XBACKLIGHT_H
 
 // Value between 0 and 100
-int
-backlight_get_brightness();
+int backlight_get_brightness();
 
 // Value between 0 and 100
-int
-backlight_set_brightness(int amount);
+int backlight_set_brightness(int amount);
 
-#endif // APP_XBACKLIGHT_H
+#endif// APP_XBACKLIGHT_H

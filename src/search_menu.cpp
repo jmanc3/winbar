@@ -227,7 +227,7 @@ determine_priority(Sortable *item,
 
     int prio = 11;
     if (normal_find == 0 && item->name.length() == text.length()) {
-        prio = -1; // absolute perfect matches come before everything even historical
+        prio = -1;// absolute perfect matches come before everything even historical
     } else if (normal_find == 0) {
         prio = 2;
     } else if ((lowercase_find) == 0) {
@@ -241,7 +241,7 @@ determine_priority(Sortable *item,
     // For lowercase_text
     if (prio == 11) {
         normal_find = item->name.find(lowercase_text);
-        if (normal_find == 0 && item->name.length() == lowercase_text.length()) { // perfect match
+        if (normal_find == 0 && item->name.length() == lowercase_text.length()) {// perfect match
             prio = 6;
         } else if (normal_find == 0) {
             prio = 7;
@@ -255,8 +255,8 @@ determine_priority(Sortable *item,
     }
 
     // Find it in history and attach a ranking
-    if (prio != -1) { // if it wasn't a perfect match
-        if (prio != 11) { // but it was a match
+    if (prio != -1) {    // if it wasn't a perfect match
+        if (prio != 11) {// but it was a match
             for (int i = 0; i < history->size(); i++) {
                 HistoricalNameUsed *h = (*history)[i];
                 auto lowercase_historic_find = h->text.find(item->lowercase_name);
@@ -292,7 +292,7 @@ determine_priority_location(const Sortable &item,
     // For normal text
     unsigned long normal_find = item.name.find(text);
     unsigned long lowercase_find;
-    if (normal_find == 0 && item.name.length() == text.length()) { // perfect match
+    if (normal_find == 0 && item.name.length() == text.length()) {// perfect match
         *location = normal_find;
         return 1;
     } else if (normal_find == 0) {
@@ -311,7 +311,7 @@ determine_priority_location(const Sortable &item,
 
     // For lowercase_text
     normal_find = item.name.find(lowercase_text);
-    if (normal_find == 0 && item.name.length() == lowercase_text.length()) { // perfect match
+    if (normal_find == 0 && item.name.length() == lowercase_text.length()) {// perfect match
         *location = normal_find;
         return 6;
     } else if (normal_find == 0) {
@@ -1033,11 +1033,10 @@ compare_priority(Sortable *first, Sortable *second) {
 }
 
 template<class T>
-void
-sort_and_add(std::vector<T> *sortables,
-             Container *bottom,
-             std::string text,
-             std::vector<HistoricalNameUsed *> *history) {
+void sort_and_add(std::vector<T> *sortables,
+                  Container *bottom,
+                  std::string text,
+                  std::vector<HistoricalNameUsed *> *history) {
     std::vector<T> sorted;
 
     {
@@ -1093,7 +1092,7 @@ sort_and_add(std::vector<T> *sortables,
         content->spacing = 0;
         content->when_paint = paint_content;
         content->clip_children =
-                false; // We have to do custom clipping so don't waste calls on this
+                false;// We have to do custom clipping so don't waste calls on this
         content->automatically_paint_children = false;
         content->name = "content";
         if (active_item < 0) {
@@ -1203,8 +1202,7 @@ next_tab() {
     t.detach();
 }
 
-void
-on_key_press_search_bar(xcb_generic_event_t *event) {
+void on_key_press_search_bar(xcb_generic_event_t *event) {
     auto *search_menu_client = client_by_name(app, "search_menu");
     auto *taskbar_client = client_by_name(app, "taskbar");
 
@@ -1286,8 +1284,7 @@ on_key_press_search_bar(xcb_generic_event_t *event) {
     client_paint(app, taskbar_client);
 }
 
-void
-load_historic_scripts() {
+void load_historic_scripts() {
     const char *home = getenv("HOME");
     std::string scriptsPath(home);
     scriptsPath += "/.config/winbar/historic/scripts.txt";
@@ -1304,8 +1301,7 @@ load_historic_scripts() {
     status_file.close();
 }
 
-void
-load_historic_apps() {
+void load_historic_apps() {
     const char *home = getenv("HOME");
     std::string scriptsPath(home);
     scriptsPath += "/.config/winbar/historic/apps.txt";
@@ -1417,8 +1413,7 @@ search_menu_when_closed(AppClient *client) {
     std::thread(load_scripts).detach();
 }
 
-void
-start_search_menu() {
+void start_search_menu() {
     first_expose = true;
     Settings settings;
     settings.decorations = false;
@@ -1447,8 +1442,7 @@ start_search_menu() {
 
 static std::mutex script_loaded;
 
-void
-load_scripts() {
+void load_scripts() {
     std::lock_guard m(script_loaded);
     scripts.clear();
     // go through every directory in $PATH environment variable
@@ -1471,20 +1465,20 @@ load_scripts() {
 #define FLAG(x) (flag[(x) - 'a'])
 
             const char *path = string_path.c_str();
-            if ((!stat(path, &st) && (FLAG('a') || dp->d_name[0] != '.') /* hidden files      */
-                 && (!FLAG('b') || S_ISBLK(st.st_mode))                  /* block special     */
-                 && (!FLAG('c') || S_ISCHR(st.st_mode))                  /* character special */
-                 && (!FLAG('d') || S_ISDIR(st.st_mode))                  /* directory         */
-                 && (!FLAG('e') || access(path, F_OK) == 0)              /* exists            */
-                 && (!FLAG('f') || S_ISREG(st.st_mode))                  /* regular file      */
-                 && (!FLAG('g') || st.st_mode & S_ISGID)                 /* set-group-id flag */
+            if ((!stat(path, &st) && (FLAG('a') || dp->d_name[0] != '.')       /* hidden files      */
+                 && (!FLAG('b') || S_ISBLK(st.st_mode))                        /* block special     */
+                 && (!FLAG('c') || S_ISCHR(st.st_mode))                        /* character special */
+                 && (!FLAG('d') || S_ISDIR(st.st_mode))                        /* directory         */
+                 && (!FLAG('e') || access(path, F_OK) == 0)                    /* exists            */
+                 && (!FLAG('f') || S_ISREG(st.st_mode))                        /* regular file      */
+                 && (!FLAG('g') || st.st_mode & S_ISGID)                       /* set-group-id flag */
                  && (!FLAG('h') || (!lstat(path, &ln) && S_ISLNK(ln.st_mode))) /* symbolic link */
-                 && (!FLAG('p') || S_ISFIFO(st.st_mode))                     /* named pipe        */
-                 && (!FLAG('r') || access(path, R_OK) == 0)                  /* readable          */
-                 && (!FLAG('s') || st.st_size > 0)                           /* not empty         */
-                 && (!FLAG('u') || st.st_mode & S_ISUID)                     /* set-user-id flag  */
-                 && (!FLAG('w') || access(path, W_OK) == 0)                  /* writable          */
-                 && (!FLAG('x') || access(path, X_OK) == 0)) != FLAG('v')) { /* executable        */
+                 && (!FLAG('p') || S_ISFIFO(st.st_mode))                       /* named pipe        */
+                 && (!FLAG('r') || access(path, R_OK) == 0)                    /* readable          */
+                 && (!FLAG('s') || st.st_size > 0)                             /* not empty         */
+                 && (!FLAG('u') || st.st_mode & S_ISUID)                       /* set-user-id flag  */
+                 && (!FLAG('w') || access(path, W_OK) == 0)                    /* writable          */
+                 && (!FLAG('x') || access(path, X_OK) == 0)) != FLAG('v')) {   /* executable        */
 
                 if (!(FLAG('q'))) {
                     bool already_have_this_script = false;

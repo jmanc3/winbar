@@ -13,8 +13,7 @@
 
 #include <mutex>
 
-void
-update_stacking_order() {
+void update_stacking_order() {
     xcb_get_property_cookie_t cookie =
             xcb_get_property(app->connection,
                              0,
@@ -33,8 +32,7 @@ update_stacking_order() {
     free(reply);
 }
 
-void
-update_active_window() {
+void update_active_window() {
     xcb_get_property_cookie_t cookie = xcb_get_property(app->connection,
                                                         0,
                                                         app->screen->root,
@@ -107,8 +105,7 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
     return true;
 }
 
-void
-meta_pressed() {
+void meta_pressed() {
     // printf("open or close search app lister and set main_text_area active\n");
     std::lock_guard lock(app->clients_mutex);
     bool already_open = client_by_name(app, "app_menu") != nullptr;
@@ -116,8 +113,7 @@ meta_pressed() {
         start_app_menu();
 }
 
-void
-root_start(App *app) {
+void root_start(App *app) {
     auto *handler = new Handler;
     handler->event_handler = root_event_handler;
     handler->target_window = app->screen->root;

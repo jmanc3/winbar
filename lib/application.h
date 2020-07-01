@@ -85,7 +85,7 @@ struct App {
 
     bool running = true;
 
-    Bounds bounds; // these are the bounds of the entire screen
+    Bounds bounds;// these are the bounds of the entire screen
 
     // TODO: each client_entity should have its own mutex rather than locking all
     // clients
@@ -131,14 +131,11 @@ struct Handler {
     bool (*event_handler)(App *app, xcb_generic_event_t *) = nullptr;
 };
 
-void
-init_client(AppClient *client);
+void init_client(AppClient *client);
 
-void
-destroy_client(AppClient *client);
+void destroy_client(AppClient *client);
 
-bool
-valid_client(App *app, AppClient *target_client);
+bool valid_client(App *app, AppClient *target_client);
 
 extern int refresh_rate;
 
@@ -158,11 +155,9 @@ extern int refresh_rate;
  *
  */
 
-void
-handle_xcb_event(App *app, std::vector<xcb_window_t> *windows);
+void handle_xcb_event(App *app, std::vector<xcb_window_t> *windows);
 
-void
-handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event);
+void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event);
 
 AppClient *
 client_new(App *app, Settings settings, const std::string &name);
@@ -173,98 +168,73 @@ client_by_name(App *app, const std::string &target_name);
 AppClient *
 client_by_window(App *app, xcb_window_t target_window);
 
-void
-client_add_handler(App *app,
-                   AppClient *client_entity,
-                   bool (*event_handler)(App *app, xcb_generic_event_t *));
-
-void
-client_show(App *app, AppClient *client_entity);
-
-void
-client_hide(App *app, AppClient *client_entity);
-
-void
-request_refresh(App *app, AppClient *client_entity);
-
-void
-client_register_animation(App *app, AppClient *client_entity);
-
-void
-client_create_animation(App *app,
+void client_add_handler(App *app,
                         AppClient *client_entity,
-                        double *value,
-                        double length,
-                        easingFunction easing,
-                        double target);
+                        bool (*event_handler)(App *app, xcb_generic_event_t *));
 
-void
-client_create_animation(App *app,
-                        AppClient *client_entity,
-                        double *value,
-                        double length,
-                        easingFunction easing,
-                        double target,
-                        void (*finished)());
+void client_show(App *app, AppClient *client_entity);
 
-void
-client_create_animation(App *app,
-                        AppClient *client,
-                        double *value,
-                        double length,
-                        easingFunction easing,
-                        double target,
-                        bool relayout);
+void client_hide(App *app, AppClient *client_entity);
 
-void
-client_unregister_animation(App *app, AppClient *client_entity);
+void request_refresh(App *app, AppClient *client_entity);
 
-void
-client_close(App *app, AppClient *client_entity);
+void client_register_animation(App *app, AppClient *client_entity);
 
-void
-client_close_threaded(App *app, AppClient *client_entity);
+void client_create_animation(App *app,
+                             AppClient *client_entity,
+                             double *value,
+                             double length,
+                             easingFunction easing,
+                             double target);
 
-void
-client_paint(App *app, AppClient *client_entity);
+void client_create_animation(App *app,
+                             AppClient *client_entity,
+                             double *value,
+                             double length,
+                             easingFunction easing,
+                             double target,
+                             void (*finished)());
 
-void
-client_paint(App *app, AppClient *client, bool force_repaint);
+void client_create_animation(App *app,
+                             AppClient *client,
+                             double *value,
+                             double length,
+                             easingFunction easing,
+                             double target,
+                             bool relayout);
 
-void
-client_replace_root(App *app, AppClient *client_entity, Container *new_root);
+void client_unregister_animation(App *app, AppClient *client_entity);
 
-void
-client_layout(App *app, AppClient *client_entity);
+void client_close(App *app, AppClient *client_entity);
 
-void
-handle_mouse_motion(App *app, AppClient *client, int x, int y);
+void client_close_threaded(App *app, AppClient *client_entity);
 
-int
-desktops_current(App *app);
+void client_paint(App *app, AppClient *client_entity);
 
-int
-desktops_count(App *app);
+void client_paint(App *app, AppClient *client, bool force_repaint);
 
-void
-desktops_change(App *app, long desktop_index);
+void client_replace_root(App *app, AppClient *client_entity, Container *new_root);
 
-App *
-app_new();
+void client_layout(App *app, AppClient *client_entity);
 
-void
-app_main(App *app);
+void handle_mouse_motion(App *app, AppClient *client, int x, int y);
 
-void
-app_clean(App *app);
+int desktops_current(App *app);
 
-void
-set_active(Container *c, bool state);
+int desktops_count(App *app);
 
-void
-init_xkb(App *app, AppClient *client);
+void desktops_change(App *app, long desktop_index);
 
-void
-process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard);
+App *app_new();
+
+void app_main(App *app);
+
+void app_clean(App *app);
+
+void set_active(Container *c, bool state);
+
+void init_xkb(App *app, AppClient *client);
+
+void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard);
 
 #endif

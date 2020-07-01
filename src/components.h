@@ -36,12 +36,11 @@ right_thumb_bounds(Container *scrollpane, Bounds thumb_area);
 Bounds
 bottom_thumb_bounds(Container *scrollpane, Bounds thumb_area);
 
-void
-scrollpane_scrolled(AppClient *client,
-                    cairo_t *cr,
-                    Container *container,
-                    int scroll_x,
-                    int scroll_y);
+void scrollpane_scrolled(AppClient *client,
+                         cairo_t *cr,
+                         Container *container,
+                         int scroll_x,
+                         int scroll_y);
 
 enum UndoType {
     INSERT,
@@ -73,7 +72,7 @@ public:
 
     int preferred_x = 0;
 
-    int selection_x = -1; // when -1 means there is no selection
+    int selection_x = -1;// when -1 means there is no selection
     std::vector<UndoAction *> redo_stack;
     std::vector<UndoAction *> undo_stack;
 
@@ -118,7 +117,7 @@ public:
     std::string font = "Arial";
     int font_size = 15;
     bool single_line = false;
-    bool wrap = false; // When wrap is enabled the text area will set its width to
+    bool wrap = false;// When wrap is enabled the text area will set its width to
     // FILL_SPACE and therefore the horizontal scrollbar should
     // never appear
     std::string prompt;
@@ -134,7 +133,6 @@ public:
 Container *
 make_textarea(Container *parent, TextAreaSettings settings);
 
-void
-textarea_handle_keypress(App *app, xcb_generic_event_t *event, Container *textarea);
+void textarea_handle_keypress(App *app, xcb_generic_event_t *event, Container *textarea);
 
-#endif // SCROLL_COMPONENTS_H
+#endif// SCROLL_COMPONENTS_H

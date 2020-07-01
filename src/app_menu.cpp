@@ -442,12 +442,11 @@ right_content_handles_pierced(Container *container, int x, int y) {
     return bounds_contains(container->real_bounds, x, y);
 }
 
-void
-scrolled_content_area(AppClient *client,
-                      cairo_t *cr,
-                      Container *container,
-                      int scroll_x,
-                      int scroll_y) {
+void scrolled_content_area(AppClient *client,
+                           cairo_t *cr,
+                           Container *container,
+                           int scroll_x,
+                           int scroll_y) {
     if (auto *client = client_by_name(app, "app_menu")) {
         if (auto *container = container_by_name("left_buttons", client->root)) {
             if (bounds_contains(
@@ -476,8 +475,7 @@ clicked_start_button(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
-bool
-DirectoryExists(const char *pzPath) {
+bool DirectoryExists(const char *pzPath) {
     if (pzPath == NULL)
         return false;
 
@@ -727,7 +725,7 @@ app_menu_event_handler(App *app, xcb_generic_event_t *event) {
         }
         case XCB_KEY_PRESS: {
             auto *e = (xcb_key_press_event_t *) (event);
-            if (e->detail == 133) // super l key
+            if (e->detail == 133)// super l key
                 break;
             auto *client = client_by_window(app, e->event);
             if (!valid_client(app, client)) {
@@ -786,8 +784,7 @@ app_menu_event_handler(App *app, xcb_generic_event_t *event) {
     return true;
 }
 
-void
-load_desktop_files() {
+void load_desktop_files() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -817,7 +814,7 @@ load_desktop_files() {
             std::string exec = desktop_application.Get("Desktop Entry", "Exec", "");
             std::string icon = desktop_application.Get("Desktop Entry", "Icon", "");
 
-            if (exec.empty()) // If we find no exec entry then there's nothing to run
+            if (exec.empty())// If we find no exec entry then there's nothing to run
                 continue;
 
             // Remove everything after the first space found in the exec line
@@ -826,7 +823,7 @@ load_desktop_files() {
                 exec.erase(white_space_position);
             }
 
-            if (name.empty()) // If no name was set, just give it the exec name
+            if (name.empty())// If no name was set, just give it the exec name
                 name = exec;
 
             auto *launcher = new Launcher();
@@ -889,8 +886,7 @@ load_desktop_files() {
     });
 }
 
-void
-start_app_menu() {
+void start_app_menu() {
     if (auto *c = client_by_name(app, "app_menu")) {
         client_close(app, c);
     }

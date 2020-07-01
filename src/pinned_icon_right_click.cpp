@@ -495,8 +495,7 @@ icon_menu_event_handler(App *app, xcb_generic_event_t *event) {
     return true;
 }
 
-void
-start_pinned_icon_right_click(Container *container) {
+void start_pinned_icon_right_click(Container *container) {
     pinned_icon_container = container;
     pinned_icon_data = (LaunchableButton *) container->user_data;
 

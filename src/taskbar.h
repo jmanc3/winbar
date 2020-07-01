@@ -59,31 +59,23 @@ public:
 AppClient *
 create_taskbar(App *app);
 
-void
-stacking_order_changed(xcb_window_t *all_windows, int windows_count);
+void stacking_order_changed(xcb_window_t *all_windows, int windows_count);
 
-void
-active_window_changed(xcb_window_t new_active_window);
+void active_window_changed(xcb_window_t new_active_window);
 
-void
-remove_non_pinned_icons();
+void remove_non_pinned_icons();
 
-void
-update_pinned_items_file();
+void update_pinned_items_file();
 
 uint32_t
 get_wm_state(xcb_window_t window);
 
-void
-update_taskbar_volume_icon();
+void update_taskbar_volume_icon();
 
-void
-set_textarea_active();
+void set_textarea_active();
 
-void
-set_textarea_inactive();
+void set_textarea_inactive();
 
-void
-register_popup(xcb_window_t window);
+void register_popup(xcb_window_t window);
 
-#endif // TASKBAR_H
+#endif// TASKBAR_H

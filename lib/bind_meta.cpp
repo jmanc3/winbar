@@ -27,8 +27,7 @@ static int stop = 0;
 size_t
 event_callback(xcb_record_enable_context_reply_t *reply, uint8_t *data_);
 
-void
-watch_meta_key() {
+void watch_meta_key() {
     ctrl_disp = xcb_connect(NULL, NULL);
     data_disp = xcb_connect(NULL, NULL);
 
@@ -131,7 +130,7 @@ event_callback(xcb_record_enable_context_reply_t *reply, uint8_t *data_) {
             if (is_meta && clean && on_meta_key_pressed && keys_down_count == 1)
                 on_meta_key_pressed();
             keys_down_count--;
-            if (keys_down_count <= 0) { // we can receive a release with out a matching press
+            if (keys_down_count <= 0) {// we can receive a release with out a matching press
                 keys_down_count = 0;
                 clean = true;
             }
