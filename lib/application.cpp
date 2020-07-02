@@ -2,7 +2,9 @@
 #include "application.h"
 
 #ifdef TRACY_ENABLE
+
 #include "../tracy/Tracy.hpp"
+
 #endif
 
 #include "utility.h"
@@ -1509,70 +1511,89 @@ long timer_end(struct timespec start_time) {
 }
 
 void update_animations(App *app) {
-    int start_empty = animations_list.empty();
+    long now = get_current_time_in_ms();
 
-    std::vector<AppClient *> to_layout;
+    // First update all the values
+    for (auto *data : animations_list) {
+        long elapsed_time = now - data->start_time;
+        double scalar = (double) elapsed_time / data->length;
 
-    for (animation_data *animation : animations_list) {
-        std::vector<animation_data *> destroy;
-
-        for (animation_data *data : animations_list) {
-            long now = get_current_time_in_ms();
-            long elapsed_time = now - data->start_time;
-            double scalar = (double) elapsed_time / data->length;
-
-            if (data->easing != nullptr) {
-                scalar = data->easing(scalar);
-            }
-
-            if (scalar >= 1) {
-                scalar = 1;
-            }
-
-            double diff = (data->target - data->start_value) * scalar;
-
-            *data->value = data->start_value + diff;
-
-            if (scalar == 1) {
-                destroy.push_back(data);
-            }
+        if (data->easing != nullptr) {
+            scalar = data->easing(scalar);
         }
 
-        if (animation->relayout) {
-            to_layout.push_back(animation->client);
+        double diff = (data->target - data->start_value) * scalar;
+        *data->value = data->start_value + diff;
+
+        if (scalar >= 1) {
+            *data->value = data->target;
         }
+    }
 
-        for (animation_data *to_destroy : destroy) {
-            *to_destroy->value = to_destroy->target;
-            if (to_destroy->finished) {
-                to_destroy->finished();
-            }
-            client_unregister_animation(app, to_destroy->client);
-
-            if (to_destroy->relayout) {
-                client_layout(to_destroy->client->app, to_destroy->client);
-            }
-            client_paint(app, to_destroy->client, true);
-
-            for (int i = 0; i < animations_list.size(); i++) {
-                if (animations_list[i] == to_destroy) {
-                    animations_list.erase(animations_list.begin() + i);
-                    break;
+    // Layout only once
+    {
+        std::vector<AppClient *> layout;
+        for (auto *data : animations_list) {
+            if (data->relayout) {
+                bool found = false;
+                for (auto c : layout) {
+                    if (data->client == c) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    layout.push_back(data->client);
                 }
             }
         }
-    }
-
-    for (AppClient *client : to_layout) {
-        client_layout(app, client);
-    }
-
-    for (AppClient *client : app->clients) {
-        if (client->animation_count != 0) {
-            client_paint(app, client, true);
+        for (auto *client : layout) {
+            client_layout(app, client);
         }
     }
+
+    // Paint only once
+    {
+        std::vector<AppClient *> paint;
+        for (auto *data : animations_list) {
+            bool found = false;
+            for (auto c : paint) {
+                if (data->client == c) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                paint.push_back(data->client);
+            }
+        }
+        for (auto *client : paint) {
+            client_paint(app, client);
+        }
+    }
+
+    // Remove finished animations and do one final paint
+    auto it = animations_list.begin();
+    while (it != animations_list.end()) {
+        animation_data *data = *it;
+        long elapsed_time = now - data->start_time;
+        double scalar = (double) elapsed_time / data->length;
+
+        if (scalar >= 1) {
+            if (data->finished) {
+                data->finished();
+            }
+            if (data->relayout) {
+                client_layout(app, data->client);
+            }
+            client_paint(app, data->client);
+            client_unregister_animation(app, data->client);
+            it = animations_list.erase(it);
+            delete data;
+        } else { ++it; }
+    }
 }
+
 
 void render_loop(App *app) {
 #ifdef TRACY_ENABLE
@@ -1587,15 +1608,21 @@ void render_loop(App *app) {
     while (app->running) {
         epoll_wait(app->epoll_fd, events, MAX_POLLING_EVENTS_AT_THE_SAME_TIME, -1);
 
-        guard.lock();
         auto start = timer_start();
-        update_animations(app);
+        {
+#ifdef TRACY_ENABLE
+            ZoneScopedN("Update animation");
+#endif
+            guard.lock();
+            update_animations(app);
+            guard.unlock();
+        }
         auto end = timer_end(start);
-        guard.unlock();
-
         auto ms = 1000 * refresh_rate;
-
-        usleep(ms - (end / 1000));
+        long sleep = ms - (end / 1000);
+        if (sleep < 0)
+            sleep = 0;
+        usleep(sleep);
     }
 }
 
@@ -1669,14 +1696,6 @@ void client_create_animation(App *app,
                              double target,
                              void (*finished)(),
                              bool relayout) {
-    // TODO: fix this
-    *value = target;
-    if (relayout) {
-        client_layout(app, client);
-    }
-    client_paint(app, client);
-    return;
-
     bool break_out = false;
 
     for (animation_data *data : animations_list) {
