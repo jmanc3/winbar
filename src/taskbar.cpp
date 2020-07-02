@@ -771,10 +771,11 @@ void update_time() {
             std::string date = return_current_time_and_date();
             if (date[0] == '0')
                 date.erase(0, 1);
-            time_text = date;
-
-            client_layout(app, client_entity);
-            request_refresh(app, client_entity);
+            if (time_text != date) {
+                time_text = date;
+                client_layout(app, client_entity);
+                client_paint(app, client_entity);
+            }
             lock.unlock();
             usleep(1000 * 1000);
             lock.lock();
