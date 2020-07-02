@@ -62,7 +62,7 @@ void update_active_window() {
 
 static bool
 root_event_handler(App *app, xcb_generic_event_t *event) {
-    switch (event->response_type & ~0x80) {
+    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
         case XCB_PROPERTY_NOTIFY: {
             auto *e = (xcb_property_notify_event_t *) event;
 
@@ -76,7 +76,9 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
         case XCB_BUTTON_PRESS: {
             for (auto handler : app->handlers) {
                 if (handler->target_window == app->grab_window) {
-                    handler->event_handler(app, event);
+                    auto *temp = (xcb_button_press_event_t *) (event);
+                    temp->event = handler->target_window;
+                    handler->event_handler(app, (xcb_generic_event_t *) temp);
                     break;
                 }
             }
@@ -85,7 +87,9 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
         case XCB_BUTTON_RELEASE: {
             for (auto handler : app->handlers) {
                 if (handler->target_window == app->grab_window) {
-                    handler->event_handler(app, event);
+                    auto *temp = (xcb_button_release_event_t *) (event);
+                    temp->event = handler->target_window;
+                    handler->event_handler(app, (xcb_generic_event_t *) temp);
                     break;
                 }
             }
@@ -94,7 +98,9 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
         case XCB_MOTION_NOTIFY: {
             for (auto handler : app->handlers) {
                 if (handler->target_window == app->grab_window) {
-                    handler->event_handler(app, event);
+                    auto *temp = (xcb_motion_notify_event_t *) (event);
+                    temp->event = handler->target_window;
+                    handler->event_handler(app, (xcb_generic_event_t *) temp);
                     break;
                 }
             }

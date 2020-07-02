@@ -104,6 +104,30 @@ search_menu_event_handler(App *app, xcb_generic_event_t *event) {
             }
             break;
         }
+        case XCB_BUTTON_PRESS: {
+            auto *e = (xcb_button_press_event_t *) (event);
+            auto *client = client_by_window(app, e->event);
+            if (!valid_client(app, client)) {
+                break;
+            }
+            Bounds search_bar = app->bounds;
+            if (auto *taskbar = client_by_name(app, "taskbar")) {
+                if (auto *container = container_by_name("field_search", taskbar->root)) {
+                    search_bar = container->real_bounds;
+                    search_bar.x += taskbar->bounds->x;
+                    search_bar.y += taskbar->bounds->y;
+                }
+            }
+
+            if (!bounds_contains(*client->bounds, e->root_x, e->root_y) &&
+                !bounds_contains(search_bar, e->root_x, e->root_y)) {
+                client_close_threaded(app, client);
+                xcb_flush(app->connection);
+                app->grab_window = -1;
+                set_textarea_inactive();
+            }
+            break;
+        }
     }
 
     return true;
