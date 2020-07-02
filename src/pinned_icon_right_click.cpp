@@ -473,7 +473,6 @@ icon_menu_event_handler(App *app, xcb_generic_event_t *event) {
 
             if (!bounds_contains(*our_bounds, e->root_x, e->root_y) &&
                 !bounds_contains(copy, e->root_x, e->root_y)) {
-                xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
                 xcb_flush(app->connection);
                 client_close_threaded(app, client_entity);
             }
@@ -485,7 +484,6 @@ icon_menu_event_handler(App *app, xcb_generic_event_t *event) {
             auto *client = client_by_window(app, e->event);
             if (valid_client(app, client)) {
                 client_close_threaded(app, client);
-                xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
                 xcb_flush(app->connection);
                 app->grab_window = -1;
             }

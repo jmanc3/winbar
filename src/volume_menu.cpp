@@ -556,7 +556,6 @@ volume_menu_event_handler(App *app, xcb_generic_event_t *event) {
             auto *client = client_by_window(app, e->event);
             if (valid_client(app, client)) {
                 client_close_threaded(app, client);
-                xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
                 xcb_flush(app->connection);
                 app->grab_window = -1;
             }

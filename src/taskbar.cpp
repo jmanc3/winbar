@@ -2,7 +2,9 @@
 #include "taskbar.h"
 
 #ifdef TRACY_ENABLE
+
 #include "../tracy/Tracy.hpp"
+
 #endif
 
 #include "app_menu.h"
@@ -2280,6 +2282,7 @@ void register_popup(xcb_window_t window) {
     if (error != NULL) {
         printf("Could not grab pointer for the window %d\n", window);
         client_close_threaded(app, client);
+        xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
     } else {
         if (auto *c = client_by_name(app, "taskbar")) {
             app->grab_window = popup_window_open;

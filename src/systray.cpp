@@ -4,8 +4,10 @@
 #include "taskbar.h"
 
 #ifdef TRACY_ENABLE
+
 #include "../tracy/Tracy.hpp"
 #include "../tracy/common/TracySystem.hpp"
+
 #endif
 
 #include <iostream>
@@ -416,7 +418,6 @@ display_close(bool close) {
     }
 
     if (close) {
-        xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
         first_expose = true;
 
         client_close_threaded(app, display);

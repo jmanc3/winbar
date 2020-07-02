@@ -768,6 +768,11 @@ void client_close(App *app, AppClient *client) {
         client->when_closed(client);
     }
 
+    if (client->popup) {
+        xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
+        xcb_flush(app->connection);
+    }
+
     // TODO: this will crash if there is more than one handler per window I think
     for (int i = 0; i < app->handlers.size(); i++) {
         if (app->handlers[i]->target_window == client->window) {

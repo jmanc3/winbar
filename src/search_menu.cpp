@@ -5,7 +5,9 @@
 #include "search_menu.h"
 
 #ifdef TRACY_ENABLE
+
 #include "../tracy/Tracy.hpp"
+
 #endif
 
 #include "app_menu.h"
@@ -96,7 +98,6 @@ search_menu_event_handler(App *app, xcb_generic_event_t *event) {
             auto *client = client_by_window(app, e->event);
             if (valid_client(app, client)) {
                 client_close_threaded(app, client);
-                xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
                 xcb_flush(app->connection);
                 app->grab_window = -1;
                 set_textarea_inactive();
@@ -687,10 +688,6 @@ launch_item(AppClient *client, Container *item) {
     SearchItemData *data = (SearchItemData *) item->user_data;
     if (active_tab == "Scripts") {
         Script *script = (Script *) data->user_data;
-        client_close_threaded(app, client);
-        xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
-        xcb_flush(app->connection);
-        app->grab_window = -1;
 
         for (int i = 0; i < history_scripts.size(); i++) {
             auto *historic_script = history_scripts[i];
@@ -711,10 +708,6 @@ launch_item(AppClient *client, Container *item) {
         launch_command(script->path + "/" + script->name);
     } else if (active_tab == "Apps") {
         Launcher *launcher = (Launcher *) data->user_data;
-        client_close_threaded(app, client);
-        xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
-        xcb_flush(app->connection);
-        app->grab_window = -1;
 
         for (int i = 0; i < history_apps.size(); i++) {
             auto *historic_app = history_apps[i];
@@ -742,6 +735,9 @@ launch_item(AppClient *client, Container *item) {
             data->state = new TextState;
         }
     }
+    client_close_threaded(app, client);
+    xcb_flush(app->connection);
+    app->grab_window = -1;
 }
 
 static void
@@ -1230,7 +1226,6 @@ void on_key_press_search_bar(xcb_generic_event_t *event) {
                         break;
                     } else if (keysyms[0] == XKB_KEY_Escape) {
                         client_close_threaded(app, search_menu_client);
-                        xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
                         xcb_flush(app->connection);
                         app->grab_window = -1;
                         set_textarea_inactive();

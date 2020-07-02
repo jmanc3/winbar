@@ -5,7 +5,9 @@
 #include "components.h"
 
 #ifdef TRACY_ENABLE
+
 #include "../tracy/Tracy.hpp"
+
 #endif
 
 #include "utility.h"

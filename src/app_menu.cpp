@@ -2,7 +2,9 @@
 #include "app_menu.h"
 
 #ifdef TRACY_ENABLE
+
 #include "../tracy/Tracy.hpp"
+
 #endif
 
 #include "INIReader.h"
@@ -190,7 +192,6 @@ clicked_item(AppClient *client, cairo_t *cr, Container *container) {
     set_textarea_inactive();
     launch_command(data->launcher->exec);
     client_close_threaded(app, client);
-    xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
     xcb_flush(app->connection);
     app->grab_window = -1;
 }
@@ -498,7 +499,6 @@ clicked_open_folder_button(AppClient *client, cairo_t *cr, Container *container)
     auto *data = (ButtonData *) container->user_data;
     set_textarea_inactive();
     client_close_threaded(client->app, client);
-    xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
     xcb_flush(app->connection);
     app->grab_window = -1;
 
@@ -523,7 +523,6 @@ clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) 
         launch_command(config->file_manager);
     }
     client_close_threaded(client->app, client);
-    xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
     xcb_flush(app->connection);
     app->grab_window = -1;
 }
@@ -531,7 +530,6 @@ clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) 
 static void
 clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
     client_close_threaded(client->app, client);
-    xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
     xcb_flush(app->connection);
     app->grab_window = -1;
 }
@@ -539,7 +537,6 @@ clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
 static void
 clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
     client_close_threaded(client->app, client);
-    xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
     xcb_flush(app->connection);
     app->grab_window = -1;
 }
@@ -745,7 +742,6 @@ app_menu_event_handler(App *app, xcb_generic_event_t *event) {
 
             // No matter what key was pressed after this app_menu is open, it is closed
             client_close(app, client);
-            xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
             xcb_flush(app->connection);
             app->grab_window = -1;
             xcb_aux_sync(app->connection);
@@ -773,7 +769,6 @@ app_menu_event_handler(App *app, xcb_generic_event_t *event) {
             auto *client = client_by_window(app, e->event);
             if (valid_client(app, client)) {
                 client_close_threaded(app, client);
-                xcb_ungrab_pointer(app->connection, XCB_CURRENT_TIME);
                 xcb_flush(app->connection);
                 app->grab_window = -1;
                 set_textarea_inactive();
