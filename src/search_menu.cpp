@@ -1284,16 +1284,17 @@ void on_key_press_search_bar(xcb_generic_event_t *event) {
             for (auto *c : bottom->children)
                 delete c;
             bottom->children.clear();
-
-            if (active_tab == "Scripts") {
-                sort_and_add<Script *>(&scripts, bottom, data->state->text, &history_scripts);
-            } else if (active_tab == "Apps") {
-                // We create a copy because app_menu relies on the order
-                std::vector<Launcher *> launchers_copy;
-                for (auto *l : launchers) {
-                    launchers_copy.push_back(l);
+            if (!data->state->text.empty()) {
+                if (active_tab == "Scripts") {
+                    sort_and_add<Script *>(&scripts, bottom, data->state->text, &history_scripts);
+                } else if (active_tab == "Apps") {
+                    // We create a copy because app_menu relies on the order
+                    std::vector<Launcher *> launchers_copy;
+                    for (auto *l : launchers) {
+                        launchers_copy.push_back(l);
+                    }
+                    sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, &history_apps);
                 }
-                sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, &history_apps);
             }
         }
     }
