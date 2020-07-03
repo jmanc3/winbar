@@ -76,47 +76,21 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
 
     ButtonData *data = (ButtonData *) container->user_data;
 
-    double max_amount = .8;
-    if (container->state.mouse_pressing) {
-        max_amount = 1;
-    } else if (container->state.mouse_hovering) {
-        max_amount = .9;
-    }
-    max_amount *= .27;
-
-    if (container->state.mouse_hovering) {
-        if (!data->hovered) {
-            data->hovered = true;
-            data->hover_amount = 1;
-        }
-    } else if (data->hovered) {
-        data->hovered = false;
-        client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
-    }
-
-    set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
-
-    int border = 0;
-
-    cairo_rectangle(cr,
-                    container->real_bounds.x + border,
-                    container->real_bounds.y + border,
-                    container->real_bounds.w - border * 2,
-                    container->real_bounds.h - border * 2);
-    cairo_fill(cr);
-
-    /*
-        if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
-            if (container->state.mouse_pressing) {
-                set_argb(cr, config->button_pressed);
-            } else {
-                set_argb(cr, config->button_hovered);
-            }
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->button_pressed);
         } else {
-            set_argb(cr, config->button_default);
+            set_argb(cr, config->button_hovered);
         }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);*/
+        int border = 0;
+
+        cairo_rectangle(cr,
+                        container->real_bounds.x + border,
+                        container->real_bounds.y + border,
+                        container->real_bounds.w - border * 2,
+                        container->real_bounds.h - border * 2);
+        cairo_fill(cr);
+    }
 
     container->real_bounds.x -= 1;
     container->real_bounds.w += 2;
@@ -793,6 +767,48 @@ app_menu_event_handler(App *app, xcb_generic_event_t *event) {
     return true;
 }
 
+static void
+paint_desktop_files() {
+    for (auto *launcher : launchers) {
+
+        launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16, 16);
+        launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24, 24);
+        launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32, 32);
+        launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64, 64);
+        std::string path16 = find_icon(launcher->icon, 16);
+        std::string path24 = find_icon(launcher->icon, 24);
+        std::string path32 = find_icon(launcher->icon, 32);
+        std::string path64 = find_icon(launcher->icon, 64);
+        if (!path16.empty() && !launcher->icon.empty()) {
+            paint_surface_with_image(launcher->icon_16, path16, nullptr);
+        } else {
+            paint_surface_with_image(
+                    launcher->icon_16, as_resource_path("unknown-16.svg"), nullptr);
+        }
+
+        if (!path24.empty() && !launcher->icon.empty()) {
+            paint_surface_with_image(launcher->icon_24, path24, nullptr);
+        } else {
+            paint_surface_with_image(
+                    launcher->icon_24, as_resource_path("unknown-24.svg"), nullptr);
+        }
+
+        if (!path32.empty() && !launcher->icon.empty()) {
+            paint_surface_with_image(launcher->icon_32, path32, nullptr);
+        } else {
+            paint_surface_with_image(
+                    launcher->icon_32, as_resource_path("unknown-32.svg"), nullptr);
+        }
+
+        if (!path32.empty() && !launcher->icon.empty()) {
+            paint_surface_with_image(launcher->icon_64, path64, nullptr);
+        } else {
+            paint_surface_with_image(
+                    launcher->icon_64, as_resource_path("unknown-64.svg"), nullptr);
+        }
+    }
+}
+
 void load_desktop_files() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -844,42 +860,6 @@ void load_desktop_files() {
                            ::tolower);
             launcher->exec = exec;
             launcher->icon = icon;
-            launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16, 16);
-            launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24, 24);
-            launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32, 32);
-            launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64, 64);
-            std::string path16 = find_icon(launcher->icon, 16);
-            std::string path24 = find_icon(launcher->icon, 24);
-            std::string path32 = find_icon(launcher->icon, 32);
-            std::string path64 = find_icon(launcher->icon, 64);
-
-            if (!path16.empty() && !icon.empty()) {
-                paint_surface_with_image(launcher->icon_16, path16, nullptr);
-            } else {
-                paint_surface_with_image(
-                        launcher->icon_16, as_resource_path("unknown-16.svg"), nullptr);
-            }
-
-            if (!path24.empty() && !icon.empty()) {
-                paint_surface_with_image(launcher->icon_24, path24, nullptr);
-            } else {
-                paint_surface_with_image(
-                        launcher->icon_24, as_resource_path("unknown-24.svg"), nullptr);
-            }
-
-            if (!path32.empty() && !icon.empty()) {
-                paint_surface_with_image(launcher->icon_32, path32, nullptr);
-            } else {
-                paint_surface_with_image(
-                        launcher->icon_32, as_resource_path("unknown-32.svg"), nullptr);
-            }
-
-            if (!path32.empty() && !icon.empty()) {
-                paint_surface_with_image(launcher->icon_64, path64, nullptr);
-            } else {
-                paint_surface_with_image(
-                        launcher->icon_64, as_resource_path("unknown-64.svg"), nullptr);
-            }
 
             launchers.push_back(launcher);
         }
@@ -893,6 +873,7 @@ void load_desktop_files() {
 
         return first_name < second_name;
     });
+    std::thread(paint_desktop_files).detach();
 }
 
 void start_app_menu() {
