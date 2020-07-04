@@ -12,6 +12,7 @@
 #include <librsvg/rsvg.h>
 #include <pango/pangocairo.h>
 #include <zconf.h>
+#include <cassert>
 
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
 #ifdef TRACY_ENABLE
@@ -150,6 +151,7 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
     }
 
     auto *font = new CachedFont;
+    assert(font);
     font->name = name;
     font->size = pixel_height;
     font->weight = weight;
@@ -161,10 +163,15 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
     pango_font_description_set_weight(desc, weight);
     pango_layout_set_font_description(layout, desc);
     pango_font_description_free(desc);
+    pango_layout_set_attributes(layout, nullptr);
+
+    assert(layout);
 
     font->layout = layout;
 
     cached_fonts.push_back(font);
+
+    assert(font->layout);
 
     return font->layout;
 }

@@ -246,6 +246,22 @@ fill_root(AppClient *client) {
 
 static bool first_expose = true;
 
+static void
+grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
+    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
+        case XCB_BUTTON_PRESS: {
+            auto *e = (xcb_button_press_event_t *) (event);
+            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
+                client_close_threaded(app, client);
+                xcb_flush(app->connection);
+                app->grab_window = -1;
+                set_textarea_inactive();
+            }
+            break;
+        }
+    }
+}
+
 static bool
 wifi_menu_event_handler(App *app, xcb_generic_event_t *event) {
     // For detecting if we pressed outside the window
@@ -298,6 +314,7 @@ void start_wifi_menu() {
     settings.popup = true;
 
     AppClient *client = client_new(app, settings, "wifi_menu");
+    client->grab_event_handler = grab_event_handler;
 
     client_add_handler(app, client, wifi_menu_event_handler);
 

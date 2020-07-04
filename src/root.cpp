@@ -76,9 +76,12 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
         case XCB_BUTTON_PRESS: {
             for (auto handler : app->handlers) {
                 if (handler->target_window == app->grab_window) {
-                    auto *temp = (xcb_button_press_event_t *) (event);
-                    temp->event = handler->target_window;
-                    handler->event_handler(app, (xcb_generic_event_t *) temp);
+                    auto *client = client_by_window(app, handler->target_window);
+                    if (valid_client(app, client)) {
+                        if (client->grab_event_handler) {
+                            client->grab_event_handler(client, event);
+                        }
+                    }
                     break;
                 }
             }
@@ -87,9 +90,12 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
         case XCB_BUTTON_RELEASE: {
             for (auto handler : app->handlers) {
                 if (handler->target_window == app->grab_window) {
-                    auto *temp = (xcb_button_release_event_t *) (event);
-                    temp->event = handler->target_window;
-                    handler->event_handler(app, (xcb_generic_event_t *) temp);
+                    auto *client = client_by_window(app, handler->target_window);
+                    if (valid_client(app, client)) {
+                        if (client->grab_event_handler) {
+                            client->grab_event_handler(client, event);
+                        }
+                    }
                     break;
                 }
             }
@@ -98,9 +104,12 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
         case XCB_MOTION_NOTIFY: {
             for (auto handler : app->handlers) {
                 if (handler->target_window == app->grab_window) {
-                    auto *temp = (xcb_motion_notify_event_t *) (event);
-                    temp->event = handler->target_window;
-                    handler->event_handler(app, (xcb_generic_event_t *) temp);
+                    auto *client = client_by_window(app, handler->target_window);
+                    if (valid_client(app, client)) {
+                        if (client->grab_event_handler) {
+                            client->grab_event_handler(client, event);
+                        }
+                    }
                     break;
                 }
             }

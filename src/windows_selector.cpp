@@ -105,7 +105,7 @@ window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container
                     }
                     client->root->children.clear();
                     fill_root(client->root);
-                    client_paint(app, client);
+                    request_refresh(app, client);
 
                     break;
                 }
@@ -301,6 +301,22 @@ fill_root(Container *root) {
 
 static bool first_expose = true;
 
+static void
+grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
+    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
+        case XCB_BUTTON_PRESS: {
+            auto *e = (xcb_button_press_event_t *) (event);
+            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
+                client_close_threaded(app, client);
+                xcb_flush(app->connection);
+                app->grab_window = -1;
+                set_textarea_inactive();
+            }
+            break;
+        }
+    }
+}
+
 static bool
 windows_selector_event_handler(App *app, xcb_generic_event_t *event) {
     // For detecting if we pressed outside the window
@@ -355,6 +371,7 @@ void start_windows_selector(Container *container) {
     settings.popup = true;
 
     client = client_new(app, settings, "windows_selector");
+    client->grab_event_handler = grab_event_handler;
 
     client_add_handler(app, client, windows_selector_event_handler);
 

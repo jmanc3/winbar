@@ -76,6 +76,35 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
 
 static bool first_expose = true;
 
+static void
+grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
+    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
+        case XCB_BUTTON_PRESS: {
+            auto *e = (xcb_button_press_event_t *) (event);
+            if (!valid_client(app, client)) {
+                break;
+            }
+            Bounds search_bar = app->bounds;
+            if (auto *taskbar = client_by_name(app, "taskbar")) {
+                if (auto *container = container_by_name("field_search", taskbar->root)) {
+                    search_bar = container->real_bounds;
+                    search_bar.x += taskbar->bounds->x;
+                    search_bar.y += taskbar->bounds->y;
+                }
+            }
+
+            if (!bounds_contains(*client->bounds, e->root_x, e->root_y) &&
+                !bounds_contains(search_bar, e->root_x, e->root_y)) {
+                client_close_threaded(app, client);
+                xcb_flush(app->connection);
+                app->grab_window = -1;
+                set_textarea_inactive();
+            }
+            break;
+        }
+    }
+}
+
 static bool
 search_menu_event_handler(App *app, xcb_generic_event_t *event) {
 
@@ -965,7 +994,7 @@ clicked_right_item(AppClient *client, cairo_t *cr, Container *container) {
     }
 
     client_layout(app, client);
-    client_paint(app, client);
+    request_refresh(app, client);
 }
 
 static void
@@ -1257,7 +1286,11 @@ void on_key_press_search_bar(xcb_generic_event_t *event) {
                     } else if (keysyms[0] == XKB_KEY_Tab) {
                         // next tab
                         next_tab();
-                        break;
+                        client_layout(app, search_menu_client);
+                        request_refresh(app, search_menu_client);
+                        client_layout(app, taskbar_client);
+                        request_refresh(app, taskbar_client);
+                        return;
                     } else if (keysyms[0] == XKB_KEY_Return) {
                         // launch active item
                         launch_active_item();
@@ -1299,9 +1332,9 @@ void on_key_press_search_bar(xcb_generic_event_t *event) {
         }
     }
     client_layout(app, search_menu_client);
-    client_paint(app, search_menu_client);
+    request_refresh(app, search_menu_client);
     client_layout(app, taskbar_client);
-    client_paint(app, taskbar_client);
+    request_refresh(app, taskbar_client);
 }
 
 void load_historic_scripts() {
@@ -1450,6 +1483,7 @@ void start_search_menu() {
     settings.popup = true;
 
     AppClient *client = client_new(app, settings, "search_menu");
+    client->grab_event_handler = grab_event_handler;
     client->when_closed = search_menu_when_closed;
     fill_root(client);
     client_add_handler(app, client, search_menu_event_handler);

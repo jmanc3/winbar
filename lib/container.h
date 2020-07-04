@@ -152,6 +152,8 @@ struct AppClient {
     ClientKeyboard *keyboard;
 
     void (*when_closed)(AppClient *client) = nullptr;
+
+    void (*grab_event_handler)(AppClient *client, xcb_generic_event_t *event) = nullptr;
 };
 
 struct Container {

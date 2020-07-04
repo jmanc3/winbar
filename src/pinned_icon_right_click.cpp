@@ -445,6 +445,22 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
 
 static bool first_expose = false;
 
+static void
+grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
+    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
+        case XCB_BUTTON_PRESS: {
+            auto *e = (xcb_button_press_event_t *) (event);
+            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
+                client_close_threaded(app, client);
+                xcb_flush(app->connection);
+                app->grab_window = -1;
+                set_textarea_inactive();
+            }
+            break;
+        }
+    }
+}
+
 static bool
 icon_menu_event_handler(App *app, xcb_generic_event_t *event) {
     // For detecting if we pressed outside the window
@@ -528,6 +544,7 @@ void start_pinned_icon_right_click(Container *container) {
     settings.popup = true;
 
     AppClient *client = client_new(app, settings, "right_click_menu");
+    client->grab_event_handler = grab_event_handler;
     delete client->root;
     client->root = root;
     client_entity = client;

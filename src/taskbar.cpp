@@ -28,6 +28,7 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <cassert>
 #include <pango/pangocairo.h>
 
 class WorkspaceButton : public HoverableButton {
@@ -776,7 +777,7 @@ void update_time() {
             if (time_text != date) {
                 time_text = date;
                 client_layout(app, client_entity);
-                client_paint(app, client_entity);
+                request_refresh(app, client_entity);
             }
             lock.unlock();
             usleep(1000 * 1000);
@@ -813,7 +814,7 @@ void active_window_changed(xcb_window_t new_active_window) {
             if (window == new_active_window) {
                 active_container = icon;
                 client_create_animation(app, entity, &data->active_amount, 45, 0, 1);
-                client_paint(app, entity);
+                request_refresh(app, entity);
                 return;
             }
         }
@@ -1776,7 +1777,7 @@ void add_window(App *app, xcb_window_t window) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
         if (data->class_name == window_class_name) {
             data->windows.push_back(window);
-            client_paint(app, client);
+            request_refresh(app, client);
             return;
         }
     }
@@ -1904,7 +1905,6 @@ void add_window(App *app, xcb_window_t window) {
 
     client_layout(app, client);
     request_refresh(app, client);
-    //    client_paint(app, entity, true);
 }
 
 void remove_window(App *app, xcb_window_t window) {
@@ -1941,7 +1941,7 @@ void remove_window(App *app, xcb_window_t window) {
 
     update_pinned_items_file();
     icons_align(entity, icons, false);
-    client_paint(app, entity);
+    request_refresh(app, entity);
 }
 
 void stacking_order_changed(xcb_window_t *all_windows, int windows_count) {

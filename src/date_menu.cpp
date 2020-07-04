@@ -425,7 +425,7 @@ paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
         if (data->state->text.empty() && !container->active) {
             PangoLayout *text_layout = get_cached_pango_font(
                     client->back_cr, "Segoe UI", 11, PangoWeight::PANGO_WEIGHT_NORMAL);
-            std::string text("Write events here");
+            std::string text("Write the days events here");
             pango_layout_set_text(text_layout, text.c_str(), text.length());
             PangoRectangle text_ink;
             PangoRectangle text_logical;
@@ -1013,6 +1013,22 @@ read_agenda_from_disk(AppClient *client) {
     }
 }
 
+static void
+grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
+    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
+        case XCB_BUTTON_PRESS: {
+            auto *e = (xcb_button_press_event_t *) (event);
+            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
+                client_close_threaded(app, client);
+                xcb_flush(app->connection);
+                app->grab_window = -1;
+                set_textarea_inactive();
+            }
+            break;
+        }
+    }
+}
+
 static bool
 date_menu_event_handler(App *app, xcb_generic_event_t *event) {
     // For detecting if we pressed outside the window
@@ -1076,6 +1092,7 @@ void start_date_menu() {
     // settings.popup = true;
 
     AppClient *client = client_new(app, settings, "date_menu");
+    client->grab_event_handler = grab_event_handler;
 
     client->when_closed = date_menu_closed;
 

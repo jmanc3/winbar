@@ -197,6 +197,22 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
 
 static bool first_expose = true;
 
+static void
+grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
+    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
+        case XCB_BUTTON_PRESS: {
+            auto *e = (xcb_button_press_event_t *) (event);
+            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
+                client_close_threaded(app, client);
+                xcb_flush(app->connection);
+                app->grab_window = -1;
+                set_textarea_inactive();
+            }
+            break;
+        }
+    }
+}
+
 static bool
 display_event_handler(App *app, xcb_generic_event_t *event) {
 #ifdef TRACY_ENABLE
@@ -216,7 +232,7 @@ display_event_handler(App *app, xcb_generic_event_t *event) {
         }
         case XCB_MAP_NOTIFY: {
             auto *e = (xcb_map_notify_event_t *) (event);
-            register_popup(e->window);
+            register_popup(display->window);
             break;
         }
         case XCB_FOCUS_OUT: {
@@ -225,12 +241,11 @@ display_event_handler(App *app, xcb_generic_event_t *event) {
         }
         case XCB_BUTTON_PRESS: {
             auto *e = (xcb_button_press_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (!valid_client(app, client)) {
+            if (!valid_client(app, display)) {
                 break;
             }
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
+            if (!bounds_contains(*display->bounds, e->root_x, e->root_y)) {
+                display_close(true);
                 xcb_flush(app->connection);
                 app->grab_window = -1;
                 set_textarea_inactive();
@@ -389,6 +404,7 @@ void open_systray() {
     settings.popup = true;
 
     display = client_new(app, settings, "display");
+    display->grab_event_handler = grab_event_handler;
     display->root->when_paint = paint_display;
 
     client_add_handler(app, display, display_event_handler);
