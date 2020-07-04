@@ -47,17 +47,8 @@ void update_active_window() {
     auto *windows = (xcb_window_t *) xcb_get_property_value(reply);
 
     active_window_changed(windows[0]);
-    free(reply);
 
-    // for xcape to work, a client window must have input focus. if the root has focus, it won't
-    // generate events therefore when we see that nothing or the root has focus we take it instead
-    if (windows_count == 0 || windows[0] == app->screen->root || windows[0] == 0) {
-        if (auto *client = client_by_name(app, "taskbar")) {
-            // TODO: Alt tab on openbox sets the active to 0 so this will screw us, we should wait some time and check that its still zero after some time
-            //xcb_set_input_focus(
-            //app->connection, XCB_INPUT_FOCUS_PARENT, client->window, XCB_CURRENT_TIME);
-        }
-    }
+    free(reply);
 }
 
 static bool

@@ -131,10 +131,10 @@ struct AppClient {
 
     Container *root;
 
-    int mouse_initial_x;
-    int mouse_initial_y;
-    int mouse_current_x;
-    int mouse_current_y;
+    int mouse_initial_x = -1;
+    int mouse_initial_y = -1;
+    int mouse_current_x = -1;
+    int mouse_current_y = -1;
 
     long last_repaint_time;
 
