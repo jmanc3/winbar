@@ -1326,7 +1326,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
         cairo_move_to(cr,
                       container->real_bounds.x + 12 + 16 + 12,
                       container->real_bounds.y + container->real_bounds.h / 2 -
-                      ((ink.height / PANGO_SCALE)));
+                      ((logical.height / PANGO_SCALE) / 2));
         pango_cairo_show_layout(cr, layout);
     }
 }
