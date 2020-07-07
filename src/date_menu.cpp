@@ -819,6 +819,7 @@ fill_root(AppClient *client) {
     settings.bottom_show_amount = 2;
     settings.right_show_amount = 2;
     Container *textarea = make_textarea(events, settings);
+    std::thread(blink, client, textarea).detach();
     TextAreaData *data = (TextAreaData *) textarea->user_data;
 
     textarea->name = "main_text_area";

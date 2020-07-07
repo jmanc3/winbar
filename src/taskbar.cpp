@@ -1574,6 +1574,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     field_search->wanted_pad.x = 12 + 16 + 12;
     auto *con = field_search->child(FILL_SPACE, FILL_SPACE);
     Container *textarea = make_textarea(con, settings);
+    std::thread(blink, client, textarea).detach();
     textarea->name = "main_text_area";
     textarea->parent->alignment = ALIGN_CENTER | ALIGN_LEFT;
 

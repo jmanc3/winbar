@@ -890,7 +890,7 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
     }
 
     // PAINT CURSOR
-    if (container->parent->active) {
+    if (container->parent->active && data->state->cursor_on) {
         set_argb(cr, data->color_cursor);
         int offset = cursor_strong_pos.x != 0 ? -1 : 0;
         cairo_rectangle(cr,
@@ -1518,6 +1518,8 @@ void textarea_handle_keypress(App *app, xcb_generic_event_t *event, Container *t
     ZoneScoped;
 #endif
     auto *data = (TextAreaData *) textarea->user_data;
+    data->state->last_time_key_press = get_current_time_in_ms();
+    data->state->cursor_on = true;
 
     if (!textarea->parent->active) {
         return;
@@ -1822,3 +1824,30 @@ textarea_key_release(AppClient *client,
                      xcb_generic_event_t *event) {
     textarea_handle_keypress(client->app, event, container);
 }
+
+
+void
+blink(AppClient *client, Container *textarea)
+{
+    App *app = client->app;
+    std::unique_lock m(app->clients_mutex);
+    while (valid_client(app, client)) {
+        auto *data = (TextAreaData *) textarea->user_data;
+        long current_time = get_current_time_in_ms();
+        long passage = current_time - data->state->last_time_key_press;
+
+        if (passage > 490) {
+            data->state->cursor_on = !data->state->cursor_on;
+            request_refresh(app, client);
+            m.unlock();
+            usleep(1000 * 500);
+            m.lock();
+        } else {
+            request_refresh(app, client);
+            m.unlock();
+            usleep(1000 * (500 - passage));
+            m.lock();
+        }
+    }
+}
+
