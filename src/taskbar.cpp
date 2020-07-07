@@ -22,6 +22,7 @@
 #include "volume_menu.h"
 #include "wifi_menu.h"
 #include "windows_selector.h"
+#include "hsluv.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -78,7 +79,7 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
 #endif
 
     set_rect(cr, container->real_bounds);
-    set_argb(cr, ArgbColor(0, 0, 0, .93));
+    set_argb(cr, config->main_bg);
     cairo_fill(cr);
 }
 
@@ -379,6 +380,16 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     // This is the real underlying color
     ArgbColor real = ArgbColor(1, 1, 1, 1);
+    // is_light_theme determines if generated secondary colors should go up or down in brightness
+    bool is_light_theme = false;
+    {
+        double h; // hue
+        double s; // saturation
+        double p; // perceived brightness
+        rgb2hsluv(real.r, real.g, real.b, &h, &s, &p);
+        is_light_theme = p > 10; // if the perceived perceived brightness is greater than that we are a light theme
+    }
+
     double r_c = 1;
     double g_c = 1;
     double b_c = 1;
@@ -396,6 +407,38 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
 
     double bg_openess = highlight_inset;
     double right_size = 0;
+
+    ArgbColor c = config->main_accent;
+    ArgbColor bottom_bar_left = c;
+    ArgbColor bottom_bar_middle = c;
+    ArgbColor bottom_bar_right = c;
+    double change = 20;
+    {
+        double h;
+        double s;
+        double p;
+
+        rgb2hsluv(bottom_bar_right.r, bottom_bar_right.g, bottom_bar_right.b, &h, &s, &p);
+        is_light_theme = p > 10; // if the perceived perceived brightness is greater than that we are a light theme
+
+        p = p - change;
+
+        if (p < 0)
+            p = 0;
+        else if (p > 100)
+            p = 100;
+        hsluv2rgb(h, s, p, &bottom_bar_right.r, &bottom_bar_right.g, &bottom_bar_right.b);
+
+        rgb2hsluv(bottom_bar_middle.r, bottom_bar_middle.g, bottom_bar_middle.b, &h, &s, &p);
+        
+        p = p - change * 1.3;
+
+        if (p < 0)
+            p = 0;
+        else if (p > 100)
+            p = 100;
+        hsluv2rgb(h, s, p, &bottom_bar_middle.r, &bottom_bar_middle.g, &bottom_bar_middle.b);
+    }
 
     // Three things we need to paint, the first and most obvious is the accent bar at the bottom.
     // The width of that thing is determined by our two variables hover_amount and active_amount. It
@@ -460,7 +503,8 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
             cairo_fill(cr);
         }
 
-        set_argb(cr, ArgbColor(.486, .737, .933, 1));
+//        set_argb(cr, ArgbColor(.486, .737, .933, 1));
+        set_argb(cr, bottom_bar_left);
         cairo_rectangle(cr,
                         bar_x,
                         container->real_bounds.y + container->real_bounds.h - highlight_height,
@@ -527,11 +571,16 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
                                 ArgbColor(r_c, g_c, b_c, .161));
         }
 
+//        paint_double_bar(cr,
+//                         container,
+//                         ArgbColor(.486, .737, .937, 1),
+//                         ArgbColor(.290, .443, .561, 1),
+//                         ArgbColor(.388, .588, .745, 1));
         paint_double_bar(cr,
                          container,
-                         ArgbColor(.486, .737, .937, 1),
-                         ArgbColor(.290, .443, .561, 1),
-                         ArgbColor(.388, .588, .745, 1));
+                         bottom_bar_left,
+                         bottom_bar_middle,
+                         bottom_bar_right);
     }
 
     cairo_pop_group_to_source(cr);
@@ -1274,8 +1323,10 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     int border = 1;
 
     bool active = false;
+    bool text_empty = false;
     if (auto *con = container_by_name("main_text_area", container)) {
         auto *text_data = (TextAreaData *) con->user_data;
+        text_empty = text_data->state->text.empty();
         active = con->parent->active;
     }
 
@@ -1311,10 +1362,10 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
         cairo_paint(cr);
     }
 
-    if (!active) {
+    if (text_empty) {
         PangoLayout *layout =
                 get_cached_pango_font(cr, "Segoe UI", 12, PangoWeight::PANGO_WEIGHT_NORMAL);
-        std::string text("Search here");
+        std::string text("Type here to search");
         pango_layout_set_text(layout, text.c_str(), text.size());
 
         set_argb(cr, ArgbColor(.36, .36, .36, 1));
