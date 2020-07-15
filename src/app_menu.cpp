@@ -190,7 +190,7 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 
     PangoLayout *layout =
-            get_cached_pango_font(cr, "config->font", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text(data->launcher->name);
     pango_layout_set_text(layout, text.c_str(), text.size());
 
@@ -236,7 +236,7 @@ paint_item_title(AppClient *client, cairo_t *cr, Container *container) {
     }
 
     PangoLayout *layout =
-            get_cached_pango_font(cr, "config->font", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text(data->text);
     pango_layout_set_text(layout, text.c_str(), text.size());
 

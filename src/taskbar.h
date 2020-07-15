@@ -3,6 +3,7 @@
 #ifndef TASKBAR_H
 #define TASKBAR_H
 
+#include <utility.h>
 #include "application.h"
 #include "audio.h"
 
@@ -10,6 +11,8 @@ class HoverableButton : public UserData {
 public:
     bool hovered = false;
     double hover_amount = 0;
+    ArgbColor color = ArgbColor(0, 0, 0, 0);
+    int previous_state = -1;
 };
 
 class IconButton : public HoverableButton {

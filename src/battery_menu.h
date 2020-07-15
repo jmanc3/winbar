@@ -20,7 +20,7 @@ struct data_fading_button : public UserData {
     ~data_fading_button() {}
 };
 
-struct data_battery_surfaces : public data_fading_button {
+struct data_battery_surfaces : public HoverableButton, public data_fading_button {
     std::vector<cairo_surface_t *> normal_surfaces;
     std::vector<cairo_surface_t *> charging_surfaces;
     std::string status;

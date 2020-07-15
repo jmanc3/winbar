@@ -84,52 +84,46 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
-paint_button(AppClient *client, cairo_t *cr, Container *container) {
+paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    HoverableButton *data = (HoverableButton *) container->user_data;
 
-    IconButton *data = (IconButton *) container->user_data;
+    auto default_color = config->color_taskbar_button_default;
+    auto hovered_color = config->color_taskbar_button_hovered;
+    auto pressed_color = config->color_taskbar_button_pressed;
 
-    double max_amount = .4;
-    if (container->state.mouse_pressing) {
-        max_amount = 1;
-    } else if (container->state.mouse_hovering) {
-        max_amount = .9;
-    }
-    max_amount *= .1;
-
-    if (container->state.mouse_hovering) {
-        if (!data->hovered) {
-            data->hovered = true;
-            data->hover_amount = 1;
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing && data->previous_state != 2) {
+            data->previous_state = 2;
+            client_create_animation(app, client, &data->color.r, 10, nullptr, pressed_color.r);
+            client_create_animation(app, client, &data->color.g, 10, nullptr, pressed_color.g);
+            client_create_animation(app, client, &data->color.b, 10, nullptr, pressed_color.b);
+            client_create_animation(app, client, &data->color.a, 10, nullptr, pressed_color.a);
+        } else if (data->previous_state != 1) {
+            data->previous_state = 1;
+            client_create_animation(app, client, &data->color.r, 20, nullptr, hovered_color.r);
+            client_create_animation(app, client, &data->color.g, 20, nullptr, hovered_color.g);
+            client_create_animation(app, client, &data->color.b, 20, nullptr, hovered_color.b);
+            client_create_animation(app, client, &data->color.a, 20, nullptr, hovered_color.a);
         }
-    } else if (data->hovered) {
-        data->hovered = false;
-        client_create_animation(app, client, &data->hover_amount, 30, 0, 0);
+    } else if (data->previous_state != 0){
+        data->previous_state = 0;
+        client_create_animation(app, client, &data->color.r, 40, nullptr, default_color.r);
+        client_create_animation(app, client, &data->color.g, 40, nullptr, default_color.g);
+        client_create_animation(app, client, &data->color.b, 40, nullptr, default_color.b);
+        client_create_animation(app, client, &data->color.a, 40, nullptr, default_color.a);
     }
 
-    set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
-
-    int border = 0;
+    set_argb(cr, data->color);
 
     cairo_rectangle(cr,
-                    container->real_bounds.x + border,
-                    container->real_bounds.y + border,
-                    container->real_bounds.w - border * 2,
-                    container->real_bounds.h - border * 2);
+                    container->real_bounds.x,
+                    container->real_bounds.y,
+                    container->real_bounds.w,
+                    container->real_bounds.h);
     cairo_fill(cr);
-
-    if (data->surface) {
-        // Assumes the size of the surface to be 16x16 and tries to draw it centered
-        dye_surface(data->surface, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
-        cairo_paint(cr);
-    }
 }
 
 static void
@@ -140,34 +134,7 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
 
     IconButton *data = (IconButton *) container->user_data;
 
-    double max_amount = .8;
-    if (container->state.mouse_pressing) {
-        max_amount = 1;
-    } else if (container->state.mouse_hovering) {
-        max_amount = .9;
-    }
-    max_amount *= .27;
-
-    if (container->state.mouse_hovering) {
-        if (!data->hovered) {
-            data->hovered = true;
-            data->hover_amount = 1;
-        }
-    } else if (data->hovered) {
-        data->hovered = false;
-        client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
-    }
-
-    set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
-
-    int border = 0;
-
-    cairo_rectangle(cr,
-                    container->real_bounds.x + border,
-                    container->real_bounds.y + border,
-                    container->real_bounds.w - border * 2,
-                    container->real_bounds.h - border * 2);
-    cairo_fill(cr);
+    paint_hoverable_button_background(client, cr, container);
 
     if (data->surface) {
         // Assumes the size of the surface to be 16x16 and tries to draw it centered
@@ -198,7 +165,7 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     container->real_bounds.y += 1;
     container->real_bounds.w -= 2;
     container->real_bounds.h -= 2;
-    paint_button(client, cr, container);
+    paint_hoverable_button_background(client, cr, container);
     container->real_bounds = start;
 
     auto surfaces = (volume_surfaces *) container->user_data;
@@ -247,34 +214,7 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
 
     WorkspaceButton *data = (WorkspaceButton *) container->user_data;
 
-    double max_amount = .8;
-    if (container->state.mouse_pressing) {
-        max_amount = 1;
-    } else if (container->state.mouse_hovering) {
-        max_amount = .9;
-    }
-    max_amount *= .27;
-
-    if (container->state.mouse_hovering) {
-        if (!data->hovered) {
-            data->hovered = true;
-            data->hover_amount = 1;
-        }
-    } else if (data->hovered) {
-        data->hovered = false;
-        client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
-    }
-
-    set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
-
-    int border = 0;
-
-    cairo_rectangle(cr,
-                    container->real_bounds.x + border,
-                    container->real_bounds.y + border,
-                    container->real_bounds.w - border * 2,
-                    container->real_bounds.h - border * 2);
-    cairo_fill(cr);
+    paint_hoverable_button_background(client, cr, container);
 
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (data->surface_hover) {
@@ -1056,7 +996,7 @@ paint_minimize(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    paint_button(client, cr, container);
+    paint_hoverable_button_background(client, cr, container);
 
     Bounds bounds = container->real_bounds;
     bounds.w = 1;
@@ -1066,11 +1006,31 @@ paint_minimize(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+paint_systray(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_hoverable_button_background(client, cr, container);
+
+    IconButton *data = (IconButton *) container->user_data;
+    if (data->surface) {
+        // Assumes the size of the surface to be 16x16 and tries to draw it centered
+        dye_surface(data->surface, config->color_taskbar_button_icons);
+        cairo_set_source_surface(
+                cr,
+                data->surface,
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+        cairo_paint(cr);
+    }
+}
+
+static void
 paint_date(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    paint_button(client, cr, container);
+    paint_hoverable_button_background(client, cr, container);
 
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -1269,7 +1229,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     container->real_bounds.y += 1;
     container->real_bounds.w -= 2;
     container->real_bounds.h -= 2;
-    paint_button(client_entity, cr, container);
+    paint_hoverable_button_background(client_entity, cr, container);
     container->real_bounds = start;
 
     auto *data = static_cast<data_battery_surfaces *>(container->user_data);
@@ -1402,34 +1362,13 @@ static void
 paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (wifi_surfaces *) container->user_data;
 
-    double max_amount = .8;
-    if (container->state.mouse_pressing) {
-        max_amount = 1;
-    } else if (container->state.mouse_hovering) {
-        max_amount = .9;
-    }
-    max_amount *= .27;
-
-    if (container->state.mouse_hovering) {
-        if (!data->hovered) {
-            data->hovered = true;
-            data->hover_amount = 1;
-        }
-    } else if (data->hovered) {
-        data->hovered = false;
-        client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
-    }
-
-    set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
-
-    int border = 1;
-
-    cairo_rectangle(cr,
-                    container->real_bounds.x + border,
-                    container->real_bounds.y + border,
-                    container->real_bounds.w - border * 2,
-                    container->real_bounds.h - border * 2);
-    cairo_fill(cr);
+    Bounds start = container->real_bounds;
+    container->real_bounds.x += 1;
+    container->real_bounds.y += 1;
+    container->real_bounds.w -= 2;
+    container->real_bounds.h -= 2;
+    paint_hoverable_button_background(client, cr, container);
+    container->real_bounds = start;
 
     bool up = false;
     bool wired = false;
@@ -1534,7 +1473,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     container_icons->name = "icons";
     container_icons->when_paint = paint_all_icons;
 
-    button_systray->when_paint = paint_button;
+    button_systray->when_paint = paint_systray;
     button_systray->user_data = new IconButton;
     button_systray->when_clicked = clicked_systray;
     button_systray->name = "systray";
