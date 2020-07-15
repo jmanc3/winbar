@@ -202,11 +202,10 @@ grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
         case XCB_BUTTON_PRESS: {
             auto *e = (xcb_button_press_event_t *) (event);
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
+            if (!bounds_contains(*display->bounds, e->root_x, e->root_y)) {
                 app->grab_window = -1;
                 set_textarea_inactive();
+                display_close(true);
             }
             break;
         }

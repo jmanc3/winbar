@@ -1294,15 +1294,8 @@ void handle_configure_notify(App *app) {
     if (!valid_client(app, client))
         return;
 
-    auto geom_cookie = xcb_get_geometry(app->connection, client->window);
-    auto geom_reply = xcb_get_geometry_reply(app->connection, geom_cookie, nullptr);
-    auto trans_cookie = xcb_translate_coordinates(
-            app->connection, client->window, app->screen->root, geom_reply->x, geom_reply->y);
-    auto trans_reply = xcb_translate_coordinates_reply(app->connection, trans_cookie, nullptr);
-    client->bounds->x = trans_reply->dst_x;
-    client->bounds->y = trans_reply->dst_y;
-    free(geom_reply);
-    free(trans_reply);
+    client->bounds->x = e->x;
+    client->bounds->y = e->y;
     client->bounds->w = e->width;
     client->bounds->h = e->height;
 
