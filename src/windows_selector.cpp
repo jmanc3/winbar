@@ -124,11 +124,6 @@ clicked_close(AppClient *client_entity, cairo_t *cr, Container *container) {
 }
 
 static void
-paint_hovered(AppClient *client_entity, cairo_t *cr, Container *container) {
-    return;
-}
-
-static void
 paint_option_background(AppClient *client_entity, cairo_t *cr, Container *container) {
     bool hovered = false;
     bool pressed = false;
@@ -144,26 +139,20 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
         pressed = true;
     }
 
-    ArgbColor copy = config->main_bg;
-    copy.a = config->taskbar_transparency;
-    set_argb(cr, copy);
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
-
     if (hovered || pressed) {
         if (pressed) {
-            set_argb(cr, config->button_pressed);
+            set_argb(cr, config->color_windows_selector_pressed_background);
         } else {
-            set_argb(cr, config->button_hovered);
+            set_argb(cr, config->color_windows_selector_hovered_background);
         }
     } else {
-        set_argb(cr, config->button_default);
+        set_argb(cr, config->color_windows_selector_default_background);
     }
     cairo_rectangle(cr,
-                    container->real_bounds.x + 1,
-                    container->real_bounds.y + 1,
-                    container->real_bounds.w - 2,
-                    container->real_bounds.h - 2);
+                    container->real_bounds.x,
+                    container->real_bounds.y,
+                    container->real_bounds.w,
+                    container->real_bounds.h);
     cairo_fill(cr);
 }
 
@@ -173,15 +162,10 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
 
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         ArgbColor color;
-        color.a = 1;
         if (container->state.mouse_pressing) {
-            color.r = .910;
-            color.g = .067;
-            color.b = .137;
+            color = config->color_windows_selector_close_icon_pressed_background;
         } else {
-            color.r = .776;
-            color.g = .102;
-            color.b = .157;
+            color = config->color_windows_selector_close_icon_hovered_background;
         }
         set_argb(cr, color);
         set_rect(cr, container->real_bounds);
@@ -195,7 +179,7 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
                   container->parent->parent->children[1]->state.mouse_hovering;// BODY
 
     if (data->surface && active) {
-        dye_surface(data->surface, ArgbColor(1, 1, 1, 1));
+        dye_surface(data->surface, config->color_windows_selector_close_icon);
         double offset = (double) (32 - 16) / 2;
         cairo_set_source_surface(
                 cr, data->surface, container->real_bounds.x + offset, container->real_bounds.y + offset);
@@ -221,7 +205,7 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, data->class_name.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, config->calendar_font_default);
+    set_argb(cr, config->color_windows_selector_text);
     cairo_move_to(cr,
                   container->real_bounds.x + 10,
                   container->real_bounds.y + container->real_bounds.h / 2 - height / 2);

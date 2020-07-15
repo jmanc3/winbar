@@ -1,5 +1,6 @@
 
 #include "config.h"
+#include "utility.h"
 
 #include <iostream>
 #include <libconfig.h++>
@@ -17,20 +18,9 @@ void load_hex(const libconfig::Setting &theme, std::string value_name, ArgbColor
     theme.lookupValue("name", name);
 
     if (success) {
-        std::regex pattern("([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})");
+        success = parse_hex(temp, &target_color->a, &target_color->r, &target_color->g, &target_color->b);
 
-        std::smatch match;
-        if (std::regex_match(temp, match, pattern)) {
-            float a = std::stoul(match[1].str(), nullptr, 16);
-            float r = std::stoul(match[2].str(), nullptr, 16);
-            float g = std::stoul(match[3].str(), nullptr, 16);
-            float b = std::stoul(match[4].str(), nullptr, 16);
-
-            target_color->r = r / 255;
-            target_color->g = g / 255;
-            target_color->b = b / 255;
-            target_color->a = a / 255;
-        } else {
+        if (!success) {
             target_color->r = 1;
             target_color->g = 0;
             target_color->b = 1;
@@ -44,14 +34,7 @@ void load_hex(const libconfig::Setting &theme, std::string value_name, ArgbColor
 }
 
 void config_load() {
-    config->order.clear();
-    config->order.push_back("windows");
-    config->order.push_back("textfield");
-    config->order.push_back("workspace");
-    config->order.push_back("icons-fill");
-    config->order.push_back("action-bar");
-
-    bool success = false;
+    bool success;
 
     libconfig::Config cfg;
     success = config_parse(cfg);
@@ -60,31 +43,26 @@ void config_load() {
 
     success = cfg.lookupValue("taskbar_height", config->taskbar_height);
 
-    success = cfg.lookupValue("resource_path", config->resource_path);
+    success = cfg.lookupValue("starting_tab_index", config->starting_tab_index);
+
+    success = cfg.lookupValue("font", config->font);
+
     success = cfg.lookupValue("volume_command", config->volume_command);
     success = cfg.lookupValue("wifi_command", config->wifi_command);
     success = cfg.lookupValue("date_command", config->date_command);
     success = cfg.lookupValue("battery_command", config->battery_command);
     success = cfg.lookupValue("systray_command", config->systray_command);
-    success = cfg.lookupValue("icon_spacing", config->icon_spacing);
-    success = cfg.lookupValue("font", config->font);
+
+    success = cfg.lookupValue("file_manager", config->file_manager);
 
     success = cfg.lookupValue("date_single_line", config->date_single_line);
 
-    try {
-        libconfig::Setting &order = cfg.lookup("order");
-        config->order.clear();
+    success = cfg.lookupValue("interface", config->interface);
 
-        for (int i = 0; order.getLength(); i++) {
-            config->order.push_back(order[i]);
-        }
-    } catch (const libconfig::SettingNotFoundException &nfex) {
-    }
+    std::string active_theme_name;
+    success = cfg.lookupValue("active_theme_name", active_theme_name);
 
-    std::string active_theme;
-    success = cfg.lookupValue("active_theme", active_theme);
-
-    if (success) {
+    if (success) { // Then the user selected a theme
         const libconfig::Setting &root = cfg.getRoot();
 
         try {
@@ -98,80 +76,155 @@ void config_load() {
                 success = theme.lookupValue("name", name);
 
                 if (success) {
-                    if (name == active_theme) {
-                        load_hex(theme, "main_bg", &config->main_bg);
-                        load_hex(theme, "main_accent", &config->main_accent);
-                        load_hex(theme, "icons_color", &config->icons_colors);
+                    if (name == active_theme_name) {
+                        load_hex(theme, "color_taskbar_background", &config->color_taskbar_background);
+                        load_hex(theme, "color_taskbar_button_icons", &config->color_taskbar_button_icons);
+                        load_hex(theme, "color_taskbar_button_default", &config->color_taskbar_button_default);
+                        load_hex(theme, "color_taskbar_button_hovered", &config->color_taskbar_button_hovered);
+                        load_hex(theme, "color_taskbar_button_pressed", &config->color_taskbar_button_pressed);
+                        load_hex(theme, "color_taskbar_windows_button_default_icon",
+                                 &config->color_taskbar_windows_button_default_icon);
+                        load_hex(theme, "color_taskbar_windows_button_hovered_icon",
+                                 &config->color_taskbar_windows_button_hovered_icon);
+                        load_hex(theme, "color_taskbar_windows_button_pressed_icon",
+                                 &config->color_taskbar_windows_button_pressed_icon);
+                        load_hex(theme, "color_taskbar_search_bar_default_background",
+                                 &config->color_taskbar_search_bar_default_background);
+                        load_hex(theme, "color_taskbar_search_bar_hovered_background",
+                                 &config->color_taskbar_search_bar_hovered_background);
+                        load_hex(theme, "color_taskbar_search_bar_pressed_background",
+                                 &config->color_taskbar_search_bar_pressed_background);
+                        load_hex(theme, "color_taskbar_search_bar_default_text",
+                                 &config->color_taskbar_search_bar_default_text);
+                        load_hex(theme, "color_taskbar_search_bar_hovered_text",
+                                 &config->color_taskbar_search_bar_hovered_text);
+                        load_hex(theme, "color_taskbar_search_bar_pressed_text",
+                                 &config->color_taskbar_search_bar_pressed_text);
+                        load_hex(theme, "color_taskbar_search_bar_default_icon",
+                                 &config->color_taskbar_search_bar_default_icon);
+                        load_hex(theme, "color_taskbar_search_bar_hovered_icon",
+                                 &config->color_taskbar_search_bar_hovered_icon);
+                        load_hex(theme, "color_taskbar_search_bar_pressed_icon",
+                                 &config->color_taskbar_search_bar_pressed_icon);
+                        load_hex(theme, "color_taskbar_search_bar_default_border",
+                                 &config->color_taskbar_search_bar_default_border);
+                        load_hex(theme, "color_taskbar_search_bar_hovered_border",
+                                 &config->color_taskbar_search_bar_hovered_border);
+                        load_hex(theme, "color_taskbar_search_bar_pressed_border",
+                                 &config->color_taskbar_search_bar_pressed_border);
+                        load_hex(theme, "color_taskbar_date_time_text", &config->color_taskbar_date_time_text);
+                        load_hex(theme, "color_taskbar_application_icons_background",
+                                 &config->color_taskbar_application_icons_background);
+                        load_hex(theme, "color_taskbar_application_icons_accent",
+                                 &config->color_taskbar_application_icons_accent);
+                        load_hex(theme, "color_taskbar_minimize_line",
+                                 &config->color_taskbar_minimize_line);
 
-                        load_hex(theme, "button_default", &config->button_default);
-                        load_hex(theme, "button_hovered", &config->button_hovered);
-                        load_hex(theme, "button_pressed", &config->button_pressed);
+                        load_hex(theme, "color_systray_background", &config->color_systray_background);
 
-                        load_hex(theme, "icon_default", &config->icon_default);
-                        load_hex(theme, "icon_background_back", &config->icon_background_back);
-                        load_hex(theme, "icon_background_front", &config->icon_background_front);
-                        load_hex(theme, "icon_pressed", &config->icon_pressed);
+                        load_hex(theme, "color_battery_background", &config->color_battery_background);
+                        load_hex(theme, "color_battery_text", &config->color_battery_text);
+                        load_hex(theme, "color_battery_icons", &config->color_battery_icons);
+                        load_hex(theme, "color_battery_slider_background", &config->color_battery_slider_background);
+                        load_hex(theme, "color_battery_slider_foreground", &config->color_battery_slider_foreground);
+                        load_hex(theme, "color_battery_slider_active", &config->color_battery_slider_active);
 
-                        load_hex(theme, "textfield_default", &config->textfield_default);
-                        load_hex(theme, "textfield_hovered", &config->textfield_hovered);
-                        load_hex(theme, "textfield_pressed", &config->textfield_pressed);
+                        load_hex(theme, "color_wifi_background", &config->color_wifi_background);
+                        load_hex(theme, "color_wifi_icons", &config->color_wifi_icons);
+                        load_hex(theme, "color_wifi_default_button", &config->color_wifi_default_button);
+                        load_hex(theme, "color_wifi_hovered_button", &config->color_wifi_hovered_button);
+                        load_hex(theme, "color_wifi_pressed_button", &config->color_wifi_pressed_button);
+                        load_hex(theme, "color_wifi_text_title", &config->color_wifi_text_title);
+                        load_hex(theme, "color_wifi_text_title_info", &config->color_wifi_text_title_info);
+                        load_hex(theme, "color_wifi_text_settings_default_title",
+                                 &config->color_wifi_text_settings_default_title);
+                        load_hex(theme, "color_wifi_text_settings_hovered_title",
+                                 &config->color_wifi_text_settings_hovered_title);
+                        load_hex(theme, "color_wifi_text_settings_pressed_title",
+                                 &config->color_wifi_text_settings_pressed_title);
+                        load_hex(theme, "color_wifi_text_settings_title_info",
+                                 &config->color_wifi_text_settings_title_info);
 
-                        load_hex(theme, "textfield_default_font", &config->textfield_default_font);
-                        load_hex(theme, "textfield_hovered_font", &config->textfield_hovered_font);
-                        load_hex(theme, "textfield_pressed_font", &config->textfield_pressed_font);
+                        load_hex(theme, "color_date_background", &config->color_date_background);
+                        load_hex(theme, "color_date_seperator", &config->color_date_seperator);
+                        load_hex(theme, "color_date_text", &config->color_date_text);
+                        load_hex(theme, "color_date_text_title", &config->color_date_text_title);
+                        load_hex(theme, "color_date_text_title_period", &config->color_date_text_title_period);
+                        load_hex(theme, "color_date_text_title_info", &config->color_date_text_title_info);
+                        load_hex(theme, "color_date_text_month_year", &config->color_date_text_month_year);
+                        load_hex(theme, "color_date_text_week_day", &config->color_date_text_week_day);
+                        load_hex(theme, "color_date_text_current_month", &config->color_date_text_current_month);
+                        load_hex(theme, "color_date_text_not_current_month",
+                                 &config->color_date_text_not_current_month);
+                        load_hex(theme, "color_date_cal_background", &config->color_date_cal_background);
+                        load_hex(theme, "color_date_cal_foreground", &config->color_date_cal_foreground);
+                        load_hex(theme, "color_date_cal_border", &config->color_date_cal_border);
+                        load_hex(theme, "color_date_weekday_monthday", &config->color_date_weekday_monthday);
+                        load_hex(theme, "color_date_default_arrow", &config->color_date_default_arrow);
+                        load_hex(theme, "color_date_hovered_arrow", &config->color_date_hovered_arrow);
+                        load_hex(theme, "color_date_pressed_arrow", &config->color_date_pressed_arrow);
+                        load_hex(theme, "color_date_text_default_button", &config->color_date_text_default_button);
+                        load_hex(theme, "color_date_text_hovered_button", &config->color_date_text_hovered_button);
+                        load_hex(theme, "color_date_text_pressed_button", &config->color_date_text_pressed_button);
+                        load_hex(theme, "color_date_cursor", &config->color_date_cursor);
+                        load_hex(theme, "color_date_text_prompt", &config->color_date_text_prompt);
 
-                        load_hex(theme, "textfield_default_icon", &config->textfield_default_icon);
-                        load_hex(theme, "textfield_hovered_icon", &config->textfield_hovered_icon);
-                        load_hex(theme, "textfield_pressed_icon", &config->textfield_pressed_icon);
+                        load_hex(theme, "color_volume_background", &config->color_volume_background);
+                        load_hex(theme, "color_volume_text", &config->color_volume_text);
+                        load_hex(theme, "color_volume_default_icon", &config->color_volume_default_icon);
+                        load_hex(theme, "color_volume_hovered_icon", &config->color_volume_hovered_icon);
+                        load_hex(theme, "color_volume_pressed_icon", &config->color_volume_pressed_icon);
+                        load_hex(theme, "color_volume_slider_background", &config->color_volume_slider_background);
+                        load_hex(theme, "color_volume_slider_foreground", &config->color_volume_slider_foreground);
+                        load_hex(theme, "color_volume_slider_active", &config->color_volume_slider_active);
 
-                        load_hex(theme, "sound_default_icon", &config->sound_default_icon);
-                        load_hex(theme, "sound_hovered_icon", &config->sound_hovered_icon);
-                        load_hex(theme, "sound_pressed_icon", &config->sound_pressed_icon);
+                        load_hex(theme, "color_apps_background", &config->color_apps_background);
+                        load_hex(theme, "color_apps_text", &config->color_apps_text);
+                        load_hex(theme, "color_apps_icons", &config->color_apps_icons);
+                        load_hex(theme, "color_apps_default_item", &config->color_apps_default_item);
+                        load_hex(theme, "color_apps_hovered_item", &config->color_apps_hovered_item);
+                        load_hex(theme, "color_apps_pressed_item", &config->color_apps_pressed_item);
+                        load_hex(theme, "color_apps_item_icon_background", &config->color_apps_item_icon_background);
+                        load_hex(theme, "color_apps_scrollbar_gutter", &config->color_apps_scrollbar_gutter);
+                        load_hex(theme, "color_apps_scrollbar_default_thumb",
+                                 &config->color_apps_scrollbar_default_thumb);
+                        load_hex(theme, "color_apps_scrollbar_hovered_thumb",
+                                 &config->color_apps_scrollbar_hovered_thumb);
+                        load_hex(theme, "color_apps_scrollbar_pressed_thumb",
+                                 &config->color_apps_scrollbar_pressed_thumb);
+                        load_hex(theme, "color_apps_scrollbar_default_button",
+                                 &config->color_apps_scrollbar_default_button);
+                        load_hex(theme, "color_apps_scrollbar_hovered_button",
+                                 &config->color_apps_scrollbar_hovered_button);
+                        load_hex(theme, "color_apps_scrollbar_pressed_button",
+                                 &config->color_apps_scrollbar_pressed_button);
+                        load_hex(theme, "color_apps_scrollbar_default_button_icon",
+                                 &config->color_apps_scrollbar_default_button_icon);
+                        load_hex(theme, "color_apps_scrollbar_hovered_button_icon",
+                                 &config->color_apps_scrollbar_hovered_button_icon);
+                        load_hex(theme, "color_apps_scrollbar_pressed_button_icon",
+                                 &config->color_apps_scrollbar_pressed_button_icon);
 
-                        load_hex(theme, "sound_bg", &config->sound_bg);
-                        load_hex(theme, "sound_font", &config->sound_font);
+                        load_hex(theme, "color_pin_menu_background", &config->color_pin_menu_background);
+                        load_hex(theme, "color_pin_menu_hovered_item", &config->color_pin_menu_hovered_item);
+                        load_hex(theme, "color_pin_menu_pressed_item", &config->color_pin_menu_pressed_item);
+                        load_hex(theme, "color_pin_menu_text", &config->color_pin_menu_text);
+                        load_hex(theme, "color_pin_menu_icons", &config->color_pin_menu_icons);
 
-                        load_hex(theme,
-                                 "sound_line_background_default",
-                                 &config->sound_line_background_default);
-                        load_hex(theme,
-                                 "sound_line_background_active",
-                                 &config->sound_line_background_active);
-                        load_hex(
-                                theme, "sound_line_marker_default", &config->sound_line_marker_default);
-                        load_hex(
-                                theme, "sound_line_marker_hovered", &config->sound_line_marker_hovered);
-                        load_hex(
-                                theme, "sound_line_marker_pressed", &config->sound_line_marker_pressed);
+                        load_hex(theme, "color_windows_selector_default_background",
+                                 &config->color_windows_selector_default_background);
+                        load_hex(theme, "color_windows_selector_hovered_background",
+                                 &config->color_windows_selector_hovered_background);
+                        load_hex(theme, "color_windows_selector_pressed_background",
+                                 &config->color_windows_selector_pressed_background);
+                        load_hex(theme, "color_windows_selector_close_icon",
+                                 &config->color_windows_selector_close_icon);
+                        load_hex(theme, "color_windows_selector_text", &config->color_windows_selector_text);
+                        load_hex(theme, "color_windows_selector_close_icon_hovered_background",
+                                 &config->color_windows_selector_close_icon_hovered_background);
+                        load_hex(theme, "color_windows_selector_close_icon_pressed_background",
+                                 &config->color_windows_selector_close_icon_pressed_background);
 
-                        load_hex(
-                                theme, "textfield_border_default", &config->textfield_border_default);
-                        load_hex(
-                                theme, "textfield_border_highlight", &config->textfield_border_highlight);
-
-                        load_hex(theme, "show_desktop_stripe", &config->show_desktop_stripe);
-
-                        load_hex(theme, "calendar_font_default", &config->calendar_font_default);
-
-                        success = theme.lookupValue("sound_menu_transparency",
-                                                    config->sound_menu_transparency);
-                        if (!success) {
-                            std::cout
-                                    << "sound_menu_transparency not set in active_theme: " << active_theme
-                                    << std::endl;
-                        }
-                        success =
-                                theme.lookupValue("taskbar_transparency", config->taskbar_transparency);
-                        if (!success) {
-                            std::cout
-                                    << "taskbar_transparency not set in active_theme: " << active_theme
-                                    << std::endl;
-                        }
-                        success = theme.lookupValue("icon_bar_height", config->icon_bar_height);
-                        if (!success) {
-                            std::cout << "icon_bar_height not set in active_theme: " << active_theme
-                                      << std::endl;
-                        }
                         break;
                     }
                 } else {
@@ -198,7 +251,8 @@ bool config_parse(libconfig::Config &cfg) {
         std::cout << "IO error:  " << config_file << std::endl;
         return false;
     } catch (const libconfig::ParseException &pex) {
-        std::cout << "Parsing error:  " << config_file << std::endl;
+
+        std::cout << "Parsing error:  " << config_file << " Line: " << pex.getLine() << std::endl;
         return false;
     }
 

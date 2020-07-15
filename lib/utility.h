@@ -5,6 +5,31 @@
 #include <cairo-xcb.h>
 #include <container.h>
 #include <pango/pango-layout.h>
+#include <regex>
+#include <utility>
+
+static bool parse_hex(std::string hex, double *a, double *r, double *g, double *b) {
+    while (hex[0] == '#') { // remove leading pound sign
+        hex.erase(0, 1);
+    }
+    std::regex pattern("([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})");
+
+    std::smatch match;
+    if (std::regex_match(hex, match, pattern)) {
+        double t_a = std::stoul(match[1].str(), nullptr, 16);
+        double t_r = std::stoul(match[2].str(), nullptr, 16);
+        double t_g = std::stoul(match[3].str(), nullptr, 16);
+        double t_b = std::stoul(match[4].str(), nullptr, 16);
+
+        *a = t_a / 255;
+        *r = t_r / 255;
+        *g = t_g / 255;
+        *b = t_b / 255;
+        return true;
+    }
+
+    return false;
+}
 
 struct ArgbColor {
     double r;
@@ -19,6 +44,10 @@ struct ArgbColor {
         this->g = g;
         this->b = b;
         this->a = a;
+    }
+
+    ArgbColor(std::string hex) {
+        parse_hex(hex, &this->a, &this->r, &this->g, &this->b);
     }
 
     void add(double r, double g, double b, double a) {
@@ -66,11 +95,13 @@ void cleanup_cached_atoms();
 
 void launch_command(std::string command);
 
-ArgbColor
-darken(ArgbColor b, double amount);
+// amount: 0 to 100
+void
+darken(ArgbColor *color, double amount);
 
-ArgbColor
-lighten(ArgbColor b, double amount);
+// amount: 0 to 100
+void
+lighten(ArgbColor *color, double amount);
 
 void paint_surface_with_data(cairo_surface_t *surface, uint32_t *icon_data);
 

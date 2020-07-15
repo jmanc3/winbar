@@ -37,7 +37,7 @@ sudo xbps-install -S git gcc cmake make pango-devel cairo-devel librsvg-devel li
 git clone https://github.com/jmanc3/winbar
 cd winbar
 ```
-* Put the resources where they are needed or you'll have missing icons
+* Put the resources and config where they are needed or you'll have missing icons
 ```bash
 unzip winbar.zip -d ~/.config
 ```

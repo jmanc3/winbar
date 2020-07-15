@@ -69,7 +69,7 @@ public:
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, config->main_bg);
+    set_argb(cr, ArgbColor(0, 0, 0, 1));
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 }
@@ -464,7 +464,7 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     paint_item_background(client, cr, container, 1);
     auto *data = (SearchItemData *) container->parent->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe UI", 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     int location = -1;
     int length = -1;
@@ -534,7 +534,7 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
 
     auto *data = (SearchItemData *) container->parent->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe UI", 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     int location = -1;
     int length = -1;
@@ -572,7 +572,7 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, layout);
     pango_layout_set_attributes(layout, nullptr);
 
-    layout = get_cached_pango_font(cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+    layout = get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     pango_layout_set_text(layout, active_tab.c_str(), active_tab.size());
     pango_layout_get_pixel_size(layout, &width, &height);
@@ -609,7 +609,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     auto *data = (TitleData *) container->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe UI", 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     int width;
     int height;
@@ -630,7 +630,7 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     auto *data = (SearchItemData *) container->parent->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe UI", 13, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 13, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         std::string text(data->sortable->name);
@@ -658,7 +658,7 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
         pango_layout_set_attributes(layout, nullptr);
     }
 
-    layout = get_cached_pango_font(cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+    layout = get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     pango_layout_set_text(layout, active_tab.data(), active_tab.length());
     pango_layout_get_pixel_size(layout, &width, &height);
@@ -712,7 +712,7 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     std::string text("Open");
     int width;
@@ -727,7 +727,7 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, layout);
 
     if (open_surface) {
-        dye_surface(open_surface, config->main_accent);
+        dye_surface(open_surface, ArgbColor(.2, .5, .8, 1));
         cairo_set_source_surface(cr,
                                  open_surface,
                                  container->real_bounds.x + 23,
@@ -885,7 +885,7 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe UI", 20, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 20, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     std::string min = active_tab;
     min[0] = std::tolower(min[0]);
@@ -921,7 +921,7 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
 static void
 paint_tab(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (TabData *) container->user_data;
-    PangoLayout *layout = get_cached_pango_font(cr, "Segoe UI", 10, PangoWeight::PANGO_WEIGHT_BOLD);
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_BOLD);
 
     int width;
     int height;
@@ -953,7 +953,7 @@ paint_tab(AppClient *client, cairo_t *cr, Container *container) {
                         container->real_bounds.y + container->real_bounds.h - height,
                         container->real_bounds.w,
                         height);
-        set_argb(cr, config->main_accent);
+        set_argb(cr, ArgbColor(.2, .5, .8, 1));
         cairo_fill(cr);
     }
 }
@@ -1013,7 +1013,7 @@ clicked_tab(AppClient *client, cairo_t *cr, Container *container) {
 static void
 add_tab(AppClient *client, Container *tab_bar, std::string tab_name) {
     PangoLayout *layout =
-            get_cached_pango_font(client->back_cr, "Segoe UI", 10, PangoWeight::PANGO_WEIGHT_BOLD);
+            get_cached_pango_font(client->back_cr, config->font, 10, PangoWeight::PANGO_WEIGHT_BOLD);
 
     int width;
     int height;
@@ -1047,6 +1047,11 @@ fill_root(AppClient *client) {
 
     add_tab(client, top, "Apps");
     add_tab(client, top, "Scripts");
+    {
+        auto *tab = top->children[config->starting_tab_index];
+        auto *tab_data = (TabData *) tab->user_data;
+        active_tab = tab_data->name;
+    }
 
     auto *splitter = root->child(FILL_SPACE, 1);
     splitter->when_paint = paint_splitter;

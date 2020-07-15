@@ -1,5 +1,6 @@
 
 #include "utility.h"
+#include "hsluv.h"
 
 #ifdef TRACY_ENABLE
 
@@ -327,20 +328,31 @@ void launch_command(std::string command) {
     }
 }
 
-ArgbColor
-darken(ArgbColor b, double amount) {
-    b.r -= amount;
-    b.g -= amount;
-    b.b -= amount;
-    return b;
+// amount: 0 to 100
+static void
+mod_color(ArgbColor *color, double amount) {
+    double h; // hue
+    double s; // saturation
+    double p; // perceived brightness
+    rgb2hsluv(color->r, color->g, color->b, &h, &s, &p);
+
+    p = p + amount;
+
+    if (p < 0)
+        p = 0;
+    else if (p > 100)
+        p = 100;
+    hsluv2rgb(h, s, p, &color->r, &color->g, &color->b);
 }
 
-ArgbColor
-lighten(ArgbColor b, double amount) {
-    b.r += amount;
-    b.g += amount;
-    b.b += amount;
-    return b;
+void
+darken(ArgbColor *color, double amount) {
+    mod_color(color, -amount);
+}
+
+void
+lighten(ArgbColor *color, double amount) {
+    mod_color(color, amount);
 }
 
 void load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surface, std::string path) {

@@ -10,91 +10,20 @@
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+
     set_argb(cr, ArgbColor(1, 0, 0, 1));
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 
-    {
-        ArgbColor color = ArgbColor(0, 1, 0, 1);
-        set_argb(cr, color);
-        cairo_rectangle(cr,
-                        0,
-                        0,
-                        40,
-                        40);
-        cairo_fill(cr);
+    set_argb(cr, ArgbColor(0, .7, 0, 1));
+    cairo_rectangle(cr, 10, 10, 100, 100);
+    cairo_fill(cr);
 
-        double ph;
-        double ps;
-        double pl;
-        rgb2hsluv(color.r, color.g, color.b, &ph, &ps, &pl);
-        printf("pl: %f\n", pl);
-        pl -= 10;
-        hsluv2rgb(ph, ps, pl, &color.r, &color.g, &color.b);
-
-        set_argb(cr, color);
-        cairo_rectangle(cr,
-                        40,
-                        0,
-                        40,
-                        40);
-        cairo_fill(cr);
-    }
-
-    {
-        ArgbColor color = ArgbColor(1, 1, 1, 1);
-        set_argb(cr, color);
-        cairo_rectangle(cr,
-                        0,
-                        40,
-                        40,
-                        40);
-        cairo_fill(cr);
-
-        double ph;
-        double ps;
-        double pl;
-        rgb2hsluv(color.r, color.g, color.b, &ph, &ps, &pl);
-        printf("pl: %f\n", pl);
-        pl -= 10;
-        hsluv2rgb(ph, ps, pl, &color.r, &color.g, &color.b);
-
-        set_argb(cr, color);
-        cairo_rectangle(cr,
-                        40,
-                        40,
-                        40,
-                        40);
-        cairo_fill(cr);
-    }
-
-
-    {
-        ArgbColor color = ArgbColor(0, 0, 0, 1);
-        set_argb(cr, color);
-        cairo_rectangle(cr,
-                        0,
-                        80,
-                        40,
-                        40);
-        cairo_fill(cr);
-
-        double ph;
-        double ps;
-        double pl;
-        rgb2hsluv(color.r, color.g, color.b, &ph, &ps, &pl);
-        printf("pl: %f\n", pl);
-        pl += 10;
-        hsluv2rgb(ph, ps, pl, &color.r, &color.g, &color.b);
-
-        set_argb(cr, color);
-        cairo_rectangle(cr,
-                        40,
-                        80,
-                        40,
-                        40);
-        cairo_fill(cr);
-    }
+    cairo_set_operator(cr, CAIRO_OPERATOR_LIGHTEN);
+    set_argb(cr, ArgbColor(0, 1, 0, .5));
+    cairo_rectangle(cr, 10 + 50, 10 + 50, 100, 100);
+    cairo_fill(cr);
 }
 
 void start_test_window() {

@@ -60,7 +60,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
         surface = data->normal_surfaces[capacity_index];
     }
     int image_height = cairo_image_surface_get_height(surface);
-    dye_surface(surface, config->sound_hovered_icon);
+    dye_surface(surface, config->color_battery_icons);
     cairo_set_source_surface(
             cr,
             surface,
@@ -70,7 +70,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
 
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 34, PangoWeight::PANGO_WEIGHT_NORMAL);
-    set_argb(cr, config->sound_font);
+    set_argb(cr, config->color_battery_text);
     std::string text = data->capacity + "%";
     pango_layout_set_text(layout, text.c_str(), text.length());
 
@@ -85,7 +85,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, layout);
 
     layout = get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
-    ArgbColor copy = config->sound_font;
+    ArgbColor copy = config->color_battery_text;
     set_argb(cr, copy);
     text = "Status: " + data->status;
     pango_layout_set_text(layout, text.c_str(), text.length());
@@ -105,7 +105,7 @@ static void
 paint_title(AppClient *client_entity, cairo_t *cr, Container *container) {
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
-    set_argb(cr, config->sound_font);
+    set_argb(cr, config->color_battery_text);
     std::string text = "Screen Brightness";
     pango_layout_set_text(layout, text.c_str(), text.length());
 
@@ -144,7 +144,7 @@ paint_brightness_amount(AppClient *client_entity, cairo_t *cr, Container *contai
     pango_layout_set_text(layout, text.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, config->sound_font);
+    set_argb(cr, config->color_battery_text);
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
                   container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
@@ -189,14 +189,15 @@ paint_slider(AppClient *client_entity, cairo_t *cr, Container *container) {
     double marker_width = 8;
 
     double line_height = 2;
-    set_argb(cr, config->sound_line_background_default);
+    set_argb(cr, config->color_battery_slider_background);
     cairo_rectangle(cr,
                     container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
                     container->real_bounds.w,
                     line_height);
     cairo_fill(cr);
-    set_argb(cr, lighten(config->sound_line_background_active, .08));
+
+    set_argb(cr, config->color_battery_slider_foreground);
     cairo_rectangle(cr,
                     container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
@@ -205,13 +206,9 @@ paint_slider(AppClient *client_entity, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 
     if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->sound_line_marker_pressed);
-        } else {
-            set_argb(cr, config->sound_line_marker_hovered);
-        }
+        set_argb(cr, config->color_battery_slider_active);
     } else {
-        set_argb(cr, config->sound_line_marker_default);
+        set_argb(cr, config->color_battery_slider_foreground);
     }
 
     rounded_rect(cr,
@@ -225,15 +222,8 @@ paint_slider(AppClient *client_entity, cairo_t *cr, Container *container) {
 }
 
 static void
-paint_vbox(AppClient *client_entity, cairo_t *cr, Container *container) {
-    set_argb(cr, config->main_accent);
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
-}
-
-static void
 paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
-    set_argb(cr, config->button_hovered);
+    set_argb(cr, config->color_battery_background);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 }
@@ -245,7 +235,7 @@ paint_brightness_icon(AppClient *client_entity, cairo_t *cr, Container *containe
     if (data->surface == nullptr)
         return;
 
-    dye_surface(data->surface, config->sound_default_icon);
+    dye_surface(data->surface, config->color_battery_icons);
 
     cairo_set_source_surface(cr,
                              data->surface,

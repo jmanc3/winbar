@@ -97,7 +97,7 @@ paint_icon(AppClient *client, cairo_t *cr, Container *container, bool dye) {
         int height = cairo_image_surface_get_height(data->surface);
 
         if (dye) {
-            dye_surface(data->surface, config->icons_colors);
+            dye_surface(data->surface, config->color_pin_menu_icons);
         }
 
         cairo_set_source_surface(
@@ -129,103 +129,66 @@ paint_text(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
-}
-
-static void
-paint_custom_pad(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, ArgbColor(.122, .122, .122, 1));
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
-}
-
-static void
-paint_pad(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, config->main_bg);
+    set_argb(cr, config->color_pin_menu_background);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 }
 
 static void
 paint_custom_option(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-
     if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, ArgbColor(.298, .298, .298, 1));
+            set_argb(cr, config->color_pin_menu_pressed_item);
         } else {
-            set_argb(cr, ArgbColor(.208, .208, .208, 1));
+            set_argb(cr, config->color_pin_menu_hovered_item);
         }
-    } else {
-        set_argb(cr, ArgbColor(.122, .122, .122, 1));
+        set_rect(cr, container->real_bounds);
+        cairo_fill(cr);
     }
-    cairo_fill(cr);
 
-    set_argb(cr, config->calendar_font_default);
+    set_argb(cr, config->color_pin_menu_text);
     paint_text(client, cr, container);
 }
 
 static void
 paint_option(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, config->main_bg);
-    cairo_fill(cr);
-
-    set_rect(cr, container->real_bounds);
     if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->button_pressed);
+            set_argb(cr, config->color_pin_menu_pressed_item);
         } else {
-            set_argb(cr, config->button_hovered);
+            set_argb(cr, config->color_pin_menu_hovered_item);
         }
-    } else {
-        set_argb(cr, config->button_default);
+        set_rect(cr, container->real_bounds);
+        cairo_fill(cr);
     }
-    cairo_fill(cr);
 
-    set_argb(cr, config->calendar_font_default);
+    set_argb(cr, config->color_pin_menu_text);
     paint_text(client, cr, container);
     paint_icon(client, cr, container, true);
 }
 
 static void
 paint_open(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, config->main_bg);
-    cairo_fill(cr);
-
-    set_rect(cr, container->real_bounds);
     if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->button_pressed);
+            set_argb(cr, config->color_pin_menu_pressed_item);
         } else {
-            set_argb(cr, config->button_hovered);
+            set_argb(cr, config->color_pin_menu_hovered_item);
         }
-    } else {
-        set_argb(cr, config->button_default);
+        set_rect(cr, container->real_bounds);
+        cairo_fill(cr);
     }
-    cairo_fill(cr);
 
-    set_argb(cr, config->calendar_font_default);
+    set_argb(cr, config->color_pin_menu_text);
     paint_text(client, cr, container);
     paint_icon(client, cr, container, false);
 }
 
 static void
 paint_title(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, ArgbColor(.122, .122, .122, 1));
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
-
     auto *data = (OptionData *) container->user_data;
 
-    ArgbColor copy = config->calendar_font_default;
-    copy.r -= .3;
-    copy.g -= .3;
-    copy.b -= .3;
-    set_argb(cr, copy);
+    set_argb(cr, config->color_pin_menu_text);
     paint_text(client, cr, container);
 }
 
@@ -314,6 +277,7 @@ static Container *
 make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     Container *root = new Container();
     root->type = vbox;
+    root->when_paint = paint_root;
 
     std::vector<CustomItem *> custom_items_for_us;
     for (auto *item : custom_items) {
@@ -327,7 +291,6 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
         if (i == 0) {
             // Start Pad
             auto *start_pad = root->child(FILL_SPACE, pad);
-            start_pad->when_paint = paint_custom_pad;
         }
 
         // Item
@@ -360,12 +323,10 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
         if (i == custom_items_for_us.size() - 1) {
             // End pad
             auto *end_pad = root->child(FILL_SPACE, pad);
-            end_pad->when_paint = paint_custom_pad;
         }
     }
 
     auto *start_pad = root->child(FILL_SPACE, pad);
-    start_pad->when_paint = paint_pad;
 
     auto *data = new OptionData();
     data->option_type = option_data_type::OPEN;
@@ -434,7 +395,6 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     }
 
     auto *end_pad = root->child(FILL_SPACE, pad);
-    end_pad->when_paint = paint_pad;
 
     double height = true_height(root);
 
@@ -468,31 +428,6 @@ icon_menu_event_handler(App *app, xcb_generic_event_t *event) {
         case XCB_MAP_NOTIFY: {
             auto *e = (xcb_map_notify_event_t *) (event);
             register_popup(e->window);
-            break;
-        }
-        case XCB_MOTION_NOTIFY: {
-            auto *e = (xcb_motion_notify_event_t *) (event);
-            xcb_window_t window = client_entity->window;
-
-            auto client_entity = client_by_window(app, window);
-            if (!valid_client(app, client_entity))
-                break;
-
-            auto *our_bounds = client_entity->bounds;
-            AppClient *main_client = client_by_name(app, "taskbar");
-            auto *main_bounds = main_client->bounds;
-            Bounds copy = *main_bounds;
-            copy.x += pinned_icon_container->real_bounds.x;
-            copy.y += pinned_icon_container->real_bounds.y;
-            copy.w = pinned_icon_container->real_bounds.w;
-            copy.h = pinned_icon_container->real_bounds.h;
-
-            if (!bounds_contains(*our_bounds, e->root_x, e->root_y) &&
-                !bounds_contains(copy, e->root_x, e->root_y)) {
-                xcb_flush(app->connection);
-                client_close_threaded(app, client_entity);
-            }
-
             break;
         }
         case XCB_FOCUS_OUT: {
@@ -533,7 +468,6 @@ void start_pinned_icon_right_click(Container *container) {
     std::vector<DelayedSurfacePainting *> delayed;
 
     Container *root = make_root(&delayed);
-    root->wanted_pad = Bounds(1, 1, 1, 1);
     settings.w = root->wanted_bounds.w;
     settings.h = root->wanted_bounds.h;
     settings.x = container->real_bounds.x + container->real_bounds.w / 2 - settings.w / 2;

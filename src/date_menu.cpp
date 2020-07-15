@@ -137,45 +137,8 @@ update_days(int month, int year) {
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, config->sound_bg);
+    set_argb(cr, config->color_date_background);
     set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
-}
-
-static void
-paint_show(AppClient *client, cairo_t *cr, Container *container) {
-    if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->button_pressed);
-        } else {
-            set_argb(cr, config->button_hovered);
-        }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
-    }
-
-    set_argb(cr, ArgbColor(1, 0, 1, 1));
-
-    cairo_rectangle(
-            cr, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w, 1);
-    cairo_fill(cr);
-
-    cairo_rectangle(
-            cr, container->real_bounds.x, container->real_bounds.y, 1, container->real_bounds.h);
-    cairo_fill(cr);
-
-    cairo_rectangle(cr,
-                    container->real_bounds.x + container->real_bounds.w - 1,
-                    container->real_bounds.y,
-                    1,
-                    container->real_bounds.h);
-    cairo_fill(cr);
-
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
-                    container->real_bounds.y + container->real_bounds.h - 1,
-                    container->real_bounds.w,
-                    1);
     cairo_fill(cr);
 }
 
@@ -204,7 +167,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
 
     std::string top_text = std::to_string(hour) + ":" + min_start + ":" + sec_start;
     PangoLayout *top_layout =
-            get_cached_pango_font(client->back_cr, "Segoe UI", 34, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->back_cr, config->font, 34, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(top_layout, top_text.c_str(), top_text.length());
     PangoRectangle top_ink;
     PangoRectangle top_logical;
@@ -216,7 +179,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
         top_right_text = "PM";
     }
     PangoLayout *top_right_layout =
-            get_cached_pango_font(client->back_cr, "Segoe UI", 14, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->back_cr, config->font, 14, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(top_right_layout, top_right_text.c_str(), top_right_text.length());
     PangoRectangle top_right_ink;
     PangoRectangle top_right_logical;
@@ -230,7 +193,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
             std::string(date_names[day_index]) + " " + std::string(months[ltm->tm_mon]) + " " +
             std::to_string(ltm->tm_mday) + ", " + std::to_string(1900 + ltm->tm_year);
     PangoLayout *bottom_layout =
-            get_cached_pango_font(client->back_cr, "Segoe UI", 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->back_cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(bottom_layout, bottom_text.c_str(), bottom_text.length());
     PangoRectangle bottom_ink;
     PangoRectangle bottom_logical;
@@ -238,7 +201,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
 
     int top_x = container->real_bounds.x + 24 - (top_ink.x / PANGO_SCALE);
     int top_y = container->real_bounds.y + 27 - (top_ink.y / PANGO_SCALE);
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    set_argb(cr, config->color_date_text_title);
     cairo_move_to(cr, top_x, top_y);
     pango_cairo_show_layout(cr, top_layout);
 
@@ -246,13 +209,13 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
                       (top_ink.width / PANGO_SCALE) + 10;
     int top_right_y = container->real_bounds.y + 27 - (top_right_ink.y / PANGO_SCALE) +
                       (top_ink.height / PANGO_SCALE) - (top_right_ink.height / PANGO_SCALE);
-    set_argb(cr, ArgbColor(.647, .647, .647, 1));
+    set_argb(cr, config->color_date_text_title_period);
     cairo_move_to(cr, top_right_x, top_right_y);
     pango_cairo_show_layout(cr, top_right_layout);
 
     int bottom_x = container->real_bounds.x + 25 - (bottom_ink.x / PANGO_SCALE);
     int bottom_y = container->real_bounds.y + 27 + (top_ink.height / PANGO_SCALE) + 16;
-    set_argb(cr, ArgbColor(.647, .843, .992, 1));
+    set_argb(cr, config->color_date_text_title_info);
     cairo_move_to(cr, bottom_x, bottom_y);
     pango_cairo_show_layout(cr, bottom_layout);
 }
@@ -261,7 +224,7 @@ static void
 paint_body(AppClient *client, cairo_t *cr, Container *container) {
     cairo_rectangle(
             cr, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w, 1);
-    set_argb(cr, ArgbColor(.294, .294, .294, 1));
+    set_argb(cr, config->color_date_seperator);
     cairo_fill(cr);
 
     cairo_rectangle(cr,
@@ -269,14 +232,14 @@ paint_body(AppClient *client, cairo_t *cr, Container *container) {
                     container->real_bounds.y + container->real_bounds.h - 1,
                     container->real_bounds.w,
                     1);
-    set_argb(cr, ArgbColor(.294, .294, .294, 1));
+    set_argb(cr, config->color_date_seperator);
     cairo_fill(cr);
 }
 
 static void
 paint_centered_text(AppClient *client, cairo_t *cr, Container *container, std::string text) {
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->back_cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, text.c_str(), text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;
@@ -293,7 +256,7 @@ paint_centered_text(AppClient *client, cairo_t *cr, Container *container, std::s
 static void
 paint_weekday_title(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (weekday_title *) container->user_data;
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    set_argb(cr, config->color_date_text_week_day);
     paint_centered_text(client, cr, container, data->text);
 }
 
@@ -302,9 +265,9 @@ paint_events(AppClient *client, cairo_t *cr, Container *container) {
     if (!agenda_showing || !container->exists) {
         return;
     }
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    set_argb(cr, config->color_date_weekday_monthday);
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, "Segoe UI", 13, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->back_cr, config->font, 13, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     const char *date_names[] = {"Sunday", "Monday", "Tuesday", "Wednesday",
                                 "Thursday", "Friday", "Saturday"};
@@ -326,9 +289,8 @@ static void
 paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (IconButton *) container->user_data;
 
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, "Segoe UI", 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->back_cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text = "Hide agenda";
     pango_layout_set_text(text_layout, text.c_str(), text.length());
     PangoRectangle text_ink;
@@ -338,11 +300,11 @@ paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
     ArgbColor color;
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing)
-            set_argb(cr, (color = ArgbColor(.471, .471, .471, 1)));
+            set_argb(cr, (color = config->color_date_text_pressed_button));
         else
-            set_argb(cr, (color = ArgbColor(.647, .647, .647, 1)));
+            set_argb(cr, (color = config->color_date_text_hovered_button));
     } else {
-        set_argb(cr, (color = ArgbColor(.647, .843, .992, 1)));
+        set_argb(cr, (color = config->color_date_text_default_button));
     }
     int pos_x =
             container->real_bounds.x + container->real_bounds.w - (text_logical.width / PANGO_SCALE) - 24;
@@ -370,13 +332,13 @@ paint_month_year_label(AppClient *client, cairo_t *cr, Container *container) {
     std::string text = months[view_month];
     text += " " + std::to_string(view_year);
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, "Segoe UI", 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->back_cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, text.c_str(), text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;
     pango_layout_get_extents(text_layout, &text_ink, &text_logical);
 
-    set_argb(cr, ArgbColor(.871, .871, .871, 1));
+    set_argb(cr, config->color_date_text_month_year);
     cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y);
     pango_cairo_show_layout(cr, text_layout);
 }
@@ -387,11 +349,11 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     if (data->surface) {
         if (container->state.mouse_hovering || container->state.mouse_pressing) {
             if (container->state.mouse_pressing)
-                dye_surface(data->surface, ArgbColor(1, 1, 1, 1));
+                dye_surface(data->surface, config->color_date_pressed_arrow);
             else
-                dye_surface(data->surface, ArgbColor(.9, .9, .9, 1));
+                dye_surface(data->surface, config->color_date_hovered_arrow);
         } else {
-            dye_surface(data->surface, ArgbColor(.8, .8, .8, 1));
+            dye_surface(data->surface, config->color_date_default_arrow);
         }
 
         cairo_set_source_surface(
@@ -424,14 +386,14 @@ paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
         auto *data = (TextAreaData *) c->user_data;
         if (data->state->text.empty() && !container->active) {
             PangoLayout *text_layout = get_cached_pango_font(
-                    client->back_cr, "Segoe UI", 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+                    client->back_cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
             std::string text("Write the days events here");
             pango_layout_set_text(text_layout, text.c_str(), text.length());
             PangoRectangle text_ink;
             PangoRectangle text_logical;
             pango_layout_get_extents(text_layout, &text_ink, &text_logical);
 
-            set_argb(cr, ArgbColor(.294 * 3, .294 * 3, .294 * 3, 1));
+            set_argb(cr, config->color_date_text_prompt);
             cairo_move_to(cr,
                           container->real_bounds.x - (text_ink.x / PANGO_SCALE) +
                           container->real_bounds.w / 2 - (text_ink.width / PANGO_SCALE) / 2,
@@ -439,7 +401,7 @@ paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
                           container->real_bounds.h / 2 - (text_ink.height / PANGO_SCALE) / 2);
             pango_cairo_show_layout(cr, text_layout);
         } else {
-            set_argb(cr, ArgbColor(.294, .294, .294, 1));
+            set_argb(cr, config->color_date_seperator);
             paint_margins_rect(client, cr, container->real_bounds, 1, -2);
         }
     }
@@ -455,40 +417,46 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     for (auto *ud : unique_day_text_state) {
         if (ud->day == data->day && ud->month == data->month && ud->year == data->year &&
             !ud->state->text.empty()) {
-            set_argb(cr, ArgbColor(.6, .6, .6, 1));
+            set_argb(cr, config->color_date_cal_border);
             paint_margins_rect(client, cr, container->real_bounds, 1, -1);
             cairo_fill(cr);
         }
     }
 
-    set_argb(cr, ArgbColor(0, 0, 0, 1));
+    set_argb(cr, config->color_date_cal_foreground); // TODO: is this needed?
     bool is_today =
             data->month == current_month && data->year == current_year && data->day == current_day;
     bool is_day_chosen =
             data->month == agenda_month && data->year == agenda_year && data->day == agenda_day;
     if (is_today) {
         set_rect(cr, container->real_bounds);
-        set_argb(cr, ArgbColor(0, .437, .847, 1));
+        set_argb(cr, config->color_date_cal_background);
         cairo_fill(cr);
     }
 
     if (is_day_chosen) {
-        set_argb(cr, ArgbColor(0, .437, .847, 1));
+        set_argb(cr, config->color_date_cal_background);
         paint_margins_rect(client, cr, container->real_bounds, 2, 0);
     }
 
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (is_today || is_day_chosen) {
+            ArgbColor b = config->color_date_cal_background;
+            lighten(&b, 5);
             if (container->state.mouse_pressing) {
-                set_argb(cr, ArgbColor(.60, .788, .937, 1));
+                lighten(&b, 5);
+                set_argb(cr, b);
             } else {
-                set_argb(cr, ArgbColor(.392, .678, .898, 1));
+                set_argb(cr, config->color_date_cal_background);
             }
         } else {
+            ArgbColor b = config->color_date_cal_border;
+            lighten(&b, 5);
             if (container->state.mouse_pressing) {
-                set_argb(cr, ArgbColor(.647, .647, .647, 1));
+                lighten(&b, 5);
+                set_argb(cr, b);
             } else {
-                set_argb(cr, ArgbColor(.475, .475, .475, 1));
+                set_argb(cr, config->color_date_cal_border);
             }
         }
 
@@ -497,12 +465,12 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
 
     if (((container->state.mouse_hovering || container->state.mouse_pressing) || is_day_chosen) &&
         is_today) {
-        set_argb(cr, ArgbColor(0, 0, 0, 1));
+        set_argb(cr, config->color_date_cal_foreground);
         paint_margins_rect(client, cr, container->real_bounds, 2, 2);
     }
 
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->back_cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, data->text.c_str(), data->text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;
@@ -511,9 +479,9 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     int baseline = pango_layout_get_baseline(text_layout);
 
     if (data->month == view_month) {
-        set_argb(cr, ArgbColor(1, 1, 1, 1));
+        set_argb(cr, config->color_date_text_current_month);
     } else {
-        set_argb(cr, ArgbColor(.5, .5, .5, 1));
+        set_argb(cr, config->color_date_text_not_current_month);
     }
     cairo_move_to(cr,
                   container->real_bounds.x - (text_ink.x / PANGO_SCALE) +
@@ -680,9 +648,8 @@ paint_clear_text(AppClient *client, cairo_t *cr, Container *container) {
 
     auto *data = (IconButton *) container->user_data;
 
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, "Segoe UI", 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->back_cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     std::string text = "Clear text";
     pango_layout_set_text(text_layout, text.c_str(), text.length());
@@ -690,14 +657,13 @@ paint_clear_text(AppClient *client, cairo_t *cr, Container *container) {
     PangoRectangle text_logical;
     pango_layout_get_extents(text_layout, &text_ink, &text_logical);
 
-    ArgbColor color;
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing)
-            set_argb(cr, (color = ArgbColor(.471, .471, .471, 1)));
+            set_argb(cr, config->color_date_text_pressed_button);
         else
-            set_argb(cr, (color = ArgbColor(.647, .647, .647, 1)));
+            set_argb(cr, config->color_date_text_hovered_button);
     } else {
-        set_argb(cr, (color = ArgbColor(.647, .843, .992, 1)));
+        set_argb(cr, config->color_date_text_default_button);
     }
     int pos_x =
             container->real_bounds.x + container->real_bounds.w - (text_logical.width / PANGO_SCALE) - 24;
@@ -811,9 +777,9 @@ fill_root(AppClient *client) {
     events->when_paint = paint_events;
 
     TextAreaSettings settings;
-    settings.color = ArgbColor(1, 1, 1, 1);
-    settings.color_cursor = ArgbColor(1, 1, 1, 1);
-    settings.font = "Segoe UI";
+    settings.color = config->color_date_text;
+    settings.color_cursor = config->color_date_cursor;
+    settings.font = config->font;
     settings.font_size = 11;
     settings.wrap = true;
     settings.bottom_show_amount = 2;

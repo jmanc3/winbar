@@ -36,7 +36,7 @@ void wifi_state(bool *up, bool *wired) {
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, config->sound_bg);
+    set_argb(cr, config->color_wifi_background);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 }
@@ -47,13 +47,15 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
 
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->button_pressed);
+            set_argb(cr, config->color_wifi_pressed_button);
         } else {
-            set_argb(cr, config->button_hovered);
+            set_argb(cr, config->color_wifi_hovered_button);
         }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
+    } else {
+        set_argb(cr, config->color_wifi_default_button);
     }
+    set_rect(cr, container->real_bounds);
+    cairo_fill(cr);
 
     bool up = false;
     bool wired = false;
@@ -75,7 +77,7 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     }
 
     if (surface) {
-        dye_surface(surface, config->icons_colors);
+        dye_surface(surface, config->color_wifi_icons);
         cairo_set_source_surface(
                 cr,
                 surface,
@@ -84,11 +86,11 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
         cairo_paint(cr);
     }
 
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    set_argb(cr, config->color_wifi_text_title);
 
     std::string text = "Network";
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe UI", 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     pango_layout_set_text(layout, text.c_str(), text.length());
 
@@ -100,7 +102,7 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     cairo_move_to(cr, text_x, text_y);
     pango_cairo_show_layout(cr, layout);
 
-    set_argb(cr, ArgbColor(.678, .678, .678, 1));
+    set_argb(cr, config->color_wifi_text_title_info);
 
     if (up)
         text = "Connected - Interface: " + config->interface;
@@ -119,21 +121,21 @@ static void
 paint_info(AppClient *client, cairo_t *cr, Container *container) {
     std::string top_text = "Network & Internet Settings";
     PangoLayout *top_layout =
-            get_cached_pango_font(cr, "Segoe UI", 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(top_layout, top_text.c_str(), top_text.length());
     int top_width, top_height;
     pango_layout_get_pixel_size(top_layout, &top_width, &top_height);
 
     std::string bottom_text = "Change settings, such as making a connection metered";
     PangoLayout *bottom_layout =
-            get_cached_pango_font(cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(bottom_layout, bottom_text.c_str(), bottom_text.length());
     int bottom_width, bottom_height;
     pango_layout_get_pixel_size(bottom_layout, &bottom_width, &bottom_height);
 
     int distance_from_bottom = 7;
 
-    set_argb(cr, ArgbColor(.643, .643, .643, 1));
+    set_argb(cr, config->color_wifi_text_settings_title_info);
 
     int text_x = 13;
     int text_y =
@@ -143,11 +145,11 @@ paint_info(AppClient *client, cairo_t *cr, Container *container) {
 
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing)
-            set_argb(cr, ArgbColor(.471, .471, .471, 1));
+            set_argb(cr, config->color_wifi_text_settings_pressed_title);
         else
-            set_argb(cr, ArgbColor(.647, .647, .647, 1));
+            set_argb(cr, config->color_wifi_text_settings_hovered_title);
     } else {
-        set_argb(cr, ArgbColor(.647, .843, .992, 1));
+        set_argb(cr, config->color_wifi_text_settings_default_title);
     }
 
     cairo_move_to(cr, text_x, text_y - bottom_height - 5);
@@ -180,14 +182,14 @@ pierced_wifi_info(Container *container, int mouse_x, int mouse_y) {
             data->cached = true;
             std::string top_text = "Network & Internet Settings";
             PangoLayout *top_layout = get_cached_pango_font(
-                    client->back_cr, "Segoe UI", 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+                    client->back_cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
             pango_layout_set_text(top_layout, top_text.c_str(), top_text.length());
             int top_width, top_height;
             pango_layout_get_pixel_size(top_layout, &top_width, &top_height);
 
             std::string bottom_text = "Change settings, such as making a connection metered";
             PangoLayout *bottom_layout = get_cached_pango_font(
-                    client->back_cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+                    client->back_cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
             pango_layout_set_text(bottom_layout, bottom_text.c_str(), bottom_text.length());
             int bottom_width, bottom_height;
             pango_layout_get_pixel_size(bottom_layout, &bottom_width, &bottom_height);

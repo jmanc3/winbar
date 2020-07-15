@@ -79,7 +79,7 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
 #endif
 
     set_rect(cr, container->real_bounds);
-    set_argb(cr, config->main_bg);
+    set_argb(cr, config->color_taskbar_background);
     cairo_fill(cr);
 }
 
@@ -91,13 +91,13 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
 
     IconButton *data = (IconButton *) container->user_data;
 
-    double max_amount = .8;
+    double max_amount = .4;
     if (container->state.mouse_pressing) {
         max_amount = 1;
     } else if (container->state.mouse_hovering) {
         max_amount = .9;
     }
-    max_amount *= .27;
+    max_amount *= .1;
 
     if (container->state.mouse_hovering) {
         if (!data->hovered) {
@@ -106,7 +106,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
         }
     } else if (data->hovered) {
         data->hovered = false;
-        client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
+        client_create_animation(app, client, &data->hover_amount, 30, 0, 0);
     }
 
     set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
@@ -122,6 +122,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
 
     if (data->surface) {
         // Assumes the size of the surface to be 16x16 and tries to draw it centered
+        dye_surface(data->surface, config->color_taskbar_button_icons);
         cairo_set_source_surface(
                 cr,
                 data->surface,
@@ -170,16 +171,12 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
 
     if (data->surface) {
         // Assumes the size of the surface to be 16x16 and tries to draw it centered
-        ArgbColor color = config->main_accent;
         if (container->state.mouse_pressing) {
-            color.r -= .1;
-            color.g -= .1;
-            color.b -= .1;
-            dye_surface(data->surface, color);
+            dye_surface(data->surface, config->color_taskbar_windows_button_pressed_icon);
         } else if (container->state.mouse_hovering) {
-            dye_surface(data->surface, color);
+            dye_surface(data->surface, config->color_taskbar_windows_button_hovered_icon);
         } else {
-            dye_surface(data->surface, ArgbColor(1, 1, 1, 1));
+            dye_surface(data->surface, config->color_taskbar_windows_button_default_icon);
         }
 
         cairo_set_source_surface(
@@ -196,7 +193,13 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    Bounds start = container->real_bounds;
+    container->real_bounds.x += 1;
+    container->real_bounds.y += 1;
+    container->real_bounds.w -= 2;
+    container->real_bounds.h -= 2;
     paint_button(client, cr, container);
+    container->real_bounds = start;
 
     auto surfaces = (volume_surfaces *) container->user_data;
 
@@ -225,7 +228,7 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
         surface = surfaces->high;
     }
 
-    dye_surface(surface, config->icons_colors);
+    dye_surface(surface, config->color_taskbar_button_icons);
 
     cairo_set_source_surface(cr,
                              surface,
@@ -275,6 +278,7 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
 
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (data->surface_hover) {
+            dye_surface(data->surface_hover, config->color_taskbar_button_icons);
             // Assumes the size of the surface to be 16x16 and tries to draw it centered
             cairo_set_source_surface(
                     cr,
@@ -285,6 +289,7 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
         }
     } else {
         if (data->surface) {
+            dye_surface(data->surface, config->color_taskbar_button_icons);
             // Assumes the size of the surface to be 16x16 and tries to draw it centered
             cairo_set_source_surface(
                     cr,
@@ -379,7 +384,7 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     // This is the real underlying color
-    ArgbColor real = ArgbColor(1, 1, 1, 1);
+    ArgbColor real = config->color_taskbar_application_icons_background;
     // is_light_theme determines if generated secondary colors should go up or down in brightness
     bool is_light_theme = false;
     {
@@ -390,9 +395,9 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
         is_light_theme = p > 10; // if the perceived perceived brightness is greater than that we are a light theme
     }
 
-    double r_c = 1;
-    double g_c = 1;
-    double b_c = 1;
+    double r_c = real.r;
+    double g_c = real.g;
+    double b_c = real.b;
 
     int windows_count = data->windows.size();
     bool active = active_container == container;
@@ -408,37 +413,12 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     double bg_openess = highlight_inset;
     double right_size = 0;
 
-    ArgbColor c = config->main_accent;
+    ArgbColor c = config->color_taskbar_application_icons_accent;
     ArgbColor bottom_bar_left = c;
     ArgbColor bottom_bar_middle = c;
+    darken(&bottom_bar_middle, 20);
     ArgbColor bottom_bar_right = c;
-    double change = 20;
-    {
-        double h;
-        double s;
-        double p;
-
-        rgb2hsluv(bottom_bar_right.r, bottom_bar_right.g, bottom_bar_right.b, &h, &s, &p);
-        is_light_theme = p > 10; // if the perceived perceived brightness is greater than that we are a light theme
-
-        p = p - change;
-
-        if (p < 0)
-            p = 0;
-        else if (p > 100)
-            p = 100;
-        hsluv2rgb(h, s, p, &bottom_bar_right.r, &bottom_bar_right.g, &bottom_bar_right.b);
-
-        rgb2hsluv(bottom_bar_middle.r, bottom_bar_middle.g, bottom_bar_middle.b, &h, &s, &p);
-        
-        p = p - change * 1.3;
-
-        if (p < 0)
-            p = 0;
-        else if (p > 100)
-            p = 100;
-        hsluv2rgb(h, s, p, &bottom_bar_middle.r, &bottom_bar_middle.g, &bottom_bar_middle.b);
-    }
+    darken(&bottom_bar_right, 15);
 
     // Three things we need to paint, the first and most obvious is the accent bar at the bottom.
     // The width of that thing is determined by our two variables hover_amount and active_amount. It
@@ -503,7 +483,6 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
             cairo_fill(cr);
         }
 
-//        set_argb(cr, ArgbColor(.486, .737, .933, 1));
         set_argb(cr, bottom_bar_left);
         cairo_rectangle(cr,
                         bar_x,
@@ -571,11 +550,6 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
                                 ArgbColor(r_c, g_c, b_c, .161));
         }
 
-//        paint_double_bar(cr,
-//                         container,
-//                         ArgbColor(.486, .737, .937, 1),
-//                         ArgbColor(.290, .443, .561, 1),
-//                         ArgbColor(.388, .588, .745, 1));
         paint_double_bar(cr,
                          container,
                          bottom_bar_left,
@@ -585,151 +559,6 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
 
     cairo_pop_group_to_source(cr);
     cairo_paint(cr);
-    /*
-    Accurate color information
-        if (windows_count == 0)
-        {
-            if (pressed)
-            {
-                set_argb(cr, ArgbColor(r_c, g_c, b_c, .106));
-                set_rect(cr, container->real_bounds);
-                cairo_fill(cr);
-            }
-            else if (hovered)
-            {
-                set_argb(cr, ArgbColor(r_c, g_c, b_c, .153));
-                set_rect(cr, container->real_bounds);
-                cairo_fill(cr);
-            }
-        }
-        else if (windows_count == 1)
-        {
-            if (active)
-            {
-                if (pressed)
-                {
-                    set_argb(cr, ArgbColor(r_c, g_c, b_c, .106));
-                    cairo_rectangle(cr, container->real_bounds.x, container->real_bounds.y,
-    container->real_bounds.w, container->real_bounds.h - highlight_height); cairo_fill(cr);
-
-                    set_argb(cr, ArgbColor(.486, .737, .933, 1));
-                    cairo_rectangle(cr, container->real_bounds.x + highlight_inset,
-    container->real_bounds.y + container->real_bounds.h - highlight_height, container->real_bounds.w
-    - highlight_inset * 2, highlight_height); cairo_fill(cr);
-                }
-                else if (hovered)
-                {
-                    set_argb(cr, ArgbColor(r_c, g_c, b_c, .278));
-                    cairo_rectangle(cr, container->real_bounds.x, container->real_bounds.y,
-    container->real_bounds.w, container->real_bounds.h - highlight_height); cairo_fill(cr);
-
-                    set_argb(cr, ArgbColor(.514, .753, .937, 1));
-                    cairo_rectangle(cr, container->real_bounds.x + highlight_inset,
-    container->real_bounds.y + container->real_bounds.h - highlight_height, container->real_bounds.w
-    - highlight_inset * 2, highlight_height); cairo_fill(cr);
-                }
-                else
-                {
-                    set_argb(cr, ArgbColor(r_c, g_c, b_c, .2));
-                    cairo_rectangle(cr, container->real_bounds.x, container->real_bounds.y,
-    container->real_bounds.w, container->real_bounds.h - highlight_height); cairo_fill(cr);
-
-                    set_argb(cr, ArgbColor(.463, .725, .929, 1));
-                    cairo_rectangle(cr, container->real_bounds.x + highlight_inset,
-    container->real_bounds.y + container->real_bounds.h - highlight_height, container->real_bounds.w
-    - highlight_inset * 2, highlight_height); cairo_fill(cr);
-                }
-            }
-            else
-            {
-                if (pressed)
-                {
-                    set_argb(cr, ArgbColor(r_c, g_c, b_c, .106));
-                    cairo_rectangle(cr, container->real_bounds.x, container->real_bounds.y,
-    container->real_bounds.w, container->real_bounds.h - highlight_height); cairo_fill(cr);
-
-                    set_argb(cr, ArgbColor(.486, .737, .933, 1));
-                    cairo_rectangle(cr, container->real_bounds.x + highlight_inset,
-    container->real_bounds.y + container->real_bounds.h - highlight_height, container->real_bounds.w
-    - highlight_inset * 2, highlight_height); cairo_fill(cr);
-                }
-                else if (hovered)
-                {
-                    set_argb(cr, ArgbColor(r_c, g_c, b_c, .153));
-                    cairo_rectangle(cr, container->real_bounds.x, container->real_bounds.y,
-    container->real_bounds.w, container->real_bounds.h - highlight_height); cairo_fill(cr);
-
-                    set_argb(cr, ArgbColor(.514, .753, .937, 1));
-                    cairo_rectangle(cr, container->real_bounds.x + highlight_inset,
-    container->real_bounds.y + container->real_bounds.h - highlight_height, container->real_bounds.w
-    - highlight_inset * 2, highlight_height); cairo_fill(cr);
-                }
-                else
-                {
-                    set_argb(cr, ArgbColor(r_c, g_c, b_c, 0));
-                    cairo_rectangle(cr, container->real_bounds.x, container->real_bounds.y,
-    container->real_bounds.w, container->real_bounds.h - highlight_height); cairo_fill(cr);
-
-                    set_argb(cr, ArgbColor(.436, .725, .929, 1));
-                    cairo_rectangle(cr, container->real_bounds.x + highlight_inset,
-    container->real_bounds.y + container->real_bounds.h - highlight_height, container->real_bounds.w
-    - highlight_inset * 2, highlight_height); cairo_fill(cr);
-                }
-            }
-        }
-        else
-        {
-            bg_openess = 1;
-            if (active)
-            {
-                if (pressed)
-                {
-                    paint_double(cr, container->real_bounds, right_size, highlight_inset,
-    bg_openess, ArgbColor(r_c, g_c, b_c, .106), ArgbColor(r_c, g_c, b_c, .086), ArgbColor(r_c, g_c,
-    b_c, .098), ArgbColor(.486, .737, .937, 1), ArgbColor(.290, .443, .561, 1), ArgbColor(.388,
-    .588, .745, 1));
-                }
-                else if (hovered)
-                {
-                    paint_double(cr, container->real_bounds, right_size, highlight_inset,
-    bg_openess, ArgbColor(r_c, g_c, b_c, .278), ArgbColor(r_c, g_c, b_c, .169), ArgbColor(r_c, g_c,
-    b_c, .224), ArgbColor(.514, .753, .937, 1), ArgbColor(.310, .451, .561, 1), ArgbColor(.412,
-    .604, .749, 1));
-                }
-                else
-                {
-                    paint_double(cr, container->real_bounds, right_size, highlight_inset,
-    bg_openess, ArgbColor(r_c, g_c, b_c, .2), ArgbColor(r_c, g_c, b_c, .122), ArgbColor(r_c, g_c,
-    b_c, .161), ArgbColor(.463, .725, .929, 1), ArgbColor(.278, .435, .557, 1), ArgbColor(.369,
-    .580, .745, 1));
-                }
-            }
-            else
-            {
-                if (pressed)
-                {
-                    paint_double(cr, container->real_bounds, right_size, highlight_inset,
-    bg_openess, ArgbColor(r_c, g_c, b_c, .106), ArgbColor(r_c, g_c, b_c, .086), ArgbColor(r_c, g_c,
-    b_c, .098), ArgbColor(.486, .737, .937, 1), ArgbColor(.290, .443, .561, 1), ArgbColor(.388,
-    .588, .745, 1));
-                }
-                else if (hovered)
-                {
-                    paint_double(cr, container->real_bounds, right_size, highlight_inset,
-    bg_openess, ArgbColor(r_c, g_c, b_c, .153), ArgbColor(r_c, g_c, b_c, .094), ArgbColor(r_c, g_c,
-    b_c, .125), ArgbColor(.514, .753, .937, 1), ArgbColor(.310, .451, .561, 1), ArgbColor(.412,
-    .604, .749, 1));
-                }
-                else
-                {
-                    ArgbColor blank(r_c, g_c, b_c, 0);
-                    paint_double(cr, container->real_bounds, right_size, highlight_inset,
-    bg_openess, blank, blank, blank, ArgbColor(.463, .725, .929, 1), ArgbColor(.278, .435, .557, 1),
-    ArgbColor(.369, .580, .745, 1));
-                }
-            }
-        }
-    */
 }
 
 // TODO order is not correct
@@ -1244,7 +1073,7 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
     paint_button(client, cr, container);
 
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
     PangoAlignment initial_alignment = pango_layout_get_alignment(layout);
     pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_CENTER);
 
@@ -1261,7 +1090,7 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
         return;
     }
 
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    set_argb(cr, config->color_taskbar_date_time_text);
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
                   container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
@@ -1272,36 +1101,57 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_date(AppClient *client, cairo_t *cr, Container *container) {
-    start_date_menu();
+    if (config->date_command.empty()) {
+        start_date_menu();
+    } else {
+        launch_command(config->date_command);
+    }
 }
 
 static void
 clicked_wifi(AppClient *client, cairo_t *cr, Container *container) {
-    start_wifi_menu();
+    if (config->wifi_command.empty()) {
+        start_wifi_menu();
+    } else {
+        launch_command(config->wifi_command);
+    }
 }
 
 static void
 clicked_systray(AppClient *client, cairo_t *cr, Container *container) {
-    open_systray();
+    if (config->systray_command.empty()) {
+        open_systray();
+    } else {
+        launch_command(config->systray_command);
+    }
 }
 
 static void
 clicked_battery(AppClient *client, cairo_t *cr, Container *container) {
-    start_battery_menu();
+    if (config->battery_command.empty()) {
+        start_battery_menu();
+    } else {
+        launch_command(config->battery_command);
+    }
 }
 
 static void
 clicked_volume(AppClient *client, cairo_t *cr, Container *container) {
-    open_volume_menu();
+    if (config->volume_command.empty()) {
+        open_volume_menu();
+    } else {
+        launch_command(config->volume_command);
+    }
 }
 
 static void
 clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
-    while (!app->clients.empty()) {
-        for (int i = 0; i < app->clients.size(); i++) {
-            client_close(app, app->clients[i]);
-        }
-    }
+    config_load();
+//    while (!app->clients.empty()) {
+//        for (int i = 0; i < app->clients.size(); i++) {
+//            client_close(app, app->clients[i]);
+//        }
+//    }
 }
 
 static void
@@ -1319,8 +1169,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    ArgbColor border_color = ArgbColor(.6, .6, .6, 1);
-    int border = 1;
+    int border_size = 1;
 
     bool active = false;
     bool text_empty = false;
@@ -1330,30 +1179,54 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
         active = con->parent->active;
     }
 
-    if (active) {
-        border_color = config->main_accent;
-        border = 2;
-    }
+    if (active)
+        border_size = 2;
     if (container->state.mouse_hovering)
-        border = 2;
+        border_size = 2;
 
     // Paint border
     set_rect(cr, container->real_bounds);
-    set_argb(cr, border_color);
+    if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (active || container->state.mouse_pressing) {
+            set_argb(cr, config->color_taskbar_search_bar_pressed_border);
+        } else {
+            set_argb(cr, config->color_taskbar_search_bar_hovered_border);
+        }
+    } else {
+        set_argb(cr, config->color_taskbar_search_bar_default_border);
+    }
     cairo_fill(cr);
 
     // Paint background
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (active || container->state.mouse_pressing) {
+            set_argb(cr, config->color_taskbar_search_bar_pressed_background);
+        } else {
+            set_argb(cr, config->color_taskbar_search_bar_hovered_background);
+        }
+    } else {
+        set_argb(cr, config->color_taskbar_search_bar_default_background);
+    }
     cairo_rectangle(cr,
-                    container->real_bounds.x + border,
-                    container->real_bounds.y + border,
-                    container->real_bounds.w - border * 2,
-                    container->real_bounds.h - border * 2);
+                    container->real_bounds.x + border_size,
+                    container->real_bounds.y + border_size,
+                    container->real_bounds.w - border_size * 2,
+                    container->real_bounds.h - border_size * 2);
     cairo_fill(cr);
 
     // Paint search icon
     if (data->surface) {
         // Assumes the size of the surface to be 16x16 and tries to draw it centered
+        if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (active || container->state.mouse_pressing) {
+                dye_surface(data->surface, config->color_taskbar_search_bar_pressed_icon);
+            } else {
+                dye_surface(data->surface, config->color_taskbar_search_bar_hovered_icon);
+            }
+        } else {
+            dye_surface(data->surface, config->color_taskbar_search_bar_default_icon);
+        }
+
         cairo_set_source_surface(
                 cr,
                 data->surface,
@@ -1364,11 +1237,19 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
 
     if (text_empty) {
         PangoLayout *layout =
-                get_cached_pango_font(cr, "Segoe UI", 12, PangoWeight::PANGO_WEIGHT_NORMAL);
+                get_cached_pango_font(cr, config->font, 12, PangoWeight::PANGO_WEIGHT_NORMAL);
         std::string text("Type here to search");
         pango_layout_set_text(layout, text.c_str(), text.size());
 
-        set_argb(cr, ArgbColor(.36, .36, .36, 1));
+        if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (active || container->state.mouse_pressing) {
+                set_argb(cr, config->color_taskbar_search_bar_pressed_text);
+            } else {
+                set_argb(cr, config->color_taskbar_search_bar_hovered_text);
+            }
+        } else {
+            set_argb(cr, config->color_taskbar_search_bar_default_text);
+        }
 
         PangoRectangle ink;
         PangoRectangle logical;
@@ -1383,7 +1264,13 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) {
+    Bounds start = container->real_bounds;
+    container->real_bounds.x += 1;
+    container->real_bounds.y += 1;
+    container->real_bounds.w -= 2;
+    container->real_bounds.h -= 2;
     paint_button(client_entity, cr, container);
+    container->real_bounds = start;
 
     auto *data = static_cast<data_battery_surfaces *>(container->user_data);
     assert(data);
@@ -1427,7 +1314,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
         surface = data->normal_surfaces[capacity_index];
     }
     if (surface) {
-        dye_surface(surface, config->sound_hovered_icon);
+        dye_surface(surface, config->color_taskbar_button_icons);
         cairo_set_source_surface(
                 cr,
                 surface,
@@ -1442,7 +1329,7 @@ make_battery_button(Container *parent, AppClient *client_entity) {
     auto *c = new Container();
     c->parent = parent;
     c->type = hbox;
-    c->wanted_bounds.w = 20;
+    c->wanted_bounds.w = 24;
     c->wanted_bounds.h = FILL_SPACE;
     c->when_paint = paint_battery;
     c->when_clicked = clicked_battery;
@@ -1535,7 +1422,7 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
 
     set_argb(cr, ArgbColor(1, 1, 1, data->hover_amount * max_amount));
 
-    int border = 0;
+    int border = 1;
 
     cairo_rectangle(cr,
                     container->real_bounds.x + border,
@@ -1564,7 +1451,7 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     }
 
     if (surface) {
-        dye_surface(surface, config->icons_colors);
+        dye_surface(surface, config->color_taskbar_button_icons);
         cairo_set_source_surface(
                 cr,
                 surface,
@@ -1588,10 +1475,10 @@ fill_root(App *app, AppClient *client, Container *root) {
     Container *field_search = root->child(344, FILL_SPACE);
     Container *button_workspace = root->child(48, FILL_SPACE);
     Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
-    Container *button_systray = root->child(20, FILL_SPACE);
+    Container *button_systray = root->child(24, FILL_SPACE);
     make_battery_button(root, client);
-    Container *button_wifi = root->child(20, FILL_SPACE);
-    Container *button_volume = root->child(20, FILL_SPACE);
+    Container *button_wifi = root->child(24, FILL_SPACE);
+    Container *button_volume = root->child(24, FILL_SPACE);
     Container *button_date = root->child(80, FILL_SPACE);
     Container *button_minimize = root->child(5, FILL_SPACE);
 
@@ -1615,7 +1502,7 @@ fill_root(App *app, AppClient *client, Container *root) {
 
     TextAreaSettings settings;
     settings.font_size = 12;
-    settings.font = "Segoe UI";
+    settings.font = config->font;
     settings.color = ArgbColor(0, 0, 0, 1);
     settings.color_cursor = ArgbColor(0, 0, 0, 1);
     settings.single_line = true;

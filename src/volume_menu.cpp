@@ -58,8 +58,7 @@ fill_root(Container *root);
 
 static void
 paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
-    ArgbColor copy = config->sound_bg;
-    set_argb(cr, copy);
+    set_argb(cr, config->color_volume_background);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 
@@ -74,7 +73,7 @@ paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
         pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
         pango_layout_get_pixel_size(layout, &width, &height);
 
-        set_argb(cr, config->sound_font);
+        set_argb(cr, config->color_volume_text);
         cairo_move_to(cr,
                       container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
                       container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
@@ -121,12 +120,12 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
 
     if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
         if (container->state.mouse_pressing) {
-            dye_surface(surface, config->sound_pressed_icon);
+            dye_surface(surface, config->color_volume_pressed_icon);
         } else {
-            dye_surface(surface, config->sound_hovered_icon);
+            dye_surface(surface, config->color_volume_hovered_icon);
         }
     } else {
-        dye_surface(surface, config->sound_default_icon);
+        dye_surface(surface, config->color_volume_default_icon);
     }
 
     cairo_set_source_surface(cr,
@@ -159,7 +158,7 @@ paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container)
     pango_layout_set_text(layout, text.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, config->sound_font);
+    set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
                   container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
@@ -188,7 +187,7 @@ paint_label(AppClient *client_entity, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, text.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, config->sound_font);
+    set_argb(cr, config->color_volume_text);
     cairo_move_to(cr, container->real_bounds.x + 13, container->real_bounds.y + 12);
     pango_cairo_show_layout(cr, layout);
 }
@@ -211,14 +210,14 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
 
     double line_height = 2;
-    set_argb(cr, config->sound_line_background_default);
+    set_argb(cr, config->color_volume_slider_background);
     cairo_rectangle(cr,
                     container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
                     container->real_bounds.w,
                     line_height);
     cairo_fill(cr);
-    set_argb(cr, lighten(config->sound_line_background_active, .08));
+    set_argb(cr, config->color_volume_slider_foreground);
     cairo_rectangle(cr,
                     container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
@@ -227,13 +226,9 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 
     if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->sound_line_marker_pressed);
-        } else {
-            set_argb(cr, config->sound_line_marker_hovered);
-        }
+        set_argb(cr, config->color_volume_slider_active);
     } else {
-        set_argb(cr, config->sound_line_marker_default);
+        set_argb(cr, config->color_volume_slider_foreground);
     }
 
     rounded_rect(cr,

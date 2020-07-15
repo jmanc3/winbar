@@ -7,82 +7,133 @@
 
 struct Config {
     int taskbar_height = 40;
-    int icon_spacing = 1;
+
     int starting_tab_index = 0;
 
-    std::string resource_path = "~/.config/winbar/resources";
-    std::string font = "segoe ui";
+    std::string font = "Segoe UI";
+
     std::string volume_command;
     std::string wifi_command;
     std::string date_command;
     std::string battery_command;
     std::string systray_command;
+
     std::string file_manager = "thunar";
-
-    std::string interface = "wlp7s0";
-
-    std::vector<std::string> order;
 
     bool date_single_line = false;
 
-    ArgbColor main_bg = {0, 0, 0, 1};
-    ArgbColor main_accent = {.2, .5, .8, 1};
+    std::string interface = "wlp7s0";
 
-    ArgbColor icons_colors = {1, 1, 1, 1};
 
-    ArgbColor button_default = {1, 1, 1, 0};
-    ArgbColor button_hovered = {1, 1, 1, .15};
-    ArgbColor button_pressed = {1, 1, 1, .2};
+    ArgbColor color_taskbar_background = ArgbColor("#ef000000");
+    ArgbColor color_taskbar_button_icons = ArgbColor("#ffffffff");
+    ArgbColor color_taskbar_button_default = ArgbColor("#00ffffff");
+    ArgbColor color_taskbar_button_hovered = ArgbColor("#23ffffff");
+    ArgbColor color_taskbar_button_pressed = ArgbColor("#35ffffff");
+    ArgbColor color_taskbar_windows_button_default_icon = ArgbColor("#ffffffff");
+    ArgbColor color_taskbar_windows_button_hovered_icon = ArgbColor("#ff429ce3");
+    ArgbColor color_taskbar_windows_button_pressed_icon = ArgbColor("#ff0078d7");
+    ArgbColor color_taskbar_search_bar_default_background = ArgbColor("#fff3f3f3");
+    ArgbColor color_taskbar_search_bar_hovered_background = ArgbColor("#ffffffff");
+    ArgbColor color_taskbar_search_bar_pressed_background = ArgbColor("#ffffffff");
+    ArgbColor color_taskbar_search_bar_default_text = ArgbColor("#ff2b2b2b");
+    ArgbColor color_taskbar_search_bar_hovered_text = ArgbColor("#ff2d2d2d");
+    ArgbColor color_taskbar_search_bar_pressed_text = ArgbColor("#ff020202");
+    ArgbColor color_taskbar_search_bar_default_icon = ArgbColor("#ff020202");
+    ArgbColor color_taskbar_search_bar_hovered_icon = ArgbColor("#ff020202");
+    ArgbColor color_taskbar_search_bar_pressed_icon = ArgbColor("#ff020202");
+    ArgbColor color_taskbar_search_bar_default_border = ArgbColor("#ffb4b4b4");
+    ArgbColor color_taskbar_search_bar_hovered_border = ArgbColor("#ffb4b4b4");
+    ArgbColor color_taskbar_search_bar_pressed_border = ArgbColor("#ff0078d7");
+    ArgbColor color_taskbar_date_time_text = ArgbColor("#ffffffff");
+    ArgbColor color_taskbar_application_icons_background = ArgbColor("#ffffffff");
+    ArgbColor color_taskbar_application_icons_accent = ArgbColor("#ff76b9ed");
+    ArgbColor color_taskbar_minimize_line = ArgbColor("#ff222222");
 
-    double taskbar_transparency = .85;
-    ArgbColor icon_default = {1, 1, 1, 0};         // nothing
-    ArgbColor icon_background_back = {1, 1, 1, .1};//
-    ArgbColor icon_background_front = {1, 1, 1, .15};
-    ArgbColor icon_pressed = {1, 1, 1, .2};
-    double icon_bar_height = 2;
+    ArgbColor color_systray_background = ArgbColor("ff282828");
 
-    ArgbColor textfield_default = {.9, .9, .9, 1};
-    ArgbColor textfield_hovered = {1, 1, 1, 1};
-    ArgbColor textfield_pressed = {1, 1, 1, 1};
+    ArgbColor color_battery_background = ArgbColor("ff1f1f1f");
+    ArgbColor color_battery_text = ArgbColor("ffffffff");
+    ArgbColor color_battery_icons = ArgbColor("ffffffff");
+    ArgbColor color_battery_slider_background = ArgbColor("ff797979");
+    ArgbColor color_battery_slider_foreground = ArgbColor("ff0178d6");
+    ArgbColor color_battery_slider_active = ArgbColor("ffffffff");
 
-    ArgbColor textfield_default_font = {.15, .15, .15, 1};
-    ArgbColor textfield_hovered_font = {.15, .15, .15, 1};
-    ArgbColor textfield_pressed_font = {0, 0, 0, 1};
+    ArgbColor color_wifi_background = ArgbColor("ff1f1f1f");
+    ArgbColor color_wifi_icons = ArgbColor("ffffffff");
+    ArgbColor color_wifi_default_button = ArgbColor("00ffffff");
+    ArgbColor color_wifi_hovered_button = ArgbColor("22ffffff");
+    ArgbColor color_wifi_pressed_button = ArgbColor("44ffffff");
+    ArgbColor color_wifi_text_title = ArgbColor("ffffffff");
+    ArgbColor color_wifi_text_title_info = ArgbColor("ffadadad");
+    ArgbColor color_wifi_text_settings_default_title = ArgbColor("ffa5d6fd");
+    ArgbColor color_wifi_text_settings_hovered_title = ArgbColor("ffa4a4a4");
+    ArgbColor color_wifi_text_settings_pressed_title = ArgbColor("ff787878");
+    ArgbColor color_wifi_text_settings_title_info = ArgbColor("ffa4a4a4");
 
-    ArgbColor textfield_default_icon = {0, 0, 0, 1};
-    ArgbColor textfield_hovered_icon = {0, 0, 0, 1};
-    ArgbColor textfield_pressed_icon = {0, 0, 0, 1};
+    ArgbColor color_date_background = ArgbColor("ff1f1f1f");
+    ArgbColor color_date_seperator = ArgbColor("ff4b4b4b");
+    ArgbColor color_date_text = ArgbColor("ffffffff");
+    ArgbColor color_date_text_title = ArgbColor("ffffffff");
+    ArgbColor color_date_text_title_period = ArgbColor("ffa5a5a5");
+    ArgbColor color_date_text_title_info = ArgbColor("ffa5dafd");
+    ArgbColor color_date_text_month_year = ArgbColor("ffdedede");
+    ArgbColor color_date_text_week_day = ArgbColor("ffffffff");
+    ArgbColor color_date_text_current_month = ArgbColor("ffffffff");
+    ArgbColor color_date_text_not_current_month = ArgbColor("ff808080");
+    ArgbColor color_date_cal_background = ArgbColor("ff006fd8");
+    ArgbColor color_date_cal_foreground = ArgbColor("ff000000");
+    ArgbColor color_date_cal_border = ArgbColor("ff797979");
+    ArgbColor color_date_weekday_monthday = ArgbColor("ffffffff");
+    ArgbColor color_date_default_arrow = ArgbColor("ffdfdfdf");
+    ArgbColor color_date_hovered_arrow = ArgbColor("ffefefef");
+    ArgbColor color_date_pressed_arrow = ArgbColor("ffffffff");
+    ArgbColor color_date_text_default_button = ArgbColor("ffa5d6fd");
+    ArgbColor color_date_text_hovered_button = ArgbColor("ffa4a4a4");
+    ArgbColor color_date_text_pressed_button = ArgbColor("ff787878");
+    ArgbColor color_date_cursor = ArgbColor("ffffffff");
+    ArgbColor color_date_text_prompt = ArgbColor("ffcccccc");
 
-    double sound_menu_transparency = .8;
-    ArgbColor sound_bg = {1, 1, 1, .15};
-    ArgbColor sound_font = {1, 1, 1, 1};
-    ArgbColor sound_default_icon = {.9, .9, .9, 1};
-    ArgbColor sound_hovered_icon = {.95, .95, .95, 1};
-    ArgbColor sound_pressed_icon = {1, 1, 1, 1};
-    ArgbColor sound_line_background_default = button_hovered;
-    ArgbColor sound_line_background_active = main_accent;
-    ArgbColor sound_line_marker_default = main_accent;
-    ArgbColor sound_line_marker_hovered = {1, 1, 1, 1};
-    ArgbColor sound_line_marker_pressed = {1, 1, 1, 1};
+    ArgbColor color_volume_background = ArgbColor("ff1f1f1f");
+    ArgbColor color_volume_text = ArgbColor("ffffffff");
+    ArgbColor color_volume_default_icon = ArgbColor("ffd2d2d2");
+    ArgbColor color_volume_hovered_icon = ArgbColor("ffe8e8e8");
+    ArgbColor color_volume_pressed_icon = ArgbColor("ffffffff");
+    ArgbColor color_volume_slider_background = ArgbColor("ff797979");
+    ArgbColor color_volume_slider_foreground = ArgbColor("ff0178d6");
+    ArgbColor color_volume_slider_active = ArgbColor("ffffffff");
 
-    ArgbColor search_menu_color_bg = {.165, .165, .165, 1};
+    ArgbColor color_apps_background = ArgbColor("ff1f1f1f");
+    ArgbColor color_apps_text = ArgbColor("ffffffff");
+    ArgbColor color_apps_icons = ArgbColor("ffffffff");
+    ArgbColor color_apps_default_item = ArgbColor("00ffffff");
+    ArgbColor color_apps_hovered_item = ArgbColor("22ffffff");
+    ArgbColor color_apps_pressed_item = ArgbColor("44ffffff");
+    ArgbColor color_apps_item_icon_background = ArgbColor("ff3380cc");
+    ArgbColor color_apps_scrollbar_gutter = ArgbColor("ff353535");
+    ArgbColor color_apps_scrollbar_default_thumb = ArgbColor("ff5d5d5d");
+    ArgbColor color_apps_scrollbar_hovered_thumb = ArgbColor("ff868686");
+    ArgbColor color_apps_scrollbar_pressed_thumb = ArgbColor("ffaeaeae");
+    ArgbColor color_apps_scrollbar_default_button = ArgbColor("ff353535");
+    ArgbColor color_apps_scrollbar_hovered_button = ArgbColor("ff494949");
+    ArgbColor color_apps_scrollbar_pressed_button = ArgbColor("ffaeaeae");
+    ArgbColor color_apps_scrollbar_default_button_icon = ArgbColor("ffffffff");
+    ArgbColor color_apps_scrollbar_hovered_button_icon = ArgbColor("ffffffff");
+    ArgbColor color_apps_scrollbar_pressed_button_icon = ArgbColor("ff545454");
 
-    ArgbColor search_menu_color_bg_query_left = {.165, .165, .165, 1};
-    ArgbColor search_menu_color_bg_query_right_bg = {.165, .165, .165, 1};
-    ArgbColor search_menu_color_bg_query_right_active = {.165, .165, .165, 1};
+    ArgbColor color_pin_menu_background = ArgbColor("ff1f1f1f");
+    ArgbColor color_pin_menu_hovered_item = ArgbColor("22ffffff");
+    ArgbColor color_pin_menu_pressed_item = ArgbColor("44ffffff");
+    ArgbColor color_pin_menu_text = ArgbColor("ffffffff");
+    ArgbColor color_pin_menu_icons = ArgbColor("ffffffff");
 
-    ArgbColor search_menu_color_header = {.122, .122, .122, 1};
-
-    ArgbColor search_menu_color_header_font_default = {.9, .9, .9, 1};
-    ArgbColor search_menu_color_header_font_hovered = {.95, .95, .95, 1};
-    ArgbColor search_menu_color_header_font_pressed = {1, 1, 1, 1};
-
-    ArgbColor textfield_border_default = {.72, .72, .72, 1};
-    ArgbColor textfield_border_highlight = main_accent;
-
-    ArgbColor show_desktop_stripe = {.4, .4, .4, 1};
-
-    ArgbColor calendar_font_default = {1, 1, 1, 1};
+    ArgbColor color_windows_selector_default_background = ArgbColor("ff282828");
+    ArgbColor color_windows_selector_hovered_background = ArgbColor("ff3d3d3d");
+    ArgbColor color_windows_selector_pressed_background = ArgbColor("ff535353");
+    ArgbColor color_windows_selector_close_icon = ArgbColor("ffffffff");
+    ArgbColor color_windows_selector_text = ArgbColor("ffffffff");
+    ArgbColor color_windows_selector_close_icon_hovered_background = ArgbColor("ffc61a28");
+    ArgbColor color_windows_selector_close_icon_pressed_background = ArgbColor("ffe81123");
 };
 
 extern Config *config;

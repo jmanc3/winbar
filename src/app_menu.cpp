@@ -40,30 +40,26 @@ static double scrollbar_visible = 0;
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, config->sound_bg);
+    set_argb(cr, config->color_apps_background);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 }
 
 static void
 paint_left(AppClient *client, cairo_t *cr, Container *container) {
-    ArgbColor color = config->sound_bg;
-    color.r = color.a;
-    color.g = color.a;
-    color.b = color.a;
-    color.a = 1;
-
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     double openess = (container->real_bounds.w - 48) / 256;
 
     if (container->real_bounds.w == 48)
-        set_argb(cr, color);
+        set_argb(cr, config->color_apps_background);
     else {
-        color.r = color.g = color.b += (.1 * openess);
-        color.a = 1 - (.03 * openess);
+        ArgbColor color = config->color_apps_background;
+        lighten(&color, 10 * openess);
         set_argb(cr, color);
     }
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 }
 
 static void
@@ -78,9 +74,9 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
 
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->button_pressed);
+            set_argb(cr, config->color_apps_pressed_item);
         } else {
-            set_argb(cr, config->button_hovered);
+            set_argb(cr, config->color_apps_hovered_item);
         }
         int border = 0;
 
@@ -99,7 +95,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
         int width = cairo_image_surface_get_width(data->surface);
         int height = cairo_image_surface_get_height(data->surface);
 
-        dye_surface(data->surface, config->icons_colors);
+        dye_surface(data->surface, config->color_apps_icons);
 
         cairo_set_source_surface(
                 cr,
@@ -122,7 +118,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
             layout = get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_BOLD);
         }
 
-        set_argb(cr, config->calendar_font_default);
+        set_argb(cr, config->color_apps_text);
         pango_layout_set_text(layout, data->text.c_str(), data->text.length());
 
         int width, height;
@@ -146,14 +142,6 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
         cairo_paint(cr);
         cairo_restore(cr);
     }
-}
-
-static void
-paint_right(AppClient *client, cairo_t *cr, Container *container) {
-    return;
-    set_argb(cr, ArgbColor(1, 0, 0, 1));
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
 }
 
 static void
@@ -183,9 +171,9 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
 
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->button_pressed);
+            set_argb(cr, config->color_apps_pressed_item);
         } else {
-            set_argb(cr, config->button_hovered);
+            set_argb(cr, config->color_apps_hovered_item);
         }
         int border = 0;
 
@@ -197,12 +185,12 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
         cairo_fill(cr);
     }
 
-    set_argb(cr, config->main_accent);
+    set_argb(cr, config->color_apps_item_icon_background);
     cairo_rectangle(cr, container->real_bounds.x + 4, container->real_bounds.y + 2, 32, 32);
     cairo_fill(cr);
 
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "config->font", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text(data->launcher->name);
     pango_layout_set_text(layout, text.c_str(), text.size());
 
@@ -210,7 +198,7 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
 
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    set_argb(cr, config->color_apps_text);
     cairo_move_to(cr,
                   container->real_bounds.x + 44,
                   container->real_bounds.y + container->real_bounds.h / 2 -
@@ -239,16 +227,16 @@ paint_item_title(AppClient *client, cairo_t *cr, Container *container) {
 
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->button_pressed);
+            set_argb(cr, config->color_apps_pressed_item);
         } else {
-            set_argb(cr, config->button_hovered);
+            set_argb(cr, config->color_apps_hovered_item);
         }
         set_rect(cr, container->real_bounds);
         cairo_fill(cr);
     }
 
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe UI", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "config->font", 9, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text(data->text);
     pango_layout_set_text(layout, text.c_str(), text.size());
 
@@ -256,7 +244,7 @@ paint_item_title(AppClient *client, cairo_t *cr, Container *container) {
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
 
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    set_argb(cr, config->color_apps_text);
     cairo_move_to(cr,
                   container->real_bounds.x + 3,
                   container->real_bounds.y + container->real_bounds.h / 2 -
@@ -271,7 +259,9 @@ paint_scroll_bg(AppClient *client, cairo_t *cr, Container *container) {
 #endif
 
     set_rect(cr, container->real_bounds);
-    set_argb(cr, ArgbColor(.208, .208, .208, scrollbar_openess));
+    ArgbColor color = config->color_apps_scrollbar_gutter;
+    color.a = scrollbar_openess;
+    set_argb(cr, color);
     cairo_fill(cr);
 }
 
@@ -282,23 +272,35 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
             set_rect(cr, container->real_bounds);
-            set_argb(cr, ArgbColor(.682, .682, .682, scrollbar_openess));
+            ArgbColor color = config->color_apps_scrollbar_pressed_button;
+            color.a = scrollbar_openess;
+            set_argb(cr, color);
             cairo_fill(cr);
         } else {
             set_rect(cr, container->real_bounds);
-            set_argb(cr, ArgbColor(.286, .286, .286, scrollbar_openess));
+            ArgbColor color = config->color_apps_scrollbar_hovered_button;
+            color.a = scrollbar_openess;
+            set_argb(cr, color);
             cairo_fill(cr);
         }
     } else {
-        paint_scroll_bg(client, cr, container);
+        set_rect(cr, container->real_bounds);
+        ArgbColor color = config->color_apps_scrollbar_default_button;
+        color.a = scrollbar_openess;
+        set_argb(cr, color);
+        cairo_fill(cr);
     }
 
     if (data->surface) {
         // TODO: cache the dye so we only do it once
-        if (container->state.mouse_pressing) {
-            dye_surface(data->surface, ArgbColor(.333, .333, .333, 1));
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                dye_surface(data->surface, config->color_apps_scrollbar_pressed_button_icon);
+            } else {
+                dye_surface(data->surface, config->color_apps_scrollbar_hovered_button_icon);
+            }
         } else {
-            dye_surface(data->surface, ArgbColor(.82, .82, .82, 1));
+            dye_surface(data->surface, config->color_apps_scrollbar_default_button_icon);
         }
 
         cairo_set_source_surface(
@@ -327,28 +329,24 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, right_bounds);
 
     if (container->state.mouse_pressing) {
-        set_argb(cr, ArgbColor(.682, .682, .682, scrollbar_visible));
+        ArgbColor color = config->color_apps_scrollbar_pressed_thumb;
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
     } else if (bounds_contains(right_bounds, client->mouse_current_x, client->mouse_current_y)) {
-        set_argb(cr, ArgbColor(.525, .525, .525, scrollbar_visible));
+        ArgbColor color = config->color_apps_scrollbar_hovered_thumb;
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
     } else if (right_bounds.w == 2.0) {
-        set_argb(cr, ArgbColor(.482, .482, .482, scrollbar_visible));
+        ArgbColor color = config->color_apps_scrollbar_default_thumb;
+        lighten(&color, 10);
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
     } else {
-        set_argb(cr, ArgbColor(.365, .365, .365, scrollbar_visible));
+        ArgbColor color = config->color_apps_scrollbar_default_thumb;
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
     }
 
-    cairo_fill(cr);
-}
-
-static void
-paint_bottom_thumb(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-
-    Container *scrollpane = container->parent->parent;
-
-    set_rect(cr, bottom_thumb_bounds(scrollpane, container->real_bounds));
-    set_argb(cr, ArgbColor(0, 0, 1, 1));
     cairo_fill(cr);
 }
 
@@ -626,7 +624,6 @@ fill_root(AppClient *client) {
 
     bottom_arrow->user_data = bottom_data;
 
-    content_area->when_paint = paint_right;
     content_area->wanted_pad = Bounds(13, 8, settings.right_width + 1, 54);
 
     Container *content = content_area->child(FILL_SPACE, 0);

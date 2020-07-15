@@ -1827,8 +1827,7 @@ textarea_key_release(AppClient *client,
 
 
 void
-blink(AppClient *client, Container *textarea)
-{
+blink(AppClient *client, Container *textarea) {
     App *app = client->app;
     std::unique_lock m(app->clients_mutex);
     while (valid_client(app, client)) {

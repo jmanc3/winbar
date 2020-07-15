@@ -7,6 +7,7 @@
 #include "root.h"
 #include "systray.h"
 #include "taskbar.h"
+#include "config.h"
 
 App *app;
 
@@ -20,6 +21,9 @@ int main() {
         printf("Couldn't start application\n");
         return -1;
     }
+
+    // Load the config
+    config_load();
 
     // Add listeners and grabs on the root window
     root_start(app);
@@ -36,7 +40,7 @@ int main() {
     // We only want to load the desktop files once at the start of the program
     //std::thread(load_desktop_files).detach();
     load_desktop_files();
-    load_scripts();// The scripts are reloaded everytime the search_menu window closes
+    load_scripts();// The scripts are reloaded every time the search_menu window closes
     load_historic_scripts();
     load_historic_apps();
 
