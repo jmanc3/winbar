@@ -108,7 +108,7 @@ paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *con
             client_create_animation(app, client, &data->color.b, 20, nullptr, hovered_color.b);
             client_create_animation(app, client, &data->color.a, 20, nullptr, hovered_color.a);
         }
-    } else if (data->previous_state != 0){
+    } else if (data->previous_state != 0) {
         data->previous_state = 0;
         client_create_animation(app, client, &data->color.r, 40, nullptr, default_color.r);
         client_create_animation(app, client, &data->color.g, 40, nullptr, default_color.g);
@@ -2092,7 +2092,7 @@ late_classes_update() {
         }
 
         lock.unlock();
-        usleep(1000 * 1000);
+        usleep(1000 * 10000);
         lock.lock();
     }
 }

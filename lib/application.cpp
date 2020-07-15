@@ -716,6 +716,9 @@ void desktops_change(App *app, long desktop_index) {
 }
 
 void request_refresh(App *app, AppClient *client) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (app == nullptr || !valid_client(app, client))
         return;
 

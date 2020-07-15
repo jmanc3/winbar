@@ -1837,12 +1837,16 @@ blink(AppClient *client, Container *textarea) {
 
         if (passage > 490) {
             data->state->cursor_on = !data->state->cursor_on;
-            request_refresh(app, client);
+            if (textarea->parent->active) {
+                request_refresh(app, client);
+            }
             m.unlock();
             usleep(1000 * 500);
             m.lock();
         } else {
-            request_refresh(app, client);
+            if (textarea->parent->active) {
+                request_refresh(app, client);
+            }
             m.unlock();
             usleep(1000 * (500 - passage));
             m.lock();
