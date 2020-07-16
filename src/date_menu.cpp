@@ -575,35 +575,24 @@ gravity_to_string(xcb_gravity_t gravity) {
 static void
 clicked_agenda(AppClient *client, cairo_t *cr, Container *container) {
     if (auto *client = client_by_name(app, "date_menu")) {
-        xcb_gravity_t gravity = XCB_GRAVITY_NORTH;
-        const char *name = gravity_to_string(gravity);
-        xcb_size_hints_t size_hints;
-
-        memset(&size_hints, 0, sizeof(size_hints));
-        size_hints.win_gravity = gravity;
-        size_hints.flags = XCB_ICCCM_SIZE_HINT_US_POSITION | XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY;
-
-        xcb_change_property(app->connection,
-                            XCB_PROP_MODE_REPLACE,
-                            client->window,
-                            XCB_ATOM_WM_NAME,
-                            XCB_ATOM_STRING,
-                            8,
-                            strlen(name),
-                            name);
-        xcb_icccm_set_wm_size_hints(
-                app->connection, client->window, XCB_ATOM_WM_NORMAL_HINTS, &size_hints);
-        uint32_t value_mask = XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_HEIGHT;
+        uint32_t value_mask =
+                XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
 
         if (agenda_showing) {
             uint32_t value_list_resize[] = {
+                    (uint32_t) client->bounds->x,
                     (uint32_t) (app->bounds.h - config->taskbar_height - 502),
+                    (uint32_t) client->bounds->w,
                     (uint32_t) (502),
             };
             xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
         } else {
             uint32_t value_list_resize[] = {
-                    (uint32_t) (app->bounds.h - config->taskbar_height - 735), (uint32_t) (735)};
+                    (uint32_t) client->bounds->x,
+                    (uint32_t) (app->bounds.h - config->taskbar_height - 735),
+                    (uint32_t) client->bounds->w,
+                    (uint32_t) (735),
+            };
             xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
         }
         xcb_flush(app->connection);
@@ -1056,7 +1045,7 @@ void start_date_menu() {
     settings.decorations = false;
     settings.force_position = true;
     settings.sticky = true;
-    // settings.popup = true;
+    settings.popup = true;
 
     AppClient *client = client_new(app, settings, "date_menu");
     client->grab_event_handler = grab_event_handler;
