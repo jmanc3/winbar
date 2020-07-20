@@ -974,6 +974,13 @@ grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
         case XCB_BUTTON_PRESS: {
             auto *e = (xcb_button_press_event_t *) (event);
+
+            if (auto *textarea = container_by_name("main_text_area", client->root)) {
+                if (!bounds_contains(textarea->real_bounds, e->event_x, e->event_y)) {
+                    textarea->parent->active = false;
+                }
+            }
+
             if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
                 client_close_threaded(app, client);
                 xcb_flush(app->connection);
