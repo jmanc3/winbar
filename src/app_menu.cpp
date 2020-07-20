@@ -494,6 +494,7 @@ clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) 
     if (!config->file_manager.empty()) {
         launch_command(config->file_manager);
     }
+    set_textarea_inactive();
     client_close_threaded(client->app, client);
     xcb_flush(app->connection);
     app->grab_window = -1;
@@ -501,13 +502,16 @@ clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) 
 
 static void
 clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
+    config_load();
     client_close_threaded(client->app, client);
+    set_textarea_inactive();
     xcb_flush(app->connection);
     app->grab_window = -1;
 }
 
 static void
 clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
+    set_textarea_inactive();
     client_close_threaded(client->app, client);
     xcb_flush(app->connection);
     app->grab_window = -1;
