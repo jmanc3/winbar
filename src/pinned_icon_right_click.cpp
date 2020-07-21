@@ -129,8 +129,8 @@ paint_text(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, config->color_pin_menu_background);
     set_rect(cr, container->real_bounds);
+    set_argb(cr, correct_opaqueness(client, config->color_pin_menu_background));
     cairo_fill(cr);
 }
 

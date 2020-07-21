@@ -36,8 +36,8 @@ void wifi_state(bool *up, bool *wired) {
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, config->color_wifi_background);
     set_rect(cr, container->real_bounds);
+    set_argb(cr, correct_opaqueness(client, config->color_wifi_background));
     cairo_fill(cr);
 }
 

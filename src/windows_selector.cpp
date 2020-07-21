@@ -141,12 +141,12 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
 
     if (hovered || pressed) {
         if (pressed) {
-            set_argb(cr, config->color_windows_selector_pressed_background);
+            set_argb(cr, correct_opaqueness(client_entity, config->color_windows_selector_pressed_background));
         } else {
-            set_argb(cr, config->color_windows_selector_hovered_background);
+            set_argb(cr, correct_opaqueness(client_entity, config->color_windows_selector_hovered_background));
         }
     } else {
-        set_argb(cr, config->color_windows_selector_default_background);
+        set_argb(cr, correct_opaqueness(client_entity, config->color_windows_selector_default_background));
     }
     cairo_rectangle(cr,
                     container->real_bounds.x,

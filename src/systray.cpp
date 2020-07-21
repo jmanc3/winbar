@@ -48,7 +48,7 @@ paint_display(AppClient *client_entity, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    ArgbColor bg_color = config->color_systray_background;
+    ArgbColor bg_color = correct_opaqueness(client_entity, config->color_systray_background);
 
     for (int i = 0; i < systray_icons.size(); i++) {
         Systray_Icon *icon = systray_icons[i];
@@ -75,8 +75,9 @@ paint_display(AppClient *client_entity, cairo_t *cr, Container *container) {
     xcb_flush(app->connection);
 
     // paint the background
-    set_argb(cr, bg_color);
+
     set_rect(cr, container->real_bounds);
+    set_argb(cr, bg_color);
     cairo_fill(cr);
 }
 

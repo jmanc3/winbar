@@ -58,8 +58,8 @@ fill_root(Container *root);
 
 static void
 paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
-    set_argb(cr, config->color_volume_background);
     set_rect(cr, container->real_bounds);
+    set_argb(cr, correct_opaqueness(client_entity, config->color_volume_background));
     cairo_fill(cr);
 
     if (!audio_connected) {

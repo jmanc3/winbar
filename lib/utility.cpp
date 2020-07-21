@@ -492,3 +492,51 @@ accelerated_surface(App *app, AppClient *client_entity, int w, int h) {
 void paint_surface_with_data(cairo_surface_t *surface, uint32_t *icon_data) {
     unsigned char *data = cairo_image_surface_get_data(surface);
 }
+
+bool there_is_a_compositor(App *app) {
+    const char register_prop[] = "_NET_WM_CM_S";
+    xcb_atom_t atom;
+
+    char *buf = NULL;
+    if (asprintf(&buf, "%s%d", register_prop, app->screen_number) < 0) {
+        return false;
+    }
+    atom = get_cached_atom(app, buf);
+    free(buf);
+
+    xcb_get_selection_owner_reply_t *reply = xcb_get_selection_owner_reply(
+            app->connection, xcb_get_selection_owner(app->connection, atom), NULL);
+
+    if (reply && reply->owner != XCB_NONE) {
+        // Another compositor already running
+        free(reply);
+        return true;
+    }
+    free(reply);
+    return false;
+}
+
+static long last_check = 0;
+static bool previous_result = false;
+
+bool screen_has_transparency(App *app) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    long current_time = get_current_time_in_ms();
+    if ((current_time - last_check) > 5000) { // Recheck every so often
+        last_check = current_time;
+        previous_result = there_is_a_compositor(app);
+    }
+    return previous_result;
+}
+
+ArgbColor correct_opaqueness(AppClient *client, ArgbColor color) {
+    double alpha;
+    if (screen_has_transparency(client->app)) {
+        alpha = color.a;
+    } else {
+        alpha = 1;
+    }
+    return ArgbColor(color.r, color.g, color.g, alpha);
+}

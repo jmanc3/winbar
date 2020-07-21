@@ -79,7 +79,7 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
 #endif
 
     set_rect(cr, container->real_bounds);
-    set_argb(cr, config->color_taskbar_background);
+    set_argb(cr, correct_opaqueness(client, config->color_taskbar_background));
     cairo_fill(cr);
 }
 

@@ -122,4 +122,8 @@ void load_icon_full_path(App *app,
                          cairo_surface_t **surface,
                          std::string path);
 
+bool screen_has_transparency(App *app);
+
+ArgbColor correct_opaqueness(AppClient *client, ArgbColor color);
+
 #endif

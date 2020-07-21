@@ -40,8 +40,8 @@ static double scrollbar_visible = 0;
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, config->color_apps_background);
     set_rect(cr, container->real_bounds);
+    set_argb(cr, correct_opaqueness(client, config->color_apps_background));
     cairo_fill(cr);
 }
 
@@ -50,10 +50,10 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     double openess = (container->real_bounds.w - 48) / 256;
 
-    if (container->real_bounds.w == 48)
-        set_argb(cr, config->color_apps_background);
-    else {
-        ArgbColor color = config->color_apps_background;
+    if (container->real_bounds.w == 48) {
+        set_argb(cr, correct_opaqueness(client, config->color_apps_background));
+    } else {
+        ArgbColor color = correct_opaqueness(client, config->color_apps_background);
         lighten(&color, 10 * openess);
         set_argb(cr, color);
     }
