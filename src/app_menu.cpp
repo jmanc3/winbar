@@ -47,6 +47,9 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_left(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     double openess = (container->real_bounds.w - 48) / 256;
 
@@ -60,6 +63,24 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+
+    easingFunction ease = getEasingFunction(easing_functions::EaseOutSine);
+    if (container->real_bounds.w != 48) {
+        int steps = 30;
+        for (int i = 0; i < steps; i++) {
+            double scalar = ((double) (i)) / steps;
+            scalar = (1 - scalar) * openess;
+            scalar = ease(scalar);
+            scalar /= 4;
+            cairo_rectangle(cr,
+                            (int) (container->real_bounds.x + container->real_bounds.w + i),
+                            (int) (container->real_bounds.y),
+                            1,
+                            (int) (container->real_bounds.h));
+            set_argb(cr, ArgbColor(0, 0, 0, scalar));
+            cairo_fill(cr);
+        }
+    }
 }
 
 static void
