@@ -67,13 +67,6 @@ public:
     ~TabData() { cairo_surface_destroy(surface); }
 };
 
-static void
-paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, ArgbColor(0, 0, 0, 1));
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
-}
-
 static bool first_expose = true;
 
 static void
@@ -164,94 +157,24 @@ search_menu_event_handler(App *app, xcb_generic_event_t *event) {
 
 static void
 paint_top(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, ArgbColor(.122, .122, .122, 1));
+    set_argb(cr, correct_opaqueness(client, config->color_search_tab_bar_background));
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 }
 
 static void
-paint_splitter(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, ArgbColor(.11, .11, .11, 1));
+paint_top_splitter(AppClient *client, cairo_t *cr, Container *container) {
+    ArgbColor color = correct_opaqueness(client, config->color_search_tab_bar_background);
+    darken(&color, 7);
+    set_argb(cr, color);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 }
 
 static void
 paint_left_bg(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, ArgbColor(.941, .941, .941, 1));
+    set_argb(cr, correct_opaqueness(client, config->color_search_content_left_background));
     set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
-}
-
-static void
-paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    Container *scrollpane = container->parent->parent;
-
-    auto right_bounds = right_thumb_bounds(scrollpane, container->real_bounds);
-
-    right_bounds.x += right_bounds.w;
-    right_bounds.w = std::max(right_bounds.w * 1, 2.0);
-    right_bounds.x -= right_bounds.w;
-    right_bounds.x -= 2 * (1 - 1);
-
-    set_rect(cr, right_bounds);
-
-    if (container->state.mouse_pressing) {
-        set_argb(cr, ArgbColor(.682, .682, .682, 1));
-    } else if (bounds_contains(right_bounds, client->mouse_current_x, client->mouse_current_y)) {
-        set_argb(cr, ArgbColor(.525, .525, .525, 1));
-    } else if (right_bounds.w == 2.0) {
-        set_argb(cr, ArgbColor(.482, .482, .482, 1));
-    } else {
-        set_argb(cr, ArgbColor(.365, .365, .365, 1));
-    }
-
-    cairo_fill(cr);
-}
-
-static void
-paint_show(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, ArgbColor(0, 0, 0, .3));
-        } else {
-            set_argb(cr, ArgbColor(0, 0, 0, .1));
-        }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
-    }
-
-    if (container->parent->active)
-        set_argb(cr, ArgbColor(1, 0, 1, 1));
-    else
-        set_argb(cr, ArgbColor(0, 1, 1, 1));
-
-    cairo_rectangle(
-            cr, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w, 1);
-    cairo_fill(cr);
-
-    cairo_rectangle(
-            cr, container->real_bounds.x, container->real_bounds.y, 1, container->real_bounds.h);
-    cairo_fill(cr);
-
-    cairo_rectangle(cr,
-                    container->real_bounds.x + container->real_bounds.w - 1,
-                    container->real_bounds.y,
-                    1,
-                    container->real_bounds.h);
-    cairo_fill(cr);
-
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
-                    container->real_bounds.y + container->real_bounds.h - 1,
-                    container->real_bounds.w,
-                    1);
     cairo_fill(cr);
 }
 
@@ -390,7 +313,7 @@ static void
 paint_item_background(AppClient *client, cairo_t *cr, Container *container, int other_index) {
     auto *data = (SearchItemData *) container->parent->user_data;
     if (data->item_number == active_item) {
-        set_argb(cr, ArgbColor(.659, .800, .914, 1));
+        set_argb(cr, config->color_search_content_left_button_active);
         set_rect(cr, container->real_bounds);
         cairo_fill(cr);
         return;
@@ -412,25 +335,24 @@ paint_item_background(AppClient *client, cairo_t *cr, Container *container, int 
     if (something->state.mouse_pressing || something->state.mouse_hovering) {
         if (something->state.mouse_pressing) {
             if (use_other_index) {
-                set_argb(cr, ArgbColor(.753, .753, .753, 1));
+                set_argb(cr, config->color_search_content_left_set_active_button_pressed);
             } else {
-                set_argb(cr, ArgbColor(.678, .678, .678, 1));
+                set_argb(cr, config->color_search_content_left_button_pressed);
             }
         } else {
             if (use_other_index) {
-                set_argb(cr, ArgbColor(.847, .847, .847, 1));
+                set_argb(cr, config->color_search_content_left_set_active_button_hovered);
             } else {
-                set_argb(cr, ArgbColor(.761, .761, .761, 1));
+                set_argb(cr, config->color_search_content_left_button_hovered);
             }
         }
-
     } else {
-        set_argb(cr, ArgbColor(.941, .941, .941, 1));
+        set_argb(cr, config->color_search_content_left_button_default);
     }
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
     if (other_index == 0 && (something->state.mouse_pressing || something->state.mouse_hovering)) {
-        set_argb(cr, ArgbColor(1, 1, 1, 1));
+        set_argb(cr, config->color_search_content_left_button_splitter);
         cairo_rectangle(
                 cr, container->real_bounds.x, container->real_bounds.y, 1, container->real_bounds.h);
         cairo_fill(cr);
@@ -443,15 +365,15 @@ paint_right_item(AppClient *client, cairo_t *cr, Container *container) {
 
     if (arrow_right_surface) {
         if (container->state.mouse_pressing) {
-            dye_surface(arrow_right_surface, ArgbColor(1, 1, 1, 1));
+            dye_surface(arrow_right_surface, config->color_search_content_left_set_active_button_icon_pressed);
         } else {
-            dye_surface(arrow_right_surface, ArgbColor(.376, .376, .376, 1));
+            dye_surface(arrow_right_surface, config->color_search_content_left_set_active_button_icon_default);
         }
 
         cairo_set_source_surface(cr,
                                  arrow_right_surface,
-                                 container->real_bounds.x + container->real_bounds.w / 2 - 16 / 2,
-                                 container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2);
+                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - 16 / 2),
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2));
         cairo_paint(cr);
     }
 }
@@ -492,7 +414,7 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
         pango_layout_set_attributes(layout, attrs);
     }
 
-    set_argb(cr, ArgbColor(0, 0, 0, 1));
+    set_argb(cr, config->color_search_content_text_primary);
     pango_layout_set_text(layout, data->sortable->name.data(), data->sortable->name.size());
 
     PangoRectangle ink;
@@ -567,7 +489,7 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, ArgbColor(0, 0, 0, 1));
+    set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr, (int) (container->real_bounds.x + 56), (int) (container->real_bounds.y + 10));
     pango_cairo_show_layout(cr, layout);
     pango_layout_set_attributes(layout, nullptr);
@@ -577,7 +499,7 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, active_tab.c_str(), active_tab.size());
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, ArgbColor(.341, .341, .341, 1));
+    set_argb(cr, config->color_search_content_text_secondary);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + 56),
                   (int) (container->real_bounds.y + container->real_bounds.h - 10 - height));
@@ -616,7 +538,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, data->text.c_str(), data->text.size());
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, ArgbColor(0, 0, 0, 1));
+    set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + 13),
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
@@ -648,7 +570,7 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, ArgbColor(0, 0, 0, 1));
+    set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
                   (int) (container->real_bounds.y + 106 - height / 2));
@@ -663,7 +585,7 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, active_tab.data(), active_tab.length());
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, ArgbColor(.404, .404, .404, 1));
+    set_argb(cr, config->color_search_content_text_secondary);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
                   (int) (container->real_bounds.y + 106 + height - (height / 3)));
@@ -693,7 +615,7 @@ paint_spacer(AppClient *client, cairo_t *cr, Container *container) {
     b.x += 6;
     b.w -= 6;
     set_rect(cr, b);
-    set_argb(cr, ArgbColor(.949, .949, .949, 1));
+    set_argb(cr, config->color_search_content_right_splitter);
     cairo_fill(cr);
 }
 
@@ -701,12 +623,12 @@ static void
 paint_open(AppClient *client, cairo_t *cr, Container *container) {
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, ArgbColor(.678, .678, .678, 1));
+            set_argb(cr, config->color_search_content_right_button_pressed);
         } else {
-            set_argb(cr, ArgbColor(.761, .761, .761, 1));
+            set_argb(cr, config->color_search_content_right_button_hovered);
         }
     } else {
-        set_argb(cr, ArgbColor(1, 1, 1, 1));
+        set_argb(cr, config->color_search_content_right_button_default);
     }
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
@@ -720,18 +642,18 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, text.c_str(), text.size());
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, ArgbColor(0, 0, 0, 1));
+    set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + 52),
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
 
     if (open_surface) {
-        dye_surface(open_surface, ArgbColor(.2, .5, .8, 1));
+        dye_surface(open_surface, config->color_search_accent);
         cairo_set_source_surface(cr,
                                  open_surface,
-                                 container->real_bounds.x + 23,
-                                 container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2);
+                                 (int) (container->real_bounds.x + 23),
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2));
         cairo_paint(cr);
     }
 }
@@ -866,23 +788,27 @@ paint_hbox(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_right_bg(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, ArgbColor(.961, .961, .961, 1));
+    set_argb(cr, correct_opaqueness(client, config->color_search_content_right_background));
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 }
 
 static void
 paint_right_fg(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    set_argb(cr, correct_opaqueness(client, config->color_search_content_right_foreground));
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 }
 
 static void
 paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
-    set_argb(cr, ArgbColor(.165, .165, .165, 1));
+    set_argb(cr, correct_opaqueness(client, config->color_search_empty_tab_content_background));
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
+
+    if (!container->children.empty()) {
+        return;
+    }
 
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 20, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -897,7 +823,7 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, text.c_str(), text.size());
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, ArgbColor(.663, .663, .663, 1));
+    set_argb(cr, config->color_search_empty_tab_content_text);
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
                   container->real_bounds.y + container->real_bounds.h - 256 - height / 2);
@@ -907,6 +833,7 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
         for (auto *tab : tab_group->children) {
             auto *tab_data = (TabData *) tab->user_data;
             if (tab_data->name == active_tab && tab_data->surface) {
+                dye_surface(tab_data->surface, config->color_search_empty_tab_content_icon);
                 cairo_set_source_surface(cr,
                                          tab_data->surface,
                                          container->real_bounds.x + container->real_bounds.w / 2 -
@@ -929,17 +856,13 @@ paint_tab(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_get_pixel_size(layout, &width, &height);
 
     if (data->name == active_tab) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, ArgbColor(.9, .9, .9, 1));
-        } else {
-            set_argb(cr, ArgbColor(1, 1, 1, 1));
-        }
+        set_argb(cr, config->color_search_tab_bar_active_text);
     } else if (container->state.mouse_pressing) {
-        set_argb(cr, ArgbColor(.65, .65, .65, 1));
+        set_argb(cr, config->color_search_tab_bar_pressed_text);
     } else if (container->state.mouse_hovering) {
-        set_argb(cr, ArgbColor(.85, .85, .85, 1));
+        set_argb(cr, config->color_search_tab_bar_hovered_text);
     } else {
-        set_argb(cr, ArgbColor(.75, .75, .75, 1));
+        set_argb(cr, config->color_search_tab_bar_default_text);
     }
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
@@ -953,7 +876,7 @@ paint_tab(AppClient *client, cairo_t *cr, Container *container) {
                         container->real_bounds.y + container->real_bounds.h - height,
                         container->real_bounds.w,
                         height);
-        set_argb(cr, ArgbColor(.2, .5, .8, 1));
+        set_argb(cr, config->color_search_accent);
         cairo_fill(cr);
     }
 }
@@ -1034,7 +957,6 @@ add_tab(AppClient *client, Container *tab_bar, std::string tab_name) {
 static void
 fill_root(AppClient *client) {
     Container *root = client->root;
-    root->when_paint = paint_root;
     root->type = ::vbox;
 
     auto *top = root->child(FILL_SPACE, 51);
@@ -1054,7 +976,7 @@ fill_root(AppClient *client) {
     }
 
     auto *splitter = root->child(FILL_SPACE, 1);
-    splitter->when_paint = paint_splitter;
+    splitter->when_paint = paint_top_splitter;
 
     auto *bottom = root->child(FILL_SPACE, FILL_SPACE);
     bottom->name = "bottom";
@@ -1067,7 +989,7 @@ fill_root(AppClient *client) {
     script_64 = accelerated_surface(client->app, client, 64, 64);
     paint_surface_with_image(script_64, as_resource_path("script-64.svg"), nullptr);
     arrow_right_surface = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(arrow_right_surface, as_resource_path("arrow-right.png"), nullptr);
+    paint_surface_with_image(arrow_right_surface, as_resource_path("search-right.png"), nullptr);
     open_surface = accelerated_surface(client->app, client, 16, 16);
     paint_surface_with_image(open_surface, as_resource_path("open.png"), nullptr);
 }
@@ -1137,10 +1059,6 @@ void sort_and_add(std::vector<T> *sortables,
         content_area->name = "content_area";
         content_area->scroll_v_real = scroll_amount;
         content_area->scroll_v_visual = scroll_amount;
-        Container *top_arrow = content_area->parent->children[0]->children[0];
-        Container *right_thumb = content_area->parent->children[0]->children[1];
-        Container *bottom_arrow = content_area->parent->children[0]->children[2];
-        right_thumb->when_paint = paint_right_thumb;
 
         Container *content = content_area->child(::vbox, FILL_SPACE, 0);
         content->spacing = 0;

@@ -225,6 +225,62 @@ void config_load() {
                         load_hex(theme, "color_windows_selector_close_icon_pressed_background",
                                  &config->color_windows_selector_close_icon_pressed_background);
 
+                        load_hex(theme, "color_search_tab_bar_background", &config->color_search_tab_bar_background);
+                        load_hex(theme, "color_search_accent", &config->color_search_accent);
+                        load_hex(theme, "color_search_tab_bar_default_text",
+                                 &config->color_search_tab_bar_default_text);
+                        load_hex(theme, "color_search_tab_bar_hovered_text",
+                                 &config->color_search_tab_bar_hovered_text);
+                        load_hex(theme, "color_search_tab_bar_pressed_text",
+                                 &config->color_search_tab_bar_pressed_text);
+                        load_hex(theme, "color_search_tab_bar_active_text", &config->color_search_tab_bar_active_text);
+                        load_hex(theme, "color_search_empty_tab_content_background",
+                                 &config->color_search_empty_tab_content_background);
+                        load_hex(theme, "color_search_empty_tab_content_icon",
+                                 &config->color_search_empty_tab_content_icon);
+                        load_hex(theme, "color_search_empty_tab_content_text",
+                                 &config->color_search_empty_tab_content_text);
+                        load_hex(theme, "color_search_content_left_background",
+                                 &config->color_search_content_left_background);
+                        load_hex(theme, "color_search_content_right_background",
+                                 &config->color_search_content_right_background);
+                        load_hex(theme, "color_search_content_right_foreground",
+                                 &config->color_search_content_right_foreground);
+                        load_hex(theme, "color_search_content_right_splitter",
+                                 &config->color_search_content_right_splitter);
+                        load_hex(theme, "color_search_content_text_primary",
+                                 &config->color_search_content_text_primary);
+                        load_hex(theme, "color_search_content_text_secondary",
+                                 &config->color_search_content_text_secondary);
+                        load_hex(theme, "color_search_content_right_button_default",
+                                 &config->color_search_content_right_button_default);
+                        load_hex(theme, "color_search_content_right_button_hovered",
+                                 &config->color_search_content_right_button_hovered);
+                        load_hex(theme, "color_search_content_right_button_pressed",
+                                 &config->color_search_content_right_button_pressed);
+                        load_hex(theme, "color_search_content_left_button_splitter",
+                                 &config->color_search_content_left_button_splitter);
+                        load_hex(theme, "color_search_content_left_button_default",
+                                 &config->color_search_content_left_button_default);
+                        load_hex(theme, "color_search_content_left_button_hovered",
+                                 &config->color_search_content_left_button_hovered);
+                        load_hex(theme, "color_search_content_left_button_pressed",
+                                 &config->color_search_content_left_button_pressed);
+                        load_hex(theme, "color_search_content_left_button_active",
+                                 &config->color_search_content_left_button_active);
+                        load_hex(theme, "color_search_content_left_set_active_button_default",
+                                 &config->color_search_content_left_set_active_button_default);
+                        load_hex(theme, "color_search_content_left_set_active_button_hovered",
+                                 &config->color_search_content_left_set_active_button_hovered);
+                        load_hex(theme, "color_search_content_left_set_active_button_pressed",
+                                 &config->color_search_content_left_set_active_button_pressed);
+                        load_hex(theme, "color_search_content_left_set_active_button_active",
+                                 &config->color_search_content_left_set_active_button_active);
+                        load_hex(theme, "color_search_content_left_set_active_button_icon_default",
+                                 &config->color_search_content_left_set_active_button_icon_default);
+                        load_hex(theme, "color_search_content_left_set_active_button_icon_pressed",
+                                 &config->color_search_content_left_set_active_button_icon_pressed);
+
                         break;
                     }
                 } else {
