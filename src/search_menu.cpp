@@ -173,9 +173,11 @@ paint_top_splitter(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_left_bg(AppClient *client, cairo_t *cr, Container *container) {
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     set_argb(cr, correct_opaqueness(client, config->color_search_content_left_background));
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 }
 
 static inline int
@@ -802,9 +804,11 @@ paint_right_fg(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     set_argb(cr, correct_opaqueness(client, config->color_search_empty_tab_content_background));
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 
     if (!container->children.empty()) {
         return;

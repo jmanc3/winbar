@@ -50,16 +50,16 @@ struct Config {
     ArgbColor color_taskbar_application_icons_accent = ArgbColor("#ff76b9ed");
     ArgbColor color_taskbar_minimize_line = ArgbColor("#ff222222");
 
-    ArgbColor color_systray_background = ArgbColor("#ff282828");
+    ArgbColor color_systray_background = ArgbColor("#f3282828");
 
-    ArgbColor color_battery_background = ArgbColor("#ff1f1f1f");
+    ArgbColor color_battery_background = ArgbColor("#f31f1f1f");
     ArgbColor color_battery_text = ArgbColor("#ffffffff");
     ArgbColor color_battery_icons = ArgbColor("#ffffffff");
     ArgbColor color_battery_slider_background = ArgbColor("#ff797979");
     ArgbColor color_battery_slider_foreground = ArgbColor("#ff0178d6");
     ArgbColor color_battery_slider_active = ArgbColor("#ffffffff");
 
-    ArgbColor color_wifi_background = ArgbColor("#ff1f1f1f");
+    ArgbColor color_wifi_background = ArgbColor("#f31f1f1f");
     ArgbColor color_wifi_icons = ArgbColor("#ffffffff");
     ArgbColor color_wifi_default_button = ArgbColor("#00ffffff");
     ArgbColor color_wifi_hovered_button = ArgbColor("#22ffffff");
@@ -71,7 +71,7 @@ struct Config {
     ArgbColor color_wifi_text_settings_pressed_title = ArgbColor("#ff787878");
     ArgbColor color_wifi_text_settings_title_info = ArgbColor("#ffa4a4a4");
 
-    ArgbColor color_date_background = ArgbColor("#ff1f1f1f");
+    ArgbColor color_date_background = ArgbColor("#f31f1f1f");
     ArgbColor color_date_seperator = ArgbColor("#ff4b4b4b");
     ArgbColor color_date_text = ArgbColor("#ffffffff");
     ArgbColor color_date_text_title = ArgbColor("#ffffffff");
@@ -94,7 +94,7 @@ struct Config {
     ArgbColor color_date_cursor = ArgbColor("#ffffffff");
     ArgbColor color_date_text_prompt = ArgbColor("#ffcccccc");
 
-    ArgbColor color_volume_background = ArgbColor("#ff1f1f1f");
+    ArgbColor color_volume_background = ArgbColor("#f31f1f1f");
     ArgbColor color_volume_text = ArgbColor("#ffffffff");
     ArgbColor color_volume_default_icon = ArgbColor("#ffd2d2d2");
     ArgbColor color_volume_hovered_icon = ArgbColor("#ffe8e8e8");
@@ -103,7 +103,7 @@ struct Config {
     ArgbColor color_volume_slider_foreground = ArgbColor("#ff0178d6");
     ArgbColor color_volume_slider_active = ArgbColor("#ffffffff");
 
-    ArgbColor color_apps_background = ArgbColor("#ff1f1f1f");
+    ArgbColor color_apps_background = ArgbColor("#f31f1f1f");
     ArgbColor color_apps_text = ArgbColor("#ffffffff");
     ArgbColor color_apps_icons = ArgbColor("#ffffffff");
     ArgbColor color_apps_default_item = ArgbColor("#00ffffff");
@@ -121,27 +121,27 @@ struct Config {
     ArgbColor color_apps_scrollbar_hovered_button_icon = ArgbColor("#ffffffff");
     ArgbColor color_apps_scrollbar_pressed_button_icon = ArgbColor("#ff545454");
 
-    ArgbColor color_pin_menu_background = ArgbColor("#ff1f1f1f");
+    ArgbColor color_pin_menu_background = ArgbColor("#f31f1f1f");
     ArgbColor color_pin_menu_hovered_item = ArgbColor("#22ffffff");
     ArgbColor color_pin_menu_pressed_item = ArgbColor("#44ffffff");
     ArgbColor color_pin_menu_text = ArgbColor("#ffffffff");
     ArgbColor color_pin_menu_icons = ArgbColor("#ffffffff");
 
-    ArgbColor color_windows_selector_default_background = ArgbColor("#ff282828");
-    ArgbColor color_windows_selector_hovered_background = ArgbColor("#ff3d3d3d");
-    ArgbColor color_windows_selector_pressed_background = ArgbColor("#ff535353");
+    ArgbColor color_windows_selector_default_background = ArgbColor("#f3282828");
+    ArgbColor color_windows_selector_hovered_background = ArgbColor("#f33d3d3d");
+    ArgbColor color_windows_selector_pressed_background = ArgbColor("#f3535353");
     ArgbColor color_windows_selector_close_icon = ArgbColor("#ffffffff");
     ArgbColor color_windows_selector_text = ArgbColor("#ffffffff");
     ArgbColor color_windows_selector_close_icon_hovered_background = ArgbColor("#ffc61a28");
     ArgbColor color_windows_selector_close_icon_pressed_background = ArgbColor("#ffe81123");
 
-    ArgbColor color_search_tab_bar_background = ArgbColor("#ff1f1f1f");
+    ArgbColor color_search_tab_bar_background = ArgbColor("#f31f1f1f");
     ArgbColor color_search_accent = ArgbColor("#ff0078d7");
     ArgbColor color_search_tab_bar_default_text = ArgbColor("#ffbfbfbf");
     ArgbColor color_search_tab_bar_hovered_text = ArgbColor("#ffd9d9d9");
     ArgbColor color_search_tab_bar_pressed_text = ArgbColor("#ffa6a6a6");
     ArgbColor color_search_tab_bar_active_text = ArgbColor("#ffffffff");
-    ArgbColor color_search_empty_tab_content_background = ArgbColor("#ff2a2a2a");
+    ArgbColor color_search_empty_tab_content_background = ArgbColor("#f32a2a2a");
     ArgbColor color_search_empty_tab_content_icon = ArgbColor("#ff6b6b6b");
     ArgbColor color_search_empty_tab_content_text = ArgbColor("#ffaaaaaa");
     ArgbColor color_search_content_left_background = ArgbColor("#fff0f0f0");

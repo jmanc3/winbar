@@ -524,7 +524,7 @@ bool screen_has_transparency(App *app) {
     ZoneScoped;
 #endif
     long current_time = get_current_time_in_ms();
-    if ((current_time - last_check) > 5000) { // Recheck every so often
+    if ((current_time - last_check) > 1000) { // Recheck every so often
         last_check = current_time;
         previous_result = there_is_a_compositor(app);
     }
