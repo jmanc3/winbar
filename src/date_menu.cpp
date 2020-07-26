@@ -470,7 +470,7 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     }
 
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->back_cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, data->text.c_str(), data->text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;

@@ -131,6 +131,8 @@ struct Config {
     ArgbColor color_windows_selector_hovered_background = ArgbColor("#f33d3d3d");
     ArgbColor color_windows_selector_pressed_background = ArgbColor("#f3535353");
     ArgbColor color_windows_selector_close_icon = ArgbColor("#ffffffff");
+    ArgbColor color_windows_selector_close_icon_hovered = ArgbColor("#ffffffff");
+    ArgbColor color_windows_selector_close_icon_pressed = ArgbColor("#ffffffff");
     ArgbColor color_windows_selector_text = ArgbColor("#ffffffff");
     ArgbColor color_windows_selector_close_icon_hovered_background = ArgbColor("#ffc61a28");
     ArgbColor color_windows_selector_close_icon_pressed_background = ArgbColor("#ffe81123");

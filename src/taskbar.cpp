@@ -282,26 +282,35 @@ paint_double_bar(cairo_t *cr,
 }
 
 static void
-paint_double_bg(cairo_t *cr, Bounds bounds, ArgbColor bg_l_c, ArgbColor bg_m_c, ArgbColor bg_r_c) {
+paint_double_bg_with_opacity(cairo_t *cr, Bounds bounds, ArgbColor bg_l_c, ArgbColor bg_m_c, ArgbColor bg_r_c,
+                             double opacity) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
 
     set_rect(cr, bounds);
-    set_argb(cr, bg_r_c);
+    ArgbColor r = bg_r_c;
+    set_argb(cr, r);
     cairo_fill(cr);
 
     bounds.w -= 3;
 
     set_rect(cr, bounds);
-    set_argb(cr, bg_m_c);
+    ArgbColor m = bg_m_c;
+    set_argb(cr, m);
     cairo_fill(cr);
 
     bounds.w -= 1;
 
     set_rect(cr, bounds);
-    set_argb(cr, bg_l_c);
+    ArgbColor l = bg_l_c;
+    set_argb(cr, l);
     cairo_fill(cr);
+}
+
+static void
+paint_double_bg(cairo_t *cr, Bounds bounds, ArgbColor bg_l_c, ArgbColor bg_m_c, ArgbColor bg_r_c) {
+    paint_double_bg_with_opacity(cr, bounds, bg_l_c, bg_m_c, bg_r_c, 1);
 }
 
 static void
@@ -334,7 +343,7 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
         double s; // saturation
         double p; // perceived brightness
         rgb2hsluv(real.r, real.g, real.b, &h, &s, &p);
-        is_light_theme = p > 10; // if the perceived perceived brightness is greater than that we are a light theme
+        is_light_theme = p > 50; // if the perceived perceived brightness is greater than that we are a light theme
     }
 
     double r_c = real.r;
@@ -362,145 +371,160 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     ArgbColor bottom_bar_right = c;
     darken(&bottom_bar_right, 15);
 
-    // Three things we need to paint, the first and most obvious is the accent bar at the bottom.
-    // The width of that thing is determined by our two variables hover_amount and active_amount. It
-    // takes the highest of the two and determines the width it should be drawn at. The second thing
-    // we need to draw is the hovered background which never changes width and takes the maximumum
-    // width of the icon. As long as the hover_amount does not equal zero we should draw it (could
-    // be interesting to fade it as well). The third thing we need to draw is the active background
-    // which goes above the hover and which width is always the same as the accent bar and whos
-    // height is determined by the active_amount. Side note we need to render to a temporary surface
-    // since we draw over eachother with the true final transperancy and it would come out wrong if
-    // we just did it directly to the final surface
+    // The pinned icon is composed of three sections; 
+    // The background pane, the foreground pane, and the accent bar.
+    // 
 
-    cairo_push_group(cr);
-    if (windows_count == 0) {
-        if (pressed) {
-            set_argb(cr, ArgbColor(r_c, g_c, b_c, .106));
-            set_rect(cr, container->real_bounds);
-            cairo_fill(cr);
-        } else if (hovered) {
-            set_argb(cr, ArgbColor(r_c, g_c, b_c, .153));
-            set_rect(cr, container->real_bounds);
-            cairo_fill(cr);
-        }
-    } else if (windows_count == 1) {
-        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-        if (data->hover_amount != 0) {
-            if (pressed)
-                set_argb(cr, ArgbColor(r_c, g_c, b_c, .106 * data->hover_amount));
-            else if (hovered)
-                set_argb(cr, ArgbColor(r_c, g_c, b_c, .153 * data->hover_amount));
-            else
-                set_argb(cr, ArgbColor(r_c, g_c, b_c, 0 * data->hover_amount));
+    // The following colors are used on the accent bar
+    ArgbColor color_accent_bar_left = config->color_taskbar_application_icons_accent;
+    ArgbColor color_accent_bar_middle = darken(config->color_taskbar_application_icons_accent, 20);
+    ArgbColor color_accent_bar_right = darken(config->color_taskbar_application_icons_accent, 15);
 
-            cairo_rectangle(cr,
-                            container->real_bounds.x,
-                            container->real_bounds.y,
-                            container->real_bounds.w,
-                            container->real_bounds.h - highlight_height);
-            cairo_fill(cr);
-        }
+    ArgbColor original_color_taskbar_application_icons_background = config->color_taskbar_application_icons_background;
 
-        double bar_x = container->real_bounds.x + highlight_inset;
-        double bar_w = container->real_bounds.w - highlight_inset * 2;
-
-        if (data->active_amount != 0) {
-            if (dragging)
-                set_argb(cr, ArgbColor(r_c, g_c, b_c, .106));
-            else if (pressed)
-                set_argb(cr, ArgbColor(r_c, g_c, b_c, .25));
-            else if (hovered)
-                set_argb(cr, ArgbColor(r_c, g_c, b_c, .278));
-            else
-                set_argb(cr, ArgbColor(r_c, g_c, b_c, .2));
-
-            double bg_height = (container->real_bounds.h - highlight_height) * data->active_amount;
-            cairo_rectangle(cr,
-                            bar_x,
-                            container->real_bounds.y + container->real_bounds.h - highlight_height -
-                            bg_height,
-                            bar_w,
-                            bg_height);
-            cairo_fill(cr);
-        }
-
-        set_argb(cr, bottom_bar_left);
-        cairo_rectangle(cr,
-                        bar_x,
-                        container->real_bounds.y + container->real_bounds.h - highlight_height,
-                        bar_w,
-                        highlight_height);
-        cairo_fill(cr);
-    } else {
-        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-        if (data->hover_amount != 0) {
-            Bounds bounds = container->real_bounds;
-
-            ArgbColor blank(r_c, g_c, b_c, 0);
-
-            if (pressed)
-                paint_double_bg(cr,
-                                bounds,
-                                ArgbColor(r_c, g_c, b_c, .106 * data->hover_amount),
-                                ArgbColor(r_c, g_c, b_c, .086 * data->hover_amount),
-                                ArgbColor(r_c, g_c, b_c, .098 * data->hover_amount));
-            else if (hovered)
-                paint_double_bg(cr,
-                                bounds,
-                                ArgbColor(r_c, g_c, b_c, .153 * data->hover_amount),
-                                ArgbColor(r_c, g_c, b_c, .094 * data->hover_amount),
-                                ArgbColor(r_c, g_c, b_c, .125 * data->hover_amount));
-            else
-                paint_double_bg(cr, bounds, blank, blank, blank);
-        }
-
-        double bar_x = container->real_bounds.x + highlight_inset;
-        double bar_w = container->real_bounds.w - highlight_inset * 2;
-
-        if (data->active_amount != 0) {
-            double bg_height = (container->real_bounds.h - highlight_height) * data->active_amount;
-            Bounds bounds = Bounds(bar_x,
-                                   container->real_bounds.y + container->real_bounds.h -
-                                   highlight_height - bg_height,
-                                   bar_w,
-                                   bg_height);
-
-            if (dragging)
-                paint_double_bg(cr,
-                                bounds,
-                                ArgbColor(r_c, g_c, b_c, .106),
-                                ArgbColor(r_c, g_c, b_c, .086),
-                                ArgbColor(r_c, g_c, b_c, .098));
-            else if (pressed)
-                paint_double_bg(cr,
-                                bounds,
-                                ArgbColor(r_c, g_c, b_c, .25),
-                                ArgbColor(r_c, g_c, b_c, .141),
-                                ArgbColor(r_c, g_c, b_c, .196));
-            else if (hovered)
-                paint_double_bg(cr,
-                                bounds,
-                                ArgbColor(r_c, g_c, b_c, .278),
-                                ArgbColor(r_c, g_c, b_c, .169),
-                                ArgbColor(r_c, g_c, b_c, .224));
-            else
-                paint_double_bg(cr,
-                                bounds,
-                                ArgbColor(r_c, g_c, b_c, .2),
-                                ArgbColor(r_c, g_c, b_c, .122),
-                                ArgbColor(r_c, g_c, b_c, .161));
-        }
-
-        paint_double_bar(cr,
-                         container,
-                         bottom_bar_left,
-                         bottom_bar_middle,
-                         bottom_bar_right);
+    if (screen_has_transparency(app)) {
+        config->color_taskbar_application_icons_background.a = config->color_taskbar_background.a;
     }
 
-    cairo_pop_group_to_source(cr);
-    cairo_paint(cr);
+    // The following colors are used for the background pane
+    ArgbColor color_background_pane_hovered_left = darken(config->color_taskbar_application_icons_background, 15);
+    ArgbColor color_background_pane_hovered_middle = darken(config->color_taskbar_application_icons_background, 22);
+    ArgbColor color_background_pane_hovered_right = darken(config->color_taskbar_application_icons_background, 17);
+
+    ArgbColor color_background_pane_pressed_left = darken(config->color_taskbar_application_icons_background, 20);
+    ArgbColor color_background_pane_pressed_middle = darken(config->color_taskbar_application_icons_background, 27);
+    ArgbColor color_background_pane_pressed_right = darken(config->color_taskbar_application_icons_background, 22);
+
+    // The following colors are used for the foreground pane
+    ArgbColor color_foreground_pane_default_left = darken(config->color_taskbar_application_icons_background, 10);
+    ArgbColor color_foreground_pane_default_middle = darken(config->color_taskbar_application_icons_background, 17);
+    ArgbColor color_foreground_pane_default_right = darken(config->color_taskbar_application_icons_background, 12);
+
+    ArgbColor color_foreground_pane_hovered_left = darken(config->color_taskbar_application_icons_background, 0);
+    ArgbColor color_foreground_pane_hovered_middle = darken(config->color_taskbar_application_icons_background, 7);
+    ArgbColor color_foreground_pane_hovered_right = darken(config->color_taskbar_application_icons_background, 2);
+
+    ArgbColor color_foreground_pane_pressed_left = darken(config->color_taskbar_application_icons_background, 15);
+    ArgbColor color_foreground_pane_pressed_middle = darken(config->color_taskbar_application_icons_background, 22);
+    ArgbColor color_foreground_pane_pressed_right = darken(config->color_taskbar_application_icons_background, 17);
+
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+
+    { // Background pane
+        if (windows_count > 1) {
+            if (container->state.mouse_pressing || container->state.mouse_hovering) {
+                if (container->state.mouse_pressing) {
+                    paint_double_bg(cr,
+                                    container->real_bounds,
+                                    color_background_pane_pressed_left,
+                                    color_background_pane_pressed_middle,
+                                    color_background_pane_pressed_right);
+                } else {
+                    paint_double_bg(cr,
+                                    container->real_bounds,
+                                    color_background_pane_hovered_left,
+                                    color_background_pane_hovered_middle,
+                                    color_background_pane_hovered_right);
+                }
+            }
+        } else {
+            if (container->state.mouse_pressing || container->state.mouse_hovering) {
+                if (container->state.mouse_pressing) {
+                    paint_double_bg(cr,
+                                    container->real_bounds,
+                                    color_background_pane_pressed_left,
+                                    color_background_pane_pressed_left,
+                                    color_background_pane_pressed_left);
+                } else {
+                    paint_double_bg(cr,
+                                    container->real_bounds,
+                                    color_background_pane_hovered_left,
+                                    color_background_pane_hovered_left,
+                                    color_background_pane_hovered_left);
+                }
+            }
+        }
+    }
+
+    { // Foreground pane
+        // make the bounds
+        double back_x = container->real_bounds.x + highlight_inset;
+        double back_w = container->real_bounds.w - highlight_inset * 2;
+
+        if (data->active_amount) {
+            double height = container->real_bounds.h * data->active_amount;
+            Bounds bounds = Bounds(back_x, container->real_bounds.y + container->real_bounds.h - height, back_w,
+                                   height);
+
+            if (windows_count > 1) {
+                if (container->state.mouse_pressing || container->state.mouse_hovering) {
+                    if (container->state.mouse_pressing) {
+                        paint_double_bg(cr,
+                                        bounds,
+                                        color_foreground_pane_pressed_left,
+                                        color_foreground_pane_pressed_middle,
+                                        color_foreground_pane_pressed_right);
+                    } else {
+                        paint_double_bg(cr,
+                                        bounds,
+                                        color_foreground_pane_hovered_left,
+                                        color_foreground_pane_hovered_middle,
+                                        color_foreground_pane_hovered_right);
+                    }
+                } else {
+                    paint_double_bg(cr,
+                                    bounds,
+                                    color_foreground_pane_default_left,
+                                    color_foreground_pane_default_middle,
+                                    color_foreground_pane_default_right);
+                }
+            } else {
+                if (container->state.mouse_pressing || container->state.mouse_hovering) {
+                    if (container->state.mouse_pressing) {
+                        paint_double_bg(cr,
+                                        bounds,
+                                        color_foreground_pane_pressed_left,
+                                        color_foreground_pane_pressed_left,
+                                        color_foreground_pane_pressed_left);
+                    } else {
+                        paint_double_bg(cr,
+                                        bounds,
+                                        color_foreground_pane_hovered_left,
+                                        color_foreground_pane_hovered_left,
+                                        color_foreground_pane_hovered_left);
+                    }
+                } else {
+                    paint_double_bg(cr,
+                                    bounds,
+                                    color_foreground_pane_default_left,
+                                    color_foreground_pane_default_left,
+                                    color_foreground_pane_default_left);
+                }
+            }
+        }
+    }
+
+    { // Accent bar
+        if (windows_count > 0) {
+            paint_double_bar(cr,
+                             container,
+                             color_accent_bar_left,
+                             color_accent_bar_left,
+                             color_accent_bar_left);
+
+            // paint the right side
+            if (windows_count > 1) {
+                paint_double_bar(cr,
+                                 container,
+                                 color_accent_bar_left,
+                                 color_accent_bar_middle,
+                                 color_accent_bar_right);
+            }
+        }
+    }
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+
+    config->color_taskbar_application_icons_background = original_color_taskbar_application_icons_background;
 }
 
 // TODO order is not correct
@@ -1003,7 +1027,7 @@ paint_minimize(AppClient *client, cairo_t *cr, Container *container) {
     Bounds bounds = container->real_bounds;
     bounds.w = 1;
     set_rect(cr, bounds);
-    set_argb(cr, ArgbColor(1, 1, 1, .2));
+    set_argb(cr, config->color_taskbar_minimize_line);
     cairo_fill(cr);
 }
 

@@ -103,6 +103,14 @@ darken(ArgbColor *color, double amount);
 void
 lighten(ArgbColor *color, double amount);
 
+// amount: 0 to 100
+ArgbColor
+darken(ArgbColor color, double amount);
+
+// amount: 0 to 100
+ArgbColor
+lighten(ArgbColor color, double amount);
+
 void paint_surface_with_data(cairo_surface_t *surface, uint32_t *icon_data);
 
 cairo_surface_t *

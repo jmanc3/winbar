@@ -355,6 +355,20 @@ lighten(ArgbColor *color, double amount) {
     mod_color(color, amount);
 }
 
+ArgbColor
+darken(ArgbColor color, double amount) {
+    ArgbColor result = color;
+    mod_color(&result, -amount);
+    return result;
+}
+
+ArgbColor
+lighten(ArgbColor color, double amount) {
+    ArgbColor result = color;
+    mod_color(&result, amount);
+    return result;
+}
+
 void load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surface, std::string path) {
 #ifdef TRACY_ENABLE
     ZoneScoped;

@@ -57,16 +57,16 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
         set_argb(cr, correct_opaqueness(client, config->color_apps_background));
     } else {
         ArgbColor color = correct_opaqueness(client, config->color_apps_background);
-        lighten(&color, 10 * openess);
+        lighten(&color, 2 * openess);
         set_argb(cr, color);
     }
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 
-    easingFunction ease = getEasingFunction(easing_functions::EaseOutSine);
+    easingFunction ease = getEasingFunction(easing_functions::EaseInCubic);
     if (container->real_bounds.w != 48) {
-        int steps = 30;
+        int steps = 14;
         for (int i = 0; i < steps; i++) {
             double scalar = ((double) (i)) / steps;
             scalar = (1 - scalar) * openess;

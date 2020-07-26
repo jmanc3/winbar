@@ -179,7 +179,15 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
                   container->parent->parent->children[1]->state.mouse_hovering;// BODY
 
     if (data->surface && active) {
-        dye_surface(data->surface, config->color_windows_selector_close_icon);
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                dye_surface(data->surface, config->color_windows_selector_close_icon_pressed);
+            } else {
+                dye_surface(data->surface, config->color_windows_selector_close_icon_hovered);
+            }
+        } else {
+            dye_surface(data->surface, config->color_windows_selector_close_icon);
+        }
         double offset = (double) (32 - 16) / 2;
         cairo_set_source_surface(
                 cr, data->surface, container->real_bounds.x + offset, container->real_bounds.y + offset);

@@ -219,6 +219,10 @@ void config_load() {
                                  &config->color_windows_selector_pressed_background);
                         load_hex(theme, "color_windows_selector_close_icon",
                                  &config->color_windows_selector_close_icon);
+                        load_hex(theme, "color_windows_selector_close_icon_hovered",
+                                 &config->color_windows_selector_close_icon_hovered);
+                        load_hex(theme, "color_windows_selector_close_icon_pressed",
+                                 &config->color_windows_selector_close_icon_pressed);
                         load_hex(theme, "color_windows_selector_text", &config->color_windows_selector_text);
                         load_hex(theme, "color_windows_selector_close_icon_hovered_background",
                                  &config->color_windows_selector_close_icon_hovered_background);
