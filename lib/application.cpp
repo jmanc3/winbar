@@ -550,6 +550,14 @@ client_new(App *app, Settings settings, const std::string &name) {
                                                         settings.reserve_bottom);
     }
 
+    // Set the WM_CLASS
+    auto set_wm_class_cookie = xcb_icccm_set_wm_class_checked(app->connection, window,
+                                                              name.length(), name.c_str());
+    xcb_generic_error_t *error = xcb_request_check(app->connection, set_wm_class_cookie);
+    if (error) {
+        printf("Couldn't set the WM_CLASS property for client: %s\n", name.c_str());
+    }
+
     AppClient *client = new AppClient();
     init_client(client);
 
