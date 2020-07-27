@@ -1,8 +1,6 @@
 # Winbar
 A familiar Xorg panel/dock to ease new linux users transition
-![Search and volume menu with taskbar](1screenshot.png)
-
-![App and calendar menu with taskbar](2screenshot.png)
+![Screenshots of the taskbar and some menus](screenshots/1.png)
 
 ## Before building
 Make sure the following are on your system
