@@ -31,6 +31,7 @@
 #include <iomanip>
 #include <cassert>
 #include <pango/pangocairo.h>
+#include <xcb/xproto.h>
 
 class WorkspaceButton : public HoverableButton {
 public:
@@ -1130,14 +1131,47 @@ clicked_volume(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
+static std::vector<xcb_window_t> minimize_button_windows_order;
+static bool minimize_button_hide = true;
+
 static void
 clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
-    config_load();
-//    while (!app->clients.empty()) {
-//        for (int i = 0; i < app->clients.size(); i++) {
-//            client_close(app, app->clients[i]);
-//        }
-//    }
+    if (minimize_button_hide) {
+        // Here we hide the windows
+        xcb_query_tree_cookie_t cookie;
+        xcb_query_tree_reply_t *reply;
+
+        cookie = xcb_query_tree(client->app->connection, client->app->screen->root);
+        if ((reply = xcb_query_tree_reply(client->app->connection, cookie, NULL))) {
+            xcb_window_t *children = xcb_query_tree_children(reply);
+            for (int i = 0; i < xcb_query_tree_children_length(reply); i++) {
+                xcb_window_t window = children[i];
+                auto *c = client_by_window(client->app, window);
+                if (c == nullptr) {
+                    minimize_button_windows_order.push_back(window);
+                    minimize_window(window);
+                }
+            }
+
+            free(reply);
+        }
+    } else {
+        // Here we show them based on the order
+        for (auto window : minimize_button_windows_order) {
+            auto *c = client_by_window(client->app, window);
+            if (c == nullptr) {
+                xcb_ewmh_request_change_active_window(&app->ewmh,
+                                                      app->screen_number,
+                                                      window,
+                                                      XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                                      XCB_CURRENT_TIME,
+                                                      XCB_NONE);
+            }
+        }
+
+        minimize_button_windows_order.clear();
+    }
+    minimize_button_hide = !minimize_button_hide;
 }
 
 static void
