@@ -404,9 +404,9 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     ArgbColor color_foreground_pane_hovered_middle = darken(config->color_taskbar_application_icons_background, 7);
     ArgbColor color_foreground_pane_hovered_right = darken(config->color_taskbar_application_icons_background, 2);
 
-    ArgbColor color_foreground_pane_pressed_left = darken(config->color_taskbar_application_icons_background, 15);
-    ArgbColor color_foreground_pane_pressed_middle = darken(config->color_taskbar_application_icons_background, 22);
-    ArgbColor color_foreground_pane_pressed_right = darken(config->color_taskbar_application_icons_background, 17);
+    ArgbColor color_foreground_pane_pressed_left = darken(config->color_taskbar_application_icons_background, 0 + 2);
+    ArgbColor color_foreground_pane_pressed_middle = darken(config->color_taskbar_application_icons_background, 7 + 2);
+    ArgbColor color_foreground_pane_pressed_right = darken(config->color_taskbar_application_icons_background, 2 + 2);
 
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
 
