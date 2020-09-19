@@ -8,3 +8,4 @@ tracy*
 *.4coder
 !.gitignore
 !install.sh
+winbar/
