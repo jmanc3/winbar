@@ -1558,6 +1558,7 @@ void update_animations(App *app) {
         }
         for (auto *client : layout) {
             client_layout(app, client);
+            handle_mouse_motion(app, client, client->mouse_current_x, client->mouse_current_y);
         }
     }
 
@@ -1594,6 +1595,7 @@ void update_animations(App *app) {
             }
             if (data->relayout) {
                 client_layout(app, data->client);
+                handle_mouse_motion(app, data->client, data->client->mouse_current_x, data->client->mouse_current_y);
             }
             client_paint(app, data->client);
             client_unregister_animation(app, data->client);
