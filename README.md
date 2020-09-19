@@ -1,5 +1,5 @@
 # Winbar
-A familiar Xorg panel/dock to ease new linux users transition
+A familiar X11 panel/dock to ease new linux users transition
 ![Screenshots of the taskbar and some menus](screenshots/1.png)
 
 ## Before building
@@ -30,7 +30,7 @@ xcb-keysyms | to translate keysyms
 xcb-image | to manipulate images
 unzip | to unzip the resources
 
-On voidlinux you can run the following to get set up for compiling
+On voidlinux you can run the following to get set up for compiling and installing
 ```bash
 sudo xbps-install -S git gcc cmake make pango-devel cairo-devel librsvg-devel libxcb-devel xcb-util-devel pulseaudio-devel xcb-util-wm-devel libxkbcommon-devel libxkbcommon-x11 libconfig++-devel xcb-util-keysyms-devel xcb-util-image-devel papirus-icon-theme lxappearance unzip
 ```
@@ -60,7 +60,7 @@ The config file should be located at "~/.config/winbar/winbar.cfg" and it has us
 You can also create and change themes in there.
 
 ## Environment
-The recommended windows manager to use is Openbox and we make use of the following attoms
+The recommended windows manager to use is Openbox and we make use of the following atoms
 
 Atom | Reason
 ------------ | -------------

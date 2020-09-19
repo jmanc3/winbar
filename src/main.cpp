@@ -12,8 +12,6 @@
 App *app;
 
 int main() {
-    // setenv("DISPLAY", ":1", true);
-
     // Open connection to app
     app = app_new();
 
