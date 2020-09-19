@@ -1,5 +1,5 @@
 # Winbar
-A familiar Xorg panel/dock to ease new linux users transition
+A familiar X11 panel/dock to ease new linux users transition
 ![Screenshots of the taskbar and some menus](screenshots/1.png)
 
 ## Before building
