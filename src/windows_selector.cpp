@@ -242,7 +242,7 @@ static void
 fill_root(Container *root) {
     IconButton *image = new IconButton;
     image->surface = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(image->surface, as_resource_path("taskbar-close.png"), nullptr);
+    paint_surface_with_image(image->surface, as_resource_path("taskbar-close.png"), 16, nullptr);
     root->user_data = image;
 
     if (data == nullptr)

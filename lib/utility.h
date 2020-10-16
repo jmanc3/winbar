@@ -116,11 +116,12 @@ void paint_surface_with_data(cairo_surface_t *surface, uint32_t *icon_data);
 cairo_surface_t *
 accelerated_surface(App *app, AppClient *client_entity, int w, int h);
 
-bool paint_surface_with_image(cairo_surface_t *surface, std::string path, void (*upon_completion)(bool));
+bool
+paint_surface_with_image(cairo_surface_t *surface, std::string path, int target_size, void (*upon_completion)(bool));
 
-bool paint_png_to_surface(cairo_surface_t *surface, std::string path);
+bool paint_png_to_surface(cairo_surface_t *surface, std::string path, int target_size);
 
-bool paint_svg_to_surface(cairo_surface_t *surface, std::string path);
+bool paint_svg_to_surface(cairo_surface_t *surface, std::string path, int target_size);
 
 std::string
 as_resource_path(std::string path);
@@ -128,7 +129,8 @@ as_resource_path(std::string path);
 void load_icon_full_path(App *app,
                          AppClient *client_entity,
                          cairo_surface_t **surface,
-                         std::string path);
+                         std::string path,
+                         int target_size);
 
 bool screen_has_transparency(App *app);
 

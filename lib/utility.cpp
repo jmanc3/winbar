@@ -369,7 +369,8 @@ lighten(ArgbColor color, double amount) {
     return result;
 }
 
-void load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surface, std::string path) {
+void
+load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surface, std::string path, int target_size) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -381,8 +382,10 @@ void load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **s
         int w = gdk_pixbuf_get_width(pixel_buffer);
         int h = gdk_pixbuf_get_height(pixel_buffer);
 
-        *surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+        *surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, target_size, target_size);
         auto temp_context = cairo_create(*surface);
+        double scale = ((double) target_size) / ((double) w);
+        cairo_scale(temp_context, scale, scale);
         rsvg_handle_render_cairo(handle, temp_context);
     } else {
         *surface = cairo_image_surface_create_from_png(path.c_str());
@@ -416,7 +419,7 @@ as_resource_path(std::string path) {
     return home;
 }
 
-bool paint_svg_to_surface(cairo_surface_t *surface, std::string path) {
+bool paint_svg_to_surface(cairo_surface_t *surface, std::string path, int target_size) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -432,6 +435,8 @@ bool paint_svg_to_surface(cairo_surface_t *surface, std::string path) {
     int h = gdk_pixbuf_get_height(pixel_buffer);
 
     auto *temp_context = cairo_create(surface);
+    double scale = ((double) target_size) / ((double) w);
+    cairo_scale(temp_context, scale, scale);
     cairo_save(temp_context);
     cairo_set_operator(temp_context, CAIRO_OPERATOR_CLEAR);
     cairo_paint(temp_context);
@@ -446,7 +451,7 @@ bool paint_svg_to_surface(cairo_surface_t *surface, std::string path) {
     return true;
 }
 
-bool paint_png_to_surface(cairo_surface_t *surface, std::string path) {
+bool paint_png_to_surface(cairo_surface_t *surface, std::string path, int target_size) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -470,15 +475,16 @@ bool paint_png_to_surface(cairo_surface_t *surface, std::string path) {
     return true;
 }
 
-bool paint_surface_with_image(cairo_surface_t *surface, std::string path, void (*upon_completion)(bool)) {
+bool
+paint_surface_with_image(cairo_surface_t *surface, std::string path, int target_size, void (*upon_completion)(bool)) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     bool success = false;
     if (path.find(".svg") != std::string::npos) {
-        success = paint_svg_to_surface(surface, path);
+        success = paint_svg_to_surface(surface, path, target_size);
     } else if (path.find(".png") != std::string::npos) {
-        success = paint_png_to_surface(surface, path);
+        success = paint_png_to_surface(surface, path, target_size);
     }
     if (upon_completion != nullptr) {
         upon_completion(success);

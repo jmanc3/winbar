@@ -694,7 +694,7 @@ fill_root(AppClient *client) {
     auto *up_data = new IconButton;
     up_arrow->user_data = up_data;
     up_data->surface = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(up_data->surface, as_resource_path("arrow-up-16.png"), nullptr);
+    paint_surface_with_image(up_data->surface, as_resource_path("arrow-up-16.png"), 16, nullptr);
 
     // Pad
     up_down_hbox->child(32, FILL_SPACE);
@@ -705,7 +705,7 @@ fill_root(AppClient *client) {
     auto *down_data = new IconButton;
     down_arrow->user_data = down_data;
     down_data->surface = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(down_data->surface, as_resource_path("arrow-down-16.png"), nullptr);
+    paint_surface_with_image(down_data->surface, as_resource_path("arrow-down-16.png"), 16, nullptr);
 
     Container *day_titles = body->child(FILL_SPACE, 27);
     day_titles->type = ::hbox;
@@ -801,7 +801,7 @@ fill_root(AppClient *client) {
     agenda->when_paint = paint_agenda;
     agenda->when_clicked = clicked_agenda;
     auto *agenda_data = new IconButton;
-    load_icon_full_path(app, client, &agenda_data->surface, as_resource_path("arrow-down-12.png"));
+    load_icon_full_path(app, client, &agenda_data->surface, as_resource_path("arrow-down-12.png"), 12);
     agenda->user_data = agenda_data;
 }
 

@@ -485,7 +485,7 @@ void start_pinned_icon_right_click(Container *container) {
 
     for (auto *d : delayed) {
         *d->surface = accelerated_surface(app, client, d->size, d->size);
-        paint_surface_with_image(*d->surface, d->path, nullptr);
+        paint_surface_with_image(*d->surface, d->path, d->size, nullptr);
         delete d;
     }
 

@@ -955,7 +955,7 @@ add_tab(AppClient *client, Container *tab_bar, std::string tab_name) {
     tab->when_clicked = clicked_tab;
 
     data->surface = accelerated_surface(client->app, client, 128, 128);
-    paint_surface_with_image(data->surface, as_resource_path(tab_name + ".png"), nullptr);
+    paint_surface_with_image(data->surface, as_resource_path(tab_name + ".png"), 128, nullptr);
 }
 
 static void
@@ -987,15 +987,15 @@ fill_root(AppClient *client) {
     bottom->when_paint = paint_bottom;
 
     script_16 = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(script_16, as_resource_path("script-16.svg"), nullptr);
+    paint_surface_with_image(script_16, as_resource_path("script-16.svg"), 16, nullptr);
     script_32 = accelerated_surface(client->app, client, 32, 32);
-    paint_surface_with_image(script_32, as_resource_path("script-32.svg"), nullptr);
+    paint_surface_with_image(script_32, as_resource_path("script-32.svg"), 32, nullptr);
     script_64 = accelerated_surface(client->app, client, 64, 64);
-    paint_surface_with_image(script_64, as_resource_path("script-64.svg"), nullptr);
+    paint_surface_with_image(script_64, as_resource_path("script-64.svg"), 64, nullptr);
     arrow_right_surface = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(arrow_right_surface, as_resource_path("search-right.png"), nullptr);
+    paint_surface_with_image(arrow_right_surface, as_resource_path("search-right.png"), 16, nullptr);
     open_surface = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(open_surface, as_resource_path("open.png"), nullptr);
+    paint_surface_with_image(open_surface, as_resource_path("open.png"), 16, nullptr);
 }
 
 static inline bool

@@ -227,16 +227,16 @@ fill_root(AppClient *client) {
     auto wifi_data = new wifi_surfaces;
     wifi_data->wired_up = accelerated_surface(app, client, 24, 24);
     paint_surface_with_image(
-            wifi_data->wired_up, as_resource_path("wifi/24/wired_up.png"), nullptr);
+            wifi_data->wired_up, as_resource_path("wifi/24/wired_up.png"), 24, nullptr);
     wifi_data->wired_down = accelerated_surface(app, client, 24, 24);
     paint_surface_with_image(
-            wifi_data->wired_down, as_resource_path("wifi/24/wired_down.png"), nullptr);
+            wifi_data->wired_down, as_resource_path("wifi/24/wired_down.png"), 24, nullptr);
     wifi_data->wireless_down = accelerated_surface(app, client, 24, 24);
     paint_surface_with_image(
-            wifi_data->wireless_down, as_resource_path("wifi/24/wireless_down.png"), nullptr);
+            wifi_data->wireless_down, as_resource_path("wifi/24/wireless_down.png"), 24, nullptr);
     wifi_data->wireless_up = accelerated_surface(app, client, 24, 24);
     paint_surface_with_image(
-            wifi_data->wireless_up, as_resource_path("wifi/24/wireless_up.png"), nullptr);
+            wifi_data->wireless_up, as_resource_path("wifi/24/wireless_up.png"), 24, nullptr);
     button_wifi->user_data = wifi_data;
 
     auto *info = root->child(FILL_SPACE, 71);

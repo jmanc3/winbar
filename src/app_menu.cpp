@@ -600,7 +600,7 @@ fill_root(AppClient *client) {
         data->text = item;
         data->surface = accelerated_surface(app, client, 16, 16);
         paint_surface_with_image(
-                data->surface, as_resource_path("starticons/" + item + ".png"), nullptr);
+                data->surface, as_resource_path("starticons/" + item + ".png"), 16, nullptr);
         button->user_data = data;
     }
     auto start_filler = new Container();
@@ -635,14 +635,14 @@ fill_root(AppClient *client) {
     top_arrow->when_paint = paint_arrow;
     auto *top_data = new IconButton;
     top_data->surface = accelerated_surface(app, client, 12, 12);
-    paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), nullptr);
+    paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12, nullptr);
 
     top_arrow->user_data = top_data;
     Container *bottom_arrow = content_area->parent->children[0]->children[2];
     bottom_arrow->when_paint = paint_arrow;
     auto *bottom_data = new IconButton;
     bottom_data->surface = accelerated_surface(app, client, 12, 12);
-    paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), nullptr);
+    paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12, nullptr);
 
     bottom_arrow->user_data = bottom_data;
 
@@ -815,31 +815,31 @@ paint_desktop_files() {
         std::string path32 = find_icon(launcher->icon, 32);
         std::string path64 = find_icon(launcher->icon, 64);
         if (!path16.empty() && !launcher->icon.empty()) {
-            paint_surface_with_image(launcher->icon_16, path16, nullptr);
+            paint_surface_with_image(launcher->icon_16, path16, 16, nullptr);
         } else {
             paint_surface_with_image(
-                    launcher->icon_16, as_resource_path("unknown-16.svg"), nullptr);
+                    launcher->icon_16, as_resource_path("unknown-16.svg"), 16, nullptr);
         }
 
         if (!path24.empty() && !launcher->icon.empty()) {
-            paint_surface_with_image(launcher->icon_24, path24, nullptr);
+            paint_surface_with_image(launcher->icon_24, path24, 24, nullptr);
         } else {
             paint_surface_with_image(
-                    launcher->icon_24, as_resource_path("unknown-24.svg"), nullptr);
+                    launcher->icon_24, as_resource_path("unknown-24.svg"), 24, nullptr);
         }
 
         if (!path32.empty() && !launcher->icon.empty()) {
-            paint_surface_with_image(launcher->icon_32, path32, nullptr);
+            paint_surface_with_image(launcher->icon_32, path32, 32, nullptr);
         } else {
             paint_surface_with_image(
-                    launcher->icon_32, as_resource_path("unknown-32.svg"), nullptr);
+                    launcher->icon_32, as_resource_path("unknown-32.svg"), 32, nullptr);
         }
 
         if (!path32.empty() && !launcher->icon.empty()) {
-            paint_surface_with_image(launcher->icon_64, path64, nullptr);
+            paint_surface_with_image(launcher->icon_64, path64, 64, nullptr);
         } else {
             paint_surface_with_image(
-                    launcher->icon_64, as_resource_path("unknown-64.svg"), nullptr);
+                    launcher->icon_64, as_resource_path("unknown-64.svg"), 64, nullptr);
         }
     }
 }

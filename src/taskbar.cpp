@@ -1359,14 +1359,14 @@ make_battery_button(Container *parent, AppClient *client_entity) {
         auto *normal_surface = accelerated_surface(app, client_entity, 16, 16);
         paint_surface_with_image(
                 normal_surface,
-                as_resource_path("battery/16/normal/" + std::to_string(i) + ".png"),
+                as_resource_path("battery/16/normal/" + std::to_string(i) + ".png"), 16,
                 nullptr);
         data->normal_surfaces.push_back(normal_surface);
 
         auto *charging_surface = accelerated_surface(app, client_entity, 16, 16);
         paint_surface_with_image(
                 charging_surface,
-                as_resource_path("battery/16/charging/" + std::to_string(i) + ".png"),
+                as_resource_path("battery/16/charging/" + std::to_string(i) + ".png"), 16,
                 nullptr);
         data->charging_surfaces.push_back(charging_surface);
     }
@@ -1487,7 +1487,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((IconButton *) button_super->user_data)->surface,
-                        as_resource_path("windows.png"));
+                        as_resource_path("windows.png"), 24);
 
     field_search->when_paint = paint_search;
     field_search->when_mouse_down = clicked_search;
@@ -1497,7 +1497,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((IconButton *) field_search->user_data)->surface,
-                        as_resource_path("search.png"));
+                        as_resource_path("search.png"), 24);
 
     TextAreaSettings settings;
     settings.font_size = 12;
@@ -1522,11 +1522,11 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((WorkspaceButton *) button_workspace->user_data)->surface,
-                        as_resource_path("taskview.png"));
+                        as_resource_path("taskview.png"), 24);
     load_icon_full_path(app,
                         client,
                         &((WorkspaceButton *) button_workspace->user_data)->surface_hover,
-                        as_resource_path("taskview-hovered.png"));
+                        as_resource_path("taskview-hovered.png"), 24);
 
     container_icons->spacing = 1;
     container_icons->type = hbox;
@@ -1540,23 +1540,23 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((IconButton *) button_systray->user_data)->surface,
-                        as_resource_path("arrow.png"));
+                        as_resource_path("arrow.png"), 24);
 
     button_wifi->when_paint = paint_wifi;
     button_wifi->when_clicked = clicked_wifi;
     auto wifi_data = new wifi_surfaces;
     wifi_data->wired_up = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(
-            wifi_data->wired_up, as_resource_path("wifi/16/wired_up.png"), nullptr);
+            wifi_data->wired_up, as_resource_path("wifi/16/wired_up.png"), 16, nullptr);
     wifi_data->wired_down = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(
-            wifi_data->wired_down, as_resource_path("wifi/16/wired_down.png"), nullptr);
+            wifi_data->wired_down, as_resource_path("wifi/16/wired_down.png"), 16, nullptr);
     wifi_data->wireless_down = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(
-            wifi_data->wireless_down, as_resource_path("wifi/16/wireless_down.png"), nullptr);
+            wifi_data->wireless_down, as_resource_path("wifi/16/wireless_down.png"), 16, nullptr);
     wifi_data->wireless_up = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(
-            wifi_data->wireless_up, as_resource_path("wifi/16/wireless_up.png"), nullptr);
+            wifi_data->wireless_up, as_resource_path("wifi/16/wireless_up.png"), 16, nullptr);
     button_wifi->user_data = wifi_data;
 
     button_volume->when_paint = paint_volume;
@@ -1564,15 +1564,15 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_volume->when_scrolled = scrolled_volume;
     auto surfaces = new volume_surfaces;
     surfaces->none = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(surfaces->none, as_resource_path("audio/none16.png"), nullptr);
+    paint_surface_with_image(surfaces->none, as_resource_path("audio/none16.png"), 16, nullptr);
     surfaces->low = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(surfaces->low, as_resource_path("audio/low16.png"), nullptr);
+    paint_surface_with_image(surfaces->low, as_resource_path("audio/low16.png"), 16, nullptr);
     surfaces->medium = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium16.png"), nullptr);
+    paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium16.png"), 16, nullptr);
     surfaces->high = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(surfaces->high, as_resource_path("audio/high16.png"), nullptr);
+    paint_surface_with_image(surfaces->high, as_resource_path("audio/high16.png"), 16, nullptr);
     surfaces->mute = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute16.png"), nullptr);
+    paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute16.png"), 16, nullptr);
     button_volume->user_data = surfaces;
 
     double opacity_diff = .5;
@@ -1790,7 +1790,7 @@ void add_window(App *app, xcb_window_t window) {
 
     std::string path = find_icon(window_class_name, 24);
     if (!path.empty()) {
-        load_icon_full_path(app, client, &data->surface, path);
+        load_icon_full_path(app, client, &data->surface, path, 24);
     } else {
         xcb_generic_error_t *error;
         xcb_get_property_cookie_t c = xcb_ewmh_get_wm_icon(&app->ewmh, window);
@@ -2099,16 +2099,16 @@ load_pinned_icons() {
 
         std::string path = find_icon(data->icon_name, 24);
         if (!path.empty()) {
-            load_icon_full_path(app, client_entity, &data->surface, path);
+            load_icon_full_path(app, client_entity, &data->surface, path, 24);
         } else {
             data->surface = accelerated_surface(app, client_entity, 24, 24);
             char *string = getenv("HOME");
             std::string home(string);
             home += "/.config/winbar/cached_icons/" + data->class_name + ".png";
-            bool b = paint_surface_with_image(data->surface, home, nullptr);
+            bool b = paint_surface_with_image(data->surface, home, 24, nullptr);
             if (!b) {
                 paint_surface_with_image(
-                        data->surface, as_resource_path("unknown-24.svg"), nullptr);
+                        data->surface, as_resource_path("unknown-24.svg"), 24, nullptr);
             }
         }
 

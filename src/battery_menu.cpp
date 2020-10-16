@@ -258,14 +258,14 @@ make_battery_bar(Container *root) {
         auto *normal_surface = accelerated_surface(app, battery_entity, 40, 40);
         paint_surface_with_image(
                 normal_surface,
-                as_resource_path("battery/40/normal/" + std::to_string(i) + ".png"),
+                as_resource_path("battery/40/normal/" + std::to_string(i) + ".png"), 40,
                 nullptr);
         data->normal_surfaces.push_back(normal_surface);
 
         auto *charging_surface = accelerated_surface(app, battery_entity, 40, 40);
         paint_surface_with_image(
                 charging_surface,
-                as_resource_path("battery/40/charging/" + std::to_string(i) + ".png"),
+                as_resource_path("battery/40/charging/" + std::to_string(i) + ".png"), 40,
                 nullptr);
         data->charging_surfaces.push_back(charging_surface);
     }
@@ -297,7 +297,7 @@ make_brightness_slider(Container *root) {
     auto *brightness_icon_data = new IconButton();
     brightness_icon_data->surface = accelerated_surface(app, battery_entity, 24, 24);
     paint_surface_with_image(
-            brightness_icon_data->surface, as_resource_path("brightness.png"), nullptr);
+            brightness_icon_data->surface, as_resource_path("brightness.png"), 24, nullptr);
     brightness_icon->user_data = brightness_icon_data;
 
     auto slider = new Container();
