@@ -513,7 +513,11 @@ bool paint_png_to_surface(cairo_surface_t *surface, std::string path, int target
         return false;
 
     auto *temp_context = cairo_create(surface);
+    int w = cairo_image_surface_get_width(png_surface);
+    int h = cairo_image_surface_get_height(png_surface);
 
+    double scale = ((double) target_size) / ((double) w);
+    cairo_scale(temp_context, scale, scale);
     cairo_save(temp_context);
     cairo_set_operator(temp_context, CAIRO_OPERATOR_CLEAR);
     cairo_paint(temp_context);

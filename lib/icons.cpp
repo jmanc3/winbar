@@ -1,494 +1,552 @@
-//
-// Created by jmanc3 on 2/3/20.
-//
 
 #include "icons.h"
-
-/**
- *
- *
- *
- * THE CODE THAT ACTUALLY FINDS THE ICONS BASED ON A WM_CLASS IS
- * AT THE BOTTOM OF THIS FILE AND IS ABOUT 200~ LOC.
- * EVERYTHING ABOVE THAT IS INIREADER OR RAPIDCSV, WHICH WE USE
- * TO PARSE THE ICON INDEX FILES AND THE ICON PATH FIXER FILE
- *
- *
- *
- */
-
-#include <utility>
-#include <vector>
-
-/*
- * rapidcsv.h
- *
- * URL:      https://github.com/d99kris/rapidcsv
- * Version:  4.1
- *
- * Copyright (C) 2017-2019 Kristofer Berggren
- * All rights reserved.
- *
- * rapidcsv is distributed under the BSD 3-Clause license, see LICENSE for
- * details.
- *
- */
-
-#include <algorithm>
-#include <fstream>
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <string>
-#include <typeinfo>
-
-namespace rapidcsv {
-
-    static const bool sPlatformHasCR = false;
-
-    struct ConverterParams {
-        explicit ConverterParams(
-                const bool pHasDefaultConverter = false,
-                const long double pDefaultFloat = std::numeric_limits<long double>::signaling_NaN(),
-                const long long pDefaultInteger = 0)
-                : mHasDefaultConverter(pHasDefaultConverter), mDefaultFloat(pDefaultFloat),
-                  mDefaultInteger(pDefaultInteger) {}
-
-        bool mHasDefaultConverter;
-
-        long double mDefaultFloat;
-
-        long long mDefaultInteger;
-    };
-
-    class no_converter : public std::exception {
-
-        const char *what() const noexcept override { return "unsupported conversion datatype"; }
-    };
-
-    template<typename T>
-    class Converter {
-    public:
-        explicit Converter(const ConverterParams &pConverterParams)
-                : mConverterParams(pConverterParams) {}
-
-        void ToVal(const std::string &pStr, T &pVal) const {
-            try {
-                if (typeid(T) == typeid(int)) {
-                    pVal = static_cast<T>(std::stoi(pStr));
-                    return;
-                } else if (typeid(T) == typeid(long)) {
-                    pVal = static_cast<T>(std::stol(pStr));
-                    return;
-                } else if (typeid(T) == typeid(long long)) {
-                    pVal = static_cast<T>(std::stoll(pStr));
-                    return;
-                } else if (typeid(T) == typeid(unsigned)) {
-                    pVal = static_cast<T>(std::stoul(pStr));
-                    return;
-                } else if (typeid(T) == typeid(unsigned long)) {
-                    pVal = static_cast<T>(std::stoul(pStr));
-                    return;
-                } else if (typeid(T) == typeid(unsigned long long)) {
-                    pVal = static_cast<T>(std::stoull(pStr));
-                    return;
-                }
-            } catch (...) {
-                if (!mConverterParams.mHasDefaultConverter) {
-                    throw;
-                } else {
-                    pVal = static_cast<T>(mConverterParams.mDefaultInteger);
-                    return;
-                }
-            }
-
-            try {
-                if (typeid(T) == typeid(float)) {
-                    pVal = static_cast<T>(std::stof(pStr));
-                    return;
-                } else if (typeid(T) == typeid(double)) {
-                    pVal = static_cast<T>(std::stod(pStr));
-                    return;
-                } else if (typeid(T) == typeid(long double)) {
-                    pVal = static_cast<T>(std::stold(pStr));
-                    return;
-                }
-            } catch (...) {
-                if (!mConverterParams.mHasDefaultConverter) {
-                    throw;
-                } else {
-                    pVal = static_cast<T>(mConverterParams.mDefaultFloat);
-                    return;
-                }
-            }
-
-            if (typeid(T) == typeid(char)) {
-                pVal = static_cast<T>(pStr[0]);
-                return;
-            } else {
-                throw no_converter();
-            }
-        }
-
-    private:
-        const ConverterParams &mConverterParams;
-    };
-
-    template<>
-    inline void
-    Converter<std::string>::ToVal(const std::string &pStr, std::string &pVal) const {
-        pVal = pStr;
-    }
-
-    struct LabelParams {
-        explicit LabelParams(const int pColumnNameIdx = 0, const int pRowNameIdx = 0)
-                : mColumnNameIdx(pColumnNameIdx), mRowNameIdx(pRowNameIdx) {}
-
-        int mColumnNameIdx;
-
-        int mRowNameIdx;
-    };
-
-    struct SeparatorParams {
-        explicit SeparatorParams(const char pSeparator = ',',
-                                 const bool pTrim = false,
-                                 const bool pHasCR = sPlatformHasCR)
-                : mSeparator(pSeparator), mTrim(pTrim), mHasCR(pHasCR) {}
-
-        char mSeparator;
-
-        bool mTrim;
-
-        bool mHasCR;
-    };
-
-    class Document {
-    public:
-        explicit Document(std::string pPath = std::string(),
-                          const LabelParams &pLabelParams = LabelParams(),
-                          const SeparatorParams &pSeparatorParams = SeparatorParams(),
-                          const ConverterParams &pConverterParams = ConverterParams())
-                : mPath(std::move(pPath)), mLabelParams(pLabelParams), mSeparatorParams(pSeparatorParams),
-                  mConverterParams(pConverterParams) {
-            if (!mPath.empty()) {
-                ReadCsv();
-            }
-        }
-
-        Document(const Document &pDocument)
-                : mPath(pDocument.mPath), mLabelParams(pDocument.mLabelParams),
-                  mSeparatorParams(pDocument.mSeparatorParams), mConverterParams(pDocument.mConverterParams),
-                  mData(pDocument.mData), mColumnNames(pDocument.mColumnNames), mRowNames(pDocument.mRowNames) {}
-
-        template<typename T>
-        std::vector<T> GetColumn(const size_t pColumnIdx) const {
-            const ssize_t columnIdx = pColumnIdx + (mLabelParams.mRowNameIdx + 1);
-            std::vector<T> column;
-            Converter<T> converter(mConverterParams);
-            for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow) {
-                if (std::distance(mData.begin(), itRow) > mLabelParams.mColumnNameIdx) {
-                    T val;
-                    converter.ToVal(itRow->at(columnIdx), val);
-                    column.push_back(val);
-                }
-            }
-            return column;
-        }
-
-        template<typename T>
-        std::vector<T> GetColumn(const std::string &pColumnName) const {
-            const ssize_t columnIdx = GetColumnIdx(pColumnName);
-            if (columnIdx < 0) {
-                throw std::out_of_range("column not found: " + pColumnName);
-            }
-            return GetColumn<T>(columnIdx);
-        }
-
-        template<typename T>
-        T GetCell(const size_t pColumnIdx, const size_t pRowIdx) const {
-            const ssize_t columnIdx = pColumnIdx + (mLabelParams.mRowNameIdx + 1);
-            const ssize_t rowIdx = pRowIdx + (mLabelParams.mColumnNameIdx + 1);
-
-            T val;
-            Converter<T> converter(mConverterParams);
-            converter.ToVal(mData.at(rowIdx).at(columnIdx), val);
-            return val;
-        }
-
-        template<typename T>
-        T GetCell(const std::string &pColumnName, const size_t pRowIdx) const {
-            const ssize_t columnIdx = GetColumnIdx(pColumnName);
-            if (columnIdx < 0) {
-                throw std::out_of_range("column not found: " + pColumnName);
-            }
-
-            return GetCell<T>(columnIdx, pRowIdx);
-        }
-
-    private:
-        void ReadCsv() {
-            std::ifstream stream;
-            stream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-            stream.open(mPath, std::ios::binary);
-            {
-                stream.seekg(0, std::ios::beg);
-                ReadCsv(stream);
-            }
-        }
-
-        void ReadCsv(std::istream &pStream) {
-            pStream.seekg(0, std::ios::end);
-            std::streamsize fileLength = pStream.tellg();
-            pStream.seekg(0, std::ios::beg);
-            const std::streamsize bufLength = 64 * 1024;
-            std::vector<char> buffer(bufLength);
-            std::vector<std::string> row;
-            std::string cell;
-            bool quoted = false;
-            int cr = 0;
-            int lf = 0;
-
-            while (fileLength > 0) {
-                std::streamsize readLength = std::min(fileLength, bufLength);
-                pStream.read(buffer.data(), readLength);
-                for (int i = 0; i < readLength; ++i) {
-                    if (buffer[i] == '"') {
-                        if (cell.empty() || cell[0] == '"') {
-                            quoted = !quoted;
-                        }
-                        cell += buffer[i];
-                    } else if (buffer[i] == mSeparatorParams.mSeparator) {
-                        if (!quoted) {
-                            row.push_back(mSeparatorParams.mTrim ? Trim(cell) : cell);
-                            cell.clear();
-                        } else {
-                            cell += buffer[i];
-                        }
-                    } else if (buffer[i] == '\r') {
-                        ++cr;
-                    } else if (buffer[i] == '\n') {
-                        ++lf;
-                        row.push_back(mSeparatorParams.mTrim ? Trim(cell) : cell);
-                        cell.clear();
-                        mData.push_back(row);
-                        row.clear();
-                        quoted = false;// disallow line breaks in quoted string, by
-                        // auto-unquote at linebreak
-                    } else {
-                        cell += buffer[i];
-                    }
-                }
-                fileLength -= readLength;
-            }
-
-            // Handle last line without linebreak
-            if (!cell.empty() || !row.empty()) {
-                row.push_back(mSeparatorParams.mTrim ? Trim(cell) : cell);
-                cell.clear();
-                mData.push_back(row);
-                row.clear();
-            }
-
-            // Assume CR/LF if at least half the linebreaks have CR
-            mSeparatorParams.mHasCR = (cr > (lf / 2));
-
-            // Set up column labels
-            if ((mLabelParams.mColumnNameIdx >= 0) && (!mData.empty())) {
-                int i = 0;
-                for (auto &columnName : mData[mLabelParams.mColumnNameIdx]) {
-                    mColumnNames[columnName] = i++;
-                }
-            }
-
-            // Set up row labels
-            if ((mLabelParams.mRowNameIdx >= 0) &&
-                (static_cast<ssize_t>(mData.size()) > (mLabelParams.mColumnNameIdx + 1))) {
-                int i = 0;
-                for (auto &dataRow : mData) {
-                    mRowNames[dataRow[mLabelParams.mRowNameIdx]] = i++;
-                }
-            }
-        }
-
-        ssize_t GetColumnIdx(const std::string &pColumnName) const {
-            if (mLabelParams.mColumnNameIdx >= 0) {
-                if (mColumnNames.find(pColumnName) != mColumnNames.end()) {
-                    return mColumnNames.at(pColumnName) - (mLabelParams.mRowNameIdx + 1);
-                }
-            }
-            return -1;
-        }
-
-        static std::string Trim(const std::string &pStr) {
-            std::string str = pStr;
-
-            // ltrim
-            str.erase(str.begin(),
-                      std::find_if(str.begin(), str.end(), [](int ch) { return !isspace(ch); }));
-
-            // rtrim
-            str.erase(
-                    std::find_if(str.rbegin(), str.rend(), [](int ch) { return !isspace(ch); }).base(),
-                    str.end());
-
-            return str;
-        }
-
-    private:
-        std::string mPath;
-        LabelParams mLabelParams;
-        SeparatorParams mSeparatorParams;
-        ConverterParams mConverterParams;
-        std::vector<std::vector<std::string>> mData;
-        std::map<std::string, size_t> mColumnNames;
-        std::map<std::string, size_t> mRowNames;
-#ifdef HAS_CODECVT
-        bool mIsUtf16 = false;
-        bool mIsLE = false;
-#endif
-    };
-}// namespace rapidcsv
-
-/**
- * My stuff
- */
-
 #include "INIReader.h"
-#include "utility.h"
-#include <chrono>
-#include <cstring>
-#include <dirent.h>
+#include <cmath>
+#include <sys/stat.h>
+#include "../tracy/Tracy.hpp"
 
-bool get_current_theme_name(std::string *active_theme) {
+// cache file specification
+//
+// line 1:
+// zero terminated strings of backup theme names
+//
+// rest of lines:
+// [4] bytes representing the Size: integer
+// [1] byte representing the Scale:
+// [1] byte Type:
+// zero terminated string of Context
+// zero terminated string of directory name
+//    then icon entries until the end of the line
+//    an icon entry is
+//    [1] byte representing the extension of the image
+//    zero terminated string representing the name of the image
+
+void
+c3ic_generate_sizes(int target_size,
+                    std::vector<int> &target_sizes) {
+    ZoneScoped
+    target_sizes.push_back(8);
+    target_sizes.push_back(16);
+    target_sizes.push_back(18);
+    target_sizes.push_back(24);
+    target_sizes.push_back(32);
+    target_sizes.push_back(48);
+    target_sizes.push_back(64);
+    target_sizes.push_back(96);
+    target_sizes.push_back(128);
+    target_sizes.push_back(256);
+    target_sizes.push_back(512);
+
+    std::sort(target_sizes.begin(), target_sizes.end(), [target_size](int a, int b) {
+        // Prefer higher pixel icons to lower ones
+        long absolute_difference_between_a_and_the_target = std::abs(target_size - a);
+        bool a_is_too_low = a < target_size;
+        long absolute_difference_between_b_and_the_target = std::abs(target_size - b);
+        bool b_is_too_low = b < target_size;
+
+        if (a_is_too_low || b_is_too_low) {
+            if (a_is_too_low && !b_is_too_low)
+                return false;
+            if (b_is_too_low && !a_is_too_low)
+                return true;
+            return absolute_difference_between_a_and_the_target < absolute_difference_between_b_and_the_target;
+        }
+
+        return absolute_difference_between_a_and_the_target < absolute_difference_between_b_and_the_target;
+    });
+}
+
+std::string
+get_current_theme_name() {
+    ZoneScoped
     std::string gtk_settings_file_path(getenv("HOME"));
     gtk_settings_file_path += "/.config/gtk-3.0/settings.ini";
 
     INIReader gtk_settings(gtk_settings_file_path);
     if (gtk_settings.ParseError() != 0) {
+        // hicolor is a theme that is always supposed to be installed
+        // so if we aren't able to find a gtk set theme we return hicolor
+        return "hicolor";
+    }
+
+    return gtk_settings.Get("Settings", "gtk-icon-theme-name", "hicolor");
+}
+
+std::vector<Icon *>
+c3ic_strict_find_icons(const std::string &name,
+                       const std::vector<int> &strict_sizes,
+                       const std::vector<int> &strict_scales,
+                       const std::vector<IconExtension> &strict_extensions) {
+    std::string theme = get_current_theme_name();
+    return c3ic_strict_find_icons(theme, name, strict_sizes, strict_scales, strict_extensions);
+}
+
+#include <filesystem>
+#include <fcntl.h>
+#include <zconf.h>
+#include <sys/mman.h>
+#include <fstream>
+#include <dirent.h>
+
+namespace fs = std::filesystem;
+
+static std::optional<int> ends_with(const char *str, const char *suffix) {
+    if (!str || !suffix)
+        return {};
+    size_t lenstr = strlen(str);
+    size_t lensuffix = strlen(suffix);
+    if (lensuffix > lenstr)
+        return {};
+    bool b = strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
+    if (!b) {
+        return {};
+    }
+    return lenstr - lensuffix;
+}
+
+//
+//   TODO: we should write to a temporary cache file and then move it once we
+//    finish so we don't get corrupted files when interrupted
+//
+bool
+c3ic_cache_the_theme(const std::string &theme) {
+    ZoneScoped
+    //
+    // Find and parse index.theme ini file
+    //
+    std::string theme_index_path("/usr/share/icons/");
+    theme_index_path += theme + "/index.theme";
+    INIReader theme_index(theme_index_path);
+
+    if (theme_index.ParseError() != 0) {
+//        printf("\"index.theme\" file was not in the root directory of the icon theme: %s\n", theme.c_str());
         return false;
     }
 
-    *active_theme = gtk_settings.Get("Settings", "gtk-icon-theme-name", "hicolor");
+    //
+    // Make the cache file that we are going to write to
+    //
+    std::ofstream cache_file;
+    {
+        ZoneScopedN("Create and open cache file")
+        const char *home_directory = getenv("HOME");
+        std::string icon_cache_path(home_directory);
+        icon_cache_path += "/.cache";
+
+        if (mkdir(icon_cache_path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
+            if (errno != EEXIST) {
+//                printf("Couldn't mkdir %s\n", icon_cache_path.c_str());
+                return false;
+            }
+        }
+        icon_cache_path += "/c3_icon_cache";
+        if (mkdir(icon_cache_path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
+            if (errno != EEXIST) {
+//                printf("Couldn't mkdir %s\n", icon_cache_path.c_str());
+                return false;
+            }
+        }
+
+        icon_cache_path += "/" + theme + ".cache";
+
+        cache_file.open(icon_cache_path);
+        if (!cache_file.is_open()) {
+//            printf("Tried and failed at create icon_cache file: %s\n", icon_cache_path.c_str());
+            return false;
+        }
+    }
+
+    //
+    // Write the cache
+    //
+    // read 'cache file specification' found at the top of this file
+    //
+    {
+        ZoneScopedN("Write backup themes to cache file")
+        std::string backup_themes = theme_index.Get("Icon Theme", "Inherits", "hicolor");
+        std::stringstream ss(backup_themes);
+        while (ss.good()) {
+            std::string substr;
+            getline(ss, substr, ',');
+            cache_file << substr << '\0';
+        }
+        cache_file << '\n';
+    }
+
+    for (const std::string &section_title : theme_index.Sections()) {
+        {
+            ZoneScopedN("Write size, scale, type, and title for section")
+            unsigned int size = (unsigned int) theme_index.GetInteger(section_title, "Size", 0);
+            if (size == 0) continue;
+            unsigned char scale = (unsigned char) theme_index.GetInteger(section_title, "Scale", 1);
+            std::string type_string = theme_index.Get(section_title, "Type", "Fixed");
+            unsigned char type = type_string == "Fixed" ? (unsigned char) IconType::FIXED :
+                                 type_string == "Scalable" ? (unsigned char) IconType::SCALABLE :
+                                 (unsigned char) IconType::THRESHOLD;
+            std::string context = theme_index.Get(section_title, "Context", "Unknown");
+            cache_file.write(reinterpret_cast<const char *>(&size), sizeof(size));
+            cache_file << scale;
+            cache_file << type;
+            cache_file << context << '\0';
+            cache_file << section_title << '\0';
+        }
+
+        {
+            ZoneScopedN("Write the file extension and name")
+            std::string section_directory("/usr/share/icons/");
+            section_directory += theme + "/";
+            section_directory += section_title;
+
+            DIR *dir;
+            struct dirent *entry;
+            {
+                ZoneScopedN("Open directory")
+                if (!(dir = opendir(section_directory.c_str()))) {
+                    cache_file << '\n';
+                    continue;
+                }
+            }
+            while ((entry = readdir(dir)) != NULL) {
+                {
+                    ZoneScopedN("Entry Start")
+                    if (entry->d_type == DT_REG || entry->d_type == DT_LNK) {
+                        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                            continue;
+                        if ((strstr(entry->d_name, "org.flameshot.Flameshot") != nullptr)) {
+                            int k = 0;
+                        }
+                        // TODO: using strstr doesn't perfectly protect against multiple extensions but it's good enough probably
+                        std::optional<int> index;
+                        if (index = ends_with(entry->d_name, ".svg")) {
+                            cache_file << (unsigned char) IconExtension::SVG;
+                        } else if (index = ends_with(entry->d_name, ".png")) {
+                            cache_file << (unsigned char) IconExtension::PNG;
+                        } else if (index = ends_with(entry->d_name, ".xpm")) {
+                            cache_file << (unsigned char) IconExtension::XPM;
+                        }
+                        if (index) {
+                            cache_file.write(entry->d_name, index.value());
+                            cache_file << '\0';
+                        }
+                    }
+                }
+            }
+            closedir(dir);
+            cache_file << '\n';
+        }
+    }
+
+    cache_file.close();
 
     return true;
 }
 
-// Icon names and wm_classes are not always the same so for some applications we
-// need to manually fix the correlation with the file found below. Almost no one
-// does this right, but we do. https://github.com/Foggalong/hardcode-fixer
-//
-std::string
-fix_wm_class(const std::string &wm_class) {
-    std::string hard_code_fixer(getenv("HOME"));
-    hard_code_fixer += "/.config/winbar/tofix.csv";
+std::optional<std::tuple<int, int, char *>>
+c3i3_load_theme(const std::string &theme) {
+    ZoneScoped
+    const char *home_directory = getenv("HOME");
+    std::string icon_cache_path(home_directory);
+    icon_cache_path += "/.cache/c3_icon_cache/" + theme + ".cache";
 
-    try {
-        rapidcsv::Document doc(hard_code_fixer, rapidcsv::LabelParams(0, -1));
+    struct stat buffer{};
+    int cache_exists = stat(icon_cache_path.c_str(), &buffer) == 0;
 
-        std::vector<std::string> launchers = doc.GetColumn<std::string>("Launcher");
-
-        int i = 0;
-        for (std::string launcher : launchers) {
-            std::for_each(launcher.begin(), launcher.end(), [](char &c) { c = std::tolower(c); });
-
-            if (launcher == wm_class) {
-                return doc.GetCell<std::string>("Icon Name", i);
-            }
-            i++;
+    // TODO: we have to compare modified time of the folders to see if we are up to date
+    if (!cache_exists) {
+        if (!(cache_exists = c3ic_cache_the_theme(theme))) {
+//            printf("Couldn't cache icon theme: %s", theme.c_str());
+            return {};
         }
-    } catch (const std::exception &ex) {
-        return wm_class;
-    }
-    return wm_class;
-}
-
-static inline bool
-prefix(const char *pre, const char *str) {
-    return strncmp(pre, str, strlen(pre)) == 0;
-}
-
-std::string
-find_icon(std::string wm_class, int size, bool recursive, std::string theme_name) {
-    // read that themes index file to find apps folder at correct size
-    std::string base_icon_path("/usr/share/icons/");
-    std::string theme_index_file_path = base_icon_path + theme_name + "/index.theme";
-
-    INIReader theme_index(theme_index_file_path);
-    if (theme_index.ParseError() != 0) {
-        //        std::cout << "Coudn't parse index.theme file for current theme: "
-        //        << theme_index_file_path << std::endl;
-        return "";
     }
 
-    for (auto section : theme_index.Sections()) {
-        auto Context = theme_index.Get(section, "Context", "");
-        if (Context != "Applications")
-            continue;
+    // Attempt to mmap the file
+    int file_descriptor = open(icon_cache_path.c_str(), O_RDWR, S_IRUSR | S_IWUSR);
+    struct stat sb;
+    if (fstat(file_descriptor, &sb) == -1) {
+//        printf("Couldn't get file size: %s\n", icon_cache_path.c_str());
+        close(file_descriptor);
+        return {};
+    }
 
-        auto Size = theme_index.Get(section, "Size", "");
-        if (Size != std::to_string(size))
-            continue;
+    char *cached_theme_data = (char *) mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, file_descriptor, 0);
+    if (!cached_theme_data) {
+//        printf("Couldn't mmap file.\n");
+        close(file_descriptor);
+        return {};
+    }
 
-        // try to find icon
-        wm_class = fix_wm_class(wm_class);
-        wm_class += ".";// so we only find exact matches with file_name
+    return std::tuple<int, int, char *>(file_descriptor, sb.st_size, cached_theme_data);
+}
 
-        std::string path = base_icon_path + theme_name + "/" + section;
+void
+c3ic_strict_load_icons(std::vector<Icon *> &icons,
+                       const std::string &theme,
+                       const std::string &name,
+                       const std::vector<int> &strict_sizes,
+                       const std::vector<int> &strict_scales,
+                       const std::vector<IconExtension> &strict_extensions,
+                       const bool is_parent_theme) {
+    ZoneScoped
+    int file_descriptor;
+    char *cached_theme;
+    int cached_theme_size;
+    if (auto data = c3i3_load_theme(theme)) {
+        std::tie(file_descriptor, cached_theme_size, cached_theme) = data.value();
+    } else {
+//        printf("Couldn't create/open cache for theme: %s\n", theme.c_str());
+        return;
+    }
 
-        const char *file_name_c = wm_class.c_str();
-        const char *path_c = path.c_str();
+    // try to mmap the cache and then parse and add matching icons
+    //
+    // read 'cache file specification' found at the top of this file
 
-        DIR *dp;
-        if ((dp = opendir(path_c)) == NULL)
-            return "";
+    std::vector<std::string> backup_themes;
 
-        struct dirent *dirp;
-        while ((dirp = readdir(dp)) != NULL) {
-            if (!prefix(file_name_c, dirp->d_name) != 0)
+    char temp_backup_theme_buffer[1024 * 6];
+    unsigned long index_into_file = 0;
+#define NOT_DONE index_into_file < cached_theme_size
+    while (NOT_DONE) {
+        if (cached_theme[index_into_file] == '\n') {
+            index_into_file++;
+            break;
+        }
+        strcpy(temp_backup_theme_buffer, cached_theme + index_into_file);
+        index_into_file += strlen(temp_backup_theme_buffer) + 1;
+        if (is_parent_theme) {
+            backup_themes.emplace_back(temp_backup_theme_buffer);
+        }
+    }
+
+    const char *c_name = name.c_str();
+
+    unsigned int size;
+    unsigned int scale;
+    IconType type;
+    char buffer_context[1024 * 6];
+    char buffer_directory[1024 * 6];
+    char buffer_icon_name[1024 * 6];
+
+    while (NOT_DONE) {
+        size = *(unsigned int *) (cached_theme + index_into_file);
+        index_into_file += 4;
+        scale = (unsigned int) cached_theme[index_into_file++];
+        type = (IconType) cached_theme[index_into_file++];
+
+        strcpy(buffer_context, cached_theme + index_into_file);
+        index_into_file += strlen(buffer_context) + 1;
+
+        strcpy(buffer_directory, cached_theme + index_into_file);
+        index_into_file += strlen(buffer_directory) + 1;
+
+        while (NOT_DONE && cached_theme[index_into_file] != '\n') {
+            IconExtension extension = (IconExtension) cached_theme[index_into_file++];
+
+            strcpy(buffer_icon_name, cached_theme + index_into_file);
+            index_into_file += strlen(buffer_icon_name) + 1;
+
+            if (strcmp(buffer_icon_name, c_name) == 0) {
+                auto size_matches = std::find(strict_sizes.begin(), strict_sizes.end(), size);
+                if (size_matches == strict_sizes.end())
+                    continue; // SKIP THIS ICON, DOESN'T MEET REQUIREMENTS
+                auto extension_matches = std::find(strict_extensions.begin(), strict_extensions.end(), extension);
+                if (extension_matches == strict_extensions.end())
+                    continue; // SKIP THIS ICON, DOESN'T MEET REQUIREMENTS
+                auto scale_matches = std::find(strict_scales.begin(), strict_scales.end(), scale);
+                if (scale_matches == strict_scales.end())
+                    continue; // SKIP THIS ICON, DOESN'T MEET REQUIREMENTS
+
+                auto icon = new Icon();
+                icon->size = size;
+                icon->scale = scale;
+                icon->theme = theme;
+                std::string file_extension_string;
+                switch (extension) {
+                    case SVG: {
+                        file_extension_string = ".svg";
+                        break;
+                    }
+                    case PNG: {
+                        file_extension_string = ".png";
+                        break;
+                    }
+                    case XPM: {
+                        file_extension_string = ".xpm";
+                        break;
+                    }
+                }
+                icon->path += "/usr/share/icons/";
+                icon->path += theme;
+                icon->path += "/";
+                icon->path += buffer_directory;
+                icon->path += "/";
+                icon->path += buffer_icon_name + file_extension_string;
+                icon->extension = extension;
+                icons.emplace_back(icon);
+//                printf("Context: %s, Size: %d, Scale: %d, Type: %d, Directory: %s, Icon Name: %s, Extension %d\n",
+//                       buffer_context, size, scale, type, buffer_directory, buffer_icon_name, extension);
+            }
+        }
+        index_into_file++;
+    }
+
+    munmap(cached_theme, cached_theme_size);
+    close(file_descriptor);
+
+    // We don't want to recurse children backup themes, only top-level parent backup themes
+    if (is_parent_theme && icons.empty()) {
+        for (const auto &backup_theme : backup_themes) {
+            // so we don't recurse hicolor twice in some instances
+            if (backup_theme == "hicolor" && theme == "hicolor") {
                 continue;
-
-            closedir(dp);
-
-            // if found return it
-            return std::string(path + "/" + dirp->d_name);
+            }
+            c3ic_strict_load_icons(icons, backup_theme, name, strict_sizes, strict_scales, strict_extensions, false);
         }
-
-        closedir(dp);
-
-        break;
     }
+}
 
-    if (recursive) {
-        // if not found check the fallback themes one layer deep
-        auto Inherits = theme_index.Get("Icon Theme", "Inherits", "");
-        std::stringstream ss(Inherits);
-        std::vector<std::string> result;
+std::vector<Icon *>
+c3ic_strict_find_icons(const std::string &theme,
+                       const std::string &name,
+                       const std::vector<int> &strict_sizes,
+                       const std::vector<int> &strict_scales,
+                       const std::vector<IconExtension> &strict_extensions) {
+    ZoneScoped
+    std::vector<Icon *> icons;
 
-        while (ss.good()) {
-            std::string substr;
-            getline(ss, substr, ',');
-            result.push_back(substr);
-        }
+    c3ic_strict_load_icons(icons, theme, name, strict_sizes, strict_scales, strict_extensions, true);
 
-        for (auto str : result) {
-            auto path = find_icon(wm_class, size, false, str);
-            if (path != "") {
-                return "";
+    if (icons.empty()) {
+        // If we got here, it means we already searched through the currently active gtk theme and
+        // at the very least the hicolor theme which is supposed to always exists according to spec
+        //
+        // therefore:
+        //
+        // !!!!!!!!!!NUCLEAR OPTION!!!!!!!!!!
+        // SEARCH EVERY THEME!!! WAHAHAHAHAHAHA. YOU WILL NOT DETER ME
+        // MISCONFIGURED *.DESKTOP FILES,
+        // AND WRONGLY SET WM_CLASS NAMES.
+        // I WILL PREVAIL.
+        //
+        // Also, it's not that nuclear. It takes less than 1 millisecond to search through the entirety of Papirus
+        // and everything is cached so we aren't hitting the hard-drive/ssd hard at all.
+        //
+        std::string icons_directory("/usr/share/icons/");
+        DIR *dir;
+        struct dirent *entry;
+        if ((dir = opendir(icons_directory.c_str()))) {
+            while ((entry = readdir(dir)) != NULL) {
+                if (entry->d_type == DT_DIR) {
+                    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                        continue;
+                    std::string nuclear_theme_name = std::string(entry->d_name);
+                    if (nuclear_theme_name != theme && nuclear_theme_name != "hicolor") {
+                        c3ic_strict_load_icons(icons, nuclear_theme_name, name, strict_sizes, strict_scales,
+                                               strict_extensions, false);
+                    }
+                }
             }
         }
     }
 
-    return "";
+    // Sort by quality, size most important, followed by extension, followed by scale
+    for (auto *icon : icons) {
+        for (int i = 0; i < strict_sizes.size(); ++i) {
+            if (strict_sizes[i] == icon->size) {
+                icon->size_index = i;
+                break;
+            }
+        }
+        for (int i = 0; i < strict_scales.size(); ++i) {
+            if (strict_scales[i] == icon->scale) {
+                icon->scale_index = i;
+                break;
+            }
+        }
+        for (int i = 0; i < strict_extensions.size(); ++i) {
+            if (strict_extensions[i] == icon->extension) {
+                icon->extention_index = i;
+                break;
+            }
+        }
+    }
+
+    std::sort(icons.begin(), icons.end(), [](const Icon *a, const Icon *b) {
+        int weight_a = a->extention_index * 30 + a->size_index * 20 + a->scale_index * 10;
+        int weight_b = b->extention_index * 30 + b->size_index * 20 + b->scale_index * 10;
+
+        return weight_a < weight_b;
+    });
+
+//    if (name == "st") {
+//        int k = 0;
+//    }
+
+    return icons;
 }
 
 std::string
-find_icon(std::string wm_class, int size) {
-    // find current set theme
-    std::string theme_name;
-    bool found_current_theme = get_current_theme_name(&theme_name);
-    if (!found_current_theme) {
-        std::cout << "Couldn't find current GTK theme" << std::endl;
+find_icon(const std::string &name, int size) {
+    std::vector<int> strict_sizes;
+    c3ic_generate_sizes(size, strict_sizes);
+    std::vector<int> strict_scales = {1, 2};
+    std::vector<IconExtension> strict_extensions = {IconExtension::SVG, IconExtension::PNG};
+    std::vector<Icon *> options = c3ic_strict_find_icons(name, strict_sizes, strict_scales, strict_extensions);
+
+    if (options.empty()) {
         return "";
     }
-    return find_icon(wm_class, size, true, theme_name);
+
+    printf("%s\n", options[0]->path.c_str());
+    return options[0]->path;
 }
+
+
+std::string
+c3ic_fix_desktop_file_icon(const std::string &given_name,
+                           const std::string &given_wm_class,
+                           const std::string &given_icon) {
+    // mmap tofix.csv file
+    const char *home_directory = getenv("HOME");
+    std::string to_fix_path(home_directory);
+    to_fix_path += "/.cache/winbar/tofix.csv";
+
+    struct stat buffer{};
+    int cache_exists = stat(to_fix_path.c_str(), &buffer) == 0;
+
+    // TODO: we have to compare modified time of the folders to see if we are up to date
+    if (!cache_exists) {
+        printf("%s doesn't exists\n", to_fix_path.c_str());
+        return {};
+    }
+
+    // Attempt to mmap the file
+    int file_descriptor = open(to_fix_path.c_str(), O_RDWR, S_IRUSR | S_IWUSR);
+    struct stat sb;
+    if (fstat(file_descriptor, &sb) == -1) {
+//        printf("Couldn't get file size: %s\n", to_fix_path.c_str());
+        close(file_descriptor);
+        return {};
+    }
+
+    char *to_fix_data = (char *) mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, file_descriptor, 0);
+    if (!to_fix_data) {
+//        printf("Couldn't mmap file.\n");
+        close(file_descriptor);
+        return {};
+    }
+
+    // TODO: don't forget to close are files if we return early
+
+    munmap(to_fix_data, sb.st_size);
+    close(file_descriptor);
+
+    return given_icon;
+}
+
+std::string
+c3ic_fix_wm_class(const std::string &given_wm_class) {
+
+    return given_wm_class;
+}
+    
