@@ -136,4 +136,6 @@ bool screen_has_transparency(App *app);
 
 ArgbColor correct_opaqueness(AppClient *client, ArgbColor color);
 
+void get_average_color(cairo_surface_t *surface, ArgbColor *result);
+
 #endif

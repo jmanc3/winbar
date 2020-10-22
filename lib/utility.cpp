@@ -105,6 +105,58 @@ void dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold) {
     }
 }
 
+void get_average_color(cairo_surface_t *surface, ArgbColor *result) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    result->a = 1;
+    result->r = 1;
+    result->g = 1;
+    result->b = 1;
+    if (surface == nullptr)
+        return;
+    cairo_surface_flush(surface);
+
+    unsigned char *data = cairo_image_surface_get_data(surface);
+    int width = cairo_image_surface_get_width(surface);
+    int height = cairo_image_surface_get_height(surface);
+    int stride = cairo_image_surface_get_stride(surface);
+
+    int total_pixels = width * height;
+    double a = 0;
+    double r = 0;
+    double g = 0;
+    double b = 0;
+
+    for (int y = 0; y < height; y++) {
+        auto row = (uint32_t *) data;
+        data += stride;
+
+        for (int x = 0; x < width; x++) {
+            unsigned int color = *row;
+
+            unsigned int alpha = ((color >> 24) & 0xFF);
+            unsigned int red = ((color >> 16) & 0xFF);
+            unsigned int green = ((color >> 8) & 0xFF);
+            unsigned int blue = ((color >> 0) & 0xFF);
+            if (alpha == 0) {
+                total_pixels--;
+            } else {
+                a += (((double) alpha) / 255);
+                r += (((double) red) / 255);
+                g += (((double) green) / 255);
+                b += (((double) blue) / 255);
+            }
+
+            row++;
+        }
+    }
+    result->a = a / (total_pixels);
+    result->r = r / (total_pixels);
+    result->g = g / (total_pixels);
+    result->b = b / (total_pixels);
+}
+
 ArgbColor
 lerp_argb(double scalar, ArgbColor start_color, ArgbColor target_color) {
     ArgbColor color;

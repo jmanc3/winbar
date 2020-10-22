@@ -20,6 +20,7 @@
 #include <pango/pangocairo.h>
 #include <vector>
 #include <xcb/xcb_aux.h>
+#include <hsluv.h>
 
 std::vector<Launcher *> launchers;
 
@@ -206,9 +207,26 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
         cairo_fill(cr);
     }
 
-    set_argb(cr, config->color_apps_item_icon_background);
-    cairo_rectangle(cr, container->real_bounds.x + 4, container->real_bounds.y + 2, 32, 32);
-    cairo_fill(cr);
+
+    if (data->launcher->icon_24) {
+        ArgbColor average_color;
+        get_average_color(data->launcher->icon_24, &average_color);
+//        average_color.r = 1 - average_color.r;
+//        average_color.g = 1 - average_color.g;
+//        average_color.b = 1 - average_color.b;
+        double ph;
+        double ps;
+        double pl;
+        rgb2hsluv(average_color.r, average_color.g, average_color.b, &ph, &ps, &pl);
+        ph = 360 - ph;
+        ps = 100;
+        pl = 70;
+        hsluv2rgb(ph, ps, pl, &average_color.r, &average_color.g, &average_color.b);
+        set_argb(cr, average_color);
+
+        cairo_rectangle(cr, container->real_bounds.x + 4, container->real_bounds.y + 2, 32, 32);
+        cairo_fill(cr);
+    }
 
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
