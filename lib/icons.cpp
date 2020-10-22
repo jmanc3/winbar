@@ -487,11 +487,13 @@ c3ic_strict_find_icons(const std::string &theme,
 
 std::string
 find_icon(const std::string &name, int size) {
+    const std::string fixed_name = c3ic_fix_wm_class(name);
+
     std::vector<int> strict_sizes;
     c3ic_generate_sizes(size, strict_sizes);
     std::vector<int> strict_scales = {1, 2};
     std::vector<IconExtension> strict_extensions = {IconExtension::SVG, IconExtension::PNG};
-    std::vector<Icon *> options = c3ic_strict_find_icons(name, strict_sizes, strict_scales, strict_extensions);
+    std::vector<Icon *> options = c3ic_strict_find_icons(fixed_name, strict_sizes, strict_scales, strict_extensions);
 
     if (options.empty()) {
         return "";
@@ -509,7 +511,7 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
     // mmap tofix.csv file
     const char *home_directory = getenv("HOME");
     std::string to_fix_path(home_directory);
-    to_fix_path += "/.cache/winbar/tofix.csv";
+    to_fix_path += "/.config/winbar/tofix.csv";
 
     struct stat buffer{};
     int cache_exists = stat(to_fix_path.c_str(), &buffer) == 0;
@@ -536,7 +538,7 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
         return {};
     }
 
-    // TODO: don't forget to close are files if we return early
+    
 
     munmap(to_fix_data, sb.st_size);
     close(file_descriptor);
@@ -546,7 +548,6 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
 
 std::string
 c3ic_fix_wm_class(const std::string &given_wm_class) {
-
-    return given_wm_class;
+    return c3ic_fix_desktop_file_icon(given_wm_class, given_wm_class, given_wm_class);
 }
     
