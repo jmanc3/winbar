@@ -331,6 +331,7 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     auto *data = new OptionData();
     data->option_type = option_data_type::OPEN;
     auto *open = root->child(FILL_SPACE, 30);
+    pinned_icon_data->icon_name = c3ic_fix_wm_class(pinned_icon_data->icon_name);
     std::string path = find_icon(pinned_icon_data->icon_name, 16);
 
     auto *d = new DelayedSurfacePainting();

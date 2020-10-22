@@ -35,6 +35,7 @@ public:
 std::string
 c3ic_fix_desktop_file_icon(const std::string &given_name,
                            const std::string &given_wm_class,
+                           const std::string &given_path,
                            const std::string &given_icon);
 
 std::string

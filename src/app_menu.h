@@ -13,6 +13,8 @@ class Launcher : public Sortable {
 public:
     std::string icon;
     std::string exec;
+    std::string name;
+    std::string wmclass;
 
     cairo_surface_t *icon_16 = nullptr;
     cairo_surface_t *icon_32 = nullptr;
@@ -24,6 +26,6 @@ extern std::vector<Launcher *> launchers;
 
 void start_app_menu();
 
-void load_desktop_files();
+void load_all_desktop_files();
 
 #endif// APP_MENU_H

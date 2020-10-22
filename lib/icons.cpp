@@ -487,13 +487,11 @@ c3ic_strict_find_icons(const std::string &theme,
 
 std::string
 find_icon(const std::string &name, int size) {
-    const std::string fixed_name = c3ic_fix_wm_class(name);
-
     std::vector<int> strict_sizes;
     c3ic_generate_sizes(size, strict_sizes);
     std::vector<int> strict_scales = {1, 2};
     std::vector<IconExtension> strict_extensions = {IconExtension::SVG, IconExtension::PNG};
-    std::vector<Icon *> options = c3ic_strict_find_icons(fixed_name, strict_sizes, strict_scales, strict_extensions);
+    std::vector<Icon *> options = c3ic_strict_find_icons(name, strict_sizes, strict_scales, strict_extensions);
 
     if (options.empty()) {
         return "";
@@ -503,10 +501,10 @@ find_icon(const std::string &name, int size) {
     return options[0]->path;
 }
 
-
 std::string
 c3ic_fix_desktop_file_icon(const std::string &given_name,
                            const std::string &given_wm_class,
+                           const std::string &given_path,
                            const std::string &given_icon) {
     // mmap tofix.csv file
     const char *home_directory = getenv("HOME");
@@ -518,8 +516,8 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
 
     // TODO: we have to compare modified time of the folders to see if we are up to date
     if (!cache_exists) {
-        printf("%s doesn't exists\n", to_fix_path.c_str());
-        return {};
+//        printf("%s doesn't exists\n", to_fix_path.c_str());
+        return given_icon;
     }
 
     // Attempt to mmap the file
@@ -528,17 +526,118 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
     if (fstat(file_descriptor, &sb) == -1) {
 //        printf("Couldn't get file size: %s\n", to_fix_path.c_str());
         close(file_descriptor);
-        return {};
+        return given_icon;
     }
 
     char *to_fix_data = (char *) mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, file_descriptor, 0);
     if (!to_fix_data) {
 //        printf("Couldn't mmap file.\n");
         close(file_descriptor);
-        return {};
+        return given_icon;
     }
 
-    
+    unsigned long index_into_file = 0;
+
+    // Eat the first line;
+#define MNOT_DONE index_into_file < buffer.st_size
+    while (MNOT_DONE && to_fix_data[index_into_file] != '\n') {
+        index_into_file++;
+    }
+    index_into_file++;
+
+    int loading_type = 0;
+    int offset = 0;
+    char first[1024 * 6] = {0};
+    char second[1024 * 6] = {0};
+    char third[1024 * 6] = {0};
+    char fourth[1024 * 6] = {0};
+    bool should_change = false;
+
+    const char *given_name_c = given_name.c_str();
+    const char *given_wm_class_c = given_wm_class.c_str();
+
+    char given_path_c[1024 * 6] = {0};
+    const char *temp_given_path_c = given_path.c_str();
+
+    for (int i = 0; i < given_path.size() + 1; i++) {
+        char c = temp_given_path_c[i];
+        if (c == '/') {
+            offset = 0;
+        } else {
+            given_path_c[offset++] = c;
+        }
+    }
+    offset = 0;
+
+    while (MNOT_DONE) {
+        if (to_fix_data[index_into_file] == ',') {
+            switch (loading_type) {
+                case 0: {
+                    first[offset] = '\0';
+                    if (strcmp(first, given_name_c) == 0) {
+                        should_change = true;
+                    }
+                    break;
+                }
+                case 1: {
+                    second[offset] = '\0';
+                    if (strcmp(second, given_wm_class_c) == 0) {
+                        should_change = true;
+                    }
+                    break;
+                }
+                case 2: {
+                    third[offset] = '\0';
+
+                    if (strcmp(third, given_path_c) == 0) {
+                        should_change = true;
+                    }
+                    break;
+                }
+            }
+            index_into_file++;
+            loading_type++;
+            offset = 0;
+            continue;
+        }
+        if (to_fix_data[index_into_file] == '\n') {
+            fourth[offset] = '\0';
+            index_into_file++;
+            if (should_change) {
+                should_change = false;
+                // return fourth
+                munmap(to_fix_data, sb.st_size);
+                close(file_descriptor);
+                return fourth;
+            }
+            loading_type = 0;
+            offset = 0;
+            continue;
+        }
+        switch (loading_type) {
+            case 0: {
+                first[offset++] = to_fix_data[index_into_file++];
+                break;
+            }
+            case 1: {
+                second[offset++] = to_fix_data[index_into_file++];
+                break;
+            }
+            case 2: {
+                // for the directory, we only want to save the file name not the entire directory path
+                char previous_char = to_fix_data[index_into_file];
+                third[offset++] = to_fix_data[index_into_file++];
+                if (previous_char == '/') {
+                    offset = 0;
+                }
+                break;
+            }
+            default: {
+                fourth[offset++] = to_fix_data[index_into_file++];
+                break;
+            }
+        }
+    }
 
     munmap(to_fix_data, sb.st_size);
     close(file_descriptor);
@@ -548,6 +647,6 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
 
 std::string
 c3ic_fix_wm_class(const std::string &given_wm_class) {
-    return c3ic_fix_desktop_file_icon(given_wm_class, given_wm_class, given_wm_class);
+    return c3ic_fix_desktop_file_icon(given_wm_class, given_wm_class, given_wm_class, given_wm_class);
 }
     

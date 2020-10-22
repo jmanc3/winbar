@@ -823,15 +823,29 @@ app_menu_event_handler(App *app, xcb_generic_event_t *event) {
 static void
 paint_desktop_files() {
     for (auto *launcher : launchers) {
-
         launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16, 16);
         launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24, 24);
         launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32, 32);
         launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64, 64);
-        std::string path16 = find_icon(launcher->icon, 16);
-        std::string path24 = find_icon(launcher->icon, 24);
-        std::string path32 = find_icon(launcher->icon, 32);
-        std::string path64 = find_icon(launcher->icon, 64);
+        std::string path16;
+        std::string path24;
+        std::string path32;
+        std::string path64;
+        launcher->icon = c3ic_fix_desktop_file_icon(launcher->name, launcher->wmclass, launcher->icon, launcher->icon);
+        if (!launcher->icon.empty()) {
+            if (launcher->icon[0] == '/') {
+                path16 = launcher->icon;
+                path24 = launcher->icon;
+                path32 = launcher->icon;
+                path64 = launcher->icon;
+            } else {
+                path16 = find_icon(launcher->icon, 16);
+                path24 = find_icon(launcher->icon, 24);
+                path32 = find_icon(launcher->icon, 32);
+                path64 = find_icon(launcher->icon, 64);
+            }
+        }
+
         if (!path16.empty() && !launcher->icon.empty()) {
             paint_surface_with_image(launcher->icon_16, path16, 16, nullptr);
         } else {
@@ -862,33 +876,36 @@ paint_desktop_files() {
     }
 }
 
-void load_desktop_files() {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-
-    // If the "Icon=" contains "." it's a full path that we should try to load
-    // We should look in "~/.icons"  then "/usr/local/share/icons/" then "/usr/share/icons"
-    // If we didn't find it then we try to get the name of the .png and use that to look for icons
-    // If its not a path, then we do the same search
-    for (auto *l : launchers) {
-        delete l;
+static std::optional<int> ends_with(const char *str, const char *suffix) {
+    if (!str || !suffix)
+        return {};
+    size_t lenstr = strlen(str);
+    size_t lensuffix = strlen(suffix);
+    if (lensuffix > lenstr)
+        return {};
+    bool b = strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
+    if (!b) {
+        return {};
     }
-    launchers.clear();
+    return lenstr - lensuffix;
+}
 
-    std::string path = "/usr/share/applications/";
-
+void load_desktop_files(std::string directory) {
     DIR *dir;
     struct dirent *ent;
-    if ((dir = opendir(path.c_str())) != NULL) {
+    if ((dir = opendir(directory.c_str())) != NULL) {
         while ((ent = readdir(dir)) != NULL) {
+            if (!ends_with(ent->d_name, ".desktop")) {
+                continue;
+            }
             // Parse desktop file
-            INIReader desktop_application(path + ent->d_name);
+            INIReader desktop_application(directory + ent->d_name);
             if (desktop_application.ParseError() != 0) {
                 continue;
             }
 
             std::string name = desktop_application.Get("Desktop Entry", "Name", "");
+            std::string wmclass = desktop_application.Get("Desktop Entry", "StartupWMClass", "");
             std::string exec = desktop_application.Get("Desktop Entry", "Exec", "");
             std::string icon = desktop_application.Get("Desktop Entry", "Icon", "");
 
@@ -912,11 +929,32 @@ void load_desktop_files() {
                            launcher->lowercase_name.begin(),
                            ::tolower);
             launcher->exec = exec;
+            launcher->wmclass = wmclass;
             launcher->icon = icon;
 
             launchers.push_back(launcher);
         }
     }
+}
+
+void load_all_desktop_files() {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+
+    // If the "Icon=" contains "." it's a full path that we should try to load
+    // We should look in "~/.icons"  then "/usr/local/share/icons/" then "/usr/share/icons"
+    // If we didn't find it then we try to get the name of the .png and use that to look for icons
+    // If its not a path, then we do the same search
+    for (auto *l : launchers) {
+        delete l;
+    }
+    launchers.clear();
+
+    load_desktop_files("/usr/share/applications/");
+    std::string local_desktop_files = getenv("HOME");
+    local_desktop_files += "/.local/share/applications/";
+    load_desktop_files(local_desktop_files);
 
     std::sort(launchers.begin(), launchers.end(), [](const auto &lhs, const auto &rhs) {
         std::string first_name = lhs->name;

@@ -1711,6 +1711,8 @@ void add_window(App *app, xcb_window_t window) {
         return;
 
     std::string window_class_name = class_name(app, window);
+    window_class_name = c3ic_fix_wm_class(window_class_name);
+
     for (auto icon : icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
         if (data->class_name == window_class_name) {
@@ -2097,6 +2099,7 @@ load_pinned_icons() {
             data->command_launched_by = command;
         }
 
+        data->icon_name = c3ic_fix_wm_class(data->icon_name);
         std::string path = find_icon(data->icon_name, 24);
         if (!path.empty()) {
             load_icon_full_path(app, client_entity, &data->surface, path, 24);

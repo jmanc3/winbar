@@ -37,7 +37,7 @@ int main() {
 
     // We only want to load the desktop files once at the start of the program
     //std::thread(load_desktop_files).detach();
-    load_desktop_files();
+    load_all_desktop_files();
     load_scripts();// The scripts are reloaded every time the search_menu window closes
     load_historic_scripts();
     load_historic_apps();
