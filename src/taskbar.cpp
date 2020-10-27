@@ -1698,6 +1698,9 @@ void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    auto cookie_get_wm_desktop = xcb_ewmh_get_wm_desktop(&app->ewmh, window);
+    uint32_t desktop = 0;
+    xcb_ewmh_get_wm_desktop_from_reply(&desktop, NULL);
 
     std::vector<xcb_window_t> old_windows;
     AppClient *client = client_by_name(app, "taskbar");

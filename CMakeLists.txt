@@ -81,5 +81,4 @@ endforeach ()
 # install ${project_name} executable to /usr/local/bin/${project_name}
 #
 install(TARGETS ${project_name}
-        PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ WORLD_READ WORLD_WRITE GROUP_WRITE GROUP_READ
         DESTINATION /usr/local/bin/)

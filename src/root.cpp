@@ -56,11 +56,19 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
         case XCB_PROPERTY_NOTIFY: {
             auto *e = (xcb_property_notify_event_t *) event;
+            const xcb_get_atom_name_cookie_t &cookie = xcb_get_atom_name(app->connection, e->atom);
+            xcb_get_atom_name_reply_t *reply = xcb_get_atom_name_reply(app->connection, cookie, NULL);
+
+            int length = xcb_get_atom_name_name_length(reply);
+            char *name = xcb_get_atom_name_name(reply);
+            printf("ATOM: %s\n", name);
 
             if (e->atom == get_cached_atom(app, "_NET_CLIENT_LIST_STACKING")) {
                 update_stacking_order();
             } else if (e->atom == get_cached_atom(app, "_NET_ACTIVE_WINDOW")) {
                 update_active_window();
+            } else if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
+                printf("here\n");
             }
             break;
         }

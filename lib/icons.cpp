@@ -3,7 +3,12 @@
 #include "INIReader.h"
 #include <cmath>
 #include <sys/stat.h>
+
+#ifdef TRACY_ENABLE
+
 #include "../tracy/Tracy.hpp"
+
+#endif
 
 // cache file specification
 //
@@ -24,7 +29,10 @@
 void
 c3ic_generate_sizes(int target_size,
                     std::vector<int> &target_sizes) {
+#ifdef TRACY_ENABLE
     ZoneScoped
+#endif
+
     target_sizes.push_back(8);
     target_sizes.push_back(16);
     target_sizes.push_back(18);
@@ -58,7 +66,10 @@ c3ic_generate_sizes(int target_size,
 
 std::string
 get_current_theme_name() {
+#ifdef TRACY_ENABLE
     ZoneScoped
+#endif
+
     std::string gtk_settings_file_path(getenv("HOME"));
     gtk_settings_file_path += "/.config/gtk-3.0/settings.ini";
 
@@ -110,7 +121,10 @@ static std::optional<int> ends_with(const char *str, const char *suffix) {
 //
 bool
 c3ic_cache_the_theme(const std::string &theme) {
+#ifdef TRACY_ENABLE
     ZoneScoped
+#endif
+
     //
     // Find and parse index.theme ini file
     //
@@ -128,7 +142,9 @@ c3ic_cache_the_theme(const std::string &theme) {
     //
     std::ofstream cache_file;
     {
+#ifdef TRACY_ENABLE
         ZoneScopedN("Create and open cache file")
+#endif
         const char *home_directory = getenv("HOME");
         std::string icon_cache_path(home_directory);
         icon_cache_path += "/.cache";
@@ -162,7 +178,9 @@ c3ic_cache_the_theme(const std::string &theme) {
     // read 'cache file specification' found at the top of this file
     //
     {
+#ifdef TRACY_ENABLE
         ZoneScopedN("Write backup themes to cache file")
+#endif
         std::string backup_themes = theme_index.Get("Icon Theme", "Inherits", "hicolor");
         std::stringstream ss(backup_themes);
         while (ss.good()) {
@@ -175,7 +193,9 @@ c3ic_cache_the_theme(const std::string &theme) {
 
     for (const std::string &section_title : theme_index.Sections()) {
         {
+#ifdef TRACY_ENABLE
             ZoneScopedN("Write size, scale, type, and title for section")
+#endif
             unsigned int size = (unsigned int) theme_index.GetInteger(section_title, "Size", 0);
             if (size == 0) continue;
             unsigned char scale = (unsigned char) theme_index.GetInteger(section_title, "Scale", 1);
@@ -192,7 +212,9 @@ c3ic_cache_the_theme(const std::string &theme) {
         }
 
         {
+#ifdef TRACY_ENABLE
             ZoneScopedN("Write the file extension and name")
+#endif
             std::string section_directory("/usr/share/icons/");
             section_directory += theme + "/";
             section_directory += section_title;
@@ -200,7 +222,9 @@ c3ic_cache_the_theme(const std::string &theme) {
             DIR *dir;
             struct dirent *entry;
             {
+#ifdef TRACY_ENABLE
                 ZoneScopedN("Open directory")
+#endif
                 if (!(dir = opendir(section_directory.c_str()))) {
                     cache_file << '\n';
                     continue;
@@ -208,7 +232,9 @@ c3ic_cache_the_theme(const std::string &theme) {
             }
             while ((entry = readdir(dir)) != NULL) {
                 {
+#ifdef TRACY_ENABLE
                     ZoneScopedN("Entry Start")
+#endif
                     if (entry->d_type == DT_REG || entry->d_type == DT_LNK) {
                         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                             continue;
@@ -243,7 +269,10 @@ c3ic_cache_the_theme(const std::string &theme) {
 
 std::optional<std::tuple<int, int, char *>>
 c3i3_load_theme(const std::string &theme) {
+#ifdef TRACY_ENABLE
     ZoneScoped
+#endif
+
     const char *home_directory = getenv("HOME");
     std::string icon_cache_path(home_directory);
     icon_cache_path += "/.cache/c3_icon_cache/" + theme + ".cache";
@@ -286,7 +315,10 @@ c3ic_strict_load_icons(std::vector<Icon *> &icons,
                        const std::vector<int> &strict_scales,
                        const std::vector<IconExtension> &strict_extensions,
                        const bool is_parent_theme) {
+#ifdef TRACY_ENABLE
     ZoneScoped
+#endif
+
     int file_descriptor;
     char *cached_theme;
     int cached_theme_size;
@@ -411,7 +443,9 @@ c3ic_strict_find_icons(const std::string &theme,
                        const std::vector<int> &strict_sizes,
                        const std::vector<int> &strict_scales,
                        const std::vector<IconExtension> &strict_extensions) {
+#ifdef TRACY_ENABLE
     ZoneScoped
+#endif
     std::vector<Icon *> icons;
 
     c3ic_strict_load_icons(icons, theme, name, strict_sizes, strict_scales, strict_extensions, true);
@@ -497,7 +531,7 @@ find_icon(const std::string &name, int size) {
         return "";
     }
 
-    printf("%s\n", options[0]->path.c_str());
+//    printf("%s\n", options[0]->path.c_str());
     return options[0]->path;
 }
 
