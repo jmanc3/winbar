@@ -59,16 +59,15 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
             const xcb_get_atom_name_cookie_t &cookie = xcb_get_atom_name(app->connection, e->atom);
             xcb_get_atom_name_reply_t *reply = xcb_get_atom_name_reply(app->connection, cookie, NULL);
 
-            int length = xcb_get_atom_name_name_length(reply);
-            char *name = xcb_get_atom_name_name(reply);
-            printf("ATOM: %s\n", name);
+//            char *name = xcb_get_atom_name_name(reply);
+//            printf("ATOM: %s\n", name);
 
             if (e->atom == get_cached_atom(app, "_NET_CLIENT_LIST_STACKING")) {
                 update_stacking_order();
             } else if (e->atom == get_cached_atom(app, "_NET_ACTIVE_WINDOW")) {
                 update_active_window();
             } else if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
-                printf("here\n");
+//                printf("here\n");
             }
             break;
         }
@@ -133,7 +132,7 @@ void root_start(App *app) {
     handler->target_window = app->screen->root;
     app->handlers.push_back(handler);
 
-    const uint32_t values[] = {XCB_EVENT_MASK_PROPERTY_CHANGE};
+    const uint32_t values[] = {XCB_EVENT_MASK_PROPERTY_CHANGE, XCB_EVENT_MASK_STRUCTURE_NOTIFY};
     xcb_change_window_attributes(app->connection, app->screen->root, XCB_CW_EVENT_MASK, values);
 
     // If not on another thread, will block this one

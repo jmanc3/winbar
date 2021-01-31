@@ -1694,6 +1694,27 @@ class_name(App *app, xcb_window_t window) {
     return std::to_string(window);
 }
 
+static bool
+window_event_handler(App *app, xcb_generic_event_t *event) {
+    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
+        case XCB_PROPERTY_NOTIFY: {
+            auto *e = (xcb_property_notify_event_t *) event;
+            const xcb_get_atom_name_cookie_t &cookie = xcb_get_atom_name(app->connection, e->atom);
+            xcb_get_atom_name_reply_t *reply = xcb_get_atom_name_reply(app->connection, cookie, NULL);
+
+            char *name = xcb_get_atom_name_name(reply);
+            printf("ATOM: %s\n", name);
+
+            if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
+
+                printf("here\n");
+            }
+            break;
+        }
+    }
+    return true;
+}
+
 void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -1751,6 +1772,14 @@ void add_window(App *app, xcb_window_t window) {
         free(err);
         err = nullptr;
     }
+
+//    auto *handler = new Handler;
+//    handler->event_handler = window_event_handler;
+//    handler->target_window = window;
+//    app->handlers.push_back(handler);
+//
+//    const uint32_t values[] = {XCB_EVENT_MASK_PROPERTY_CHANGE, XCB_EVENT_MASK_STRUCTURE_NOTIFY};
+//    xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
 
     Container *a = icons->child(48, FILL_SPACE);
     a->when_drag_end_is_click = false;
@@ -1881,6 +1910,14 @@ void remove_window(App *app, xcb_window_t window) {
             }
         }
     }
+
+    // TODO: mark handler as remove at end of loop
+//    for (int i = 0; i < app->handlers.size(); i++) {
+//        if (app->handlers[i]->target_window == window) {
+//            delete (app->handlers[i]);
+//            app->handlers.erase(app->handlers.begin() + i);
+//        }
+//    }
 
     update_pinned_items_file();
     icons_align(entity, icons, false);

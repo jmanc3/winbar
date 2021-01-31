@@ -381,6 +381,7 @@ client_new(App *app, Settings settings, const std::string &name) {
     if (settings.popup) {
         const uint32_t vals[] = {settings.background,
                                  settings.background,
+                                 settings.background,
                                  true,
                                  XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS |
                                  XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_POINTER_MOTION |
@@ -402,11 +403,12 @@ client_new(App *app, Settings settings, const std::string &name) {
                           XCB_COPY_FROM_PARENT,
                           XCB_WINDOW_CLASS_INPUT_OUTPUT,
                           visual_id,
-                          XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT |
+                          XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_BACKING_PIXEL | XCB_CW_OVERRIDE_REDIRECT |
                           XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
                           vals);
     } else {
         const uint32_t vals[] = {settings.background,
+                                 settings.background,
                                  settings.background,
                                  XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS |
                                  XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_POINTER_MOTION |
@@ -428,7 +430,7 @@ client_new(App *app, Settings settings, const std::string &name) {
                           XCB_COPY_FROM_PARENT,
                           XCB_WINDOW_CLASS_INPUT_OUTPUT,
                           visual_id,
-                          XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_EVENT_MASK |
+                          XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_BACKING_PIXEL | XCB_CW_EVENT_MASK |
                           XCB_CW_COLORMAP,
                           vals);
     }
@@ -603,10 +605,11 @@ void init_client(AppClient *client) {
     client->window = 0;
     client->bounds = new Bounds();
     client->root = new Container();
-    client->mouse_initial_x = 0;
-    client->mouse_initial_y = 0;
-    client->mouse_current_x = 0;
-    client->mouse_current_y = 0;
+    // These are -100 because we need a number that isn't in the windows bounds 0..width 0..height.
+    client->mouse_initial_x = -100;
+    client->mouse_initial_y = -100;
+    client->mouse_current_x = -100;
+    client->mouse_current_y = -100;
     client->animation_count = 0;
     client->window_supports_transparency = false;
     client->cr = nullptr;
