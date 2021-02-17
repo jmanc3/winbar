@@ -10,6 +10,7 @@
 #include "main.h"
 #include "taskbar.h"
 #include "utility.h"
+#include "config.h"
 
 #include <mutex>
 
@@ -113,6 +114,27 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
             }
             break;
         }
+        case XCB_CONFIGURE_NOTIFY: {
+            auto *e = (xcb_configure_notify_event_t *) event;
+            app->bounds.w = e->width;
+            app->bounds.h = e->height;
+            if (auto taskbar = client_by_name(app, "taskbar")) {
+                uint32_t value_mask = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
+                                      XCB_CONFIG_WINDOW_HEIGHT;
+                uint32_t window_x = 0;
+                uint32_t window_y = app->bounds.h - config->taskbar_height;
+                uint32_t window_width = app->bounds.w;
+                uint32_t window_height = config->taskbar_height;
+                uint32_t value_list_resize[] = {window_x, window_y, window_width, window_height};
+                auto configure_check = xcb_configure_window_checked(
+                        app->connection, taskbar->window, value_mask, value_list_resize);
+                auto configure_error = xcb_request_check(app->connection, configure_check);
+                if (configure_error) {
+                    printf("error: %d\n", configure_error->error_code);
+                }
+            }
+            break;
+        }
     }
 
     return true;
@@ -132,7 +154,7 @@ void root_start(App *app) {
     handler->target_window = app->screen->root;
     app->handlers.push_back(handler);
 
-    const uint32_t values[] = {XCB_EVENT_MASK_PROPERTY_CHANGE, XCB_EVENT_MASK_STRUCTURE_NOTIFY};
+    const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
     xcb_change_window_attributes(app->connection, app->screen->root, XCB_CW_EVENT_MASK, values);
 
     // If not on another thread, will block this one

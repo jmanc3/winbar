@@ -237,12 +237,12 @@ void cleanup_cached_fonts() {
 }
 
 #define get_window_from_casted_event__explicit_member(X, Y, W) \
-    case X: {                                                  \
-        auto *e = (Y##_event_t *) (event);                     \
-        return e->W;                                           \
-    }
+case X: {                                                  \
+auto *e = (Y##_event_t *) (event);                     \
+return e->W;                                           \
+}
 #define get_window_from_casted_event(X, Y) \
-    get_window_from_casted_event__explicit_member(X, Y, event)
+get_window_from_casted_event__explicit_member(X, Y, event)
 
 xcb_window_t
 get_window(xcb_generic_event_t *event) {

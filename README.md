@@ -1,8 +1,10 @@
 # Winbar
+
 A familiar X11 panel/dock to ease new linux users transition
 ![Screenshots of the taskbar and some menus](screenshots/1.png)
 
 ## Before building
+
 Make sure the following are on your system
 
 Requirements | Reason
@@ -31,44 +33,55 @@ xcb-image | to manipulate images
 unzip | to unzip the resources
 
 On voidlinux you can run the following to get set up for compiling and installing
+
 ```bash
 sudo xbps-install -S git gcc cmake make pango-devel cairo-devel librsvg-devel libxcb-devel xcb-util-devel pulseaudio-devel xcb-util-wm-devel libxkbcommon-devel libxkbcommon-x11 libconfig++-devel xcb-util-keysyms-devel xcb-util-image-devel papirus-icon-theme lxappearance unzip
 ```
 
 ## Installation
+
 * Download the source and enter the folder
+
 ```bash
 git clone https://github.com/jmanc3/winbar
 cd winbar
 ```
+
 * Put the resources and config where they are needed or you'll have missing icons
+
 ```bash
 unzip winbar.zip -d ~/.config
 ```
+
 * It's recommended you set Papirus as your systems icon theme (you can use something like lxappearance to do that)
 
 
 * Finally once you've done everything above, do the following.
+
 ```bash
 ./install.sh
 ``` 
-If compilation fails, it should tell you what headers are missing and you can look up what you need to install for your distribution to get that library.
+
+If compilation fails, it should tell you what headers are missing and you can look up what you need to install for your
+distribution to get that library.
 
 ## Configuration
-You are going to want to change the value of the interface variable in the config file so we display correct network status information.
-The config file should be located at "~/.config/winbar/winbar.cfg" and it has useful comments about what the variables mean in there.
-You can also create and change themes in there.
+
+You are going to want to change the value of the interface variable in the config file so we display correct network
+status information. The config file should be located at "~/.config/winbar/winbar.cfg" and it has useful comments about
+what the variables mean in there. You can also create and change themes in there.
 
 ## Environment
+
 The recommended windows manager to use is Openbox and we make use of the following atoms
 
 Atom | Reason
 ------------ | -------------
 _MOTIF_WM_HINTS | To let the windows manager know which decorations, titlebars for instance, are okay to put on the window
-_NET_ACTIVE_WINDOW | To check which window is the active one 
+_NET_ACTIVE_WINDOW | To check which window is the active one
 _NET_CLIENT_LIST_STACKING | To check how windows are stacked
 _NET_SYSTEM_TRAY_OPCODE | For the systray
-_NET_SYSTEM_TRAY_S | For the systray 
+_NET_SYSTEM_TRAY_S | For the systray
 _NET_WM_DESKTOP | To see which desktop we are on
 _NET_WM_STATE | To set the state
 _NET_WM_STATE_ABOVE | Keep the window above all others
