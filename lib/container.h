@@ -120,8 +120,42 @@ struct ClientKeyboard {
 
 struct App;
 
+struct ScreenInformation {
+    ScreenInformation() {
+
+    }
+
+    bool is_primary;
+    int x, y;
+    int width_in_pixels;
+    int width_in_millimeters;
+    int height_in_pixels;
+    int height_in_millimeters;
+    int rotation;
+    uint8_t status;
+    float dpi_scale = 1; // can be fractional
+    xcb_window_t root_window;
+
+    ScreenInformation(const ScreenInformation &p1) {
+        is_primary = p1.is_primary;
+        x = p1.x;
+        y = p1.y;
+        width_in_pixels = p1.width_in_pixels;
+        width_in_millimeters = p1.width_in_millimeters;
+        height_in_pixels = p1.height_in_pixels;
+        height_in_millimeters = p1.height_in_millimeters;
+        rotation = p1.rotation;
+        status = p1.status;
+        dpi_scale =  p1.dpi_scale;
+        root_window = p1.root_window;
+    }
+};
+
 struct AppClient {
     App *app = nullptr;
+
+    // Information about the screen the client is on like DPI
+    ScreenInformation *screen_information = nullptr;
 
     xcb_window_t window;
 
@@ -140,6 +174,27 @@ struct AppClient {
 
     int animation_count;
 
+    int animations_running = 0;
+    float fps = 144;
+
+    bool automatically_resize_on_dpi_change = true;
+
+    // called after dpi_scale_factor and screen_information have been updated
+    void (*on_dpi_change)(App *, AppClient *) = nullptr;
+
+    // called when client moved to a different screen
+    void (*on_screen_changed)(App *, AppClient *) = nullptr;
+
+    // called when client moved to a different screen
+    void (*on_screen_size_changed)(App *, AppClient *) = nullptr;
+
+    float dpi() const {
+        if (screen_information == nullptr) {
+            return 1;
+        }
+        return screen_information->dpi_scale;
+    }
+
     bool popup = false;
 
     bool window_supports_transparency;
@@ -154,6 +209,8 @@ struct AppClient {
     void (*when_closed)(AppClient *client) = nullptr;
 
     void (*grab_event_handler)(AppClient *client, xcb_generic_event_t *event) = nullptr;
+
+    bool keeps_app_running = true;
 };
 
 struct Container {

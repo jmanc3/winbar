@@ -138,4 +138,11 @@ ArgbColor correct_opaqueness(AppClient *client, ArgbColor color);
 
 void get_average_color(cairo_surface_t *surface, ArgbColor *result);
 
+bool overlaps(double ax, double ay, double aw, double ah,
+              double bx, double by, double bw, double bh);
+
+double calculate_overlap_percentage(double ax, double ay, double aw, double ah,
+                                    double bx, double by, double bw, double bh);
+
+
 #endif

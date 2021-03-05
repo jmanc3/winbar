@@ -298,7 +298,7 @@ wifi_menu_event_handler(App *app, xcb_generic_event_t *event) {
         }
     }
 
-    return true;
+    return false;
 }
 
 void start_wifi_menu() {
@@ -318,7 +318,7 @@ void start_wifi_menu() {
     AppClient *client = client_new(app, settings, "wifi_menu");
     client->grab_event_handler = grab_event_handler;
 
-    client_add_handler(app, client, wifi_menu_event_handler);
+    app_create_custom_event_handler(app, client->window, wifi_menu_event_handler);
 
     fill_root(client);
     client_show(app, client);

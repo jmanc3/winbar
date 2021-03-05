@@ -587,7 +587,7 @@ volume_menu_event_handler(App *app, xcb_generic_event_t *event) {
         }
     }
 
-    return true;
+    return false;
 }
 
 void close_volume_menu() {}
@@ -635,7 +635,7 @@ void open_volume_menu() {
     client_entity = client_new(app, settings, "volume");
     client_entity->grab_event_handler = grab_event_handler;
 
-    client_add_handler(app, client_entity, volume_menu_event_handler);
+    app_create_custom_event_handler(app, client_entity->window, volume_menu_event_handler);
 
     Container *root = client_entity->root;
     fill_root(root);

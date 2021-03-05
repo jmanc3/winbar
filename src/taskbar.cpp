@@ -71,7 +71,7 @@ static void
 fill_root(Container *root);
 
 static void
-late_classes_update();
+late_classes_update(App *app, AppClient *client, void *data);
 
 static void
 paint_background(AppClient *client, cairo_t *cr, Container *container) {
@@ -607,28 +607,20 @@ return_current_time_and_date() {
     return ss.str();
 }
 
-void update_time() {
+void update_time(App *app, AppClient *client, void *data) {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Time Thread");
 #endif
-
-    std::unique_lock lock(app->clients_mutex);
-    while (app->running) {
-        AppClient *client_entity = client_by_name(app, "taskbar");
-        if (client_entity != nullptr) {
-            std::string date = return_current_time_and_date();
-            if (date[0] == '0')
-                date.erase(0, 1);
-            if (time_text != date) {
-                time_text = date;
-                client_layout(app, client_entity);
-                request_refresh(app, client_entity);
-            }
-            lock.unlock();
-            usleep(1000 * 1000);
-            lock.lock();
-        }
+    std::string date = return_current_time_and_date();
+    if (date[0] == '0')
+        date.erase(0, 1);
+    if (time_text != date) {
+        time_text = date;
+        client_layout(app, client);
+        request_refresh(app, client);
     }
+
+    app_timeout_create(app, client, 1000, update_time, nullptr);
 }
 
 void active_window_changed(xcb_window_t new_active_window) {
@@ -1510,8 +1502,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     settings.bottom_show_amount = 2;
     field_search->wanted_pad.x = 12 + 16 + 12;
     auto *con = field_search->child(FILL_SPACE, FILL_SPACE);
-    Container *textarea = make_textarea(con, settings);
-    std::thread(blink, client, textarea).detach();
+    Container *textarea = make_textarea(app, client, con, settings);
     textarea->name = "main_text_area";
     textarea->parent->alignment = ALIGN_CENTER | ALIGN_LEFT;
 
@@ -1587,11 +1578,8 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_date->when_clicked = clicked_date;
     button_date->user_data = new IconButton;
 
-    std::thread t(update_time);
-    t.detach();
-
-    std::thread late(late_classes_update);
-    late.detach();
+    app_timeout_create(app, client, 0, update_time, nullptr);
+    app_timeout_create(app, client, 0, late_classes_update, nullptr);
 
     button_minimize->when_paint = paint_minimize;
     button_minimize->user_data = new IconButton;
@@ -1614,7 +1602,12 @@ when_taskbar_closed(AppClient *client) {
 
 static bool
 taskbar_event_handler(App *app, xcb_generic_event_t *event) {
-    return true;
+    return false;
+}
+
+static void
+taskbar_on_screen_size_change(App *app, AppClient *client) {
+    printf("screen_sie\n");
 }
 
 AppClient *
@@ -1643,8 +1636,9 @@ create_taskbar(App *app) {
 
     AppClient *taskbar = client_new(app, settings, "taskbar");
     taskbar->when_closed = when_taskbar_closed;
+    taskbar->on_screen_size_changed = taskbar_on_screen_size_change;
 
-    client_add_handler(app, taskbar, taskbar_event_handler);
+    app_create_custom_event_handler(app, taskbar->window, taskbar_event_handler);
 
     // Lay it out
     fill_root(app, taskbar, taskbar->root);
@@ -2162,42 +2156,33 @@ load_pinned_icons() {
 }
 
 static void
-late_classes_update() {
+late_classes_update(App *app, AppClient *client, void *data) {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Late WM_CLASS Thread");
 #endif
+    auto *root = client->root;
+    if (!root)
+        return;
+    auto *icons = container_by_name("icons", root);
+    if (!icons)
+        return;
 
-    std::unique_lock lock(app->clients_mutex);
-    while (app->running) {
-        AppClient *client_entity = client_by_name(app, "taskbar");
-        if (!valid_client(app, client_entity))
-            break;
-        auto *root = client_entity->root;
-        if (!root)
-            break;
-        auto *icons = container_by_name("icons", root);
-        if (!icons)
-            break;
+    for (auto icon : icons->children) {
+        auto data = static_cast<LaunchableButton *>(icon->user_data);
 
-        for (auto icon : icons->children) {
-            auto data = static_cast<LaunchableButton *>(icon->user_data);
+        // since when windows don't have real classes on them we set their names to their class.
+        // they should only be stacked by one
+        if (data->windows.size() == 1) {
+            auto name = class_name(app, data->windows[0]);
 
-            // since when windows don't have real classes on them we set their names to their class.
-            // they should only be stacked by one
-            if (data->windows.size() == 1) {
-                auto name = class_name(app, data->windows[0]);
-
-                if (name != data->class_name) {
-                    remove_window(app, data->windows[0]);
-                    add_window(app, data->windows[0]);
-                }
+            if (name != data->class_name) {
+                remove_window(app, data->windows[0]);
+                add_window(app, data->windows[0]);
             }
         }
-
-        lock.unlock();
-        usleep(1000 * 10000);
-        lock.lock();
     }
+
+    app_timeout_create(app, client, 10000, late_classes_update, nullptr);
 }
 
 void update_taskbar_volume_icon() {

@@ -608,6 +608,9 @@ bool screen_has_transparency(App *app) {
 }
 
 ArgbColor correct_opaqueness(AppClient *client, ArgbColor color) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     double alpha;
     if (screen_has_transparency(client->app)) {
         alpha = color.a;
@@ -616,3 +619,36 @@ ArgbColor correct_opaqueness(AppClient *client, ArgbColor color) {
     }
     return ArgbColor(color.r, color.g, color.g, alpha);
 }
+
+
+bool overlaps(double ax, double ay, double aw, double ah,
+              double bx, double by, double bw, double bh) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (ax > (bx + bw) || bx > (ax + aw))
+        return false;
+    return !(ay > (by + bh) || by > (ay + ah));
+}
+
+double calculate_overlap_percentage(double ax, double ay, double aw, double ah,
+                                    double bx, double by, double bw, double bh) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    double result = 0.0;
+    //trivial cases
+    if (!overlaps(ax, ay, aw, ah, bx, by, bw, bh)) return 0.0;
+    if (ax == bx && ay == by && aw == bw && ah == bh) return 100.0;
+
+    //# overlap between A and B
+    double SA = aw * ah;
+    double SB = bw * bh;
+    double SI = MAX(0, MIN(ax + aw, bx + bw) - MAX(ax, bx)) *
+                MAX(0, MIN(ay + ah, by + bh) - MAX(ay, by));
+    double SU = SA + SB - SI;
+    result = SI / SU; //ratio
+    result *= 100.0; //percentage
+    return result;
+}
+

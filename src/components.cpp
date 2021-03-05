@@ -92,27 +92,26 @@ paint_show(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 }
 
+struct MouseDownInfo {
+    Container *container = nullptr;
+    int horizontal_change = 0;
+    int vertical_change = 0;
+};
+
 static void
-mouse_down_thread(AppClient *client,
-                  cairo_t *cr,
-                  Container *container,
-                  int horizontal_change,
-                  int vertical_change) {
-    App *app = client->app;
+mouse_down_thread(App *app, AppClient *client, void *data) {
+    auto *mouse_info = (MouseDownInfo *) data;
 
-    usleep(1000 * 400);// first skip should be slower than the rest
-
-    std::unique_lock guard(client->app->clients_mutex);
-    while (mouse_down_arrow_held.load() && valid_client(app, client) && app->running) {
+    if (mouse_down_arrow_held.load() && valid_client(app, client) && app->running) {
         if (bounds_contains(
-                container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
-            Container *target = container->parent->parent->children[2];
-            target->scroll_h_real += horizontal_change * 1.5;
-            target->scroll_v_real += vertical_change * 1.5;
+                mouse_info->container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+            Container *target = mouse_info->container->parent->parent->children[2];
+            target->scroll_h_real += mouse_info->horizontal_change * 1.5;
+            target->scroll_v_real += mouse_info->vertical_change * 1.5;
             // ::layout(target, target->real_bounds, false);
             client_layout(client->app, client);
 
-            if (horizontal_change != 0)
+            if (mouse_info->horizontal_change != 0)
                 client_create_animation(client->app,
                                         client,
                                         &target->scroll_h_visual,
@@ -120,22 +119,21 @@ mouse_down_thread(AppClient *client,
                                         easing_function,
                                         target->scroll_h_real,
                                         true);
-            if (vertical_change != 0);
-            client_create_animation(client->app,
-                                    client,
-                                    &target->scroll_v_visual,
-                                    scroll_anim_time,
-                                    easing_function,
-                                    target->scroll_v_real,
-                                    true);
-            guard.unlock();
-            usleep(1000 * (scroll_anim_time * 3));
-            guard.lock();
+            if (mouse_info->vertical_change != 0)
+                client_create_animation(client->app,
+                                        client,
+                                        &target->scroll_v_visual,
+                                        scroll_anim_time,
+                                        easing_function,
+                                        target->scroll_v_real,
+                                        true);
+
+            app_timeout_create(app, client, scroll_anim_time * 3, mouse_down_thread, mouse_info);
         } else {
-            guard.unlock();
-            usleep(1000 * (scroll_anim_time));
-            guard.lock();
+            app_timeout_create(app, client, scroll_anim_time, mouse_down_thread, mouse_info);
         }
+    } else {
+        delete mouse_info;
     }
 }
 
@@ -167,8 +165,10 @@ mouse_down_arrow_up(AppClient *client, cairo_t *cr, Container *container) {
     if (mouse_down_arrow_held.load())
         return;
     mouse_down_arrow_held.store(true);
-    std::thread t(mouse_down_thread, client, cr, container, 0, scroll_amount);
-    t.detach();
+    auto *data = new MouseDownInfo;
+    data->container = container;
+    data->vertical_change = scroll_amount;
+    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
 }
 
 static void
@@ -199,8 +199,10 @@ mouse_down_arrow_bottom(AppClient *client, cairo_t *cr, Container *container) {
     if (mouse_down_arrow_held.load())
         return;
     mouse_down_arrow_held.store(true);
-    std::thread t(mouse_down_thread, client, cr, container, 0, -scroll_amount);
-    t.detach();
+    auto *data = new MouseDownInfo;
+    data->container = container;
+    data->vertical_change = -scroll_amount;
+    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
 }
 
 static void
@@ -231,8 +233,10 @@ mouse_down_arrow_left(AppClient *client, cairo_t *cr, Container *container) {
     if (mouse_down_arrow_held.load())
         return;
     mouse_down_arrow_held.store(true);
-    std::thread t(mouse_down_thread, client, cr, container, scroll_amount, 0);
-    t.detach();
+    auto *data = new MouseDownInfo;
+    data->container = container;
+    data->horizontal_change = scroll_amount;
+    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
 }
 
 static void
@@ -263,8 +267,10 @@ mouse_down_arrow_right(AppClient *client, cairo_t *cr, Container *container) {
     if (mouse_down_arrow_held.load())
         return;
     mouse_down_arrow_held.store(true);
-    std::thread t(mouse_down_thread, client, cr, container, -scroll_amount, 0);
-    t.detach();
+    auto *data = new MouseDownInfo;
+    data->container = container;
+    data->horizontal_change = -scroll_amount;
+    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
 }
 
 static void
@@ -955,6 +961,91 @@ clicked_textarea(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+drag_timeout(App *app, AppClient *client, void *data) {
+    auto *container = (Container *) data;
+
+    Container *content_area = container->parent;
+
+    blink_on(client->app, client, container);
+
+    if (dragging.load()) {
+        auto *data = (TextAreaData *) container->user_data;
+
+        PangoLayout *layout = get_cached_pango_font(
+                client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+        pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
+        if (data->wrap) {
+            pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
+            pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
+        }
+
+        int index;
+        int trailing;
+        int lx = client->mouse_current_x - container->real_bounds.x;
+        int ly = client->mouse_current_y - container->real_bounds.y;
+        bool inside = pango_layout_xy_to_index(
+                layout, lx * PANGO_SCALE, ly * PANGO_SCALE, &index, &trailing);
+
+        Bounds bounds = container->parent->real_bounds;
+        int x = client->mouse_current_x;
+        int y = client->mouse_current_y;
+
+        bool modified_x = false;
+        bool modified_y = false;
+
+        if (x < bounds.x) {// off the left side
+            modified_x = true;
+            double multiplier =
+                    std::min((double) scroll_amount * 3, bounds.x - x) / scroll_amount;
+            content_area->scroll_h_real += scroll_amount * multiplier;
+        }
+        if (x > bounds.x + bounds.w) {// off the right side
+            modified_x = true;
+            double multiplier =
+                    std::min((double) scroll_amount * 3, x - (bounds.x + bounds.w)) / scroll_amount;
+            content_area->scroll_h_real -= scroll_amount * multiplier;
+        }
+        if (y < bounds.y) {// off the top
+            modified_y = true;
+            double multiplier =
+                    std::min((double) scroll_amount * 3, bounds.y - y) / scroll_amount;
+            content_area->scroll_v_real += scroll_amount * multiplier;
+        }
+        if (y > bounds.y + bounds.h) {// off the bottom
+            modified_y = true;
+            double multiplier =
+                    std::min((double) scroll_amount * 3, y - (bounds.y + bounds.h)) / scroll_amount;
+            content_area->scroll_v_real -= scroll_amount * multiplier;
+        }
+
+        // ::layout(content_area, content_area->real_bounds, false);
+        client_layout(client->app, client);
+
+        if (modified_x)
+            client_create_animation(client->app,
+                                    client,
+                                    &content_area->scroll_h_visual,
+                                    scroll_anim_time,
+                                    easing_function,
+                                    content_area->scroll_h_real,
+                                    true);
+        if (modified_y)
+            client_create_animation(client->app,
+                                    client,
+                                    &content_area->scroll_v_visual,
+                                    scroll_anim_time,
+                                    easing_function,
+                                    content_area->scroll_v_real,
+                                    true);
+
+        app_timeout_create(client->app, client, scroll_anim_time, drag_timeout, container);
+    } else {
+        request_refresh(app, client);
+    }
+}
+
+static void
 drag_start_textarea(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -979,100 +1070,9 @@ drag_start_textarea(AppClient *client, cairo_t *cr, Container *container) {
     bool inside =
             pango_layout_xy_to_index(layout, x * PANGO_SCALE, y * PANGO_SCALE, &index, &trailing);
 
-    std::thread drag_thread([client, container]() -> void {
-        dragging = true;
-        App *app = client->app;
-
-        Container *content_area = container->parent;
-
-        std::unique_lock guard(client->app->clients_mutex);
-        while (dragging.load() && valid_client(app, client)) {
-            if (!container->state.mouse_dragging) {
-                dragging = false;
-                guard.unlock();
-                break;
-            }
-
-            auto *data = (TextAreaData *) container->user_data;
-
-            PangoLayout *layout = get_cached_pango_font(
-                    client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
-
-            pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
-            if (data->wrap) {
-                pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
-                pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
-            }
-
-            int index;
-            int trailing;
-            int lx = client->mouse_current_x - container->real_bounds.x;
-            int ly = client->mouse_current_y - container->real_bounds.y;
-            bool inside = pango_layout_xy_to_index(
-                    layout, lx * PANGO_SCALE, ly * PANGO_SCALE, &index, &trailing);
-
-            Bounds bounds = container->parent->real_bounds;
-            int x = client->mouse_current_x;
-            int y = client->mouse_current_y;
-
-            bool modified_x = false;
-            bool modified_y = false;
-
-            if (x < bounds.x) {// off the left side
-                modified_x = true;
-                double multiplier =
-                        std::min((double) scroll_amount * 3, bounds.x - x) / scroll_amount;
-                content_area->scroll_h_real += scroll_amount * multiplier;
-            }
-            if (x > bounds.x + bounds.w) {// off the right side
-                modified_x = true;
-                double multiplier =
-                        std::min((double) scroll_amount * 3, x - (bounds.x + bounds.w)) / scroll_amount;
-                content_area->scroll_h_real -= scroll_amount * multiplier;
-            }
-            if (y < bounds.y) {// off the top
-                modified_y = true;
-                double multiplier =
-                        std::min((double) scroll_amount * 3, bounds.y - y) / scroll_amount;
-                content_area->scroll_v_real += scroll_amount * multiplier;
-            }
-            if (y > bounds.y + bounds.h) {// off the bottom
-                modified_y = true;
-                double multiplier =
-                        std::min((double) scroll_amount * 3, y - (bounds.y + bounds.h)) / scroll_amount;
-                content_area->scroll_v_real -= scroll_amount * multiplier;
-            }
-
-            // ::layout(content_area, content_area->real_bounds, false);
-            client_layout(client->app, client);
-
-            if (modified_x)
-                client_create_animation(client->app,
-                                        client,
-                                        &content_area->scroll_h_visual,
-                                        scroll_anim_time,
-                                        easing_function,
-                                        content_area->scroll_h_real,
-                                        true);
-            if (modified_y)
-                client_create_animation(client->app,
-                                        client,
-                                        &content_area->scroll_v_visual,
-                                        scroll_anim_time,
-                                        easing_function,
-                                        content_area->scroll_v_real,
-                                        true);
-
-            guard.unlock();
-            usleep(1000 * scroll_anim_time);
-            guard.lock();
-        }
-
-        dragging = false;
-        if (valid_client(app, client))
-            request_refresh(app, client);
-    });
-    drag_thread.detach();
+    dragging = true;
+    app_timeout_create(client->app, client, 0, drag_timeout, container);
+    blink_on(client->app, client, container);
 
     auto cookie = xcb_xkb_get_state(client->app->connection, client->keyboard->device_id);
     auto reply = xcb_xkb_get_state_reply(client->app->connection, cookie, nullptr);
@@ -1180,7 +1180,7 @@ textarea_key_release(AppClient *client,
                      xcb_generic_event_t *event);
 
 Container *
-make_textarea(Container *parent, TextAreaSettings settings) {
+make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings settings) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1216,6 +1216,8 @@ make_textarea(Container *parent, TextAreaSettings settings) {
     textarea->user_data = data;
 
     scroll_amount = data->font_size * 3;
+
+    blink_loop(app, client, textarea);
 
     return textarea;
 }
@@ -1524,6 +1526,11 @@ void textarea_handle_keypress(App *app, xcb_generic_event_t *event, Container *t
     if (!textarea->parent->active) {
         return;
     }
+    xcb_window_t window = get_window(event);
+    auto client = client_by_window(app, window);
+    if (valid_client(app, client)) {
+        blink_on(app, client, textarea);
+    }
 
     switch (event->response_type) {
         case XCB_KEY_RELEASE:
@@ -1825,32 +1832,34 @@ textarea_key_release(AppClient *client,
     textarea_handle_keypress(client->app, event, container);
 }
 
+#define CURSOR_BLINK_ON_TIME 530
+#define CURSOR_BLINK_OFF_TIME 430
 
 void
-blink(AppClient *client, Container *textarea) {
-    App *app = client->app;
-    std::unique_lock m(app->clients_mutex);
-    while (valid_client(app, client)) {
-        auto *data = (TextAreaData *) textarea->user_data;
-        long current_time = get_current_time_in_ms();
-        long passage = current_time - data->state->last_time_key_press;
+blink_on(App *app, AppClient *client, void *textarea) {
+    auto *container = (Container *) textarea;
+    auto *data = (TextAreaData *) container->user_data;
 
-        if (passage > 490) {
-            data->state->cursor_on = !data->state->cursor_on;
-            if (textarea->parent->active) {
-                request_refresh(app, client);
-            }
-            m.unlock();
-            usleep(1000 * 500);
-            m.lock();
-        } else {
-            if (textarea->parent->active) {
-                request_refresh(app, client);
-            }
-            m.unlock();
-            usleep(1000 * (500 - passage));
-            m.lock();
-        }
+    if (data->state->cursor_blink_fd == -1) {
+        data->state->cursor_blink_fd = app_timeout_create(app, client, CURSOR_BLINK_ON_TIME, blink_loop, textarea);
+    } else {
+        app_timeout_replace(app, client, data->state->cursor_blink_fd,
+                            CURSOR_BLINK_ON_TIME, blink_loop, textarea);
     }
+    data->state->cursor_on = true;
+    request_refresh(app, client);
+}
+
+void
+blink_loop(App *app, AppClient *client, void *textarea) {
+    auto *container = (Container *) textarea;
+    auto *data = (TextAreaData *) container->user_data;
+
+    float cursor_blink_time = data->state->cursor_on ? CURSOR_BLINK_OFF_TIME : CURSOR_BLINK_ON_TIME;
+
+    data->state->cursor_blink_fd = app_timeout_create(app, client, cursor_blink_time, blink_loop, textarea);
+
+    data->state->cursor_on = !data->state->cursor_on;
+    request_refresh(app, client);
 }
 

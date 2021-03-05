@@ -1,5 +1,6 @@
 
 #include "app_menu.h"
+#include "application.h"
 
 #ifdef TRACY_ENABLE
 
@@ -211,9 +212,9 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     if (data->launcher->icon_24) {
         ArgbColor average_color;
         get_average_color(data->launcher->icon_24, &average_color);
-//        average_color.r = 1 - average_color.r;
-//        average_color.g = 1 - average_color.g;
-//        average_color.b = 1 - average_color.b;
+        //        average_color.r = 1 - average_color.r;
+        //        average_color.g = 1 - average_color.g;
+        //        average_color.b = 1 - average_color.b;
         double ph;
         double ps;
         double pl;
@@ -405,36 +406,52 @@ when_scrollbar_mouse_leaves(AppClient *client, cairo_t *cr, Container *container
     client_create_animation(client->app, client, &scrollbar_visible, 100, 0, 0);
 }
 
+static int scrollbar_leave_fd = -1;
+
+static void
+scrollbar_leaves_timeout(App *app, AppClient *client, void *data) {
+    if (valid_client(app, client)) {
+        auto *container = (Container *) data;
+        if (scrollbar_openess != 0 && scrollbar_openess == 1 &&
+            !bounds_contains(
+                    container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+            client_create_animation(client->app, client, &scrollbar_openess, 100, 0, 0);
+        }
+    } else {
+        scrollbar_openess = 0;
+    }
+    scrollbar_leave_fd = -1;
+}
+
 static void
 when_scrollbar_mouse_leaves_slow(AppClient *client, cairo_t *cr, Container *container) {
-    App *app = client->app;
-    std::thread t([app, client, container]() -> void {
-        usleep(1000 * 3000);
-        std::lock_guard m(app->clients_mutex);
-        if (valid_client(app, client)) {
-            if (scrollbar_openess != 0 && scrollbar_openess == 1 &&
-                !bounds_contains(
-                        container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
-                client_create_animation(client->app, client, &scrollbar_openess, 100, 0, 0);
-            }
-        } else {
-            scrollbar_openess = 0;
-        }
-    });
-    t.detach();
+    if (scrollbar_leave_fd == -1) {
+        scrollbar_leave_fd = app_timeout_create(app, client, 3000, scrollbar_leaves_timeout, container);
+    } else {
+        app_timeout_replace(app, client, scrollbar_leave_fd, 3000, scrollbar_leaves_timeout, container);
+    }
+}
+
+static int left_open_fd = -1;
+
+static void
+left_open_timeout(App *app, AppClient *client, void *data) {
+    auto *container = (Container *) data;
+    if (app && app->running && valid_client(app, client) &&
+        (container->state.mouse_hovering || container->state.mouse_pressing)) {
+        client_create_animation(
+                app, client, &container->wanted_bounds.w, 120, nullptr, 256, true);
+    }
+    left_open_fd = -1;
 }
 
 static void
 left_open(AppClient *client, cairo_t *cr, Container *container) {
-    std::thread t([client, container]() -> void {
-        usleep(1000 * 180);
-        if (app && app->running && valid_client(app, client) &&
-            (container->state.mouse_hovering || container->state.mouse_pressing)) {
-            client_create_animation(
-                    app, client, &container->wanted_bounds.w, 120, nullptr, 256, true);
-        }
-    });
-    t.detach();
+    if (left_open_fd == -1) {
+        left_open_fd = app_timeout_create(client->app, client, 180, left_open_timeout, container);
+    } else {
+        app_timeout_replace(client->app, client, left_open_fd, 180, left_open_timeout, container);
+    }
 }
 
 static void
@@ -817,7 +834,7 @@ app_menu_event_handler(App *app, xcb_generic_event_t *event) {
         }
     }
 
-    return true;
+    return false;
 }
 
 static void
@@ -994,7 +1011,7 @@ void start_app_menu() {
 
     AppClient *client = client_new(app, settings, "app_menu");
     client->grab_event_handler = grab_event_handler;
-    client_add_handler(app, client, app_menu_event_handler);
+    app_create_custom_event_handler(app, client->window, app_menu_event_handler);
     fill_root(client);
     client_show(app, client);
     set_textarea_active();

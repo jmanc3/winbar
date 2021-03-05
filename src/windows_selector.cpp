@@ -343,7 +343,7 @@ windows_selector_event_handler(App *app, xcb_generic_event_t *event) {
         }
     }
 
-    return true;
+    return false;
 }
 
 void start_windows_selector(Container *container) {
@@ -365,7 +365,7 @@ void start_windows_selector(Container *container) {
     client = client_new(app, settings, "windows_selector");
     client->grab_event_handler = grab_event_handler;
 
-    client_add_handler(app, client, windows_selector_event_handler);
+    app_create_custom_event_handler(app, client->window, windows_selector_event_handler);
 
     fill_root(client->root);
 

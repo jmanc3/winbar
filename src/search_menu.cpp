@@ -152,7 +152,7 @@ search_menu_event_handler(App *app, xcb_generic_event_t *event) {
         }
     }
 
-    return true;
+    return false;
 }
 
 static void
@@ -925,16 +925,18 @@ clicked_right_item(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+clicked_tab_timeout(App *app, AppClient *client, void *user_data) {
+    auto *container = (Container *) user_data;
+    auto *tab_data = (TabData *) container->user_data;
+    active_tab = tab_data->name;
+    on_key_press_search_bar(nullptr);
+}
+
+static void
 clicked_tab(AppClient *client, cairo_t *cr, Container *container) {
     // This has to happen in another thread because on_key_press modifies the containers
     // and this function is called while iterating through them.
-    std::thread t([client, container]() -> void {
-        std::lock_guard<std::mutex>(client->app->clients_mutex);
-        auto *data = (TabData *) container->user_data;
-        active_tab = data->name;
-        on_key_press_search_bar(nullptr);
-    });
-    t.detach();
+    app_timeout_create(app, client, 0, clicked_tab_timeout, container);
 }
 
 static void
@@ -993,7 +995,7 @@ fill_root(AppClient *client) {
     script_64 = accelerated_surface(client->app, client, 64, 64);
     paint_surface_with_image(script_64, as_resource_path("script-64.svg"), 64, nullptr);
     arrow_right_surface = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(arrow_right_surface, as_resource_path("search-right.png"), 16, nullptr);
+    paint_surface_with_image(arrow_right_surface, as_resource_path("arrow-right.png"), 16, nullptr);
     open_surface = accelerated_surface(client->app, client, 16, 16);
     paint_surface_with_image(open_surface, as_resource_path("open.png"), 16, nullptr);
 }
@@ -1142,40 +1144,38 @@ void sort_and_add(std::vector<T> *sortables,
     }
 }
 
+
 static void
-next_tab() {
-    // This has to happen in another thread because on_key_press modifies the containers
-    // and this function is called while iterating through them.
-    std::thread t([]() -> void {
-        std::lock_guard<std::mutex> m(app->clients_mutex);
+next_tab_timeout(App *app, AppClient *client, void *user_data) {
+    if (auto *tab_group = container_by_name("tab_group", client->root)) {
+        for (int i = 0; i < tab_group->children.size(); i++) {
+            auto *tab = tab_group->children[i];
+            auto *tab_data = (TabData *) tab->user_data;
 
-        if (auto *client = client_by_name(app, "search_menu")) {
-            if (auto *tab_group = container_by_name("tab_group", client->root)) {
-                for (int i = 0; i < tab_group->children.size(); i++) {
-                    auto *tab = tab_group->children[i];
-                    auto *tab_data = (TabData *) tab->user_data;
-
-                    if (tab_data->name == active_tab) {
-                        Container *should_be_active = nullptr;
-                        if ((i + 1) == tab_group->children.size()) {
-                            should_be_active = tab_group->children[0];
-                        } else {
-                            should_be_active = tab_group->children[i + 1];
-                        }
-                        if (should_be_active) {
-                            auto *should_be_active_data = (TabData *) should_be_active->user_data;
-                            active_tab = should_be_active_data->name;
-                        }
-                        break;
-                    }
+            if (tab_data->name == active_tab) {
+                Container *should_be_active = nullptr;
+                if ((i + 1) == tab_group->children.size()) {
+                    should_be_active = tab_group->children[0];
+                } else {
+                    should_be_active = tab_group->children[i + 1];
                 }
+                if (should_be_active) {
+                    auto *should_be_active_data = (TabData *) should_be_active->user_data;
+                    active_tab = should_be_active_data->name;
+                }
+                break;
             }
         }
-
         active_item = 0;
         on_key_press_search_bar(nullptr);
-    });
-    t.detach();
+    }
+}
+
+static void
+next_tab() {
+    if (auto *client = client_by_name(app, "search_menu")) {
+        app_timeout_create(app, client, 0, next_tab_timeout, nullptr);
+    }
 }
 
 void on_key_press_search_bar(xcb_generic_event_t *event) {
@@ -1413,7 +1413,7 @@ void start_search_menu() {
     client->grab_event_handler = grab_event_handler;
     client->when_closed = search_menu_when_closed;
     fill_root(client);
-    client_add_handler(app, client, search_menu_event_handler);
+    app_create_custom_event_handler(app, client->window, search_menu_event_handler);
     client_show(app, client);
     set_textarea_active();
 }

@@ -12,7 +12,10 @@ file(GLOB HEADERS src/*.h)
 file(GLOB SOURCES src/*.cpp)
 
 include_directories(lib)
-file(GLOB LIB lib/*.cpp comon/*.cpp lib/*.h common/*.h)
+file(GLOB LIB lib/*.cpp lib/*.h)
+
+include_directories(wpa_ctrl)
+file(GLOB WPA_CTRL wpa_ctrl/*.c wpa_ctrl/*.h)
 
 option(PROFILE "Enable tracy profiling instrumentation" False)
 
@@ -20,14 +23,14 @@ if (PROFILE)
     # compile with profiling enabled
     # run git clone https://github.com/wolfpld/tracy.git if you want to do this
     add_definitions(-DTRACY_ENABLE)
-    add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB} ../tracy/TracyClient.cpp)
+    add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB} ${WPA_CTRL} ../tracy/TracyClient.cpp)
 
     set(DL_LIB dl)
     set(PTHREAD_LIB pthread)
     target_link_libraries(${project_name} PUBLIC ${PTHREAD_LIB} ${DL_LIB})
 else ()
     # otherwise just compile
-    add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB})
+    add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB} ${WPA_CTRL})
 endif ()
 
 find_package(PkgConfig)

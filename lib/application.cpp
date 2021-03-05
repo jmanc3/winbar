@@ -8,6 +8,7 @@
 #endif
 
 #include "utility.h"
+#include "dpi.h"
 
 #include <X11/keysym.h>
 #include <algorithm>
@@ -17,6 +18,9 @@
 #include <xcb/xcb_event.h>
 #include <xkbcommon/xkbcommon-x11.h>
 #include <xkbcommon/xkbcommon.h>
+#include <sys/timerfd.h>
+#include <cassert>
+#include <cmath>
 
 #define explicit dont_use_cxx_explicit
 
@@ -238,16 +242,18 @@ void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keybo
     }
 }
 
-bool poll_descriptor(App *app, int real_file_descriptor, int target_file_descriptor) {
+
+static bool poll_descriptor(App *app, int file_descriptor) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    assert(app != nullptr);
     epoll_event event = {};
     event.events = EPOLLIN;
-    event.data.fd = target_file_descriptor;
+    event.data.fd = file_descriptor;
 
-    if (epoll_ctl(app->epoll_fd, EPOLL_CTL_ADD, real_file_descriptor, &event)) {
-        printf("failed to add file descriptor\n");
+    if (epoll_ctl(app->epoll_fd, EPOLL_CTL_ADD, file_descriptor, &event) != 0) {
+        printf("Failed to add file descriptor: %d\n", file_descriptor);
         close(app->epoll_fd);
         return false;
     }
@@ -325,14 +331,7 @@ App *app_new() {
 
     xcb_flush(app->connection);
 
-    // poll_descriptor(app, app->xcb_fd, app->xcb_fd + 1);
-
-    if (pipe(app->refresh_pipes) == -1) {
-        std::cout << "Couldn't create file descriptor pipes for use to refresh clients"
-                  << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    poll_descriptor(app, app->refresh_pipes[0], app->refresh_pipes[0]);
+    poll_descriptor(app, app->xcb_fd);
 
     auto atom_cookie = xcb_intern_atom(app->connection, 1, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
     xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(app->connection, atom_cookie, NULL);
@@ -744,31 +743,22 @@ void request_refresh(App *app, AppClient *client) {
     delete event;
 }
 
-int refresh_rate = 12;
+void client_animation_paint(App *app, AppClient *client, void *user_data);
 
 void client_register_animation(App *app, AppClient *client) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    if (app == nullptr || !valid_client(app, client))
-        return;
-    std::string buf = "a";
-    write(app->refresh_pipes[1], buf.c_str(), buf.size());
-    client->animation_count += 1;
+    assert(app != nullptr && app->running);
+    assert(client != nullptr);
+    if (client->animations_running == 0) {
+        app_timeout_create(app, client, 0, client_animation_paint, nullptr);
+    }
+    client->animations_running++;
 }
 
 void client_unregister_animation(App *app, AppClient *client) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    if (app == nullptr || !valid_client(app, client))
-        return;
-    client->animation_count -= 1;
-    if (client->animation_count < 0) {
-        client->animation_count = 0;
-    }
-    char buf[100];
-    int length = read(app->refresh_pipes[0], buf, 1);
+    assert(app != nullptr && app->running);
+    assert(client != nullptr);
+    client->animations_running--;
+    assert(client->animations_running >= 0); // Can't think of a reason you'd want to pre-unregister animations
 }
 
 void client_close(App *app, AppClient *client) {
@@ -794,6 +784,17 @@ void client_close(App *app, AppClient *client) {
             app->handlers.erase(app->handlers.begin() + i);
         }
     }
+
+    app->timeouts.erase(std::remove_if(app->timeouts.begin(),
+                                       app->timeouts.end(),
+                                       [client](Timeout *timeout) {
+                                           auto *timeout_client = (AppClient *) timeout->client;
+                                           if (timeout_client == client) {
+                                               close(timeout->file_descriptor);
+                                           }
+                                           return timeout_client == client;
+                                       }), app->timeouts.end());
+
 
     xcb_unmap_window(app->connection, client->window);
     xcb_destroy_window(app->connection, client->window);
@@ -903,6 +904,9 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
                 cairo_paint(client->cr);
                 cairo_surface_flush(cairo_get_target(client->back_cr));
             }
+
+            // TODO: Crucial!!!
+            xcb_flush(app->connection);
         }
     }
 }
@@ -1459,32 +1463,40 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
 }
 
 void handle_xcb_event(App *app) {
-    bool should_handle_event = true;
-    xcb_window_t window_number = get_window(event);
+    assert(app != nullptr && app->running);
+    std::lock_guard lock(app->clients_mutex);
 
-    for (auto handler : app->handlers) {
-        if (handler->target_window == INT_MAX) {
-            if (!handler->event_handler(app, event)) {
-                should_handle_event = false;
+    while ((event = xcb_poll_for_event(app->connection)) != nullptr) {
+        if (auto window = get_window(event)) {
+            bool event_consumed_by_custom_handler = false;
+            for (auto handler : app->handlers) {
+                // If the handler's target window is INT_MAX that means it wants to see every event
+                if (handler->target_window == INT_MAX) {
+                    if (handler->event_handler(app, event)) {
+                        event_consumed_by_custom_handler = true;
+                    }
+                } else if (handler->target_window ==
+                           window) { // If the target window and the window of this event matches, then send the handler the
+                    if (handler->event_handler(app, event)) {
+                        event_consumed_by_custom_handler = true;
+                    }
+                }
+            }
+            if (event_consumed_by_custom_handler) {
+
+            } else {
+                if (auto client = client_by_window(app, window)) {
+                    handle_xcb_event(app, client->window, event);
+                } else {
+                    // An event from a window for which is not a client
+                }
             }
         } else {
-            if (window_number == 0) {
-                if (!handler->event_handler(app, event)) {
-                    should_handle_event = false;
-                }
-            } else if (handler->target_window == window_number) {
-                if (!handler->event_handler(app, event)) {
-                    should_handle_event = false;
-                }
-            }
+            // An event that has no corresponding window
         }
-    }
 
-    if (!should_handle_event) {
-        return;
+        free(event);
     }
-
-    handle_xcb_event(app, window_number, event);
 }
 
 struct animation_data {
@@ -1497,6 +1509,8 @@ struct animation_data {
     easingFunction easing;
     long start_time;
     bool relayout;
+
+    bool done = false;
 
     void (*finished)();
 };
@@ -1522,161 +1536,54 @@ long timer_end(struct timespec start_time) {
     return diffInNanos;
 }
 
-void update_animations(App *app) {
-    long now = get_current_time_in_ms();
-
-    // First update all the values
-    for (auto *data : animations_list) {
-        long elapsed_time = now - data->start_time;
-        double scalar = (double) elapsed_time / data->length;
-
-        if (data->easing != nullptr) {
-            scalar = data->easing(scalar);
-        }
-
-        double diff = (data->target - data->start_value) * scalar;
-        *data->value = data->start_value + diff;
-
-        if (scalar >= 1) {
-            *data->value = data->target;
-        }
-    }
-
-    // Layout only once
-    {
-        std::vector<AppClient *> layout;
-        for (auto *data : animations_list) {
-            if (data->relayout) {
-                bool found = false;
-                for (auto c : layout) {
-                    if (data->client == c) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    layout.push_back(data->client);
-                }
-            }
-        }
-        for (auto *client : layout) {
-            client_layout(app, client);
-            handle_mouse_motion(app, client, client->mouse_current_x, client->mouse_current_y);
-        }
-    }
-
-    // Paint only once
-    {
-        std::vector<AppClient *> paint;
-        for (auto *data : animations_list) {
-            bool found = false;
-            for (auto c : paint) {
-                if (data->client == c) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                paint.push_back(data->client);
-            }
-        }
-        for (auto *client : paint) {
-            client_paint(app, client);
-        }
-    }
-
-    // Remove finished animations and do one final paint
-    auto it = animations_list.begin();
-    while (it != animations_list.end()) {
-        animation_data *data = *it;
-        long elapsed_time = now - data->start_time;
-        double scalar = (double) elapsed_time / data->length;
-
-        if (scalar >= 1) {
-            if (data->finished) {
-                data->finished();
-            }
-            if (data->relayout) {
-                client_layout(app, data->client);
-                handle_mouse_motion(app, data->client, data->client->mouse_current_x, data->client->mouse_current_y);
-            }
-            client_paint(app, data->client);
-            client_unregister_animation(app, data->client);
-            it = animations_list.erase(it);
-            delete data;
-        } else { ++it; }
-    }
-}
-
-
-void render_loop(App *app) {
-#ifdef TRACY_ENABLE
-    tracy::SetThreadName("Render Thread");
-#endif
-    int MAX_POLLING_EVENTS_AT_THE_SAME_TIME = 40;
-    epoll_event events[MAX_POLLING_EVENTS_AT_THE_SAME_TIME];
-
-    std::vector<xcb_window_t> windows;
-    std::unique_lock guard(app->clients_mutex);
-    guard.unlock();
-    while (app->running) {
-        epoll_wait(app->epoll_fd, events, MAX_POLLING_EVENTS_AT_THE_SAME_TIME, -1);
-
-        auto start = timer_start();
-        {
-#ifdef TRACY_ENABLE
-            ZoneScopedN("Update animation");
-#endif
-            guard.lock();
-            update_animations(app);
-            guard.unlock();
-        }
-        auto end = timer_end(start);
-        auto ms = 1000 * refresh_rate;
-        long sleep = ms - (end / 1000);
-        if (sleep < 0)
-            sleep = 0;
-        usleep(sleep);
-    }
-}
-
 void app_main(App *app) {
     if (app == nullptr) {
         printf("App * passed to app_main was nullptr so couldn't run\n");
+        assert(app != nullptr);
         return;
     }
 
-    xcb_flush(app->connection);
+    dpi_setup(app);
 
-    std::thread render_thread(render_loop, app);
-    render_thread.detach();
+    int MAX_POLLING_EVENTS_AT_THE_SAME_TIME = 40;
+    epoll_event events[MAX_POLLING_EVENTS_AT_THE_SAME_TIME];
 
+    app->running = true;
     while (app->running) {
-        xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
-        xcb_flush(app->connection);
+        int event_count = epoll_wait(app->epoll_fd, events, MAX_POLLING_EVENTS_AT_THE_SAME_TIME, -1);
 
-        event = xcb_wait_for_event(app->connection);
-        xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
-        xcb_flush(app->connection);
+        for (int event_index = 0; event_index < event_count; event_index++) {
+            if (events[event_index].data.fd == app->xcb_fd) {
+                xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
+                xcb_flush(app->connection);
+                handle_xcb_event(app);
+                xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
+                xcb_flush(app->connection);
+            } else {
+                for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
+                    Timeout *timeout = app->timeouts[timeout_index];
+                    if (timeout->file_descriptor == events[event_index].data.fd) {
+                        timeout->function(app, timeout->client, timeout->user_data);
+                        app->timeouts.erase(app->timeouts.begin() + timeout_index);
+                        close(timeout->file_descriptor);
+                        delete timeout;
+                        break;
+                    }
+                }
 
-#ifdef TRACY_ENABLE
-        FrameMarkStart("Xcb Frame");
-#endif
-
-        std::lock_guard guard(app->clients_mutex);
-
-        handle_xcb_event(app);
-
-        free(event);
-
-        for (auto client : app->clients) {
-            if (client->marked_to_close) {
-                client_close(app, client);
+                int BUFFER_SIZE = 400;
+                char buffer[BUFFER_SIZE];
+                read(events[event_index].data.fd, buffer, BUFFER_SIZE);
             }
         }
-#ifdef TRACY_ENABLE
-        FrameMarkEnd("Xcb Frame");
-#endif
+
+        // TODO: we can't delete while we iterate.
+        for (AppClient *client : app->clients) {
+            if (client->marked_to_close) {
+                client_close(app, client);
+                break;
+            }
+        }
     }
 }
 
@@ -1775,4 +1682,206 @@ void client_create_animation(App *app,
                              double target,
                              bool relayout) {
     client_create_animation(app, client, value, length, easing, target, nullptr, relayout);
+}
+
+bool app_timeout_replace(App *app,
+                         AppClient *client,
+                         int timeout_file_descriptor, float timeout_ms,
+                         void (*timeout_function)(App *, AppClient *, void *),
+                         void *user_data) {
+    assert(app != nullptr && app->running);
+    assert(timeout_function != nullptr);
+    for (auto timeout : app->timeouts) {
+        if (timeout->file_descriptor == timeout_file_descriptor) {
+            struct itimerspec time = {0};
+            // The division done below converts the timeout_ms into seconds and nanoseconds
+            time.it_value.tv_sec = timeout_ms / 1000;
+            time.it_value.tv_nsec = std::fmod(timeout_ms, 1000) * 1000000;
+
+            // If the caller of this function passed in a zero,
+            // they probably expected the function to execute as soon as possible,
+            // but based on documentation, the timer will never go off if it_value.tv_sec and it_value.tv_nsec
+            // are both set to zero.
+            // To have the function behave more like what the caller probably expected,
+            // we do what we do below and give the timer the smallest possible increment.
+            if (timeout_ms == 0) {
+                time.it_value.tv_nsec = 1;
+            }
+
+            if (timerfd_settime(timeout_file_descriptor, 0, &time, nullptr) != 0) {
+                return false;
+            }
+
+            timeout->function = timeout_function;
+            timeout->client = client;
+            timeout->user_data = user_data;
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int
+app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout_function)(App *, AppClient *, void *),
+                   void *user_data) {
+    assert(app != nullptr && app->running);
+    assert(timeout_function != nullptr);
+    int timeout_file_descriptor = timerfd_create(CLOCK_REALTIME, 0);
+    if (timeout_file_descriptor == -1) { // error with timerfd_create
+        return -1;
+    }
+
+    bool success = poll_descriptor(app, timeout_file_descriptor);
+    if (!success) { // error with poll_descriptor
+        return -1;
+    }
+    auto timeout = new Timeout;
+    timeout->function = timeout_function;
+    timeout->client = client;
+    timeout->file_descriptor = timeout_file_descriptor;
+    timeout->user_data = user_data;
+    app->timeouts.emplace_back(timeout);
+
+    struct itimerspec time = {0};
+    // The division done below converts the timeout_ms into seconds and nanoseconds
+    time.it_value.tv_sec = timeout_ms / 1000;
+    time.it_value.tv_nsec = std::fmod(timeout_ms, 1000) * 1000000;
+
+    // If the caller of this function passed in a zero,
+    // they probably expected the function to execute as soon as possible,
+    // but based on documentation, the timer will never go off if it_value.tv_sec and it_value.tv_nsec
+    // are both set to zero.
+    // To have the function behave more like what the caller probably expected,
+    // we do what we do below and give the timer the smallest possible increment.
+    if (timeout_ms == 0) {
+        time.it_value.tv_nsec = 1;
+    }
+
+    int settime_success = timerfd_settime(timeout_file_descriptor, 0, &time, nullptr);
+    if (settime_success != 0) { // error with timerfd_settime
+        return -1;
+    }
+
+    return timeout_file_descriptor;
+}
+
+void app_create_custom_event_handler(App *app, xcb_window_t window,
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event)) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *custom_event_handler = new Handler;
+    custom_event_handler->event_handler = custom_handler;
+    custom_event_handler->target_window = window;
+    app->handlers.push_back(custom_event_handler);
+}
+
+void app_remove_custom_event_handler(App *app, xcb_window_t window,
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event)) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    for (int i = 0; i < app->handlers.size(); i++) {
+        Handler *custom_event_handler = app->handlers[i];
+        if (custom_event_handler->target_window == window && custom_event_handler->event_handler == custom_handler) {
+            delete custom_event_handler;
+            app->handlers.erase(app->handlers.begin() + i);
+            return;
+        }
+    }
+}
+
+bool client_set_size(App *app, AppClient *client, int w, int h) {
+    assert(app != nullptr && app->running);
+    assert(client != nullptr);
+    uint32_t mask = XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
+    uint32_t values[] = {
+            (uint32_t) w,
+            (uint32_t) h,
+    };
+    auto cookie_configure_window = xcb_configure_window_checked(app->connection, client->window, mask, values);
+//    return !there_was_an_error(app->connection, cookie_configure_window);
+    return true;
+}
+
+void client_animation_paint(App *app, AppClient *client, void *user_data) {
+#ifdef TRACY_ENABLE
+    FrameMarkStart("Animation Paint");
+#endif
+    assert(app != nullptr);
+    assert(client != nullptr);
+
+    {
+#ifdef TRACY_ENABLE
+        ZoneScopedN("update animating values");
+#endif
+        long now = get_current_time_in_ms();
+
+        bool wants_to_relayout = false;
+
+        for (auto *data : animations_list) {
+            if (data->client == client) {
+                long elapsed_time = now - data->start_time;
+                double scalar = (double) elapsed_time / data->length;
+
+                if (data->easing != nullptr) {
+                    scalar = data->easing(scalar);
+                }
+
+                double diff = (data->target - data->start_value) * scalar;
+                *data->value = data->start_value + diff;
+
+                if (data->relayout) {
+                    wants_to_relayout = true;
+                }
+                if (scalar >= 1) {
+                    *data->value = data->target;
+                    data->done = true;
+                    client_unregister_animation(app, client);
+                }
+            }
+        }
+
+        if (wants_to_relayout) {
+            client_layout(app, client);
+            handle_mouse_motion(app, client, client->mouse_current_x, client->mouse_current_y);
+        }
+
+        animations_list.erase(std::remove_if(animations_list.begin(),
+                                             animations_list.end(),
+                                             [](animation_data *data) {
+                                                 if (data->done) {
+                                                     delete data;
+                                                     return true;
+                                                 }
+                                                 return false;
+                                             }), animations_list.end());
+    }
+
+    {
+#ifdef TRACY_ENABLE
+        ZoneScopedN("paint");
+#endif
+        client_paint(app, client, true);
+    }
+
+    {
+#ifdef TRACY_ENABLE
+        ZoneScopedN("request another frame");
+#endif
+        // TODO: this should take into account how long it took client_paint to finish
+        if (client->animations_running > 0) {
+            float fps = client->fps;
+            if (fps != 0) {
+                fps = 1000 / fps;
+            }
+            app_timeout_create(app, client, fps, client_animation_paint, nullptr);
+        }
+    }
+
+#ifdef TRACY_ENABLE
+    FrameMarkEnd("Animation Paint");
+#endif
 }

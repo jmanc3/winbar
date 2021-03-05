@@ -68,6 +68,7 @@ public:
     std::string text;
     std::string prompt;
 
+    int cursor_blink_fd = -1;
     int cursor = 0;
     bool cursor_on = true;
     long last_time_key_press = 0;
@@ -133,11 +134,14 @@ public:
 };
 
 Container *
-make_textarea(Container *parent, TextAreaSettings settings);
+make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings settings);
 
 void textarea_handle_keypress(App *app, xcb_generic_event_t *event, Container *textarea);
 
 void
-blink(AppClient *client, Container *textarea);
+blink_loop(App *app, AppClient *client, void *textarea);
+
+void
+blink_on(App *app, AppClient *client, void *textarea);
 
 #endif// SCROLL_COMPONENTS_H

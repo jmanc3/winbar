@@ -140,7 +140,7 @@ systray_event_handler(App *app, xcb_generic_event_t *event) {
             break;
     }
 
-    return true;
+    return false;
 }
 
 // The XEmbed Protocol says that when you re-parent a window into your window
@@ -164,7 +164,7 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
     }
 
     if (!window_is_systray_icon) {
-        return true;// Let someone else handle the event
+        return false;// Let someone else handle the event
     }
 
     uint8_t type = XCB_EVENT_RESPONSE_TYPE(generic_event);
@@ -192,7 +192,7 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
 
     layout_invalid = true;
 
-    return false;// No one else should see this event since for a systray_icon window and we just
+    return true;// No one else should see this event since for a systray_icon window and we just
     // handled it
 }
 
@@ -253,7 +253,7 @@ display_event_handler(App *app, xcb_generic_event_t *event) {
             break;
         }
     }
-    return true;
+    return false;
 }
 
 static int
@@ -347,7 +347,7 @@ void start_systray() {
     systray = client_new(app, settings, "systray");
     systray->when_closed = when_systray_closed;
 
-    client_add_handler(app, systray, systray_event_handler);
+    app_create_custom_event_handler(app, systray->window, systray_event_handler);
 
     auto icon_windows_event_handler = new Handler();
     icon_windows_event_handler->target_window =
@@ -407,7 +407,7 @@ void open_systray() {
     display->grab_event_handler = grab_event_handler;
     display->root->when_paint = paint_display;
 
-    client_add_handler(app, display, display_event_handler);
+    app_create_custom_event_handler(app, display->window, display_event_handler);
 
     for (auto icon : systray_icons) {
         auto reparent_check =

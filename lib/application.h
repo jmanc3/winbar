@@ -80,6 +80,17 @@ struct client_cairo_aspect {
 
 struct Handler;
 
+struct Timeout {
+    int file_descriptor;
+
+    void (*function)(App *, AppClient *, void *user_data);
+
+    AppClient *client = nullptr;
+
+    void *user_data = nullptr;
+};
+
+
 struct App {
     xcb_ewmh_connection_t ewmh;
 
@@ -111,9 +122,7 @@ struct App {
 
     int xcb_fd = 0;
 
-    int refresh_pipes[2];
-
-    int repaint_fd = 0;
+    std::vector<Timeout *> timeouts;
 
     // TODO: move atoms into their own things
     xcb_atom_t protocols_atom = 0;
@@ -128,6 +137,7 @@ struct App {
 struct Handler {
     xcb_window_t target_window = 0;
 
+    // returning false from this callback means don't consume the event
     bool (*event_handler)(App *app, xcb_generic_event_t *) = nullptr;
 };
 
@@ -136,8 +146,6 @@ void init_client(AppClient *client);
 void destroy_client(AppClient *client);
 
 bool valid_client(App *app, AppClient *target_client);
-
-extern int refresh_rate;
 
 /**
  * If you're calling any of the functions below after calling app_main (from
@@ -167,10 +175,6 @@ client_by_name(App *app, const std::string &target_name);
 
 AppClient *
 client_by_window(App *app, xcb_window_t target_window);
-
-void client_add_handler(App *app,
-                        AppClient *client_entity,
-                        bool (*event_handler)(App *app, xcb_generic_event_t *));
 
 void client_show(App *app, AppClient *client_entity);
 
@@ -236,5 +240,21 @@ void set_active(Container *c, bool state);
 void init_xkb(App *app, AppClient *client);
 
 void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard);
+
+bool app_timeout_replace(App *app, AppClient *client, int timeout_file_descriptor, float timeout_ms,
+                         void (*timeout_function)(App *, AppClient *, void *),
+                         void *user_data);
+
+int
+app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout_function)(App *, AppClient *, void *),
+                   void *user_data);
+
+void app_create_custom_event_handler(App *app, xcb_window_t window,
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event));
+
+void app_remove_custom_event_handler(App *app, xcb_window_t window,
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event));
+
+bool client_set_size(App *app, AppClient *client, int w, int h);
 
 #endif

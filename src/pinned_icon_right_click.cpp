@@ -456,7 +456,7 @@ icon_menu_event_handler(App *app, xcb_generic_event_t *event) {
         }
     }
 
-    return true;
+    return false;
 }
 
 void start_pinned_icon_right_click(Container *container) {
@@ -490,7 +490,7 @@ void start_pinned_icon_right_click(Container *container) {
         delete d;
     }
 
-    client_add_handler(app, client, icon_menu_event_handler);
+    app_create_custom_event_handler(app, client->window, icon_menu_event_handler);
 
     client_show(app, client);
 }

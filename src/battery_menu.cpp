@@ -379,7 +379,7 @@ battery_menu_event_handler(App *app, xcb_generic_event_t *event) {
         }
     }
 
-    return true;
+    return false;
 }
 
 void start_battery_menu() {
@@ -402,7 +402,7 @@ void start_battery_menu() {
     battery_entity->grab_event_handler = grab_event_handler;
     battery_entity->popup = true;
 
-    client_add_handler(app, battery_entity, battery_menu_event_handler);
+    app_create_custom_event_handler(app, battery_entity->window, battery_menu_event_handler);
 
     fill_root(battery_entity->root);
 

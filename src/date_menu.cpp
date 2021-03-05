@@ -773,8 +773,7 @@ fill_root(AppClient *client) {
     settings.wrap = true;
     settings.bottom_show_amount = 2;
     settings.right_show_amount = 2;
-    Container *textarea = make_textarea(events, settings);
-    std::thread(blink, client, textarea).detach();
+    Container *textarea = make_textarea(app, client, events, settings);
     TextAreaData *data = (TextAreaData *) textarea->user_data;
 
     textarea->name = "main_text_area";
@@ -1028,7 +1027,7 @@ date_menu_event_handler(App *app, xcb_generic_event_t *event) {
         }
     }
 
-    return true;
+    return false;
 }
 
 static void
@@ -1037,6 +1036,23 @@ date_menu_closed(AppClient *client) {
 }
 
 static bool time_update_thread_updated = false;
+
+static void paint_date_menu(App *app, AppClient *client, void *data) {
+    if (auto *client = client_by_name(app, "date_menu")) {
+        auto *event = new xcb_expose_event_t;
+
+        event->response_type = XCB_EXPOSE;
+        event->window = client->window;
+
+        xcb_send_event(
+                app->connection, true, event->window, XCB_EVENT_MASK_EXPOSURE, (char *) event);
+        xcb_flush(app->connection);
+
+        delete event;
+
+        app_timeout_create(app, client, 0, paint_date_menu, nullptr);
+    }
+}
 
 void start_date_menu() {
     Settings settings;
@@ -1059,33 +1075,11 @@ void start_date_menu() {
 
     client->when_closed = date_menu_closed;
 
-    client_add_handler(app, client, date_menu_event_handler);
+    app_create_custom_event_handler(app, client->window, date_menu_event_handler);
 
     if (!time_update_thread_updated) {
         time_update_thread_updated = true;
-        std::thread t([]() -> void {
-            std::unique_lock lock(app->clients_mutex);
-
-            while (app->running) {
-                if (auto *client = client_by_name(app, "date_menu")) {
-                    auto *event = new xcb_expose_event_t;
-
-                    event->response_type = XCB_EXPOSE;
-                    event->window = client->window;
-
-                    xcb_send_event(
-                            app->connection, true, event->window, XCB_EVENT_MASK_EXPOSURE, (char *) event);
-                    xcb_flush(app->connection);
-
-                    delete event;
-                }
-
-                lock.unlock();
-                usleep(1000 * 1000);
-                lock.lock();
-            }
-        });
-        t.detach();
+        app_timeout_create(app, client, 0, paint_date_menu, nullptr);
     }
 
     read_agenda_from_disk(client);
