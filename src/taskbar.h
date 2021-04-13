@@ -28,6 +28,7 @@ public:
     bool pinned = false;
     std::string class_name;
     std::string icon_name;
+    std::string user_icon_name;
     bool has_launchable_info = false;
     std::string command_launched_by;
     int initial_mouse_click_before_drag_offset_x = 0;

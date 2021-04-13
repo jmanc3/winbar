@@ -2058,8 +2058,11 @@ void update_pinned_items_file() {
                   << std::endl;
         itemsFile << "class_name=" << data->class_name << std::endl;
 
-        itemsFile << "#Usually the same as the class_name but feel free to change it to any other "
-                     "name of an icon if it's not behaving as you want"
+        itemsFile << "#If you want to change the icon, modify this."
+                  << std::endl;
+        itemsFile << "user_icon_name=" << data->user_icon_name << std::endl;
+
+        itemsFile << "#If you want to change the icon use \"user_icon_name\" instead since this one can be overriden."
                   << std::endl;
         itemsFile << "icon_name=" << data->icon_name << std::endl;
 
@@ -2126,6 +2129,7 @@ load_pinned_icons() {
         auto *data = new LaunchableButton;
         data->class_name = itemFile.Get(section_title, "class_name", "NONE");
         data->icon_name = itemFile.Get(section_title, "icon_name", "NONE");
+        data->user_icon_name = itemFile.Get(section_title, "user_icon_name", "NONE");
         data->pinned = true;
         auto command = itemFile.Get(section_title, "command", "NONE");
         if (command != "NONE") {
@@ -2134,7 +2138,12 @@ load_pinned_icons() {
         }
 
         data->icon_name = c3ic_fix_wm_class(data->icon_name);
-        std::string path = find_icon(data->icon_name, 24);
+        std::string path;
+        if (data->user_icon_name.empty()) {
+            path = find_icon(data->icon_name, 24);
+        } else {
+            path = find_icon(data->user_icon_name, 24);
+        }
         if (!path.empty()) {
             load_icon_full_path(app, client_entity, &data->surface, path, 24);
         } else {
