@@ -146,7 +146,7 @@ struct ScreenInformation {
         height_in_millimeters = p1.height_in_millimeters;
         rotation = p1.rotation;
         status = p1.status;
-        dpi_scale =  p1.dpi_scale;
+        dpi_scale = p1.dpi_scale;
         root_window = p1.root_window;
     }
 };

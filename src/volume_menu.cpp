@@ -7,6 +7,7 @@
 #include "config.h"
 #include "main.h"
 #include "taskbar.h"
+#include "components.h"
 #include <application.h>
 #include <iostream>
 #include <math.h>
@@ -270,7 +271,7 @@ scroll(AppClient *client_entity, cairo_t *cr, Container *container, int scroll_x
     }
     pa_cvolume copy = client->volume;
     double val = client->volume.values[0];
-    val += 655.35 * scroll_x;
+    val += (655.35 * scroll_y) + (655.35 * -scroll_x);
     if (val < 0) {
         val = 0;
     } else if (val > 65535) {
@@ -381,7 +382,7 @@ void fill_root(Container *root) {
     for (int i = 0; i < audio_outputs.size(); i++) {
         auto vbox_container = new Container();
         vbox_container->type = vbox;
-        vbox_container->wanted_bounds.h = FILL_SPACE;
+        vbox_container->wanted_bounds.h = 96;
         vbox_container->wanted_bounds.w = FILL_SPACE;
         auto data = new option_data();
         data->type = option_type::output;
@@ -459,7 +460,7 @@ void fill_root(Container *root) {
     for (int i = 0; i < audio_clients.size(); i++) {
         auto vbox_container = new Container();
         vbox_container->type = vbox;
-        vbox_container->wanted_bounds.h = FILL_SPACE;
+        vbox_container->wanted_bounds.h = 96;
         vbox_container->wanted_bounds.w = FILL_SPACE;
         auto data = new option_data();
         data->type = option_type::client;
@@ -598,6 +599,125 @@ void updates() {
     }
 }
 
+
+static void
+paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
+    auto *data = (IconButton *) container->user_data;
+
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_rect(cr, container->real_bounds);
+            ArgbColor color = config->color_apps_scrollbar_pressed_button;
+            color.a = 1;
+            set_argb(cr, color);
+            cairo_fill(cr);
+        } else {
+            set_rect(cr, container->real_bounds);
+            ArgbColor color = config->color_apps_scrollbar_hovered_button;
+            color.a = 1;
+            set_argb(cr, color);
+            cairo_fill(cr);
+        }
+    } else {
+        set_rect(cr, container->real_bounds);
+        ArgbColor color = config->color_apps_scrollbar_default_button;
+        color.a = 1;
+        set_argb(cr, color);
+        cairo_fill(cr);
+    }
+
+    if (data->surface) {
+        // TODO: cache the dye so we only do it once
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                dye_surface(data->surface, config->color_apps_scrollbar_pressed_button_icon);
+            } else {
+                dye_surface(data->surface, config->color_apps_scrollbar_hovered_button_icon);
+            }
+        } else {
+            dye_surface(data->surface, config->color_apps_scrollbar_default_button_icon);
+        }
+
+        cairo_set_source_surface(
+                cr, data->surface, container->real_bounds.x, container->real_bounds.y);
+        cairo_paint_with_alpha(cr, 1);
+    }
+}
+
+static void
+paint_scroll_bg(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+
+    set_rect(cr, container->real_bounds);
+    ArgbColor color = config->color_apps_scrollbar_gutter;
+    color.a = 1;
+    set_argb(cr, color);
+    cairo_fill(cr);
+}
+
+static void
+paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_scroll_bg(client, cr, container);
+
+    Container *scrollpane = container->parent->parent;
+
+    auto right_bounds = right_thumb_bounds(scrollpane, container->real_bounds);
+
+    right_bounds.x += right_bounds.w;
+    right_bounds.w = std::max(right_bounds.w * 1, 2.0);
+    right_bounds.x -= right_bounds.w;
+    right_bounds.x -= 2 * (1 - 1);
+
+    set_rect(cr, right_bounds);
+
+    if (container->state.mouse_pressing) {
+        ArgbColor color = config->color_apps_scrollbar_pressed_thumb;
+        color.a = 1;
+        set_argb(cr, color);
+    } else if (bounds_contains(right_bounds, client->mouse_current_x, client->mouse_current_y)) {
+        ArgbColor color = config->color_apps_scrollbar_hovered_thumb;
+        color.a = 1;
+        set_argb(cr, color);
+    } else if (right_bounds.w == 2.0) {
+        ArgbColor color = config->color_apps_scrollbar_default_thumb;
+        lighten(&color, 10);
+        color.a = 1;
+        set_argb(cr, color);
+    } else {
+        ArgbColor color = config->color_apps_scrollbar_default_thumb;
+        color.a = 1;
+        set_argb(cr, color);
+    }
+
+    cairo_fill(cr);
+}
+
+
+void right_thumb_scrolled(AppClient *client,
+                          cairo_t *cr,
+                          Container *container,
+                          int scroll_x,
+                          int scroll_y) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    /*
+        auto cookie = xcb_xkb_get_state(client->app->connection, client->keyboard->device_id);
+        auto reply = xcb_xkb_get_state_reply(client->app->connection, cookie, nullptr);
+
+        if (reply->mods & XKB_KEY_Shift_L || reply->mods & XKB_KEY_Control_L) {
+            container->scroll_h_real += scroll_x * scroll_amount + scroll_y * scroll_amount;
+        } else {
+    */
+    //}
+
+}
+
 void open_volume_menu() {
     if (audio_connected) {
         audio_all_clients();
@@ -623,7 +743,14 @@ void open_volume_menu() {
     settings.sticky = true;
     settings.w = 360;
     if (audio_connected) {
-        settings.h = (audio_clients.size() + audio_outputs.size()) * 96;
+        unsigned long count = audio_clients.size() + audio_outputs.size();
+        double d = app->bounds.h * .70 / 96;
+        if (count < d) {
+            settings.h = count * 96;
+        } else {
+            settings.w += 12;
+            settings.h = d * 96;
+        }
     } else {
         settings.h = 80;
     }
@@ -638,7 +765,35 @@ void open_volume_menu() {
     app_create_custom_event_handler(app, client_entity->window, volume_menu_event_handler);
 
     Container *root = client_entity->root;
-    fill_root(root);
+    ScrollPaneSettings s;
+    s.right_width = 12;
+    s.right_arrow_height = 12;
+    Container *scrollpane = make_scrollpane(root, s);
+    scrollpane->when_scrolled = nullptr;
+    Container *content = scrollpane->child(::vbox, FILL_SPACE, FILL_SPACE);
+
+    Container *right_thumb_container = scrollpane->parent->children[0]->children[1];
+    right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
+    right_thumb_container->when_paint = paint_right_thumb;
+    right_thumb_container->when_scrolled = right_thumb_scrolled;
+
+    Container *top_arrow = scrollpane->parent->children[0]->children[0];
+    top_arrow->when_paint = paint_arrow;
+    auto *top_data = new IconButton;
+    top_data->surface = accelerated_surface(app, client_entity, 12, 12);
+    paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12, nullptr);
+
+    top_arrow->user_data = top_data;
+    Container *bottom_arrow = scrollpane->parent->children[0]->children[2];
+    bottom_arrow->when_paint = paint_arrow;
+    auto *bottom_data = new IconButton;
+    bottom_data->surface = accelerated_surface(app, client_entity, 12, 12);
+    paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12, nullptr);
+
+    bottom_arrow->user_data = bottom_data;
+
+    fill_root(content);
+    content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
 
     client_show(app, client_entity);
 }

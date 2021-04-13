@@ -274,6 +274,15 @@ mouse_down_arrow_right(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+right_thumb_scrolled(AppClient *client, cairo_t *cr, Container *container, int scroll_x, int scroll_y) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    Container *target = container->parent->children[2];
+    scrollpane_scrolled(client, cr, target, scroll_x, scroll_y);
+}
+
+static void
 mouse_arrow_up(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -550,6 +559,8 @@ make_scrollpane(Container *parent, ScrollPaneSettings settings) {
 
     auto right_vbox = scrollable_pane->child(settings.right_width, FILL_SPACE);
     right_vbox->type = ::vbox;
+    right_vbox->when_scrolled = right_thumb_scrolled;
+
     auto right_top_arrow = right_vbox->child(FILL_SPACE, settings.right_arrow_height);
     right_top_arrow->when_paint = paint_show;
     right_top_arrow->when_mouse_down = mouse_down_arrow_up;
