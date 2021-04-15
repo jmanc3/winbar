@@ -65,11 +65,10 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
 
             if (e->atom == get_cached_atom(app, "_NET_CLIENT_LIST_STACKING")) {
                 update_stacking_order();
-            } else if (e->atom == get_cached_atom(app, "_NET_ACTIVE_WINDOW")) {
-                update_active_window();
-            } else if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
+            } if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
 //                printf("here\n");
             }
+            update_active_window();
             break;
         }
         case XCB_BUTTON_PRESS: {
