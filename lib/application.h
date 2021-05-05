@@ -255,6 +255,13 @@ void app_create_custom_event_handler(App *app, xcb_window_t window,
 void app_remove_custom_event_handler(App *app, xcb_window_t window,
                                      bool (*custom_handler)(App *app, xcb_generic_event_t *event));
 
+bool client_set_position(App *app, AppClient *client, int x, int y);
+
 bool client_set_size(App *app, AppClient *client, int w, int h);
+
+bool client_set_position_and_size(App *app, AppClient *client, int x, int y, int w, int h);
+
+void handle_configure_notify(App *app, AppClient *client, double x, double y, double w, double h);
+
 
 #endif

@@ -9,3 +9,4 @@ tracy*
 !.gitignore
 !install.sh
 winbar/
+todo*

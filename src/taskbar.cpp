@@ -1607,7 +1607,16 @@ taskbar_event_handler(App *app, xcb_generic_event_t *event) {
 
 static void
 taskbar_on_screen_size_change(App *app, AppClient *client) {
-    printf("screen_sie\n");
+    client_set_position_and_size(app, client,
+                                 client->screen_information->x,
+                                 client->screen_information->y + client->screen_information->height_in_pixels -
+                                 config->taskbar_height,
+                                 client->screen_information->width_in_pixels,
+                                 config->taskbar_height);
+    handle_configure_notify(app, client, client->screen_information->x,
+                            client->screen_information->y + client->screen_information->height_in_pixels -
+                            config->taskbar_height, client->screen_information->width_in_pixels,
+                            config->taskbar_height);
 }
 
 AppClient *
@@ -1636,7 +1645,7 @@ create_taskbar(App *app) {
 
     AppClient *taskbar = client_new(app, settings, "taskbar");
     taskbar->when_closed = when_taskbar_closed;
-    taskbar->on_screen_size_changed = taskbar_on_screen_size_change;
+    taskbar->on_any_screen_change = taskbar_on_screen_size_change;
 
     app_create_custom_event_handler(app, taskbar->window, taskbar_event_handler);
 
@@ -1707,6 +1716,23 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
         }
     }
     return true;
+}
+
+std::string get_reply_string(xcb_ewmh_get_utf8_strings_reply_t *reply) {
+    std::string str;
+    if (reply) {
+        str = std::string(reply->strings, reply->strings_len);
+        xcb_ewmh_get_utf8_strings_reply_wipe(reply);
+    }
+    return str;
+}
+
+std::string get_icon_name(xcb_window_t win) {
+    xcb_ewmh_get_utf8_strings_reply_t utf8_reply{};
+    if (xcb_ewmh_get_wm_icon_name_reply(&app->ewmh, xcb_ewmh_get_wm_icon_name(&app->ewmh, win), &utf8_reply, nullptr)) {
+        return get_reply_string(&utf8_reply);
+    }
+    return "";
 }
 
 void add_window(App *app, xcb_window_t window) {
@@ -1816,7 +1842,24 @@ void add_window(App *app, xcb_window_t window) {
         data->command_launched_by = line;
     }
 
-    std::string path = find_icon(window_class_name, 24);
+    std::string path;
+    std::string icon_name;
+
+    auto get_wm_icon_name_cookie = xcb_icccm_get_wm_icon_name(app->connection, window);
+    xcb_icccm_get_text_property_reply_t prop;
+    uint8_t success = xcb_icccm_get_wm_icon_name_reply(app->connection, get_wm_icon_name_cookie, &prop, nullptr);
+    if (success) {
+        icon_name = prop.name;
+        xcb_icccm_get_text_property_reply_wipe(&prop);
+    } else {
+        icon_name = get_icon_name(window);
+    }
+    if (icon_name.empty()) {
+        path = find_icon(window_class_name, 24);
+    } else {
+        path = find_icon(icon_name, 24);
+    }
+
     if (!path.empty()) {
         load_icon_full_path(app, client, &data->surface, path, 24);
     } else {

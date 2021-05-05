@@ -1300,19 +1300,11 @@ void handle_mouse_leave_notify(App *app) {
     }
 }
 
-void handle_configure_notify(App *app) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    auto *e = (xcb_configure_notify_event_t *) event;
-    auto client = client_by_window(app, e->window);
-    if (!valid_client(app, client))
-        return;
-
-    client->bounds->x = e->x;
-    client->bounds->y = e->y;
-    client->bounds->w = e->width;
-    client->bounds->h = e->height;
+void handle_configure_notify(App *app, AppClient *client, double x, double y, double w, double h) {
+    client->bounds->w = w;
+    client->bounds->h = h;
+    client->bounds->x = x;
+    client->bounds->y = y;
 
     uint8_t depth = 24;
     xcb_visualtype_t *visual_type = app->root_visualtype;
@@ -1343,6 +1335,19 @@ void handle_configure_notify(App *app) {
     cairo_surface_destroy(back_cr_surface);
 
     client_layout(app, client);
+    client_paint(app, client);
+}
+
+void handle_configure_notify(App *app) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *e = (xcb_configure_notify_event_t *) event;
+    auto client = client_by_window(app, e->window);
+    if (!valid_client(app, client))
+        return;
+
+    handle_configure_notify(app, client, e->x, e->y, e->width, e->height);
 }
 
 static void
@@ -1492,7 +1497,14 @@ void handle_xcb_event(App *app) {
                 }
             }
         } else {
-            // An event that has no corresponding window
+            for (auto handler : app->handlers) {
+                // If the handler's target window is INT_MAX that means it wants to see every event
+                if (handler->target_window == INT_MAX) {
+                    if (handler->event_handler(app, event)) {
+
+                    }
+                }
+            }
         }
 
         free(event);
@@ -1793,6 +1805,19 @@ void app_remove_custom_event_handler(App *app, xcb_window_t window,
     }
 }
 
+bool client_set_position(App *app, AppClient *client, int x, int y) {
+    assert(app != nullptr && app->running);
+    assert(client != nullptr);
+    uint32_t mask = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y;
+    uint32_t values[] = {
+            (uint32_t) x,
+            (uint32_t) y,
+    };
+
+    auto cookie_configure_window = xcb_configure_window_checked(app->connection, client->window, mask, values);
+    return xcb_request_check(app->connection, cookie_configure_window);
+}
+
 bool client_set_size(App *app, AppClient *client, int w, int h) {
     assert(app != nullptr && app->running);
     assert(client != nullptr);
@@ -1802,8 +1827,11 @@ bool client_set_size(App *app, AppClient *client, int w, int h) {
             (uint32_t) h,
     };
     auto cookie_configure_window = xcb_configure_window_checked(app->connection, client->window, mask, values);
-//    return !there_was_an_error(app->connection, cookie_configure_window);
-    return true;
+    return xcb_request_check(app->connection, cookie_configure_window);
+}
+
+bool client_set_position_and_size(App *app, AppClient *client, int x, int y, int w, int h) {
+    return client_set_position(app, client, x, y) && client_set_size(app, client, w, h);
 }
 
 void client_animation_paint(App *app, AppClient *client, void *user_data) {

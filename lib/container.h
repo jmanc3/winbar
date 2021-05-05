@@ -188,6 +188,8 @@ struct AppClient {
     // called when client moved to a different screen
     void (*on_screen_size_changed)(App *, AppClient *) = nullptr;
 
+    void (*on_any_screen_change)(App *, AppClient *) = nullptr;
+
     float dpi() const {
         if (screen_information == nullptr) {
             return 1;

@@ -19,7 +19,8 @@ static int get_dpi_scale(int height_of_screen_in_pixels, int height_of_screen_in
 
 static void update_information_of_all_screens(App *app);
 
-static void check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(App *app, AppClient *client) {
+static void
+check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(App *app, AppClient *client, bool came_from_movement) {
     // FIGURE OUT WHICH SCREEN THE CLIENT BELONGS TO
     ScreenInformation *screen_client_overlaps_most = nullptr;
     double greatest_overlap_percentage = 0;
@@ -76,10 +77,25 @@ static void check_if_client_dpi_should_change_or_if_it_was_moved_to_another_scre
                 client->on_screen_size_changed(app, client);
             }
         }
+        if (client->on_any_screen_change && !came_from_movement) {
+            client->on_any_screen_change(app, client);
+        }
     }
 }
 
 static bool listen_to_randr_and_client_configured_events(App *app, xcb_generic_event_t *event) {
+    if (event->response_type == randr_query->first_event + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
+        update_information_of_all_screens(app);
+        for (auto c : app->clients) {
+            check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, c, false);
+        }
+    }
+    if (event->response_type == randr_query->first_event + XCB_RANDR_NOTIFY) {
+        update_information_of_all_screens(app);
+        for (auto c : app->clients) {
+            check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, c, false);
+        }
+    }
     if (auto window = get_window(event)) {
         if (auto client = client_by_window(app, window)) {
             switch (XCB_EVENT_RESPONSE_TYPE(event)) {
@@ -89,18 +105,14 @@ static bool listen_to_randr_and_client_configured_events(App *app, xcb_generic_e
                         // PASS CONFIGURE EVENT TO THE CLIENT SO IT CAN UPDATE IT'S INTERNAL DATA
                         handle_xcb_event(app, client->window, event);
 
-                        check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, client);
+                        check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, client, true);
                     }
                     return true;
                 }
             }
         }
-    } else if (event->response_type == randr_query->first_event + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
-        update_information_of_all_screens(app);
-        for (auto c : app->clients) {
-            check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, c);
-        }
     }
+
     return false; // Returning false here means this event handler does not consume the event
 }
 
@@ -115,9 +127,7 @@ void dpi_setup(App *app) {
         perror("XRandr was not present on Xorg server.\n");
         assert(false);
     }
-
-    auto xrandr_mask = XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE | XCB_RANDR_NOTIFY_MASK_CRTC_CHANGE |
-                       XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE | XCB_RANDR_NOTIFY_MASK_OUTPUT_PROPERTY;
+    auto xrandr_mask = XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE | XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE;
     xcb_randr_select_input(app->connection, client->window, xrandr_mask);
 
     // PASS US ALL EVENTS
@@ -125,7 +135,7 @@ void dpi_setup(App *app) {
 
     update_information_of_all_screens(app);
     for (auto c : app->clients) {
-        check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, c);
+        check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, c, false);
     }
     assert(!screens.empty());
 }
