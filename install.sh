@@ -13,5 +13,9 @@ cmake -DCMAKE_BUILD_TYPE=Release ../
 #actually compile
 make
 
-#install it to system
-sudo make install
+# install
+if [[ -f /usr/bin/dpkg ]]; then                 # debian based distro
+  sudo checkinstall --default --install=yes
+else
+  sudo make install
+fi
