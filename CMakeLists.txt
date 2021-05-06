@@ -74,6 +74,7 @@ set(
         xcb-xkb # to handle translating key presses to actual text
         xkbcommon-x11 # to handle translating key presses to actual text
         libconfig++ # to parse config files
+        xcb-cursor # for setting the cursor
 )
 
 foreach (LIB IN LISTS LIBS)

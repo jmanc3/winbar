@@ -942,7 +942,7 @@ clicked_tab(AppClient *client, cairo_t *cr, Container *container) {
 static void
 add_tab(AppClient *client, Container *tab_bar, std::string tab_name) {
     PangoLayout *layout =
-            get_cached_pango_font(client->back_cr, config->font, 10, PangoWeight::PANGO_WEIGHT_BOLD);
+            get_cached_pango_font(client->cr, config->font, 10, PangoWeight::PANGO_WEIGHT_BOLD);
 
     int width;
     int height;

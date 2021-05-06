@@ -621,7 +621,7 @@ update_preffered_x(AppClient *client, Container *textarea) {
     auto *data = (TextAreaData *) textarea->user_data;
 
     PangoLayout *layout = get_cached_pango_font(
-            client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+            client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
     if (data->wrap) {
@@ -644,7 +644,7 @@ put_cursor_on_screen(AppClient *client, Container *textarea) {
     auto *data = (TextAreaData *) textarea->user_data;
 
     PangoLayout *layout = get_cached_pango_font(
-            client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+            client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
     if (data->wrap) {
@@ -704,7 +704,7 @@ update_bounds(AppClient *client, Container *container) {
     auto *data = (TextAreaData *) container->user_data;
 
     PangoLayout *layout = get_cached_pango_font(
-            client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+            client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
 
@@ -783,7 +783,7 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
 
     // TEXT
     PangoLayout *layout = get_cached_pango_font(
-            client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+            client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     pango_layout_set_width(layout, -1);
     pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
@@ -885,7 +885,7 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
         cairo_save(cr);
 
         PangoLayout *prompt_layout = get_cached_pango_font(
-                client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+                client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
         pango_layout_set_width(prompt_layout, -1);
         pango_layout_set_text(
@@ -946,7 +946,7 @@ clicked_textarea(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (TextAreaData *) container->user_data;
 
     PangoLayout *layout = get_cached_pango_font(
-            client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+            client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     set_argb(cr, data->color);
     pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
@@ -983,7 +983,7 @@ drag_timeout(App *app, AppClient *client, void *data) {
         auto *data = (TextAreaData *) container->user_data;
 
         PangoLayout *layout = get_cached_pango_font(
-                client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+                client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
         pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
         if (data->wrap) {
@@ -1065,7 +1065,7 @@ drag_start_textarea(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (TextAreaData *) container->user_data;
 
     PangoLayout *layout = get_cached_pango_font(
-            client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+            client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     set_argb(cr, data->color);
     pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
@@ -1102,7 +1102,7 @@ mouse_down_textarea(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (TextAreaData *) container->user_data;
 
     PangoLayout *layout = get_cached_pango_font(
-            client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+            client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     set_argb(cr, data->color);
     pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
@@ -1135,7 +1135,7 @@ drag_textarea(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (TextAreaData *) container->user_data;
 
     PangoLayout *layout = get_cached_pango_font(
-            client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+            client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     set_argb(cr, data->color);
     pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
@@ -1163,7 +1163,7 @@ drag_end_textarea(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (TextAreaData *) container->user_data;
 
     PangoLayout *layout = get_cached_pango_font(
-            client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+            client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     set_argb(cr, data->color);
     pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
@@ -1500,7 +1500,7 @@ move_vertically_lines(AppClient *client,
                       bool shift,
                       int multiplier) {
     PangoLayout *layout = get_cached_pango_font(
-            client->back_cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
+            client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     pango_layout_set_text(layout, data->state->text.c_str(), data->state->text.length());
     if (data->wrap) {

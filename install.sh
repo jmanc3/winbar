@@ -17,5 +17,5 @@ make
 if [[ -f /usr/bin/dpkg ]]; then                 # debian based distro
   sudo checkinstall --default --install=yes
 else
-  sudo make install
+  sudo make -j 4 install
 fi

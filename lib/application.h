@@ -30,7 +30,7 @@ struct Settings {
     uint16_t w = 800;
     uint16_t h = 600;
 
-    uint32_t background = 0xffffffff;
+    uint32_t background = 0x00000000;
 
     bool force_position = false;
     bool decorations = true;
@@ -64,18 +64,6 @@ struct client_container_info {
 
 struct client_animations {
     int count = 0;
-};
-
-struct client_cairo_aspect {
-    bool window_supports_transparency = false;
-
-    cairo_t *cr = nullptr;
-
-    uint32_t pixmap = 0;
-
-    cairo_t *back_cr = nullptr;
-
-    ~client_cairo_aspect();
 };
 
 struct Handler;

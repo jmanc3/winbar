@@ -14,6 +14,7 @@
 
 #include <xcb/xcb_keysyms.h>
 #include <xcb/xkb.h>
+#include <xcb/xcb_cursor.h>
 
 #undef explicit
 
@@ -200,9 +201,10 @@ struct AppClient {
     bool popup = false;
 
     bool window_supports_transparency;
-    cairo_t *cr;
-    cairo_t *back_cr;
-    uint32_t back_pixmap;
+    cairo_t *cr = nullptr;
+    xcb_colormap_t colormap;
+    xcb_cursor_context_t *ctx;
+    xcb_cursor_t cursor = -1;
 
     bool marked_to_close = false;
 

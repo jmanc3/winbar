@@ -20,7 +20,8 @@ static int get_dpi_scale(int height_of_screen_in_pixels, int height_of_screen_in
 static void update_information_of_all_screens(App *app);
 
 static void
-check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(App *app, AppClient *client, bool came_from_movement) {
+check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(App *app, AppClient *client,
+                                                                       bool came_from_movement) {
     // FIGURE OUT WHICH SCREEN THE CLIENT BELONGS TO
     ScreenInformation *screen_client_overlaps_most = nullptr;
     double greatest_overlap_percentage = 0;

@@ -167,7 +167,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
 
     std::string top_text = std::to_string(hour) + ":" + min_start + ":" + sec_start;
     PangoLayout *top_layout =
-            get_cached_pango_font(client->back_cr, config->font, 34, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 34, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(top_layout, top_text.c_str(), top_text.length());
     PangoRectangle top_ink;
     PangoRectangle top_logical;
@@ -179,7 +179,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
         top_right_text = "PM";
     }
     PangoLayout *top_right_layout =
-            get_cached_pango_font(client->back_cr, config->font, 14, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 14, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(top_right_layout, top_right_text.c_str(), top_right_text.length());
     PangoRectangle top_right_ink;
     PangoRectangle top_right_logical;
@@ -193,7 +193,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
             std::string(date_names[day_index]) + " " + std::string(months[ltm->tm_mon]) + " " +
             std::to_string(ltm->tm_mday) + ", " + std::to_string(1900 + ltm->tm_year);
     PangoLayout *bottom_layout =
-            get_cached_pango_font(client->back_cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(bottom_layout, bottom_text.c_str(), bottom_text.length());
     PangoRectangle bottom_ink;
     PangoRectangle bottom_logical;
@@ -239,7 +239,7 @@ paint_body(AppClient *client, cairo_t *cr, Container *container) {
 static void
 paint_centered_text(AppClient *client, cairo_t *cr, Container *container, std::string text) {
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, text.c_str(), text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;
@@ -267,7 +267,7 @@ paint_events(AppClient *client, cairo_t *cr, Container *container) {
     }
     set_argb(cr, config->color_date_weekday_monthday);
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, config->font, 13, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 13, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     const char *date_names[] = {"Sunday", "Monday", "Tuesday", "Wednesday",
                                 "Thursday", "Friday", "Saturday"};
@@ -290,7 +290,7 @@ paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (IconButton *) container->user_data;
 
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text = "Hide agenda";
     pango_layout_set_text(text_layout, text.c_str(), text.length());
     PangoRectangle text_ink;
@@ -332,7 +332,7 @@ paint_month_year_label(AppClient *client, cairo_t *cr, Container *container) {
     std::string text = months[view_month];
     text += " " + std::to_string(view_year);
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, text.c_str(), text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;
@@ -386,7 +386,7 @@ paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
         auto *data = (TextAreaData *) c->user_data;
         if (data->state->text.empty() && !container->active) {
             PangoLayout *text_layout = get_cached_pango_font(
-                    client->back_cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+                    client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
             std::string text("Write the days events here");
             pango_layout_set_text(text_layout, text.c_str(), text.length());
             PangoRectangle text_ink;
@@ -470,7 +470,7 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     }
 
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, data->text.c_str(), data->text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;
@@ -638,7 +638,7 @@ paint_clear_text(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (IconButton *) container->user_data;
 
     PangoLayout *text_layout =
-            get_cached_pango_font(client->back_cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     std::string text = "Clear text";
     pango_layout_set_text(text_layout, text.c_str(), text.length());

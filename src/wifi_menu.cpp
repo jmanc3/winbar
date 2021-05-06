@@ -182,14 +182,14 @@ pierced_wifi_info(Container *container, int mouse_x, int mouse_y) {
             data->cached = true;
             std::string top_text = "Network & Internet Settings";
             PangoLayout *top_layout = get_cached_pango_font(
-                    client->back_cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+                    client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
             pango_layout_set_text(top_layout, top_text.c_str(), top_text.length());
             int top_width, top_height;
             pango_layout_get_pixel_size(top_layout, &top_width, &top_height);
 
             std::string bottom_text = "Change settings, such as making a connection metered";
             PangoLayout *bottom_layout = get_cached_pango_font(
-                    client->back_cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+                    client->cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
             pango_layout_set_text(bottom_layout, bottom_text.c_str(), bottom_text.length());
             int bottom_width, bottom_height;
             pango_layout_get_pixel_size(bottom_layout, &bottom_width, &bottom_height);

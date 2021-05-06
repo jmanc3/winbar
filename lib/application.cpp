@@ -9,6 +9,7 @@
 
 #include "utility.h"
 #include "dpi.h"
+#include "../src/main.h"
 
 #include <X11/keysym.h>
 #include <algorithm>
@@ -16,6 +17,7 @@
 #include <set>
 #include <unistd.h>
 #include <xcb/xcb_event.h>
+#include <xcb/xcb_cursor.h>
 #include <xkbcommon/xkbcommon-x11.h>
 #include <xkbcommon/xkbcommon.h>
 #include <sys/timerfd.h>
@@ -26,6 +28,7 @@
 
 #include <xcb/xcb_keysyms.h>
 #include <xcb/xkb.h>
+#include <xcb/xcb_aux.h>
 
 #undef explicit
 
@@ -352,6 +355,32 @@ App *app_new() {
     return app;
 }
 
+void set_cursor(App *app, xcb_screen_t *screen, AppClient *client, const std::string& name, uint8_t backup) {
+    if (client->cursor != -1) {
+        xcb_free_cursor(app->connection, client->cursor);
+    }
+    if (client->ctx == nullptr && xcb_cursor_context_new(app->connection, screen, &client->ctx) < 0) {
+        xcb_font_t font = xcb_generate_id(app->connection);
+        xcb_open_font(app->connection, font, strlen("cursor"), "cursor");
+        client->cursor = xcb_generate_id(app->connection);
+        xcb_create_glyph_cursor(app->connection, client->cursor, font, font, backup,
+                                (backup + 1), 0, 0,
+                                0, 0xffff, 0xffff, 0xffff);
+
+        const uint32_t values[] = { client->cursor };
+        xcb_change_window_attributes(app->connection, client->window, XCB_CW_CURSOR,
+                                     values);
+        if (font != XCB_NONE)
+            xcb_close_font(app->connection, font);
+    } else {
+        client->cursor = xcb_cursor_load_cursor(client->ctx, name.c_str());
+
+        const uint32_t values[] = { client->cursor };
+        xcb_change_window_attributes(app->connection, client->window, XCB_CW_CURSOR,
+                                     values);
+    }
+}
+
 AppClient *
 client_new(App *app, Settings settings, const std::string &name) {
 #ifdef TRACY_ENABLE
@@ -362,82 +391,67 @@ client_new(App *app, Settings settings, const std::string &name) {
         return nullptr;
     }
 
-    uint8_t depth = 24;
-    xcb_visualtype_t *visual_type = app->root_visualtype;
-    xcb_visualid_t visual_id = visual_type->visual_id;
-    if (settings.window_transparent) {
-        visual_type = app->argb_visualtype;
-        depth = 32;
-        visual_id = visual_type->visual_id;
-    }
+    xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
 
-    xcb_window_t colormap = xcb_generate_id(app->connection);
-    xcb_create_colormap(
-            app->connection, XCB_COLORMAP_ALLOC_NONE, colormap, app->screen->root, visual_id);
-
+    /* Create a window */
     xcb_window_t window = xcb_generate_id(app->connection);
 
-    if (settings.popup) {
-        const uint32_t vals[] = {settings.background,
-                                 settings.background,
-                                 settings.background,
-                                 true,
-                                 XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS |
-                                 XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_POINTER_MOTION |
-                                 XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
-                                 XCB_EVENT_MASK_LEAVE_WINDOW | XCB_EVENT_MASK_ENTER_WINDOW |
-                                 XCB_EVENT_MASK_STRUCTURE_NOTIFY |
-                                 XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE |
-                                 XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
-                                 colormap};
+    uint8_t depth = 32;
+    xcb_visualtype_t *visual = xcb_aux_find_visual_by_attrs(
+            screen,
+            -1,
+            depth
+    );
+    xcb_colormap_t colormap = xcb_generate_id(app->connection);
+    xcb_create_colormap(
+            app->connection,
+            XCB_COLORMAP_ALLOC_NONE,
+            colormap, screen->root,
+            visual->visual_id
+    );
 
-        xcb_create_window(app->connection,
-                          depth,
-                          window,
-                          app->screen->root,
-                          settings.x,
-                          settings.y,
-                          settings.w,
-                          settings.h,
-                          XCB_COPY_FROM_PARENT,
-                          XCB_WINDOW_CLASS_INPUT_OUTPUT,
-                          visual_id,
-                          XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_BACKING_PIXEL | XCB_CW_OVERRIDE_REDIRECT |
-                          XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
-                          vals);
-    } else {
-        const uint32_t vals[] = {settings.background,
-                                 settings.background,
-                                 settings.background,
-                                 XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS |
-                                 XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_POINTER_MOTION |
-                                 XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
-                                 XCB_EVENT_MASK_LEAVE_WINDOW | XCB_EVENT_MASK_ENTER_WINDOW |
-                                 XCB_EVENT_MASK_STRUCTURE_NOTIFY |
-                                 XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE |
-                                 XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
-                                 colormap};
+    const uint32_t values[] = {
+            // XCB_CW_BACK_PIXEL
+            settings.background,
+            // XCB_CW_BORDER_PIXEL
+            settings.background,
+            // XCB_CW_OVERRIDE_REDIRECT
+            settings.popup,
+            // XCB_CW_EVENT_MASK
+            XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS |
+            XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_POINTER_MOTION |
+            XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
+            XCB_EVENT_MASK_LEAVE_WINDOW | XCB_EVENT_MASK_ENTER_WINDOW |
+            XCB_EVENT_MASK_STRUCTURE_NOTIFY |
+            XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE |
+            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
+            // XCB_CW_COLORMAP
+            colormap
+    };
 
-        xcb_create_window(app->connection,
-                          depth,
-                          window,
-                          app->screen->root,
-                          settings.x,
-                          settings.y,
-                          settings.w,
-                          settings.h,
-                          XCB_COPY_FROM_PARENT,
-                          XCB_WINDOW_CLASS_INPUT_OUTPUT,
-                          visual_id,
-                          XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_BACKING_PIXEL | XCB_CW_EVENT_MASK |
-                          XCB_CW_COLORMAP,
-                          vals);
-    }
-    xcb_free_colormap(app->connection, colormap);
+    xcb_create_window(app->connection,
+                      depth,
+                      window,
+                      screen->root,
+                      settings.x, settings.y, settings.w, settings.h,
+                      0,
+                      XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                      visual->visual_id,
+                      XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL
+                      | XCB_CW_OVERRIDE_REDIRECT
+                      | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
+                      values);
 
     // This is so that we don't flicker when resizing the window
     const uint32_t s[] = {XCB_BACK_PIXMAP_NONE};
     xcb_change_window_attributes(app->connection, window, XCB_CW_BACK_PIXMAP, s);
+
+    cairo_surface_t *client_cr_surface = cairo_xcb_surface_create(app->connection,
+                                                                  window,
+                                                                  visual,
+                                                                  settings.w, settings.h);
+    cairo_t *cr = cairo_create(client_cr_surface);
+    cairo_surface_destroy(client_cr_surface);
 
     if (settings.sticky) {
         long every_desktop = 0xFFFFFFFF;
@@ -564,7 +578,7 @@ client_new(App *app, Settings settings, const std::string &name) {
 
     memcpy(client->name, name.c_str(), 255);
     client->app = app;
-    client->name[256] = '\0';
+    client->name[255] = '\0';
 
     client->window = window;
     client->popup = settings.popup;
@@ -576,19 +590,13 @@ client_new(App *app, Settings settings, const std::string &name) {
     client->bounds->y = settings.y;
     client->bounds->w = settings.w;
     client->bounds->h = settings.h;
+    client->colormap = colormap;
+    client->cr = cr;
+
+    uint8_t XC_left_ptr = 68; // from: https://tronche.com/gui/x/xlib/appendix/b/
+    set_cursor(app, screen, client, "left_ptr", XC_left_ptr);
 
     client->window_supports_transparency = settings.window_transparent;
-    cairo_surface_t *client_cr_surface =
-            cairo_xcb_surface_create(app->connection, window, visual_type, settings.w, settings.h);
-    client->cr = cairo_create(client_cr_surface);
-    cairo_surface_destroy(client_cr_surface);
-    client->back_pixmap = xcb_generate_id(app->connection);
-    xcb_create_pixmap(
-            app->connection, depth, client->back_pixmap, app->screen->root, settings.w, settings.h);
-    cairo_surface_t *client_back_cr_surface = cairo_xcb_surface_create(
-            app->connection, client->back_pixmap, visual_type, settings.w, settings.h);
-    client->back_cr = cairo_create(client_back_cr_surface);
-    cairo_surface_destroy(client_back_cr_surface);
 
     init_xkb(app, client);
 
@@ -612,8 +620,7 @@ void init_client(AppClient *client) {
     client->animation_count = 0;
     client->window_supports_transparency = false;
     client->cr = nullptr;
-    client->back_pixmap = 0;
-    client->back_cr = 0;
+    client->colormap = 0;
 }
 
 void destroy_client(App *app, AppClient *client) {
@@ -623,8 +630,8 @@ void destroy_client(App *app, AppClient *client) {
     delete client->bounds;
     delete client->root;
     cairo_destroy(client->cr);
-    cairo_destroy(client->back_cr);
-    xcb_free_pixmap(app->connection, client->back_pixmap);
+    xcb_free_colormap(app->connection, client->colormap);
+    xcb_cursor_context_free(client->ctx);
 }
 
 AppClient *
@@ -841,8 +848,8 @@ void paint_container(App *app, AppClient *client, Container *container) {
     }
 
     if (valid_client(app, client)) {
-        if (container->when_paint && client->back_cr) {
-            container->when_paint(client, client->back_cr, container);
+        if (container->when_paint && client->cr) {
+            container->when_paint(client, client->cr, container);
         }
 
         if (!container->automatically_paint_children) {
@@ -880,29 +887,20 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
     ZoneScoped;
 #endif
     if (valid_client(app, client)) {
-        if (client->back_cr && client->root) {
-            {
-#ifdef TRACY_ENABLE
-                ZoneScopedN("clear");
-#endif
-                cairo_set_operator(client->back_cr, CAIRO_OPERATOR_CLEAR);
-                cairo_paint(client->back_cr);
-                cairo_set_operator(client->back_cr, CAIRO_OPERATOR_OVER);
-            }
+        if (client->cr && client->root) {
             {
 #ifdef TRACY_ENABLE
                 ZoneScopedN("paint");
 #endif
+                cairo_save(client->cr);
+                cairo_push_group(client->cr);
+
                 paint_container(app, client, client->root);
-            }
-            {
-#ifdef TRACY_ENABLE
-                ZoneScopedN("swap");
-#endif
+
+                cairo_pop_group_to_source(client->cr);
                 cairo_set_operator(client->cr, CAIRO_OPERATOR_SOURCE);
-                cairo_set_source_surface(client->cr, cairo_get_target(client->back_cr), 0, 0);
                 cairo_paint(client->cr);
-                cairo_surface_flush(cairo_get_target(client->back_cr));
+                cairo_restore(client->cr);
             }
 
             // TODO: Crucial!!!
@@ -1033,25 +1031,25 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
             if (c->state.mouse_dragging) {
                 // handle when_drag
                 if (c->when_drag) {
-                    c->when_drag(client, client->back_cr, c);
+                    c->when_drag(client, client->cr, c);
                 }
             } else if (c->state.mouse_pressing) {
                 // handle when_drag_start
                 c->state.mouse_dragging = true;
                 if (c->when_drag_start) {
-                    c->when_drag_start(client, client->back_cr, c);
+                    c->when_drag_start(client, client->cr, c);
                 }
             }
         } else if (in_pierced) {
             // handle when_mouse_motion
             if (c->when_mouse_motion) {
-                c->when_mouse_motion(client, client->back_cr, c);
+                c->when_mouse_motion(client, client->cr, c);
             }
         } else {
             // handle when_mouse_leaves_container
             c->state.mouse_hovering = false;
             if (c->when_mouse_leaves_container) {
-                c->when_mouse_leaves_container(client, client->back_cr, c);
+                c->when_mouse_leaves_container(client, client->cr, c);
             }
             c->state.reset();
         }
@@ -1090,7 +1088,7 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
         p->state.concerned = true;
         p->state.mouse_hovering = true;
         if (p->when_mouse_enters_container) {
-            p->when_mouse_enters_container(client, client->back_cr, p);
+            p->when_mouse_enters_container(client, client->cr, p);
         }
     }
 }
@@ -1162,9 +1160,9 @@ void handle_mouse_button_press(App *app) {
         if (e->detail >= 4 && e->detail <= 7) {
             if (p->when_scrolled) {
                 if (e->detail == 4 || e->detail == 5) {
-                    p->when_scrolled(client, client->back_cr, p, 0, e->detail == 4 ? 1 : -1);
+                    p->when_scrolled(client, client->cr, p, 0, e->detail == 4 ? 1 : -1);
                 } else {
-                    p->when_scrolled(client, client->back_cr, p, e->detail == 6 ? 1 : -1, 0);
+                    p->when_scrolled(client, client->cr, p, e->detail == 6 ? 1 : -1, 0);
                 }
             }
             handle_mouse_motion(app, client, e->event_x, e->event_y);
@@ -1184,7 +1182,7 @@ void handle_mouse_button_press(App *app) {
 
         if (p->when_mouse_down) {
             mouse_downed.push_back(p);
-            p->when_mouse_down(client, client->back_cr, p);
+            p->when_mouse_down(client, client->cr, p);
         }
     }
     // set_active(client->root, false);
@@ -1223,20 +1221,20 @@ bool handle_mouse_button_release(App *app) {
         bool p = is_pierced(c, pierced);
 
         if (c->when_mouse_leaves_container && !p) {
-            c->when_mouse_leaves_container(client, client->back_cr, c);
+            c->when_mouse_leaves_container(client, client->cr, c);
         }
 
         if (c->when_drag_end) {
             if (c->state.mouse_dragging) {
-                c->when_drag_end(client, client->back_cr, c);
+                c->when_drag_end(client, client->cr, c);
             }
         }
 
         if (c->when_clicked) {
             if (c->when_drag_end_is_click && c->state.mouse_dragging && p) {
-                c->when_clicked(client, client->back_cr, c);
+                c->when_clicked(client, client->cr, c);
             } else if (!c->state.mouse_dragging) {
-                c->when_clicked(client, client->back_cr, c);
+                c->when_clicked(client, client->cr, c);
             }
         }
 
@@ -1294,7 +1292,7 @@ void handle_mouse_leave_notify(App *app) {
         if (!c->state.mouse_pressing) {
             c->state.reset();
             if (c->when_mouse_leaves_container) {
-                c->when_mouse_leaves_container(client, client->back_cr, c);
+                c->when_mouse_leaves_container(client, client->cr, c);
             }
         }
     }
@@ -1306,33 +1304,7 @@ void handle_configure_notify(App *app, AppClient *client, double x, double y, do
     client->bounds->x = x;
     client->bounds->y = y;
 
-    uint8_t depth = 24;
-    xcb_visualtype_t *visual_type = app->root_visualtype;
-    xcb_visualid_t visual_id = visual_type->visual_id;
-    if (client->window_supports_transparency) {
-        visual_type = app->argb_visualtype;
-        depth = 32;
-        visual_id = visual_type->visual_id;
-    }
-
     cairo_xcb_surface_set_size(cairo_get_target(client->cr), client->bounds->w, client->bounds->h);
-
-    cairo_destroy(client->back_cr);
-
-    xcb_free_pixmap(app->connection, client->back_pixmap);
-
-    client->back_pixmap = xcb_generate_id(app->connection);
-    xcb_create_pixmap(app->connection,
-                      depth,
-                      client->back_pixmap,
-                      app->screen->root,
-                      client->bounds->w,
-                      client->bounds->h);
-
-    cairo_surface_t *back_cr_surface = cairo_xcb_surface_create(
-            app->connection, client->back_pixmap, visual_type, client->bounds->w, client->bounds->h);
-    client->back_cr = cairo_create(back_cr_surface);
-    cairo_surface_destroy(back_cr_surface);
 
     client_layout(app, client);
     client_paint(app, client);
@@ -1357,7 +1329,7 @@ send_key(App *app, AppClient *client, Container *container) {
     }
 
     if (container->when_key_release) {
-        container->when_key_release(client, client->back_cr, container, event);
+        container->when_key_release(client, client->cr, container, event);
     }
 }
 
@@ -1614,11 +1586,6 @@ void app_clean(App *app) {
     cleanup_cached_atoms();
 
     xcb_disconnect(app->connection);
-}
-
-client_cairo_aspect::~client_cairo_aspect() {
-    cairo_destroy(cr);
-    cairo_destroy(back_cr);
 }
 
 void client_create_animation(App *app,
