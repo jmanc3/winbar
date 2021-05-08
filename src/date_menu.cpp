@@ -291,7 +291,12 @@ paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
 
     PangoLayout *text_layout =
             get_cached_pango_font(client->cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
-    std::string text = "Hide agenda";
+    std::string text;
+    if (agenda_showing) {
+        text = "Hide agenda";
+    } else {
+        text = "Show agenda";
+    }
     pango_layout_set_text(text_layout, text.c_str(), text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;
@@ -575,28 +580,6 @@ gravity_to_string(xcb_gravity_t gravity) {
 static void
 clicked_agenda(AppClient *client, cairo_t *cr, Container *container) {
     if (auto *client = client_by_name(app, "date_menu")) {
-        uint32_t value_mask =
-                XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
-
-        if (agenda_showing) {
-            uint32_t value_list_resize[] = {
-                    (uint32_t) client->bounds->x,
-                    (uint32_t) (app->bounds.h - config->taskbar_height - 502),
-                    (uint32_t) client->bounds->w,
-                    (uint32_t) (502),
-            };
-            xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
-        } else {
-            uint32_t value_list_resize[] = {
-                    (uint32_t) client->bounds->x,
-                    (uint32_t) (app->bounds.h - config->taskbar_height - 735),
-                    (uint32_t) client->bounds->w,
-                    (uint32_t) (735),
-            };
-            xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
-        }
-        xcb_flush(app->connection);
-
         if (auto *c = container_by_name("events", client->root)) {
             c->exists = !agenda_showing;
             if (agenda_showing) {
@@ -606,6 +589,32 @@ clicked_agenda(AppClient *client, cairo_t *cr, Container *container) {
             }
         }
 
+        uint32_t value_mask =
+                XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
+
+        uint32_t value_list_resize[4];
+        if (agenda_showing) {
+            value_list_resize[0] = client->bounds->x;
+            value_list_resize[1] = app->bounds.h - config->taskbar_height - 502;
+            value_list_resize[2] = client->bounds->w;
+            value_list_resize[3] = 502;
+            xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
+            handle_configure_notify(app, client, value_list_resize[0],
+                                    value_list_resize[1],
+                                    value_list_resize[2],
+                                    value_list_resize[3]);
+        } else {
+            value_list_resize[0] = client->bounds->x;
+            value_list_resize[1] = app->bounds.h - config->taskbar_height - 735;
+            value_list_resize[2] = client->bounds->w;
+            value_list_resize[3] = 735;
+            xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
+            handle_configure_notify(app, client, value_list_resize[0],
+                                    value_list_resize[1],
+                                    value_list_resize[2],
+                                    value_list_resize[3]);
+        }
+        xcb_flush(app->connection);
         agenda_showing = !agenda_showing;
     }
 }
