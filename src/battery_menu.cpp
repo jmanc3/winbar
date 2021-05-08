@@ -326,8 +326,6 @@ fill_root(Container *root) {
     root->children.push_back(make_brightness_slider(root));
 }
 
-static bool first_expose = true;
-
 static void
 grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
@@ -387,7 +385,6 @@ void start_battery_menu() {
         client_close(app, battery_entity);
     }
 
-    first_expose = true;
     Settings settings;
     settings.w = 361;
     settings.h = 164;

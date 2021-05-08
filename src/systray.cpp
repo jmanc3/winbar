@@ -339,13 +339,35 @@ when_systray_closed(AppClient *client) {
     display_close(false);
 }
 
+static void
+unmap_child_windows(AppClient *client) {
+    for (auto icon : systray_icons) {
+        // If we don't remove it from the save set, it'll get mapped to the screen when our window
+        // dies even though we want it to remain unmapped after we die
+        xcb_change_save_set(app->connection, XCB_SET_MODE_DELETE, icon->window);
+
+        xcb_aux_sync(app->connection);
+
+        xcb_unmap_window(app->connection, icon->window);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+
+        xcb_reparent_window(app->connection, icon->window, app->screen->root, 0, 0);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+
+        xcb_unmap_window(app->connection, icon->window);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+    }
+}
+
 void start_systray() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     Settings settings;
     systray = client_new(app, settings, "systray");
-    systray->when_closed = when_systray_closed;
 
     app_create_custom_event_handler(app, systray->window, systray_event_handler);
 
@@ -389,8 +411,6 @@ void open_systray() {
         return;
     }
 
-    first_expose = true;
-
     Settings settings;
     // Very important that the window is not 32 bit depth because you can't embed non transparent windows into transparent ones
     settings.window_transparent = false;
@@ -408,6 +428,7 @@ void open_systray() {
     display = client_new(app, settings, "display");
     display->grab_event_handler = grab_event_handler;
     display->root->when_paint = paint_display;
+    display->when_closed = unmap_child_windows;
 
     app_create_custom_event_handler(app, display->window, display_event_handler);
 
@@ -427,35 +448,19 @@ void open_systray() {
     layout_invalid = true;
 }
 
+void display_close_timeout(App *app, AppClient *, void *) {
+    if (close) {
+        client_close_threaded(app, display);
+    }
+    display = nullptr;
+}
+
 static void
 display_close(bool close) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    for (auto icon : systray_icons) {
-        // If we don't remove it from the save set, it'll get mapped to the screen when our window
-        // dies even though we want it to remain unmapped after we die
-        xcb_change_save_set(app->connection, XCB_SET_MODE_DELETE, icon->window);
-
-        xcb_aux_sync(app->connection);
-
-        xcb_unmap_window(app->connection, icon->window);
-        xcb_flush(app->connection);
-        xcb_aux_sync(app->connection);
-
-        xcb_reparent_window(app->connection, icon->window, app->screen->root, 0, 0);
-        xcb_flush(app->connection);
-        xcb_aux_sync(app->connection);
-
-        xcb_unmap_window(app->connection, icon->window);
-        xcb_flush(app->connection);
-        xcb_aux_sync(app->connection);
-    }
-
-    if (close) {
-        first_expose = true;
-
-        client_close_threaded(app, display);
-    }
-    display = nullptr;
+    app->grab_window = 0;
+    xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
+    app_timeout_create(app, nullptr, 100, display_close_timeout, nullptr);
 }
