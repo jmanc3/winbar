@@ -410,14 +410,16 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
         text.insert(location + length, "</b>");
         text.insert(location, "<b>");
 
-        PangoAttrList *attrs;
+        PangoAttrList *attrs = nullptr;
         pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
 
-        pango_layout_set_attributes(layout, attrs);
+        if (layout && attrs) {
+            pango_layout_set_attributes(layout, attrs);
+        }
     }
 
     set_argb(cr, config->color_search_content_text_primary);
-    pango_layout_set_text(layout, data->sortable->name.data(), data->sortable->name.size());
+    pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
 
     PangoRectangle ink;
     PangoRectangle logical;
@@ -480,10 +482,12 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
         text.insert(location + length, "</b>");
         text.insert(location, "<b>");
 
-        PangoAttrList *attrs;
+        PangoAttrList *attrs = nullptr;
         pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
 
-        pango_layout_set_attributes(layout, attrs);
+        if (layout && attrs) {
+            pango_layout_set_attributes(layout, attrs);
+        }
     }
 
     int width;
@@ -561,10 +565,12 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
         text.insert(text.length(), "</u>");
         text.insert(0, "<u>");
 
-        PangoAttrList *attrs;
+        PangoAttrList *attrs = nullptr;
         pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
 
-        pango_layout_set_attributes(layout, attrs);
+        if (layout && attrs) {
+            pango_layout_set_attributes(layout, attrs);
+        }
     }
 
     int width;

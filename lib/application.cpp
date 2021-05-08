@@ -355,7 +355,7 @@ App *app_new() {
     return app;
 }
 
-void set_cursor(App *app, xcb_screen_t *screen, AppClient *client, const std::string& name, uint8_t backup) {
+void set_cursor(App *app, xcb_screen_t *screen, AppClient *client, const std::string &name, uint8_t backup) {
     if (client->cursor != -1) {
         xcb_free_cursor(app->connection, client->cursor);
     }
@@ -367,7 +367,7 @@ void set_cursor(App *app, xcb_screen_t *screen, AppClient *client, const std::st
                                 (backup + 1), 0, 0,
                                 0, 0xffff, 0xffff, 0xffff);
 
-        const uint32_t values[] = { client->cursor };
+        const uint32_t values[] = {client->cursor};
         xcb_change_window_attributes(app->connection, client->window, XCB_CW_CURSOR,
                                      values);
         if (font != XCB_NONE)
@@ -375,7 +375,7 @@ void set_cursor(App *app, xcb_screen_t *screen, AppClient *client, const std::st
     } else {
         client->cursor = xcb_cursor_load_cursor(client->ctx, name.c_str());
 
-        const uint32_t values[] = { client->cursor };
+        const uint32_t values[] = {client->cursor};
         xcb_change_window_attributes(app->connection, client->window, XCB_CW_CURSOR,
                                      values);
     }

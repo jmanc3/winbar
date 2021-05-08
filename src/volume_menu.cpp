@@ -8,6 +8,13 @@
 #include "main.h"
 #include "taskbar.h"
 #include "components.h"
+
+#ifdef TRACY_ENABLE
+
+#include "../tracy/Tracy.hpp"
+
+#endif
+
 #include <application.h>
 #include <iostream>
 #include <math.h>

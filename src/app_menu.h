@@ -13,7 +13,6 @@ class Launcher : public Sortable {
 public:
     std::string icon;
     std::string exec;
-    std::string name;
     std::string wmclass;
 
     cairo_surface_t *icon_16 = nullptr;

@@ -231,7 +231,7 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
 
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
-    std::string text(data->launcher->name);
+    std::string text = data->launcher->name;
     pango_layout_set_text(layout, text.c_str(), text.size());
 
     PangoRectangle ink;
@@ -690,7 +690,8 @@ fill_root(AppClient *client) {
     char previous_char = '\0';
     for (int i = 0; i < launchers.size(); i++) {
         Launcher *launcher = launchers[i];
-        char new_char = std::tolower(launcher->name.at(0));
+        char c = launcher->name.at(0);
+        char new_char = std::tolower(c);
         if (new_char != previous_char) {
             if (std::isdigit(new_char)) {
                 if (!std::isdigit(previous_char)) {
