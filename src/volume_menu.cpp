@@ -550,6 +550,10 @@ grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
         case XCB_BUTTON_PRESS: {
             auto *e = (xcb_button_press_event_t *) (event);
+            // Ignore scroll button presses
+            if (e->detail >= 4 && e->detail <= 7) {
+                break;
+            }
             if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
                 client_close_threaded(app, client);
                 xcb_flush(app->connection);

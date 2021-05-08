@@ -767,7 +767,6 @@ void client_unregister_animation(App *app, AppClient *client) {
     assert(app != nullptr && app->running);
     assert(client != nullptr);
     client->animations_running--;
-    assert(client->animations_running >= 0); // Can't think of a reason you'd want to pre-unregister animations
 }
 
 void client_close(App *app, AppClient *client) {
