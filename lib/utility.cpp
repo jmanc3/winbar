@@ -14,6 +14,7 @@
 #include <pango/pangocairo.h>
 #include <zconf.h>
 #include <cassert>
+#include <sys/wait.h>
 
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
 #ifdef TRACY_ENABLE
@@ -349,14 +350,23 @@ void reset_signals() {
     sigprocmask(SIG_SETMASK, &signal_set, NULL);
 }
 
+void sighandler(int signo) {
+    if (signo == SIGCHLD) {
+        int status;
+        printf("waiting it out.\n");
+        (void) wait(&status);
+        printf("waited it out.\n");
+    }
+}
+
 void launch_command(std::string command) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     if (command.empty())
         return;
-    pid_t pid;
-    pid = fork();
+    signal(SIGCHLD, sighandler);
+    pid_t pid = fork();
     if (pid < 0) {
         fprintf(stderr, "winbar: Could not fork\n");
     } else if (pid == 0) {
