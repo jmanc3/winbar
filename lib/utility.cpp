@@ -652,3 +652,15 @@ double calculate_overlap_percentage(double ax, double ay, double aw, double ah,
     return result;
 }
 
+uint32_t argb_to_color(ArgbColor color) {
+    unsigned int r = color.r * 255;
+    unsigned int g = color.g * 255;
+    unsigned int b = color.b * 255;
+    unsigned int a = color.a * 255;
+    r &= 0xFF;
+    g &= 0xFF;
+    b &= 0xFF;
+    a &= 0xFF;
+    return (a << 24) + (r << 16) + (g << 8) + (b);
+}
+

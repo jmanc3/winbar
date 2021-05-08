@@ -392,6 +392,7 @@ void open_systray() {
     first_expose = true;
 
     Settings settings;
+    // Very important that the window is not 32 bit depth because you can't embed non transparent windows into transparent ones
     settings.window_transparent = false;
     settings.skip_taskbar = true;
     settings.decorations = false;
@@ -402,6 +403,7 @@ void open_systray() {
     settings.y = -settings.h * 2;
     settings.no_input_focus = false;
     settings.popup = true;
+    settings.background = argb_to_color(config->color_systray_background);
 
     display = client_new(app, settings, "display");
     display->grab_event_handler = grab_event_handler;
@@ -438,12 +440,15 @@ display_close(bool close) {
         xcb_aux_sync(app->connection);
 
         xcb_unmap_window(app->connection, icon->window);
+        xcb_flush(app->connection);
         xcb_aux_sync(app->connection);
 
         xcb_reparent_window(app->connection, icon->window, app->screen->root, 0, 0);
+        xcb_flush(app->connection);
         xcb_aux_sync(app->connection);
 
         xcb_unmap_window(app->connection, icon->window);
+        xcb_flush(app->connection);
         xcb_aux_sync(app->connection);
     }
 

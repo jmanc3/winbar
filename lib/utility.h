@@ -107,6 +107,9 @@ lighten(ArgbColor *color, double amount);
 ArgbColor
 darken(ArgbColor color, double amount);
 
+uint32_t
+argb_to_color(ArgbColor color);
+
 // amount: 0 to 100
 ArgbColor
 lighten(ArgbColor color, double amount);

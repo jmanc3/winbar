@@ -396,7 +396,7 @@ client_new(App *app, Settings settings, const std::string &name) {
     /* Create a window */
     xcb_window_t window = xcb_generate_id(app->connection);
 
-    uint8_t depth = 32;
+    uint8_t depth = settings.window_transparent ? 32 : 24;
     xcb_visualtype_t *visual = xcb_aux_find_visual_by_attrs(
             screen,
             -1,
@@ -443,8 +443,10 @@ client_new(App *app, Settings settings, const std::string &name) {
                       values);
 
     // This is so that we don't flicker when resizing the window
-    const uint32_t s[] = {XCB_BACK_PIXMAP_NONE};
-    xcb_change_window_attributes(app->connection, window, XCB_CW_BACK_PIXMAP, s);
+    if (settings.window_transparent) {
+        const uint32_t s[] = {XCB_BACK_PIXMAP_NONE};
+        xcb_change_window_attributes(app->connection, window, XCB_CW_BACK_PIXMAP, s);
+    }
 
     cairo_surface_t *client_cr_surface = cairo_xcb_surface_create(app->connection,
                                                                   window,
