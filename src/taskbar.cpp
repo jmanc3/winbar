@@ -1617,6 +1617,16 @@ taskbar_on_screen_size_change(App *app, AppClient *client) {
                             client->screen_information->y + client->screen_information->height_in_pixels -
                             config->taskbar_height, client->screen_information->width_in_pixels,
                             config->taskbar_height);
+    for (auto *c : app->clients) {
+        if (c->popup) {
+            client_close_threaded(app, c);
+            if (c->window == app->grab_window) {
+                app->grab_window = -1;
+                xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->grab_window, XCB_MOD_MASK_ANY);
+                xcb_flush(app->connection);
+            }
+        }
+    }
 }
 
 AppClient *

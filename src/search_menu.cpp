@@ -1397,6 +1397,7 @@ search_menu_when_closed(AppClient *client) {
     write_historic_scripts();
     write_historic_apps();
     std::thread(load_scripts).detach();
+    set_textarea_inactive();
 }
 
 void start_search_menu() {

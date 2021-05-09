@@ -742,6 +742,11 @@ fill_root(AppClient *client) {
 static bool first_expose = true;
 
 static void
+app_menu_closed(AppClient *client) {
+    set_textarea_inactive();
+}
+
+static void
 grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
         case XCB_BUTTON_PRESS: {
@@ -1012,6 +1017,7 @@ void start_app_menu() {
 
     AppClient *client = client_new(app, settings, "app_menu");
     client->grab_event_handler = grab_event_handler;
+    client->when_closed = app_menu_closed;
     app_create_custom_event_handler(app, client->window, app_menu_event_handler);
     fill_root(client);
     client_show(app, client);
