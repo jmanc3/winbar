@@ -372,9 +372,9 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     ArgbColor bottom_bar_right = c;
     darken(&bottom_bar_right, 15);
 
-    // The pinned icon is composed of three sections; 
+    // The pinned icon is composed of three sections;
     // The background pane, the foreground pane, and the accent bar.
-    // 
+    //
 
     // The following colors are used on the accent bar
     ArgbColor color_accent_bar_left = config->color_taskbar_application_icons_accent;
@@ -1681,6 +1681,9 @@ class_name(App *app, xcb_window_t window) {
 
             if (wm_class.class_name) {
                 name = std::string(wm_class.class_name);
+                if (name.empty()) {
+                    name = std::string(wm_class.instance_name);
+                }
             } else if (wm_class.instance_name) {
                 name = std::string(wm_class.instance_name);
             } else {
@@ -1739,6 +1742,42 @@ void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    // Exit the function if the window type is not something a dock should display
+    xcb_get_property_cookie_t cookie = xcb_ewmh_get_wm_window_type_unchecked(&app->ewmh, window);
+    xcb_ewmh_get_atoms_reply_t atoms_reply_data;
+    if (xcb_ewmh_get_wm_window_type_reply(&app->ewmh, cookie, &atoms_reply_data, nullptr)) {
+        for (unsigned short i = 0; i < atoms_reply_data.atoms_len; i++) {
+            if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_WM_WINDOW_TYPE_DESKTOP")) {
+                xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
+                return;
+            } else if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU")) {
+                xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
+                return;
+            } else if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_WM_WINDOW_TYPE_POPUP_MENU")) {
+                xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
+                return;
+            } else if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_WM_WINDOW_TYPE_TOOLTIP")) {
+                xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
+                return;
+            } else if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_WM_WINDOW_TYPE_COMBO")) {
+                xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
+                return;
+            } else if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_WM_WINDOW_TYPE_DND")) {
+                xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
+                return;
+            }
+        }
+    }
+
+    // on gnome, the Extension app ends up adding the taskbar to the taskbar. I have no idea how it's doing that
+    // but the fix for now is just going to be to ignore every client that is ours. Eventually when we make a settings
+    // app, we will have to add an exception for that window.
+    for (auto c : app->clients) {
+        if (c->window == window) {
+            return;
+        }
+    }
+
     auto cookie_get_wm_desktop = xcb_ewmh_get_wm_desktop(&app->ewmh, window);
     uint32_t desktop = 0;
     xcb_ewmh_get_wm_desktop_from_reply(&desktop, NULL);
@@ -1767,8 +1806,8 @@ void add_window(App *app, xcb_window_t window) {
     }
 
     xcb_generic_error_t *err = nullptr;
-    xcb_get_property_cookie_t cookie = xcb_get_property(
-            app->connection, 0, window, get_cached_atom(app, "_NET_WM_STATE"), XCB_ATOM_ATOM, 0, BUFSIZ);
+    cookie = xcb_get_property(app->connection, 0, window, get_cached_atom(app, "_NET_WM_STATE"), XCB_ATOM_ATOM, 0,
+                              BUFSIZ);
     xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, &err);
     if (reply) {
         if (reply->type == XCB_ATOM_ATOM) {
@@ -1854,10 +1893,26 @@ void add_window(App *app, xcb_window_t window) {
     } else {
         icon_name = get_icon_name(window);
     }
-    if (icon_name.empty()) {
-        path = find_icon(window_class_name, 24);
-    } else {
+    if (!icon_name.empty()) {
         path = find_icon(icon_name, 24);
+        data->icon_name = icon_name;
+    }
+    if (path.empty()) {
+        xcb_generic_error_t *error = NULL;
+        xcb_get_property_cookie_t c = xcb_icccm_get_text_property_unchecked(app->connection, window,
+                                                                            get_cached_atom(app,
+                                                                                            "_GTK_APPLICATION_ID"));
+        xcb_icccm_get_text_property_reply_t props;
+        if (xcb_icccm_get_text_property_reply(app->connection, c, &props, nullptr)) {
+            props.name[props.name_len] = '\0';
+            data->icon_name = props.name;
+            path = find_icon(props.name, 24);
+            xcb_icccm_get_text_property_reply_wipe(&props);
+        }
+    }
+    if (path.empty()) {
+        path = find_icon(window_class_name, 24);
+        data->icon_name = window_class_name;
     }
 
     if (!path.empty()) {

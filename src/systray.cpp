@@ -368,6 +368,7 @@ void start_systray() {
 #endif
     Settings settings;
     systray = client_new(app, settings, "systray");
+    systray->keeps_app_running = false;
 
     app_create_custom_event_handler(app, systray->window, systray_event_handler);
 

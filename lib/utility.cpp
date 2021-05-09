@@ -353,9 +353,7 @@ void reset_signals() {
 void sighandler(int signo) {
     if (signo == SIGCHLD) {
         int status;
-        printf("waiting it out.\n");
         (void) wait(&status);
-        printf("waited it out.\n");
     }
 }
 
