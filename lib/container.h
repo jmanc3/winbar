@@ -110,12 +110,12 @@ struct MouseState {
 struct Container;
 
 struct ClientKeyboard {
-    xcb_connection_t *conn;
+    xcb_connection_t *conn = nullptr;
     uint8_t first_xkb_event;
-    struct xkb_context *ctx;
+    struct xkb_context *ctx = nullptr;
 
-    struct xkb_keymap *keymap;
-    struct xkb_state *state;
+    struct xkb_keymap *keymap = nullptr;
+    struct xkb_state *state = nullptr;
     int32_t device_id;
 };
 

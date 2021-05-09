@@ -194,13 +194,14 @@ void init_xkb(App *app, AppClient *client) {
 }
 
 static void
-deinit_keyboard(App *app, AppClient *client, ClientKeyboard *keyboard) {
+deinit_keyboard(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    xkb_state_unref(keyboard->state);
-    xkb_keymap_unref(keyboard->keymap);
-    client->keyboard = nullptr;
+    xkb_state_unref(client->keyboard->state);
+    xkb_keymap_unref(client->keyboard->keymap);
+    xkb_context_unref(client->keyboard->ctx);
+    delete client->keyboard;
 }
 
 void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard) {
@@ -634,6 +635,7 @@ void destroy_client(App *app, AppClient *client) {
     cairo_destroy(client->cr);
     xcb_free_colormap(app->connection, client->colormap);
     xcb_cursor_context_free(client->ctx);
+    deinit_keyboard(app, client);
 }
 
 AppClient *
@@ -1442,6 +1444,8 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
 
 void handle_xcb_event(App *app) {
     assert(app != nullptr && app->running);
+    // TODO: this is literally only here because the meta watcher is another thread and needs to be able to sync back up
+    //  we should try to get rid of this mutex
     std::lock_guard lock(app->clients_mutex);
 
     while ((event = xcb_poll_for_event(app->connection)) != nullptr) {
