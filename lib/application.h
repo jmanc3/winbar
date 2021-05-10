@@ -251,5 +251,11 @@ bool client_set_position_and_size(App *app, AppClient *client, int x, int y, int
 
 void handle_configure_notify(App *app, AppClient *client, double x, double y, double w, double h);
 
+void
+send_key_actual(App *app, AppClient *client, Container *container, bool is_string, xkb_keysym_t keysym, char string[64],
+                uint16_t mods, xkb_key_direction direction);
+
+int
+update_keymap(struct ClientKeyboard *kbd);
 
 #endif

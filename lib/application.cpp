@@ -9,7 +9,6 @@
 
 #include "utility.h"
 #include "dpi.h"
-#include "../src/main.h"
 
 #include <X11/keysym.h>
 #include <algorithm>
@@ -32,7 +31,7 @@
 
 #undef explicit
 
-static int
+int
 update_keymap(struct ClientKeyboard *kbd) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -45,7 +44,7 @@ update_keymap(struct ClientKeyboard *kbd) {
     if (!new_keymap)
         goto err_out;
 
-    new_state = xkb_x11_state_new_from_device(new_keymap, kbd->conn, kbd->device_id);
+    new_state = xkb_state_new(new_keymap);
     if (!new_state)
         goto err_keymap;
 
@@ -785,6 +784,7 @@ void client_close(App *app, AppClient *client) {
     if (client->popup) {
         xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
         xcb_flush(app->connection);
+        app->grab_window = -1;
     }
 
     // TODO: this will crash if there is more than one handler per window I think
@@ -1325,14 +1325,56 @@ void handle_configure_notify(App *app) {
     handle_configure_notify(app, client, e->x, e->y, e->width, e->height);
 }
 
+static bool is_control(char *buf) {
+    return (buf[0] >= 0 && buf[0] < 0x20) || buf[0] == 0x7f;
+}
+
+void
+send_key_actual(App *app, AppClient *client, Container *container, bool is_string, xkb_keysym_t keysym, char string[64],
+                uint16_t mods, xkb_key_direction direction) {
+    for (auto c : container->children) {
+        send_key_actual(app, client, c, is_string, keysym, string, mods, direction);
+    }
+    if (container->when_key_event) {
+        container->when_key_event(client, client->cr, container, is_string, keysym, string, mods, direction);
+    }
+}
+
 static void
 send_key(App *app, AppClient *client, Container *container) {
-    for (auto child : container->children) {
-        send_key(app, client, child);
+    xkb_state *state = client->keyboard->state;
+    xkb_key_direction direction = event->response_type == XCB_KEY_PRESS ? XKB_KEY_DOWN : XKB_KEY_UP;
+    if (direction == XKB_KEY_UP) {
+        if (client->keyboard->balance == 0) {
+            return;
+        } else {
+            client->keyboard->balance--;
+        }
+    } else {
+        client->keyboard->balance++;
     }
 
-    if (container->when_key_release) {
-        container->when_key_release(client, client->cr, container, event);
+    auto *e = (xcb_key_press_event_t *) event;
+    xkb_keycode_t keycode = e->detail;
+
+    xkb_keysym_t keysym;
+    char key_character[64];
+
+    printf("%s %d %d\n", client->name, keycode, direction);
+
+    // Record the change
+    xkb_state_update_key(state, keycode, direction);
+
+    // Get information
+    keysym = xkb_state_key_get_one_sym(state, keycode);
+
+    // Get the current character string
+    xkb_state_key_get_utf8(state, keycode, key_character, sizeof(key_character));
+
+    if (is_control(key_character)) {
+        send_key_actual(app, client, container, false, keysym, key_character, e->state, direction);
+    } else {
+        send_key_actual(app, client, container, true, keysym, key_character, e->state, direction);
     }
 }
 
@@ -1424,6 +1466,11 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
             break;
         }
         case XCB_KEY_RELEASE: {
+            auto client = client_by_window(app, window_number);
+            if (!valid_client(app, client))
+                return;
+
+            send_key(app, client, client->root);
             break;
         }
         default: {

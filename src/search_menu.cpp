@@ -108,13 +108,6 @@ search_menu_event_handler(App *app, xcb_generic_event_t *event) {
             register_popup(e->window);
             break;
         }
-        case XCB_KEY_PRESS: {
-            auto *e = (xcb_key_press_event_t *) (event);
-
-            on_key_press_search_bar(event);
-
-            break;
-        }
         case XCB_FOCUS_OUT: {
             auto *e = (xcb_focus_out_event_t *) (event);
             auto *client = client_by_window(app, e->event);
@@ -930,12 +923,45 @@ clicked_right_item(AppClient *client, cairo_t *cr, Container *container) {
     request_refresh(app, client);
 }
 
+template<class T>
+void sort_and_add(std::vector<T> *sortables,
+                  Container *bottom,
+                  std::string text,
+                  std::vector<HistoricalNameUsed *> *history);
+
 static void
 clicked_tab_timeout(App *app, AppClient *client, void *user_data) {
     auto *container = (Container *) user_data;
     auto *tab_data = (TabData *) container->user_data;
+    if (!launchers_done && tab_data->name == "Apps") {
+        return;
+    }
     active_tab = tab_data->name;
-    on_key_press_search_bar(nullptr);
+    auto *taskbar_client = client_by_name(app, "taskbar");
+    if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
+        auto *data = (TextAreaData *) textarea->user_data;
+
+        auto *bottom = container_by_name("bottom", client->root);
+        if (bottom) {
+            for (auto *c : bottom->children)
+                delete c;
+            bottom->children.clear();
+            if (!data->state->text.empty()) {
+                if (active_tab == "Scripts") {
+                    sort_and_add<Script *>(&scripts, bottom, data->state->text, &history_scripts);
+                } else if (active_tab == "Apps") {
+                    // We create a copy because app_menu relies on the order
+                    std::vector<Launcher *> launchers_copy;
+                    for (auto *l : launchers) {
+                        launchers_copy.push_back(l);
+                    }
+                    sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, &history_apps);
+                }
+            }
+            client_layout(app, client);
+            client_paint(app, client);
+        }
+    }
 }
 
 static void
@@ -964,46 +990,6 @@ add_tab(AppClient *client, Container *tab_bar, std::string tab_name) {
 
     data->surface = accelerated_surface(client->app, client, 128, 128);
     paint_surface_with_image(data->surface, as_resource_path(tab_name + ".png"), 128, nullptr);
-}
-
-static void
-fill_root(AppClient *client) {
-    Container *root = client->root;
-    root->type = ::vbox;
-
-    auto *top = root->child(FILL_SPACE, 51);
-    top->type = ::hbox;
-    top->when_paint = paint_top;
-    top->spacing = 2;
-    top->wanted_pad.x = 12;
-    top->wanted_pad.w = 12;
-    top->name = "tab_group";
-
-    add_tab(client, top, "Apps");
-    add_tab(client, top, "Scripts");
-    {
-        auto *tab = top->children[config->starting_tab_index];
-        auto *tab_data = (TabData *) tab->user_data;
-        active_tab = tab_data->name;
-    }
-
-    auto *splitter = root->child(FILL_SPACE, 1);
-    splitter->when_paint = paint_top_splitter;
-
-    auto *bottom = root->child(FILL_SPACE, FILL_SPACE);
-    bottom->name = "bottom";
-    bottom->when_paint = paint_bottom;
-
-    script_16 = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(script_16, as_resource_path("script-16.svg"), 16, nullptr);
-    script_32 = accelerated_surface(client->app, client, 32, 32);
-    paint_surface_with_image(script_32, as_resource_path("script-32.svg"), 32, nullptr);
-    script_64 = accelerated_surface(client->app, client, 64, 64);
-    paint_surface_with_image(script_64, as_resource_path("script-64.svg"), 64, nullptr);
-    arrow_right_surface = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(arrow_right_surface, as_resource_path("arrow-right.png"), 16, nullptr);
-    open_surface = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(open_surface, as_resource_path("open.png"), 16, nullptr);
 }
 
 static inline bool
@@ -1150,98 +1136,82 @@ void sort_and_add(std::vector<T> *sortables,
     }
 }
 
-
 static void
-next_tab_timeout(App *app, AppClient *client, void *user_data) {
-    if (auto *tab_group = container_by_name("tab_group", client->root)) {
-        for (int i = 0; i < tab_group->children.size(); i++) {
-            auto *tab = tab_group->children[i];
-            auto *tab_data = (TabData *) tab->user_data;
-
-            if (tab_data->name == active_tab) {
-                Container *should_be_active = nullptr;
-                if ((i + 1) == tab_group->children.size()) {
-                    should_be_active = tab_group->children[0];
-                } else {
-                    should_be_active = tab_group->children[i + 1];
-                }
-                if (should_be_active) {
-                    auto *should_be_active_data = (TabData *) should_be_active->user_data;
-                    active_tab = should_be_active_data->name;
-                }
-                break;
-            }
-        }
-        active_item = 0;
-        on_key_press_search_bar(nullptr);
+when_key_event(AppClient *client,
+               cairo_t *cr,
+               Container *container,
+               bool is_string, xkb_keysym_t keysym, char string[64],
+               uint16_t mods,
+               xkb_key_direction direction) {
+    if (direction == XKB_KEY_UP) {
+        return;
     }
-}
-
-static void
-next_tab() {
-    if (auto *client = client_by_name(app, "search_menu")) {
-        app_timeout_create(app, client, 0, next_tab_timeout, nullptr);
-    }
-}
-
-void on_key_press_search_bar(xcb_generic_event_t *event) {
     auto *search_menu_client = client_by_name(app, "search_menu");
     auto *taskbar_client = client_by_name(app, "taskbar");
-
     if (!search_menu_client || !taskbar_client) {
         return;
     }
 
-    if (event) {
-        switch (event->response_type) {
-            case XCB_KEY_RELEASE:
-            case XCB_KEY_PRESS: {
-                auto *e = (xcb_key_press_event_t *) event;
+    if (!is_string) {
+        if (keysym == XKB_KEY_Up) {
+            active_item--;
+            // TODO set correct scroll_amount
+            client_layout(app, search_menu_client);
+            request_refresh(app, search_menu_client);
+        } else if (keysym == XKB_KEY_Down) {
+            active_item++;
+            // TODO set correct scroll_amount
+            client_layout(app, search_menu_client);
+            request_refresh(app, search_menu_client);
+        } else if (keysym == XKB_KEY_Escape) {
+            client_close(app, search_menu_client);
+            set_textarea_inactive();
+            return;
+        } else if (keysym == XKB_KEY_Tab) {
+            if (launchers_done) {
+                active_tab = active_tab == "Apps" ? "Scripts" : "Apps";
+                if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
+                    auto *data = (TextAreaData *) textarea->user_data;
 
-                xkb_keycode_t keycode = e->detail;
-                const xkb_keysym_t *keysyms;
-                int num_keysyms =
-                        xkb_state_key_get_syms(taskbar_client->keyboard->state, keycode, &keysyms);
-
-                if (num_keysyms > 0) {
-                    if (keysyms[0] == XKB_KEY_Up) {
-                        active_item--;
-                        break;
-                    } else if (keysyms[0] == XKB_KEY_Down) {
-                        active_item++;
-                        break;
-                    } else if (keysyms[0] == XKB_KEY_Escape) {
-                        client_close_threaded(app, search_menu_client);
-                        xcb_flush(app->connection);
-                        app->grab_window = -1;
-                        set_textarea_inactive();
-                        break;
-                    } else if (keysyms[0] == XKB_KEY_Tab) {
-                        // next tab
-                        next_tab();
-                        client_layout(app, search_menu_client);
-                        request_refresh(app, search_menu_client);
-                        client_layout(app, taskbar_client);
-                        request_refresh(app, taskbar_client);
-                        return;
-                    } else if (keysyms[0] == XKB_KEY_Return) {
-                        // launch active item
-                        launch_active_item();
-
-                        break;
+                    auto *bottom = container_by_name("bottom", client->root);
+                    if (bottom) {
+                        for (auto *c : bottom->children)
+                            delete c;
+                        bottom->children.clear();
+                        if (!data->state->text.empty()) {
+                            if (active_tab == "Scripts") {
+                                sort_and_add<Script *>(&scripts, bottom, data->state->text, &history_scripts);
+                            } else if (active_tab == "Apps") {
+                                // We create a copy because app_menu relies on the order
+                                std::vector<Launcher *> launchers_copy;
+                                for (auto *l : launchers) {
+                                    launchers_copy.push_back(l);
+                                }
+                                sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, &history_apps);
+                            }
+                        }
+                        client_layout(app, client);
+                        client_paint(app, client);
                     }
                 }
-
-                active_item = 0;
-                scroll_amount = 0;
             }
-                break;
+            return;
+        } else if (keysym == XKB_KEY_Return) {
+            // launch active item
+            launch_active_item();
+            client_layout(app, search_menu_client);
+            request_refresh(app, search_menu_client);
+            return;
         }
+    } else {
+        active_item = 0;
+        scroll_amount = 0;
     }
 
     if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
-        if (event != nullptr)
-            textarea_handle_keypress(taskbar_client->app, event, textarea);
+        textarea_handle_keypress(client, textarea, is_string, keysym, string, mods, direction);
+        client_layout(app, taskbar_client);
+        request_refresh(app, taskbar_client);
 
         auto *data = (TextAreaData *) textarea->user_data;
 
@@ -1262,12 +1232,51 @@ void on_key_press_search_bar(xcb_generic_event_t *event) {
                     sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, &history_apps);
                 }
             }
+            client_layout(app, search_menu_client);
+            client_paint(app, search_menu_client);
         }
     }
-    client_layout(app, search_menu_client);
-    request_refresh(app, search_menu_client);
-    client_layout(app, taskbar_client);
-    request_refresh(app, taskbar_client);
+}
+
+static void
+fill_root(AppClient *client) {
+    Container *root = client->root;
+    root->type = ::vbox;
+    root->when_key_event = when_key_event;
+
+    auto *top = root->child(FILL_SPACE, 51);
+    top->type = ::hbox;
+    top->when_paint = paint_top;
+    top->spacing = 2;
+    top->wanted_pad.x = 12;
+    top->wanted_pad.w = 12;
+    top->name = "tab_group";
+
+    add_tab(client, top, "Apps");
+    add_tab(client, top, "Scripts");
+    {
+        auto *tab = top->children[config->starting_tab_index];
+        auto *tab_data = (TabData *) tab->user_data;
+        active_tab = tab_data->name;
+    }
+
+    auto *splitter = root->child(FILL_SPACE, 1);
+    splitter->when_paint = paint_top_splitter;
+
+    auto *bottom = root->child(FILL_SPACE, FILL_SPACE);
+    bottom->name = "bottom";
+    bottom->when_paint = paint_bottom;
+
+    script_16 = accelerated_surface(client->app, client, 16, 16);
+    paint_surface_with_image(script_16, as_resource_path("script-16.svg"), 16, nullptr);
+    script_32 = accelerated_surface(client->app, client, 32, 32);
+    paint_surface_with_image(script_32, as_resource_path("script-32.svg"), 32, nullptr);
+    script_64 = accelerated_surface(client->app, client, 64, 64);
+    paint_surface_with_image(script_64, as_resource_path("script-64.svg"), 64, nullptr);
+    arrow_right_surface = accelerated_surface(client->app, client, 16, 16);
+    paint_surface_with_image(arrow_right_surface, as_resource_path("arrow-right.png"), 16, nullptr);
+    open_surface = accelerated_surface(client->app, client, 16, 16);
+    paint_surface_with_image(open_surface, as_resource_path("open.png"), 16, nullptr);
 }
 
 void load_historic_scripts() {

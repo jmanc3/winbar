@@ -1188,7 +1188,9 @@ static void
 textarea_key_release(AppClient *client,
                      cairo_t *cr,
                      Container *container,
-                     xcb_generic_event_t *event);
+                     bool is_string, xkb_keysym_t keysym, char string[64],
+                     uint16_t mods,
+                     xkb_key_direction direction);
 
 Container *
 make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings settings) {
@@ -1204,7 +1206,7 @@ make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings s
     Container *textarea = content_area->child(::vbox, width, settings.font_size);
 
     textarea->when_paint = paint_textarea;
-    textarea->when_key_release = textarea_key_release;
+    textarea->when_key_event = textarea_key_release;
     content_area->when_drag_end_is_click = false;
     content_area->when_drag_start = drag_start_textarea;
     content_area->when_drag = drag_textarea;
@@ -1233,7 +1235,7 @@ make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings s
     return textarea;
 }
 
-static void
+void
 insert_action(AppClient *client, Container *textarea, TextAreaData *data, std::string text) {
     // Try to merge with the previous
     bool merged = false;
@@ -1526,311 +1528,265 @@ move_vertically_lines(AppClient *client,
     put_cursor_on_screen(client, textarea);
 }
 
-void textarea_handle_keypress(App *app, xcb_generic_event_t *event, Container *textarea) {
+void
+textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string, xkb_keysym_t keysym, char string[64],
+                         uint16_t mods, xkb_key_direction direction) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (direction == XKB_KEY_UP) {
+        return;
+    }
     auto *data = (TextAreaData *) textarea->user_data;
     data->state->last_time_key_press = get_current_time_in_ms();
     data->state->cursor_on = true;
 
-    if (!textarea->parent->active) {
-        return;
+    blink_on(client->app, client, textarea);
+
+    bool shift = false;
+    bool control = false;
+    if (mods & XCB_MOD_MASK_SHIFT) {
+        shift = true;
     }
-    xcb_window_t window = get_window(event);
-    auto client = client_by_window(app, window);
-    if (valid_client(app, client)) {
-        blink_on(app, client, textarea);
+    if (mods & XCB_MOD_MASK_CONTROL) {
+        control = true;
     }
 
-    switch (event->response_type) {
-        case XCB_KEY_RELEASE:
-        case XCB_KEY_PRESS: {
-            auto *e = (xcb_key_press_event_t *) event;
-            auto client = client_by_window(app, e->event);
-            if (!valid_client(app, client))
-                break;
-
-            xkb_keycode_t keycode = e->detail;
-            const xkb_keysym_t *keysyms;
-            int num_keysyms = xkb_state_key_get_syms(client->keyboard->state, keycode, &keysyms);
-
-            bool shift = false;
-            bool control = false;
-            if (e->state & XCB_MOD_MASK_SHIFT) {
-                shift = true;
-            }
-            if (e->state & XCB_MOD_MASK_CONTROL) {
-                control = true;
-            }
-
-            if (num_keysyms > 0) {
-                if (keysyms[0] == XKB_KEY_BackSpace) {
-                    if (data->state->selection_x != -1) {
-                        replace_action(client, textarea, data, "");
-                    } else {
-                        if (control) {
-                            int jump_target = seek_token(data->state, motion::left);
-                            long absolute_distance = std::abs(data->state->cursor - jump_target);
-                            if (absolute_distance != 0) {
-                                delete_action(client, textarea, data, -absolute_distance);
-                            }
-                        } else {
-                            if (!data->state->text.empty() && data->state->cursor > 0) {
-                                delete_action(client, textarea, data, -1);
-                            }
-                        }
+    if (is_string) {
+        if (data->state->selection_x != -1) {
+            replace_action(client, textarea, data, string);
+        } else {
+            insert_action(client, textarea, data, string);
+        }
+    } else {
+        if (keysym == XKB_KEY_BackSpace) {
+            if (data->state->selection_x != -1) {
+                replace_action(client, textarea, data, "");
+            } else {
+                if (control) {
+                    int jump_target = seek_token(data->state, motion::left);
+                    long absolute_distance = std::abs(data->state->cursor - jump_target);
+                    if (absolute_distance != 0) {
+                        delete_action(client, textarea, data, -absolute_distance);
                     }
-                    break;
-                } else if (keysyms[0] == XKB_KEY_Delete) {
-                    if (data->state->selection_x != -1) {
-                        replace_action(client, textarea, data, "");
-                    } else {
-                        if (control) {
-                            int jump_target = seek_token(data->state, motion::right);
-                            long absolute_distance = std::abs(data->state->cursor - jump_target);
-                            if (absolute_distance != 0) {
-                                delete_action(client, textarea, data, absolute_distance);
-                            }
-                        } else {
-                            if (data->state->cursor < data->state->text.size()) {
-                                delete_action(client, textarea, data, 1);
-                            }
-                        }
+                } else {
+                    if (!data->state->text.empty() && data->state->cursor > 0) {
+                        delete_action(client, textarea, data, -1);
                     }
-                    break;
-                } else if (keysyms[0] == XKB_KEY_Escape) {
-                    move_cursor(data, data->state->cursor, false);
-                    break;
-                } else if (keysyms[0] == XKB_KEY_Return) {
-                    if (!data->single_line) {
-                        if (data->state->selection_x != -1) {
-                            replace_action(client, textarea, data, "\n");
-                        } else {
-                            insert_action(client, textarea, data, "\n");
-                        }
-                    }
-                    break;
-                } else if (keysyms[0] == XKB_KEY_Tab) {
-                    if (data->state->selection_x != -1) {
-                        replace_action(client, textarea, data, "\t");
-                    } else {
-                        insert_action(client, textarea, data, "\t");
-                    }
-                    break;
-                } else if (keysyms[0] == XKB_KEY_a) {
-                    if (control) {
-                        data->state->cursor = data->state->text.size();
-                        data->state->selection_x = 0;
-                        put_cursor_on_screen(client, textarea);
-                        break;
-                    }
-                } else if (keysyms[0] == XKB_KEY_z) {
-                    if (control) {
-                        // undo
-                        if (!data->state->undo_stack.empty()) {
-                            UndoAction *action = data->state->undo_stack.back();
-                            data->state->undo_stack.pop_back();
-                            data->state->redo_stack.push_back(action);
-
-                            if (action->type == UndoType::INSERT) {
-                                int cursor_start = action->cursor_start;
-                                int cursor_end = action->cursor_end;
-                                std::string text = action->inserted_text;
-
-                                data->state->text.erase(cursor_start, text.size());
-
-                                data->state->cursor = cursor_start;
-                                data->state->selection_x = -1;
-                            } else if (action->type == UndoType::DELETE) {
-                                int cursor_start = action->cursor_start;
-                                int cursor_end = action->cursor_end;
-
-                                int min = std::min(cursor_start, cursor_end);
-                                int max = std::max(cursor_start, cursor_end);
-
-                                std::string text = action->replaced_text;
-
-                                data->state->text.insert(min, text);
-
-                                data->state->cursor = cursor_start;
-                                data->state->selection_x = -1;
-                            } else if (action->type == UndoType::REPLACE) {
-                                // undo a replace
-                                int cursor_start = action->cursor_start;
-                                int cursor_end = action->cursor_end;
-                                int selection_start = action->selection_start;
-                                int selection_end = action->selection_end;
-                                std::string replaced = action->replaced_text;
-                                std::string inserted = action->inserted_text;
-
-                                data->state->text.erase(cursor_end - inserted.size(),
-                                                        inserted.size());
-                                data->state->text.insert(cursor_end - inserted.size(), replaced);
-
-                                data->state->cursor = cursor_start;
-                                data->state->selection_x = selection_start;
-                            } else if (action->type == UndoType::CURSOR) {
-                                data->state->cursor = action->cursor_start;
-                            }
-                        }
-                        update_preffered_x(client, textarea);
-                        update_bounds(client, textarea);
-                        put_cursor_on_screen(client, textarea);
-                        break;
-                    }
-                } else if (keysyms[0] == XKB_KEY_Z) {
-                    if (control) {
-                        // redo
-                        if (!data->state->redo_stack.empty()) {
-                            UndoAction *action = data->state->redo_stack.back();
-                            data->state->redo_stack.pop_back();
-                            data->state->undo_stack.push_back(action);
-
-                            if (action->type == UndoType::INSERT) {
-                                // do an insert
-                                int cursor_start = action->cursor_start;
-                                int cursor_end = action->cursor_end;
-                                std::string text = action->inserted_text;
-
-                                data->state->text.insert(cursor_start, text);
-
-                                data->state->cursor = cursor_end;
-                                data->state->selection_x = -1;
-                            } else if (action->type == UndoType::DELETE) {
-                                // do a delete
-                                int cursor_start = action->cursor_start;
-                                int cursor_end = action->cursor_end;
-
-                                int min = std::min(cursor_start, cursor_end);
-                                int max = std::max(cursor_start, cursor_end);
-
-                                std::string text = action->replaced_text;
-
-                                data->state->text.erase(min, text.size());
-
-                                data->state->cursor = cursor_end;
-                                data->state->selection_x = -1;
-                            } else if (action->type == UndoType::REPLACE) {
-                                // do a replace
-                                int cursor_start = action->cursor_start;
-                                int cursor_end = action->cursor_end;
-                                int selection_start = action->selection_start;
-                                int selection_end = action->selection_end;
-                                std::string replaced = action->replaced_text;
-                                std::string inserted = action->inserted_text;
-
-                                int min = std::min(cursor_start, selection_start);
-                                int max = std::max(cursor_start, selection_start);
-                                data->state->text.erase(min, max - min);
-                                data->state->text.insert(min, inserted);
-
-                                data->state->cursor = cursor_end;
-                                data->state->selection_x = -1;
-                            } else if (action->type == UndoType::CURSOR) {
-                                data->state->cursor = action->cursor_end;
-                            }
-                        }
-                        update_preffered_x(client, textarea);
-                        update_bounds(client, textarea);
-                        put_cursor_on_screen(client, textarea);
-                        break;
-                    }
-                } else if (keysyms[0] == XKB_KEY_c) {
-                    if (control) {
-
-                        break;
-                    }
-                } else if (keysyms[0] == XKB_KEY_v) {
-                    if (control) {
-
-                        break;
-                    }
-                } else if (keysyms[0] == XKB_KEY_Home) {
-                    Seeker seeker(data->state);
-
-                    seeker.seek_until_specific_token(motion::left, group::newline);
-
-                    move_cursor(data, seeker.current_pos, shift);
-                    update_preffered_x(client, textarea);
-                    put_cursor_on_screen(client, textarea);
-                    break;
-                } else if (keysyms[0] == XKB_KEY_End) {
-                    Seeker seeker(data->state);
-
-                    seeker.current_pos -= 1;
-                    seeker.seek_until_specific_token(motion::right, group::newline);
-
-                    move_cursor(data, seeker.current_pos + 1, shift);
-                    update_preffered_x(client, textarea);
-                    put_cursor_on_screen(client, textarea);
-                    break;
-                } else if (keysyms[0] == XKB_KEY_Page_Up) {
-                    move_vertically_lines(client, data, textarea, shift, -10);
-                    break;
-                } else if (keysyms[0] == XKB_KEY_Page_Down) {
-                    move_vertically_lines(client, data, textarea, shift, 10);
-                    break;
-                } else if (keysyms[0] == XKB_KEY_Left) {
-                    if (control) {
-                        int jump_target = seek_token(data->state, motion::left);
-                        move_cursor(data, jump_target, shift);
-                        update_preffered_x(client, textarea);
-                        put_cursor_on_screen(client, textarea);
-                        break;
-                    } else {
-                        int cursor_target = data->state->cursor;
-                        cursor_target -= 1;
-                        if (cursor_target < 0) {
-                            cursor_target = 0;
-                        }
-                        move_cursor(data, cursor_target, shift);
-                        update_preffered_x(client, textarea);
-                        put_cursor_on_screen(client, textarea);
-                        break;
-                    }
-                } else if (keysyms[0] == XKB_KEY_Right) {
-                    if (control) {
-                        int jump_target = seek_token(data->state, motion::right);
-                        move_cursor(data, jump_target, shift);
-                        update_preffered_x(client, textarea);
-                        put_cursor_on_screen(client, textarea);
-                        break;
-                    } else {
-                        int cursor_target = data->state->cursor + 1;
-                        if (cursor_target > data->state->text.size()) {
-                            cursor_target = data->state->text.size();
-                        }
-                        move_cursor(data, cursor_target, shift);
-                        update_preffered_x(client, textarea);
-                        put_cursor_on_screen(client, textarea);
-                        break;
-                    }
-                } else if (keysyms[0] == XKB_KEY_Up) {
-                    move_vertically_lines(client, data, textarea, shift, -1);
-                    break;
-                } else if (keysyms[0] == XKB_KEY_Down) {
-                    move_vertically_lines(client, data, textarea, shift, 1);
-                    break;
                 }
             }
-
-            int size = xkb_state_key_get_utf8(client->keyboard->state, keycode, NULL, 0) + 1;
-            if (size > 1) {
-                char *buffer = new char[size];
-                int read = xkb_state_key_get_utf8(client->keyboard->state, keycode, buffer, size);
-                if (read > 0) {
-                    if (isprint(buffer[0])) {
-                        if (data->state->selection_x != -1) {
-                            replace_action(client, textarea, data, buffer);
-                        } else {
-                            insert_action(client, textarea, data, buffer);
-                        }
+        } else if (keysym == XKB_KEY_Delete) {
+            if (data->state->selection_x != -1) {
+                replace_action(client, textarea, data, "");
+            } else {
+                if (control) {
+                    int jump_target = seek_token(data->state, motion::right);
+                    long absolute_distance = std::abs(data->state->cursor - jump_target);
+                    if (absolute_distance != 0) {
+                        delete_action(client, textarea, data, absolute_distance);
+                    }
+                } else {
+                    if (data->state->cursor < data->state->text.size()) {
+                        delete_action(client, textarea, data, 1);
                     }
                 }
-                delete[] buffer;
             }
-            break;
+        } else if (keysym == XKB_KEY_Escape) {
+            move_cursor(data, data->state->cursor, false);
+        } else if (keysym == XKB_KEY_Return) {
+            if (!data->single_line) {
+                if (data->state->selection_x != -1) {
+                    replace_action(client, textarea, data, "\n");
+                } else {
+                    insert_action(client, textarea, data, "\n");
+                }
+            }
+        } else if (keysym == XKB_KEY_Tab) {
+            if (data->state->selection_x != -1) {
+                replace_action(client, textarea, data, "\t");
+            } else {
+                insert_action(client, textarea, data, "\t");
+            }
+        } else if (keysym == XKB_KEY_a) {
+            if (control) {
+                data->state->cursor = data->state->text.size();
+                data->state->selection_x = 0;
+                put_cursor_on_screen(client, textarea);
+
+            }
+        } else if (keysym == XKB_KEY_z) {
+            if (control) {
+                // undo
+                if (!data->state->undo_stack.empty()) {
+                    UndoAction *action = data->state->undo_stack.back();
+                    data->state->undo_stack.pop_back();
+                    data->state->redo_stack.push_back(action);
+
+                    if (action->type == UndoType::INSERT) {
+                        int cursor_start = action->cursor_start;
+                        int cursor_end = action->cursor_end;
+                        std::string text = action->inserted_text;
+
+                        data->state->text.erase(cursor_start, text.size());
+
+                        data->state->cursor = cursor_start;
+                        data->state->selection_x = -1;
+                    } else if (action->type == UndoType::DELETE) {
+                        int cursor_start = action->cursor_start;
+                        int cursor_end = action->cursor_end;
+
+                        int min = std::min(cursor_start, cursor_end);
+                        int max = std::max(cursor_start, cursor_end);
+
+                        std::string text = action->replaced_text;
+
+                        data->state->text.insert(min, text);
+
+                        data->state->cursor = cursor_start;
+                        data->state->selection_x = -1;
+                    } else if (action->type == UndoType::REPLACE) {
+                        // undo a replace
+                        int cursor_start = action->cursor_start;
+                        int cursor_end = action->cursor_end;
+                        int selection_start = action->selection_start;
+                        int selection_end = action->selection_end;
+                        std::string replaced = action->replaced_text;
+                        std::string inserted = action->inserted_text;
+
+                        data->state->text.erase(cursor_end - inserted.size(),
+                                                inserted.size());
+                        data->state->text.insert(cursor_end - inserted.size(), replaced);
+
+                        data->state->cursor = cursor_start;
+                        data->state->selection_x = selection_start;
+                    } else if (action->type == UndoType::CURSOR) {
+                        data->state->cursor = action->cursor_start;
+                    }
+                }
+                update_preffered_x(client, textarea);
+                update_bounds(client, textarea);
+                put_cursor_on_screen(client, textarea);
+            }
+        } else if (keysym == XKB_KEY_Z) {
+            if (control) {
+                // redo
+                if (!data->state->redo_stack.empty()) {
+                    UndoAction *action = data->state->redo_stack.back();
+                    data->state->redo_stack.pop_back();
+                    data->state->undo_stack.push_back(action);
+
+                    if (action->type == UndoType::INSERT) {
+                        // do an insert
+                        int cursor_start = action->cursor_start;
+                        int cursor_end = action->cursor_end;
+                        std::string text = action->inserted_text;
+
+                        data->state->text.insert(cursor_start, text);
+
+                        data->state->cursor = cursor_end;
+                        data->state->selection_x = -1;
+                    } else if (action->type == UndoType::DELETE) {
+                        // do a delete
+                        int cursor_start = action->cursor_start;
+                        int cursor_end = action->cursor_end;
+
+                        int min = std::min(cursor_start, cursor_end);
+                        int max = std::max(cursor_start, cursor_end);
+
+                        std::string text = action->replaced_text;
+
+                        data->state->text.erase(min, text.size());
+
+                        data->state->cursor = cursor_end;
+                        data->state->selection_x = -1;
+                    } else if (action->type == UndoType::REPLACE) {
+                        // do a replace
+                        int cursor_start = action->cursor_start;
+                        int cursor_end = action->cursor_end;
+                        int selection_start = action->selection_start;
+                        int selection_end = action->selection_end;
+                        std::string replaced = action->replaced_text;
+                        std::string inserted = action->inserted_text;
+
+                        int min = std::min(cursor_start, selection_start);
+                        int max = std::max(cursor_start, selection_start);
+                        data->state->text.erase(min, max - min);
+                        data->state->text.insert(min, inserted);
+
+                        data->state->cursor = cursor_end;
+                        data->state->selection_x = -1;
+                    } else if (action->type == UndoType::CURSOR) {
+                        data->state->cursor = action->cursor_end;
+                    }
+                }
+                update_preffered_x(client, textarea);
+                update_bounds(client, textarea);
+                put_cursor_on_screen(client, textarea);
+            }
+        } else if (keysym == XKB_KEY_c) {
+            if (control) {
+
+            }
+        } else if (keysym == XKB_KEY_v) {
+            if (control) {
+
+            }
+        } else if (keysym == XKB_KEY_Home) {
+            Seeker seeker(data->state);
+
+            seeker.seek_until_specific_token(motion::left, group::newline);
+
+            move_cursor(data, seeker.current_pos, shift);
+            update_preffered_x(client, textarea);
+            put_cursor_on_screen(client, textarea);
+        } else if (keysym == XKB_KEY_End) {
+            Seeker seeker(data->state);
+
+            seeker.current_pos -= 1;
+            seeker.seek_until_specific_token(motion::right, group::newline);
+
+            move_cursor(data, seeker.current_pos + 1, shift);
+            update_preffered_x(client, textarea);
+            put_cursor_on_screen(client, textarea);
+        } else if (keysym == XKB_KEY_Page_Up) {
+            move_vertically_lines(client, data, textarea, shift, -10);
+        } else if (keysym == XKB_KEY_Page_Down) {
+            move_vertically_lines(client, data, textarea, shift, 10);
+        } else if (keysym == XKB_KEY_Left) {
+            if (control) {
+                int jump_target = seek_token(data->state, motion::left);
+                move_cursor(data, jump_target, shift);
+                update_preffered_x(client, textarea);
+                put_cursor_on_screen(client, textarea);
+            } else {
+                int cursor_target = data->state->cursor;
+                cursor_target -= 1;
+                if (cursor_target < 0) {
+                    cursor_target = 0;
+                }
+                move_cursor(data, cursor_target, shift);
+                update_preffered_x(client, textarea);
+                put_cursor_on_screen(client, textarea);
+            }
+        } else if (keysym == XKB_KEY_Right) {
+            if (control) {
+                int jump_target = seek_token(data->state, motion::right);
+                move_cursor(data, jump_target, shift);
+                update_preffered_x(client, textarea);
+                put_cursor_on_screen(client, textarea);
+            } else {
+                int cursor_target = data->state->cursor + 1;
+                if (cursor_target > data->state->text.size()) {
+                    cursor_target = data->state->text.size();
+                }
+                move_cursor(data, cursor_target, shift);
+                update_preffered_x(client, textarea);
+                put_cursor_on_screen(client, textarea);
+            }
+        } else if (keysym == XKB_KEY_Up) {
+            move_vertically_lines(client, data, textarea, shift, -1);
+        } else if (keysym == XKB_KEY_Down) {
+            move_vertically_lines(client, data, textarea, shift, 1);
         }
     }
 }
@@ -1839,8 +1795,15 @@ static void
 textarea_key_release(AppClient *client,
                      cairo_t *cr,
                      Container *container,
-                     xcb_generic_event_t *event) {
-    textarea_handle_keypress(client->app, event, container);
+                     bool is_string, xkb_keysym_t keysym, char string[64],
+                     uint16_t mods,
+                     xkb_key_direction direction) {
+    if (direction == XKB_KEY_UP) {
+        return;
+    }
+    if (container->parent->active) {
+        textarea_handle_keypress(client, container, is_string, keysym, string, mods, XKB_KEY_DOWN);
+    }
 }
 
 #define CURSOR_BLINK_ON_TIME 530

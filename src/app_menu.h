@@ -21,6 +21,7 @@ public:
     cairo_surface_t *icon_64 = nullptr;
 };
 
+extern bool launchers_done;
 extern std::vector<Launcher *> launchers;
 
 void start_app_menu();

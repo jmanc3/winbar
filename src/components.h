@@ -136,12 +136,18 @@ public:
 Container *
 make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings settings);
 
-void textarea_handle_keypress(App *app, xcb_generic_event_t *event, Container *textarea);
+void
+textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string, xkb_keysym_t keysym, char string[64],
+                         uint16_t mods, xkb_key_direction direction);
 
 void
 blink_loop(App *app, AppClient *client, void *textarea);
 
 void
 blink_on(App *app, AppClient *client, void *textarea);
+
+
+void
+insert_action(AppClient *client, Container *textarea, TextAreaData *data, std::string text);
 
 #endif// SCROLL_COMPONENTS_H

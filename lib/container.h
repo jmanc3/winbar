@@ -117,6 +117,7 @@ struct ClientKeyboard {
     struct xkb_keymap *keymap = nullptr;
     struct xkb_state *state = nullptr;
     int32_t device_id;
+    int balance = 0; // always needs to be above 0
 };
 
 struct App;
@@ -356,10 +357,9 @@ struct Container {
     // call
     void (*when_layout)(Container *container) = nullptr;
 
-    void (*when_key_release)(AppClient *client,
-                             cairo_t *cr,
-                             Container *self,
-                             xcb_generic_event_t *event) = nullptr;
+    void (*when_key_event)(AppClient *client, cairo_t *cr, Container *self, bool is_string, xkb_keysym_t keysym,
+                           char string[64],
+                           uint16_t mods, xkb_key_direction direction) = nullptr;
 
     Container *child(int wanted_width, int wanted_height);
 

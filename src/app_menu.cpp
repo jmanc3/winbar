@@ -23,6 +23,7 @@
 #include <xcb/xcb_aux.h>
 #include <hsluv.h>
 
+extern bool launchers_done = false;
 std::vector<Launcher *> launchers;
 
 class ItemData : public HoverableButton {
@@ -566,6 +567,40 @@ clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+when_key_event(AppClient *client,
+               cairo_t *cr,
+               Container *container,
+               bool is_string, xkb_keysym_t keysym, char string[64],
+               uint16_t mods,
+               xkb_key_direction direction) {
+    if (direction == XKB_KEY_UP) {
+        return;
+    }
+    auto *app_menu_client = client_by_name(app, "app_menu");
+    auto *taskbar_client = client_by_name(app, "taskbar");
+    if (!app_menu_client || !taskbar_client) {
+        return;
+    }
+
+    if (is_string) {
+        client_close(app, app_menu_client);
+        xcb_flush(app->connection);
+        app->grab_window = -1;
+        xcb_aux_sync(app->connection);
+        start_search_menu();
+        if (auto *c = client_by_name(app, "search_menu")) {
+            send_key_actual(app, c, c->root, is_string, keysym, string, mods, direction);
+        }
+    } else if (keysym == XKB_KEY_Escape) {
+        client_close(app, app_menu_client);
+        xcb_flush(app->connection);
+        app->grab_window = -1;
+        xcb_aux_sync(app->connection);
+        set_textarea_inactive();
+    }
+}
+
+static void
 clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
     client->app->running = false;
 }
@@ -578,6 +613,7 @@ fill_root(AppClient *client) {
 
     Container *root = client->root;
     root->when_paint = paint_root;
+    root->when_key_event = when_key_event;
 
     Container *stack = root->child(::stack, FILL_SPACE, FILL_SPACE);
 
@@ -739,11 +775,9 @@ fill_root(AppClient *client) {
     content->wanted_bounds.h = true_height(content_area) + true_height(content);
 }
 
-static bool first_expose = true;
-
 static void
 app_menu_closed(AppClient *client) {
-    set_textarea_inactive();
+//    set_textarea_inactive();
 }
 
 static void
@@ -782,50 +816,6 @@ app_menu_event_handler(App *app, xcb_generic_event_t *event) {
         case XCB_MAP_NOTIFY: {
             auto *e = (xcb_map_notify_event_t *) (event);
             register_popup(e->window);
-            break;
-        }
-        case XCB_KEY_PRESS: {
-            auto *e = (xcb_key_press_event_t *) (event);
-            if (e->detail == 133)// super l key
-                break;
-            auto *client = client_by_window(app, e->event);
-            if (!valid_client(app, client)) {
-                break;
-            }
-
-            xkb_keycode_t keycode = e->detail;
-            const xkb_keysym_t *keysyms;
-            int num_keysyms = xkb_state_key_get_syms(client->keyboard->state, keycode, &keysyms);
-
-            bool was_escape = false;
-            if (num_keysyms > 0) {
-                if (keysyms[0] == XKB_KEY_Escape) {
-                    was_escape = true;
-                }
-            }
-
-            // No matter what key was pressed after this app_menu is open, it is closed
-            client_close(app, client);
-            xcb_flush(app->connection);
-            app->grab_window = -1;
-            xcb_aux_sync(app->connection);
-
-            // If it was escape than we leave
-            if (was_escape) {
-                set_textarea_inactive();
-            } else {
-                start_search_menu();
-                if (auto *client = client_by_name(app, "taskbar")) {
-                    if (auto *container = container_by_name("main_text_area", client->root)) {
-                        e->event = client->window;
-                        auto *ev = (xcb_generic_event_t *) e;
-                        textarea_handle_keypress(app, ev, container);
-                        request_refresh(app, client);
-                    }
-                }
-                on_key_press_search_bar(nullptr);
-            }
-
             break;
         }
         case XCB_FOCUS_OUT: {
@@ -897,6 +887,7 @@ paint_desktop_files() {
                     launcher->icon_64, as_resource_path("unknown-64.svg"), 64, nullptr);
         }
     }
+    launchers_done = true;
 }
 
 static std::optional<int> ends_with(const char *str, const char *suffix) {
@@ -1002,8 +993,6 @@ void start_app_menu() {
         }
         request_refresh(client->app, client);
     }
-
-    first_expose = true;
 
     Settings settings;
     settings.force_position = true;
