@@ -1197,7 +1197,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
         border_size = 2;
 
     // Paint border
-    set_rect(cr, container->real_bounds);
+//    set_rect(cr, container->real_bounds);
     if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
         if (active || container->state.mouse_pressing) {
             set_argb(cr, config->color_taskbar_search_bar_pressed_border);
@@ -1207,6 +1207,27 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     } else {
         set_argb(cr, config->color_taskbar_search_bar_default_border);
     }
+
+    cairo_rectangle(
+            cr, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w, border_size);
+    cairo_fill(cr);
+
+    cairo_rectangle(
+            cr, container->real_bounds.x, container->real_bounds.y, border_size, container->real_bounds.h);
+    cairo_fill(cr);
+
+    cairo_rectangle(cr,
+                    container->real_bounds.x + container->real_bounds.w - border_size,
+                    container->real_bounds.y,
+                    border_size,
+                    container->real_bounds.h);
+    cairo_fill(cr);
+
+    cairo_rectangle(cr,
+                    container->real_bounds.x,
+                    container->real_bounds.y + container->real_bounds.h - border_size,
+                    container->real_bounds.w,
+                    border_size);
     cairo_fill(cr);
 
     // Paint background
