@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <xcb/record.h>
 #include <xcb/xcb.h>
+#include <xcb/xcbext.h>
 
 /* for this struct, refer to libxnee */
 typedef union {
@@ -78,8 +79,9 @@ void watch_meta_key() {
     xcb_record_enable_context_cookie_t cookie = xcb_record_enable_context(data_disp, rc);
 
     while (!stop) {
-        xcb_record_enable_context_reply_t *reply =
-                xcb_record_enable_context_reply(data_disp, cookie, NULL);
+        auto *reply =
+                (xcb_record_enable_context_reply_t *) xcb_wait_for_reply(data_disp, cookie.sequence, NULL);
+
         if (!reply)
             break;
         if (reply->client_swapped) {

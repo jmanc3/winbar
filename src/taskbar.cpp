@@ -1810,6 +1810,7 @@ void add_window(App *app, xcb_window_t window) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
         if (data->class_name == window_class_name) {
             data->windows.push_back(window);
+            update_minimize_icon_positions();
             request_refresh(app, client);
             return;
         }
@@ -1975,6 +1976,7 @@ void add_window(App *app, xcb_window_t window) {
         }
     }
 
+    update_minimize_icon_positions();
     update_pinned_items_file();
 
     client_layout(app, client);
