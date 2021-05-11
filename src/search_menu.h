@@ -17,6 +17,8 @@ public:
     int historical_ranking = -1;
 };
 
+extern std::string active_tab;
+
 void start_search_menu();
 
 void on_key_press_search_bar(xcb_generic_event_t *event);

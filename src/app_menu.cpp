@@ -23,7 +23,7 @@
 #include <xcb/xcb_aux.h>
 #include <hsluv.h>
 
-extern bool launchers_done = false;
+bool launchers_done = false;
 std::vector<Launcher *> launchers;
 
 class ItemData : public HoverableButton {

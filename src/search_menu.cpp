@@ -48,7 +48,7 @@ std::vector<HistoricalNameUsed *> history_apps;
 
 std::vector<Script *> scripts;
 
-static std::string active_tab = "Scripts";
+std::string active_tab = "Apps";
 static int active_item = 0;
 static int scroll_amount = 0;
 
@@ -1254,11 +1254,6 @@ fill_root(AppClient *client) {
 
     add_tab(client, top, "Apps");
     add_tab(client, top, "Scripts");
-    {
-        auto *tab = top->children[config->starting_tab_index];
-        auto *tab_data = (TabData *) tab->user_data;
-        active_tab = tab_data->name;
-    }
 
     auto *splitter = root->child(FILL_SPACE, 1);
     splitter->when_paint = paint_top_splitter;

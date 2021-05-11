@@ -1360,8 +1360,6 @@ send_key(App *app, AppClient *client, Container *container) {
     xkb_keysym_t keysym;
     char key_character[64];
 
-    printf("%s %d %d\n", client->name, keycode, direction);
-
     // Record the change
     xkb_state_update_key(state, keycode, direction);
 

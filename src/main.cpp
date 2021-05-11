@@ -108,6 +108,8 @@ int main() {
     // Load the config
     config_load();
 
+    active_tab = config->starting_tab_index == 0 ? "Apps" : "Scripts";
+
     // Add listeners and grabs on the root window
     root_start(app);
 
