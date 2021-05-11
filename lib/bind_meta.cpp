@@ -121,20 +121,14 @@ event_callback(xcb_record_enable_context_reply_t *reply, uint8_t *data_) {
 
     switch (event_type) {
         case XCB_KEY_PRESS: {
-            keys_down_count++;
-            bool is_meta = keycode == 133;
-            if (!is_meta)
-                clean = false;
+            clean = keycode == 133;
             break;
         }
         case XCB_KEY_RELEASE: {
             bool is_meta = keycode == 133;
-            if (is_meta && clean && on_meta_key_pressed && keys_down_count == 1)
+            if (is_meta && clean) {
                 on_meta_key_pressed();
-            keys_down_count--;
-            if (keys_down_count <= 0) {// we can receive a release with out a matching press
-                keys_down_count = 0;
-                clean = true;
+                clean = false;
             }
             break;
         }

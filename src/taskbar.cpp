@@ -1385,7 +1385,7 @@ scrolled_workspace(AppClient *client_entity,
                    int horizontal_scroll,
                    int vertical_scroll) {
     int current = desktops_current(app);
-    current += vertical_scroll;
+    current -= vertical_scroll;
     current -= horizontal_scroll;// we subtract to correct the direction
 
     int count = desktops_count(app);

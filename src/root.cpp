@@ -132,6 +132,7 @@ void meta_pressed() {
     bool already_open = client != nullptr;
     if (already_open) {
         client_close(app, client);
+        set_textarea_inactive();
     } else {
         start_app_menu();
     }
