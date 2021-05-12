@@ -15,8 +15,8 @@
 #include <pango/pangocairo.h>
 #include <xcb/xcb_image.h>
 
-static double option_width = 217;
-static double option_height = 144;
+int option_width = 217 * 1.2;
+int option_height = 144 * 1.2;
 static double close_width = 32;
 static double close_height = 32;
 static Container *data_container = nullptr;
@@ -36,7 +36,7 @@ window_option_clicked(AppClient *client_entity, cairo_t *cr, Container *containe
         }
     }
 
-    xcb_window_t to_focus = data->windows[index];
+    xcb_window_t to_focus = data->windows_data_list[index]->id;
 
     xcb_ewmh_request_change_active_window(&app->ewmh,
                                           app->screen_number,
@@ -45,7 +45,9 @@ window_option_clicked(AppClient *client_entity, cairo_t *cr, Container *containe
                                           XCB_CURRENT_TIME,
                                           XCB_NONE);
 
-    client_close_threaded(app, client_entity);
+    client_close_threaded(app, client);
+    xcb_flush(app->connection);
+    app->grab_window = -1;
 }
 
 static void
@@ -68,54 +70,35 @@ window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container
         }
     }
 
-    xcb_window_t to_close = data->windows[index];
+    xcb_window_t to_close = data->windows_data_list[index]->id;
 
-    unsigned long windows_count = data->windows.size();
+    unsigned long windows_count = data->windows_data_list.size();
     xcb_ewmh_request_close_window(&app->ewmh,
                                   app->screen_number,
                                   to_close,
                                   XCB_CURRENT_TIME,
                                   XCB_EWMH_CLIENT_SOURCE_TYPE_NORMAL);
 
-    if (windows_count > 1) {
-        std::thread t([windows_count]() -> void {
-            long start_time = get_current_time_in_ms();
-            while (get_current_time_in_ms() - start_time < 2000) {
-                if (data->windows.size() != windows_count) {
-                    double width = option_width * data->windows.size();
-                    double x =
-                            data_container->real_bounds.x - width / 2 + data_container->real_bounds.w / 2;
 
-                    xcb_ewmh_request_moveresize_window(
-                            &app->ewmh,
-                            app->screen_number,
-                            client->window,
-                            static_cast<xcb_gravity_t>(0),
-                            XCB_EWMH_CLIENT_SOURCE_TYPE_NORMAL,
-                            static_cast<xcb_ewmh_moveresize_window_opt_flags_t>(
-                                    XCB_EWMH_MOVERESIZE_WINDOW_X | XCB_EWMH_MOVERESIZE_WINDOW_WIDTH),
-                            x,
-                            0,
-                            width,
-                            0);
-                    xcb_flush(app->connection);
+/*    if (windows_count > 1) {
+        container->parent->children.erase(container->parent->children.begin() + index);
+        int width = option_width * container->parent->children.size();
+        delete container;
 
-                    for (auto child : client->root->children) {
-                        delete child;
-                    }
-                    client->root->children.clear();
-                    fill_root(client->root);
-                    request_refresh(app, client);
+        double x = data_container->real_bounds.x - width / 2 + data_container->real_bounds.w / 2;
+        if (x < 0) {
+            x = 0;
+        }
+        double y = app->bounds.h - option_height - config->taskbar_height;
+        double h = option_height;
 
-                    break;
-                }
-                usleep(50);
-            }
-        });
-        t.detach();
+        handle_configure_notify(app, client_entity, x, y, width, h);
+        client_set_position_and_size(app, client_entity, x, y, width, h);
     } else {
-        client_close_threaded(app, client);
-    }
+    }*/
+
+    client_close_threaded(app, client_entity);
+    app->grab_window = -1;
 }
 
 static void
@@ -149,9 +132,9 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
         set_argb(cr, correct_opaqueness(client_entity, config->color_windows_selector_default_background));
     }
     cairo_rectangle(cr,
-                    container->real_bounds.x,
+                    container->real_bounds.x - 1,
                     container->real_bounds.y,
-                    container->real_bounds.w,
+                    container->real_bounds.w + 1,
                     container->real_bounds.h);
     cairo_fill(cr);
 }
@@ -220,22 +203,51 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, layout);
 }
 
+class BodyData : public UserData {
+public:
+    WindowsData *windows_data = nullptr;
+};
+
 static void
 paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
-    double pad = 10;
-    cairo_rectangle(cr,
-                    container->real_bounds.x + pad,
-                    container->real_bounds.y,
-                    container->real_bounds.w - pad * 2,
-                    container->real_bounds.h - pad);
-    ArgbColor color;
-    color.a = 1;
-    color.r = .1;
-    color.g = .1;
-    color.b = .1;
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto data = ((BodyData *) container->user_data)->windows_data;
 
-    set_argb(cr, color);
-    cairo_fill(cr);
+    double pad = 10;
+    double target_width = container->real_bounds.w - pad * 2;
+    double target_height = container->real_bounds.h - pad;
+    double scale_w = target_width / data->width;
+    double scale_h = target_height / data->height;
+    if (scale_w < scale_h) {
+        scale_h = scale_w;
+    } else {
+        scale_w = scale_h;
+    }
+
+    long currrent_time = get_current_time_in_ms();
+    if ((currrent_time - data->last_rescale_timestamp) > 1000) {
+        if (screen_has_transparency(app)) {
+            data->take_screenshot();
+        }
+        data->rescale(scale_w, scale_h);
+    }
+    if (data->scaled_thumbnail_surface) {
+        double width = data->width * scale_w;
+        double height = data->height * scale_h;
+
+        double dest_x = container->real_bounds.x + pad + target_width / 2 - width / 2;
+        double dest_y = container->real_bounds.y;
+
+        cairo_save(cr);
+        cairo_set_source_surface(cr, data->scaled_thumbnail_surface,
+                                 dest_x, dest_y);
+        cairo_rectangle(cr, dest_x, dest_y, width, height);
+        cairo_clip(cr);
+        cairo_paint(cr);
+        cairo_restore(cr);
+    }
 }
 
 static void
@@ -245,10 +257,17 @@ fill_root(Container *root) {
     paint_surface_with_image(image->surface, as_resource_path("taskbar-close.png"), 16, nullptr);
     root->user_data = image;
 
+
+    if (screen_has_transparency(app)) {
+        for (auto window_data : data->windows_data_list) {
+            window_data->last_rescale_timestamp = -1;
+        }
+    }
+
     if (data == nullptr)
         return;
 
-    for (int i = 0; i < data->windows.size(); i++) {
+    for (int i = 0; i < data->windows_data_list.size(); i++) {
         Container *option_container = new Container();
         option_container->type = vbox;
         option_container->parent = root;
@@ -287,6 +306,9 @@ fill_root(Container *root) {
         option_body->wanted_bounds.h = FILL_SPACE;
         option_body->when_paint = paint_body;
         option_body->when_clicked = clicked_body;
+        auto body_data = new BodyData;
+        body_data->windows_data = data->windows_data_list[i];
+        option_body->user_data = body_data;
         option_container->children.push_back(option_body);
     }
 }
@@ -351,9 +373,12 @@ void start_windows_selector(Container *container) {
     data_container = container;
     data = static_cast<LaunchableButton *>(container->user_data);
 
-    double width = option_width * data->windows.size();
+    int width = option_width * data->windows_data_list.size();
     Settings settings;
     settings.x = container->real_bounds.x - width / 2 + data_container->real_bounds.w / 2;
+    if (settings.x < 0) {
+        settings.x = 0;
+    }
     settings.y = app->bounds.h - option_height - config->taskbar_height;
     settings.w = width;
     settings.h = option_height;
@@ -363,7 +388,10 @@ void start_windows_selector(Container *container) {
     settings.popup = true;
 
     client = client_new(app, settings, "windows_selector");
+
+    client->fps = 2;
     client->grab_event_handler = grab_event_handler;
+    client_register_animation(app, client);
 
     app_create_custom_event_handler(app, client->window, windows_selector_event_handler);
 

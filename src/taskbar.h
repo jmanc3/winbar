@@ -4,6 +4,7 @@
 #define TASKBAR_H
 
 #include <utility.h>
+#include <xcb/xcb_aux.h>
 #include "application.h"
 #include "audio.h"
 
@@ -22,9 +23,39 @@ public:
     ~IconButton() { cairo_surface_destroy(surface); }
 };
 
+class WindowsData {
+public:
+
+    xcb_window_t id = -1;
+
+    // This is the surface that is linked to the actual window content
+    cairo_surface_t *window_surface = nullptr;
+    int width = -1;
+    int height = -1;
+
+    // This is where screenshots are stored every so often (if we could guarantee a compositor, we wouldn't need this.
+    cairo_surface_t *raw_thumbnail_surface = nullptr;
+    cairo_t *raw_thumbnail_cr = nullptr;
+
+    long last_rescale_timestamp = 0;
+
+    // This is where we rescale the screenshot to the correct thumbnail size
+    cairo_surface_t *scaled_thumbnail_surface = nullptr;
+    cairo_t *scaled_thumbnail_cr = nullptr;
+
+    WindowsData(App *app, xcb_window_t window);
+
+    void take_screenshot();
+
+    void rescale(double scale_w, double scale_h);
+
+    ~WindowsData();
+};
+
 class LaunchableButton : public IconButton {
 public:
-    std::vector<xcb_window_t> windows;
+    std::vector<WindowsData *> windows_data_list;
+
     bool pinned = false;
     std::string class_name;
     std::string icon_name;
@@ -39,6 +70,10 @@ public:
     // For icon lerping to correct position
     bool animating = false;
     double target = 0;
+
+    ~LaunchableButton() {
+
+    }
 };
 
 class wifi_surfaces : public HoverableButton {

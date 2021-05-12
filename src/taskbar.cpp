@@ -140,7 +140,7 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
 
     if (data->surface) {
-        // Assumes the size of the surface to be 16x16 and tries to draw it centered
+        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
         if (container->state.mouse_pressing) {
             dye_surface(data->surface, config->color_taskbar_windows_button_pressed_icon);
         } else if (container->state.mouse_hovering) {
@@ -222,7 +222,7 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (data->surface_hover) {
             dye_surface(data->surface_hover, config->color_taskbar_button_icons);
-            // Assumes the size of the surface to be 16x16 and tries to draw it centered
+            // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
             cairo_set_source_surface(
                     cr,
                     data->surface_hover,
@@ -233,7 +233,7 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
     } else {
         if (data->surface) {
             dye_surface(data->surface, config->color_taskbar_button_icons);
-            // Assumes the size of the surface to be 16x16 and tries to draw it centered
+            // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
             cairo_set_source_surface(
                     cr,
                     data->surface,
@@ -319,7 +319,7 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
     LaunchableButton *data = (LaunchableButton *) container->user_data;
 
     if (data->surface) {
-        // Assumes the size of the surface to be 16x16 and tries to draw it centered
+        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
         cairo_set_source_surface(
                 cr,
                 data->surface,
@@ -351,7 +351,7 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     double g_c = real.g;
     double b_c = real.b;
 
-    int windows_count = data->windows.size();
+    int windows_count = data->windows_data_list.size();
     bool active = active_container == container;
     bool pressed = container->state.mouse_pressing;
     bool hovered = container->state.mouse_hovering;
@@ -641,18 +641,23 @@ void active_window_changed(xcb_window_t new_active_window) {
 
     for (Container *icon : icons->children) {
         LaunchableButton *data = (LaunchableButton *) icon->user_data;
+        if (data) {
+            if (active_container) {
+                LaunchableButton *old_data = (LaunchableButton *) active_container->user_data;
+                if (old_data) {
+                    client_create_animation(app, entity, &old_data->active_amount, 45, 0, 0);
+                }
+            }
 
-        if (active_container) {
-            LaunchableButton *old_data = (LaunchableButton *) active_container->user_data;
-            client_create_animation(app, entity, &old_data->active_amount, 45, 0, 0);
-        }
-
-        for (xcb_window_t window : data->windows) {
-            if (window == new_active_window) {
-                active_container = icon;
-                client_create_animation(app, entity, &data->active_amount, 45, 0, 1);
-                request_refresh(app, entity);
-                return;
+            for (auto window_data : data->windows_data_list) {
+                auto window = window_data->id;
+                if (window == new_active_window) {
+                    window_data->take_screenshot();
+                    active_container = icon;
+                    client_create_animation(app, entity, &data->active_amount, 45, 0, 1);
+                    request_refresh(app, entity);
+                    return;
+                }
             }
         }
     }
@@ -892,7 +897,8 @@ update_minimize_icon_positions() {
         if (!data)
             continue;
 
-        for (auto window : data->windows) {
+        for (auto window_data : data->windows_data_list) {
+            auto window = window_data->id;
             double value[] = {bounds->x + icon->real_bounds.x,
                               bounds->y + icon->real_bounds.y,
                               icon->real_bounds.w,
@@ -964,13 +970,13 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     LaunchableButton *data = (LaunchableButton *) container->user_data;
 
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
-        if (data->windows.empty()) {
+        if (data->windows_data_list.empty()) {
             launch_command(data->command_launched_by);
-        } else if (data->windows.size() > 1) {
+        } else if (data->windows_data_list.size() > 1) {
             start_windows_selector(container);
         } else {
             // TODO: choose window if there are more then one
-            xcb_window_t window = data->windows[0];
+            xcb_window_t window = data->windows_data_list[0]->id;
 
             uint32_t state = get_wm_state(window);
 
@@ -979,7 +985,8 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                 if (active_container) {
                     LaunchableButton *button_data = (LaunchableButton *) active_container->user_data;
                     if (button_data) {
-                        for (xcb_window_t active_window : button_data->windows) {
+                        for (auto window_data : button_data->windows_data_list) {
+                            auto active_window = window_data->id;
                             if (active_window == window)
                                 is_active_window = true;
                         }
@@ -1033,7 +1040,7 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
 
     IconButton *data = (IconButton *) container->user_data;
     if (data->surface) {
-        // Assumes the size of the surface to be 16x16 and tries to draw it centered
+        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
         dye_surface(data->surface, config->color_taskbar_button_icons);
         cairo_set_source_surface(
                 cr,
@@ -1249,7 +1256,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
 
     // Paint search icon
     if (data->surface) {
-        // Assumes the size of the surface to be 16x16 and tries to draw it centered
+        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
         if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
             if (active || container->state.mouse_pressing) {
                 dye_surface(data->surface, config->color_taskbar_search_bar_pressed_icon);
@@ -1650,6 +1657,81 @@ taskbar_on_screen_size_change(App *app, AppClient *client) {
     }
 }
 
+static bool
+window_event_handler(App *app, xcb_generic_event_t *event) {
+    // This will listen to configure notify events and check if it's about a
+    // window we need a thumbnail of and update its size if so.
+    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
+        case XCB_CONFIGURE_NOTIFY: {
+            auto *e = (xcb_configure_notify_event_t *) event;
+            if (auto client = client_by_name(app, "taskbar")) {
+                if (client->root) {
+                    if (auto icons = container_by_name("icons", client->root)) {
+                        for (auto icon : icons->children) {
+                            auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                            for (auto windows_data : data->windows_data_list) {
+                                if (windows_data->id == e->window) {
+                                    // update the size of the surface
+                                    if (windows_data->window_surface && (e->width != windows_data->width ||
+                                                                         e->height != windows_data->height)) {
+                                        windows_data->width = e->width;
+                                        windows_data->height = e->height;
+                                        cairo_xcb_surface_set_size(windows_data->window_surface,
+                                                                   windows_data->width, windows_data->height);
+
+                                        cairo_surface_destroy(windows_data->raw_thumbnail_surface);
+                                        cairo_destroy(windows_data->raw_thumbnail_cr);
+                                        cairo_surface_destroy(windows_data->scaled_thumbnail_surface);
+                                        cairo_destroy(windows_data->scaled_thumbnail_cr);
+
+                                        windows_data->raw_thumbnail_surface = accelerated_surface_rgb(app,
+                                                                                                      client_by_name(
+                                                                                                              app,
+                                                                                                              "taskbar"),
+                                                                                                      windows_data->width,
+                                                                                                      windows_data->height);
+                                        windows_data->raw_thumbnail_cr = cairo_create(
+                                                windows_data->raw_thumbnail_surface);
+                                        windows_data->scaled_thumbnail_surface = accelerated_surface_rgb(app,
+                                                                                                         client_by_name(
+                                                                                                                 app,
+                                                                                                                 "taskbar"),
+                                                                                                         option_width,
+                                                                                                         option_height);
+                                        windows_data->scaled_thumbnail_cr = cairo_create(
+                                                windows_data->scaled_thumbnail_surface);
+                                    }
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        }
+    }
+    return false;
+}
+
+void screenshot_active_window(App *app, AppClient *client, void *user_data) {
+    if (auto client = client_by_name(app, "taskbar")) {
+        if (client->root) {
+            if (auto icons = container_by_name("icons", client->root)) {
+                for (auto icon : icons->children) {
+                    auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                    for (auto windows_data : data->windows_data_list) {
+                        if (windows_data->id == active_window) {
+                            windows_data->take_screenshot();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 AppClient *
 create_taskbar(App *app) {
 #ifdef TRACY_ENABLE
@@ -1679,6 +1761,8 @@ create_taskbar(App *app) {
     taskbar->on_any_screen_change = taskbar_on_screen_size_change;
 
     app_create_custom_event_handler(app, taskbar->window, taskbar_event_handler);
+    app_create_custom_event_handler(app, INT_MAX, window_event_handler);
+    app_timeout_create(app, taskbar, 500, screenshot_active_window, nullptr);
 
     // Lay it out
     fill_root(app, taskbar, taskbar->root);
@@ -1729,27 +1813,6 @@ class_name(App *app, xcb_window_t window) {
         }
     }
     return std::to_string(window);
-}
-
-static bool
-window_event_handler(App *app, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_PROPERTY_NOTIFY: {
-            auto *e = (xcb_property_notify_event_t *) event;
-            const xcb_get_atom_name_cookie_t &cookie = xcb_get_atom_name(app->connection, e->atom);
-            xcb_get_atom_name_reply_t *reply = xcb_get_atom_name_reply(app->connection, cookie, NULL);
-
-            char *name = xcb_get_atom_name_name(reply);
-            printf("ATOM: %s\n", name);
-
-            if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
-
-                printf("here\n");
-            }
-            break;
-        }
-    }
-    return true;
 }
 
 std::string get_reply_string(xcb_ewmh_get_utf8_strings_reply_t *reply) {
@@ -1830,7 +1893,11 @@ void add_window(App *app, xcb_window_t window) {
     for (auto icon : icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
         if (data->class_name == window_class_name) {
-            data->windows.push_back(window);
+            const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY};
+            xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
+            xcb_flush(app->connection);
+
+            data->windows_data_list.push_back(new WindowsData(app, window));
             update_minimize_icon_positions();
             request_refresh(app, client);
             return;
@@ -1864,13 +1931,9 @@ void add_window(App *app, xcb_window_t window) {
         err = nullptr;
     }
 
-    //    auto *handler = new Handler;
-    //    handler->event_handler = window_event_handler;
-    //    handler->target_window = window;
-    //    app->handlers.push_back(handler);
-    //
-    //    const uint32_t values[] = {XCB_EVENT_MASK_PROPERTY_CHANGE, XCB_EVENT_MASK_STRUCTURE_NOTIFY};
-    //    xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
+    const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY};
+    xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
+    xcb_flush(app->connection);
 
     Container *a = icons->child(48, FILL_SPACE);
     a->when_drag_end_is_click = false;
@@ -1881,7 +1944,7 @@ void add_window(App *app, xcb_window_t window) {
     a->when_drag_start = pinned_icon_drag_start;
     a->when_drag = pinned_icon_drag;
     LaunchableButton *data = new LaunchableButton();
-    data->windows.push_back(window);
+    data->windows_data_list.push_back(new WindowsData(app, window));
     data->class_name = window_class_name;
     data->icon_name = window_class_name;
     a->user_data = data;
@@ -2023,14 +2086,15 @@ void remove_window(App *app, xcb_window_t window) {
     for (int j = 0; j < icons->children.size(); j++) {
         Container *container = icons->children[j];
         LaunchableButton *data = (LaunchableButton *) container->user_data;
-        for (int i = 0; i < data->windows.size(); i++) {
-            if (data->windows[i] == window) {
-                data->windows.erase(data->windows.begin() + i);
+        for (int i = 0; i < data->windows_data_list.size(); i++) {
+            if (data->windows_data_list[i]->id == window) {
+                delete data->windows_data_list[i];
+                data->windows_data_list.erase(data->windows_data_list.begin() + i);
 
-                if (data->windows.size() == 0 && !data->pinned) {
+                if (data->windows_data_list.empty() && !data->pinned) {
                     icons->children.erase(icons->children.begin() + j);
+                    delete container;
                 }
-
                 break;
             }
         }
@@ -2072,8 +2136,8 @@ void stacking_order_changed(xcb_window_t *all_windows, int windows_count) {
 
     for (auto icon : icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
-        for (auto window : data->windows) {
-            old_windows.emplace_back(window);
+        for (auto window_data : data->windows_data_list) {
+            old_windows.emplace_back(window_data->id);
         }
     }
 
@@ -2115,8 +2179,12 @@ void remove_non_pinned_icons() {
                                          [](Container *icon) {
                                              auto *data =
                                                      static_cast<LaunchableButton *>(icon->user_data);
+                                             bool del = data->windows_data_list.empty() && !data->pinned;
+                                             if (del) {
+                                                 delete data;
+                                             }
 
-                                             return data->windows.empty() && !data->pinned;
+                                             return del;
                                          }),
                           icons->children.end());
 
@@ -2300,6 +2368,7 @@ late_classes_update(App *app, AppClient *client, void *data) {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Late WM_CLASS Thread");
 #endif
+    return;
     auto *root = client->root;
     if (!root)
         return;
@@ -2312,12 +2381,12 @@ late_classes_update(App *app, AppClient *client, void *data) {
 
         // since when windows don't have real classes on them we set their names to their class.
         // they should only be stacked by one
-        if (data->windows.size() == 1) {
-            auto name = class_name(app, data->windows[0]);
+        if (data->windows_data_list.size() == 1) {
+            auto name = class_name(app, data->windows_data_list[0]->id);
 
             if (name != data->class_name) {
-                remove_window(app, data->windows[0]);
-                add_window(app, data->windows[0]);
+                remove_window(app, data->windows_data_list[0]->id);
+                add_window(app, data->windows_data_list[0]->id);
             }
         }
     }
@@ -2407,4 +2476,78 @@ void register_popup(xcb_window_t window) {
             }
         }
     }
+}
+
+WindowsData::WindowsData(App *app, xcb_window_t window) {
+    id = window;
+
+    const xcb_get_window_attributes_cookie_t &attributesCookie = xcb_get_window_attributes(
+            app->connection, window);
+    xcb_get_window_attributes_reply_t *attributes = xcb_get_window_attributes_reply(app->connection,
+                                                                                    attributesCookie,
+                                                                                    nullptr);
+    if (attributes) {
+        // TODO: screen should be found using the window somehow I think
+        xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
+        xcb_visualtype_t *visual = xcb_aux_find_visual_by_id(screen, attributes->visual);
+
+        xcb_get_geometry_cookie_t geomCookie = xcb_get_geometry(app->connection,
+                                                                window);  // window is a xcb_drawable_t
+        xcb_get_geometry_reply_t *geom = xcb_get_geometry_reply(app->connection, geomCookie, NULL);
+
+        if (geom) {
+            window_surface = cairo_xcb_surface_create(app->connection,
+                                                      window,
+                                                      visual,
+                                                      (width = geom->width),
+                                                      (height = geom->height));
+
+            raw_thumbnail_surface = accelerated_surface_rgb(app, client_by_name(app, "taskbar"), width, height);
+            raw_thumbnail_cr = cairo_create(raw_thumbnail_surface);
+            scaled_thumbnail_surface = accelerated_surface_rgb(app, client_by_name(app, "taskbar"), option_width,
+                                                               option_height);
+            scaled_thumbnail_cr = cairo_create(scaled_thumbnail_surface);
+            take_screenshot();
+            free(geom);
+        }
+        free(attributes);
+    }
+}
+
+WindowsData::~WindowsData() {
+    if (window_surface) {
+        cairo_surface_destroy(window_surface);
+        cairo_surface_destroy(raw_thumbnail_surface);
+        cairo_destroy(raw_thumbnail_cr);
+        cairo_surface_destroy(scaled_thumbnail_surface);
+        cairo_destroy(scaled_thumbnail_cr);
+    }
+}
+
+void WindowsData::take_screenshot() {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    cairo_set_source_surface(raw_thumbnail_cr, window_surface, 0, 0);
+    cairo_paint(raw_thumbnail_cr);
+
+    cairo_surface_flush(window_surface);
+    cairo_surface_mark_dirty(window_surface);
+}
+
+void WindowsData::rescale(double scale_w, double scale_h) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    last_rescale_timestamp = get_current_time_in_ms();
+
+    // TODO: make sure the window is mapped.
+    cairo_pattern_t *pattern = cairo_pattern_create_for_surface(raw_thumbnail_surface);
+    cairo_pattern_set_filter(pattern, CAIRO_FILTER_GOOD);
+
+    cairo_save(scaled_thumbnail_cr);
+    cairo_scale(scaled_thumbnail_cr, scale_w, scale_h);
+    cairo_set_source(scaled_thumbnail_cr, pattern);
+    cairo_paint(scaled_thumbnail_cr);
+    cairo_restore(scaled_thumbnail_cr);
 }

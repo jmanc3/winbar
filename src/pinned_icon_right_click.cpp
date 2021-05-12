@@ -198,7 +198,8 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
 
     switch (data->option_type) {
         case CLOSE: {
-            for (auto window : pinned_icon_data->windows) {
+            for (auto window_list : pinned_icon_data->windows_data_list) {
+                auto window = window_list->id;
                 xcb_ewmh_client_source_type_t source;
                 xcb_ewmh_request_close_window(
                         &app->ewmh, app->screen_number, window, XCB_TIME_CURRENT_TIME, source);
@@ -380,13 +381,13 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     data->text_offset = 40;
     pinned->user_data = data;
 
-    if (!pinned_icon_data->windows.empty()) {
+    if (!pinned_icon_data->windows_data_list.empty()) {
         auto *close = root->child(FILL_SPACE, 30);
         close->when_paint = paint_option;
         close->when_clicked = option_clicked;
         data = new OptionData();
         data->option_type = option_data_type::CLOSE;
-        if (pinned_icon_data->windows.size() == 1) {
+        if (pinned_icon_data->windows_data_list.size() == 1) {
             data->text = "Close window";
         } else {
             data->text = "Close all windows";

@@ -561,11 +561,28 @@ accelerated_surface(App *app, AppClient *client_entity, int w, int h) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (client_entity->cr == nullptr)
+    if (client_entity && client_entity->cr == nullptr)
         return nullptr;
 
     cairo_surface_t *fast_surface = cairo_surface_create_similar_image(
             cairo_get_target(client_entity->cr), CAIRO_FORMAT_ARGB32, w, h);
+
+    if (cairo_surface_status(fast_surface) != CAIRO_STATUS_SUCCESS)
+        return nullptr;
+
+    return fast_surface;
+}
+
+cairo_surface_t *
+accelerated_surface_rgb(App *app, AppClient *client_entity, int w, int h) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (client_entity && client_entity->cr == nullptr)
+        return nullptr;
+
+    cairo_surface_t *fast_surface = cairo_surface_create_similar_image(
+            cairo_get_target(client_entity->cr), CAIRO_FORMAT_RGB24, w, h);
 
     if (cairo_surface_status(fast_surface) != CAIRO_STATUS_SUCCESS)
         return nullptr;

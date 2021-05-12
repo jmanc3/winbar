@@ -119,6 +119,9 @@ void paint_surface_with_data(cairo_surface_t *surface, uint32_t *icon_data);
 cairo_surface_t *
 accelerated_surface(App *app, AppClient *client_entity, int w, int h);
 
+cairo_surface_t *
+accelerated_surface_rgb(App *app, AppClient *client_entity, int w, int h);
+
 bool
 paint_surface_with_image(cairo_surface_t *surface, std::string path, int target_size, void (*upon_completion)(bool));
 

@@ -127,7 +127,9 @@ event_callback(xcb_record_enable_context_reply_t *reply, uint8_t *data_) {
         case XCB_KEY_RELEASE: {
             bool is_meta = keycode == 133;
             if (is_meta && clean) {
-                on_meta_key_pressed();
+                if (on_meta_key_pressed) {
+                    on_meta_key_pressed();
+                }
                 clean = false;
             }
             break;
