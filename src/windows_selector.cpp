@@ -80,7 +80,7 @@ window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container
                                   XCB_EWMH_CLIENT_SOURCE_TYPE_NORMAL);
 
 
-/*    if (windows_count > 1) {
+    if (windows_count > 1) {
         container->parent->children.erase(container->parent->children.begin() + index);
         int width = option_width * container->parent->children.size();
         delete container;
@@ -95,10 +95,9 @@ window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container
         handle_configure_notify(app, client_entity, x, y, width, h);
         client_set_position_and_size(app, client_entity, x, y, width, h);
     } else {
-    }*/
-
-    client_close_threaded(app, client_entity);
-    app->grab_window = -1;
+        client_close_threaded(app, client_entity);
+        app->grab_window = -1;
+    }
 }
 
 static void
@@ -368,10 +367,22 @@ windows_selector_event_handler(App *app, xcb_generic_event_t *event) {
     return false;
 }
 
-void start_windows_selector(Container *container) {
+void when_closed(AppClient *client) {
+    data->window_selector_open = window_selector_state::CLOSED;
+    if (auto c = client_by_name(app, "taskbar")) {
+        if (!(data_container->state.mouse_hovering || data_container->state.mouse_pressing)) {
+            if (data->hover_amount == 1) {
+                client_create_animation(app, c, &data->hover_amount, 70, 0, 0);
+            }
+        }
+    }
+}
+
+void start_windows_selector(Container *container, window_selector_state selector_state) {
     first_expose = true;
     data_container = container;
     data = static_cast<LaunchableButton *>(container->user_data);
+    data->window_selector_open = selector_state;
 
     int width = option_width * data->windows_data_list.size();
     Settings settings;
@@ -391,6 +402,7 @@ void start_windows_selector(Container *container) {
 
     client->fps = 2;
     client->grab_event_handler = grab_event_handler;
+    client->when_closed = when_closed;
     client_register_animation(app, client);
 
     app_create_custom_event_handler(app, client->window, windows_selector_event_handler);

@@ -352,14 +352,16 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     double b_c = real.b;
 
     int windows_count = data->windows_data_list.size();
-    bool active = active_container == container;
+    bool active = active_container == container || (data->window_selector_open == window_selector_state::OPEN_CLICKED);
     bool pressed = container->state.mouse_pressing;
-    bool hovered = container->state.mouse_hovering;
+    bool hovered = container->state.mouse_hovering || (data->window_selector_open != window_selector_state::CLOSED);
     bool dragging = container->state.mouse_dragging;
+    double active_amount = data->active_amount;
+    if (data->window_selector_open == window_selector_state::OPEN_CLICKED) active_amount = 1;
 
     int highlight_height = 2;
 
-    double bar_amount = std::max(data->hover_amount, data->active_amount);
+    double bar_amount = std::max(data->hover_amount, active_amount);
     double highlight_inset = 4 * (1 - bar_amount);
 
     double bg_openess = highlight_inset;
@@ -413,8 +415,8 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
 
     { // Background pane
         if (windows_count > 1) {
-            if (container->state.mouse_pressing || container->state.mouse_hovering) {
-                if (container->state.mouse_pressing) {
+            if (pressed || hovered) {
+                if (pressed) {
                     paint_double_bg(cr,
                                     container->real_bounds,
                                     color_background_pane_pressed_left,
@@ -429,8 +431,8 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
                 }
             }
         } else {
-            if (container->state.mouse_pressing || container->state.mouse_hovering) {
-                if (container->state.mouse_pressing) {
+            if (pressed || hovered) {
+                if (pressed) {
                     paint_double_bg(cr,
                                     container->real_bounds,
                                     color_background_pane_pressed_left,
@@ -452,14 +454,14 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
         double back_x = container->real_bounds.x + highlight_inset;
         double back_w = container->real_bounds.w - highlight_inset * 2;
 
-        if (data->active_amount) {
-            double height = container->real_bounds.h * data->active_amount;
+        if (active_amount) {
+            double height = container->real_bounds.h * active_amount;
             Bounds bounds = Bounds(back_x, container->real_bounds.y + container->real_bounds.h - height, back_w,
                                    height);
 
             if (windows_count > 1) {
-                if (container->state.mouse_pressing || container->state.mouse_hovering) {
-                    if (container->state.mouse_pressing) {
+                if (pressed || hovered) {
+                    if (pressed) {
                         paint_double_bg(cr,
                                         bounds,
                                         color_foreground_pane_pressed_left,
@@ -480,8 +482,8 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
                                     color_foreground_pane_default_right);
                 }
             } else {
-                if (container->state.mouse_pressing || container->state.mouse_hovering) {
-                    if (container->state.mouse_pressing) {
+                if (pressed || hovered) {
+                    if (pressed) {
                         paint_double_bg(cr,
                                         bounds,
                                         color_foreground_pane_pressed_left,
@@ -553,6 +555,9 @@ pinned_icon_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
+    if (data->window_selector_open != window_selector_state::CLOSED) {
+        return;
+    }
     client_create_animation(app, client, &data->hover_amount, 70, 0, 1);
 }
 
@@ -562,6 +567,9 @@ pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
+    if (data->window_selector_open != window_selector_state::CLOSED) {
+        return;
+    }
     client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
 }
 
@@ -641,23 +649,19 @@ void active_window_changed(xcb_window_t new_active_window) {
 
     for (Container *icon : icons->children) {
         LaunchableButton *data = (LaunchableButton *) icon->user_data;
-        if (data) {
-            if (active_container) {
-                LaunchableButton *old_data = (LaunchableButton *) active_container->user_data;
-                if (old_data) {
-                    client_create_animation(app, entity, &old_data->active_amount, 45, 0, 0);
-                }
-            }
+        if (active_container) {
+            LaunchableButton *old_data = (LaunchableButton *) active_container->user_data;
+            client_create_animation(app, entity, &old_data->active_amount, 45, 0, 0);
+        }
 
-            for (auto window_data : data->windows_data_list) {
-                auto window = window_data->id;
-                if (window == new_active_window) {
-                    window_data->take_screenshot();
-                    active_container = icon;
-                    client_create_animation(app, entity, &data->active_amount, 45, 0, 1);
-                    request_refresh(app, entity);
-                    return;
-                }
+        for (auto window_data : data->windows_data_list) {
+            auto window = window_data->id;
+            if (window == new_active_window) {
+                window_data->take_screenshot();
+                active_container = icon;
+                client_create_animation(app, entity, &data->active_amount, 45, 0, 1);
+                request_refresh(app, entity);
+                return;
             }
         }
     }
@@ -973,7 +977,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
         if (data->windows_data_list.empty()) {
             launch_command(data->command_launched_by);
         } else if (data->windows_data_list.size() > 1) {
-            start_windows_selector(container);
+            start_windows_selector(container, window_selector_state::OPEN_CLICKED);
         } else {
             // TODO: choose window if there are more then one
             xcb_window_t window = data->windows_data_list[0]->id;
@@ -2092,6 +2096,8 @@ void remove_window(App *app, xcb_window_t window) {
                 data->windows_data_list.erase(data->windows_data_list.begin() + i);
 
                 if (data->windows_data_list.empty() && !data->pinned) {
+                    if (active_container == container)
+                        active_container = nullptr;
                     icons->children.erase(icons->children.begin() + j);
                     delete container;
                 }

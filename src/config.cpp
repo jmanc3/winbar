@@ -285,6 +285,26 @@ void config_load() {
                         load_hex(theme, "color_search_content_left_set_active_button_icon_pressed",
                                  &config->color_search_content_left_set_active_button_icon_pressed);
 
+                        load_hex(theme, "color_pinned_icon_editor_background",
+                                 &config->color_pinned_icon_editor_background);
+                        load_hex(theme, "color_pinned_icon_editor_default_background",
+                                 &config->color_pinned_icon_editor_default_background);
+                        load_hex(theme, "color_pinned_icon_editor_hovered_background",
+                                 &config->color_pinned_icon_editor_hovered_background);
+                        load_hex(theme, "color_pinned_icon_editor_pressed_background",
+                                 &config->color_pinned_icon_editor_pressed_background);
+                        load_hex(theme, "color_pinned_icon_editor_default_text",
+                                 &config->color_pinned_icon_editor_default_text);
+                        load_hex(theme, "color_pinned_icon_editor_hovered_text",
+                                 &config->color_pinned_icon_editor_hovered_text);
+                        load_hex(theme, "color_pinned_icon_editor_pressed_text",
+                                 &config->color_pinned_icon_editor_pressed_text);
+                        load_hex(theme, "color_pinned_icon_editor_default_border",
+                                 &config->color_pinned_icon_editor_default_border);
+                        load_hex(theme, "color_pinned_icon_editor_hovered_border",
+                                 &config->color_pinned_icon_editor_hovered_border);
+                        load_hex(theme, "color_pinned_icon_editor_pressed_border",
+                                 &config->color_pinned_icon_editor_pressed_border);
                         break;
                     }
                 } else {

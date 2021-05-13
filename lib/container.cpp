@@ -67,11 +67,15 @@ void layout_vbox(Container *container, const Bounds &bounds) {
 
             if (child->wanted_bounds.w == FILL_SPACE) {
                 target_w = container->children_bounds.w;
+            } else if (child->wanted_bounds.w == USE_CHILD_SIZE) {
+                target_w += reserved_width(child);
             } else {
                 target_w += child->wanted_bounds.w;
             }
             if (child->wanted_bounds.h == FILL_SPACE) {
                 target_h += fill_h;
+            } else if (child->wanted_bounds.h == USE_CHILD_SIZE) {
+                target_h += reserved_height(child);
             } else {
                 target_h += child->wanted_bounds.h;
             }
@@ -136,6 +140,13 @@ void layout_vbox(Container *container, const Bounds &bounds) {
 
             offset += child->real_bounds.h + container->spacing;
         }
+    }
+
+    if (container->wanted_bounds.w == USE_CHILD_SIZE) {
+        container->real_bounds.w = reserved_width(container);
+    }
+    if (container->wanted_bounds.h == USE_CHILD_SIZE) {
+        container->real_bounds.h = reserved_height(container);
     }
 
     if (container->alignment & ALIGN_CENTER) {

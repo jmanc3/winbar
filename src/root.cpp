@@ -122,7 +122,7 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
         }
     }
 
-    return true;
+    return false;
 }
 
 void meta_pressed() {

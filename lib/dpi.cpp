@@ -107,8 +107,9 @@ static bool listen_to_randr_and_client_configured_events(App *app, xcb_generic_e
                         handle_xcb_event(app, client->window, event);
 
                         check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, client, true);
+                        return true;
                     }
-                    return true;
+                    return false;
                 }
             }
         }

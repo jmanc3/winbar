@@ -237,6 +237,10 @@ int
 app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout_function)(App *, AppClient *, void *),
                    void *user_data);
 
+bool app_timeout_stop(App *app,
+                      AppClient *client,
+                      int timeout_file_descriptor);
+
 void app_create_custom_event_handler(App *app, xcb_window_t window,
                                      bool (*custom_handler)(App *app, xcb_generic_event_t *event));
 

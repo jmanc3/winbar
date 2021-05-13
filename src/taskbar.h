@@ -52,6 +52,12 @@ public:
     ~WindowsData();
 };
 
+enum window_selector_state {
+    CLOSED,
+    OPEN_HOVERED,
+    OPEN_CLICKED,
+};
+
 class LaunchableButton : public IconButton {
 public:
     std::vector<WindowsData *> windows_data_list;
@@ -66,6 +72,10 @@ public:
 
     double active_amount = 0;
     double hover_amount = 0;
+
+    window_selector_state window_selector_open = window_selector_state::CLOSED;
+    int open_window_selector_timeout = -1;
+    int close_window_selector_timeout = -1;
 
     // For icon lerping to correct position
     bool animating = false;

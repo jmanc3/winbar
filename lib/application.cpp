@@ -422,9 +422,8 @@ client_new(App *app, Settings settings, const std::string &name) {
             XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_POINTER_MOTION |
             XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
             XCB_EVENT_MASK_LEAVE_WINDOW | XCB_EVENT_MASK_ENTER_WINDOW |
-            XCB_EVENT_MASK_STRUCTURE_NOTIFY |
-            XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE |
-            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
+            XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+            XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_PROPERTY_CHANGE,
             // XCB_CW_COLORMAP
             colormap
     };
@@ -1500,6 +1499,7 @@ void handle_xcb_event(App *app) {
                 // If the handler's target window is INT_MAX that means it wants to see every event
                 if (handler->target_window == INT_MAX) {
                     if (handler->event_handler(app, event)) {
+                        handler->event_handler(app, event);
                         event_consumed_by_custom_handler = true;
                     }
                 } else if (handler->target_window ==
@@ -1523,7 +1523,7 @@ void handle_xcb_event(App *app) {
                 // If the handler's target window is INT_MAX that means it wants to see every event
                 if (handler->target_window == INT_MAX) {
                     if (handler->event_handler(app, event)) {
-
+                        printf("here\n");
                     }
                 }
             }
@@ -1713,6 +1713,22 @@ void client_create_animation(App *app,
     client_create_animation(app, client, value, length, easing, target, nullptr, relayout);
 }
 
+bool app_timeout_stop(App *app,
+                      AppClient *client,
+                      int timeout_file_descriptor) {
+    assert(app != nullptr && app->running);
+    for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
+        Timeout *timeout = app->timeouts[timeout_index];
+        if (timeout->file_descriptor == timeout_file_descriptor) {
+            app->timeouts.erase(app->timeouts.begin() + timeout_index);
+            close(timeout->file_descriptor);
+            delete timeout;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool app_timeout_replace(App *app,
                          AppClient *client,
                          int timeout_file_descriptor, float timeout_ms,
@@ -1848,7 +1864,9 @@ bool client_set_size(App *app, AppClient *client, int w, int h) {
 }
 
 bool client_set_position_and_size(App *app, AppClient *client, int x, int y, int w, int h) {
-    return client_set_position(app, client, x, y) && client_set_size(app, client, w, h);
+    bool reposition = client_set_position(app, client, x, y);
+    bool resize = client_set_size(app, client, w, h);
+    return reposition && resize;
 }
 
 void client_animation_paint(App *app, AppClient *client, void *user_data) {

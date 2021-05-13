@@ -166,6 +166,17 @@ struct Config {
     ArgbColor color_search_content_left_set_active_button_active = ArgbColor("#ff97b8d2");
     ArgbColor color_search_content_left_set_active_button_icon_default = ArgbColor("#ff606060");
     ArgbColor color_search_content_left_set_active_button_icon_pressed = ArgbColor("#ffffffff");
+
+    ArgbColor color_pinned_icon_editor_background = ArgbColor("#ffffffff");
+    ArgbColor color_pinned_icon_editor_default_background = ArgbColor("#fff3f3f3");
+    ArgbColor color_pinned_icon_editor_hovered_background = ArgbColor("#ffffffff");
+    ArgbColor color_pinned_icon_editor_pressed_background = ArgbColor("#ffffffff");
+    ArgbColor color_pinned_icon_editor_default_text = ArgbColor("#ff2b2b2b");
+    ArgbColor color_pinned_icon_editor_hovered_text = ArgbColor("#ff2d2d2d");
+    ArgbColor color_pinned_icon_editor_pressed_text = ArgbColor("#ff020202");
+    ArgbColor color_pinned_icon_editor_default_border = ArgbColor("#ffb4b4b4");
+    ArgbColor color_pinned_icon_editor_hovered_border = ArgbColor("#ffb4b4b4");
+    ArgbColor color_pinned_icon_editor_pressed_border = ArgbColor("#ff0078d7");
 };
 
 extern Config *config;

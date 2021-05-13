@@ -5,6 +5,7 @@
 #include "icons.h"
 #include "main.h"
 #include "taskbar.h"
+#include "pinned_icon_editor.h"
 
 #include <pango/pangocairo.h>
 #include <sys/stat.h>
@@ -242,6 +243,8 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
             cairo_surface_write_to_png(pinned_icon_data->surface, itemPath.c_str());
 
             update_pinned_items_file();
+
+            start_pinned_icon_editor(pinned_icon_container);
             break;
         }
         case UNPIN: {

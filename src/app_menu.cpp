@@ -441,7 +441,7 @@ left_open_timeout(App *app, AppClient *client, void *data) {
     if (app && app->running && valid_client(app, client) &&
         (container->state.mouse_hovering || container->state.mouse_pressing)) {
         client_create_animation(
-                app, client, &container->wanted_bounds.w, 120, nullptr, 256, true);
+                app, client, &container->wanted_bounds.w, 100, nullptr, 256, true);
     }
     left_open_fd = -1;
 }
@@ -449,15 +449,15 @@ left_open_timeout(App *app, AppClient *client, void *data) {
 static void
 left_open(AppClient *client, cairo_t *cr, Container *container) {
     if (left_open_fd == -1) {
-        left_open_fd = app_timeout_create(client->app, client, 180, left_open_timeout, container);
+        left_open_fd = app_timeout_create(client->app, client, 160, left_open_timeout, container);
     } else {
-        app_timeout_replace(client->app, client, left_open_fd, 180, left_open_timeout, container);
+        app_timeout_replace(client->app, client, left_open_fd, 160, left_open_timeout, container);
     }
 }
 
 static void
 left_close(AppClient *client, cairo_t *cr, Container *container) {
-    client_create_animation(app, client, &container->wanted_bounds.w, 120, nullptr, 48, true);
+    client_create_animation(app, client, &container->wanted_bounds.w, 70, nullptr, 48, true);
 }
 
 static bool
