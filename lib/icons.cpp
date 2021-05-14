@@ -532,7 +532,11 @@ find_icon(const std::string &name, int size) {
     }
 
 //    printf("%s\n", options[0]->path.c_str());
-    return options[0]->path;
+    std::string path = options[0]->path;
+    for (auto i : options)
+        delete i;
+    options.clear();
+    return path;
 }
 
 std::string

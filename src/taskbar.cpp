@@ -1865,6 +1865,7 @@ void add_window(App *app, xcb_window_t window) {
                 return;
             }
         }
+        xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
     }
 
     // on gnome, the Extension app ends up adding the taskbar to the taskbar. I have no idea how it's doing that

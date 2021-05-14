@@ -161,7 +161,7 @@ struct AppClient {
 
     xcb_window_t window;
 
-    char name[256];
+    std::string name;
 
     Bounds *bounds;
 

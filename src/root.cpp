@@ -57,9 +57,8 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
         case XCB_PROPERTY_NOTIFY: {
             auto *e = (xcb_property_notify_event_t *) event;
-            const xcb_get_atom_name_cookie_t &cookie = xcb_get_atom_name(app->connection, e->atom);
-            xcb_get_atom_name_reply_t *reply = xcb_get_atom_name_reply(app->connection, cookie, NULL);
-
+//            const xcb_get_atom_name_cookie_t &cookie = xcb_get_atom_name(app->connection, e->atom);
+//            xcb_get_atom_name_reply_t *reply = xcb_get_atom_name_reply(app->connection, cookie, NULL);
 //            char *name = xcb_get_atom_name_name(reply);
 //            printf("ATOM: %s\n", name);
 
@@ -138,6 +137,8 @@ void meta_pressed() {
     }
 }
 
+std::thread *t = nullptr;
+
 void root_start(App *app) {
     auto *handler = new Handler;
     handler->event_handler = root_event_handler;
@@ -148,8 +149,10 @@ void root_start(App *app) {
     xcb_change_window_attributes(app->connection, app->screen->root, XCB_CW_EVENT_MASK, values);
 
     // If not on another thread, will block this one
-    std::thread t(watch_meta_key);
-    t.detach();
+    if (t == nullptr) {
+        t = new std::thread(watch_meta_key);
+        t->detach();
+    }
 
     xcb_flush(app->connection);
 }

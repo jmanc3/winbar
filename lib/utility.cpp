@@ -332,6 +332,7 @@ void cleanup_cached_atoms() {
     for (auto cached_atom : cached_atoms) {
         delete cached_atom;
     }
+    cached_atoms.clear();
 }
 
 void close_all_fds() {
@@ -447,6 +448,7 @@ load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surfac
         double scale = ((double) target_size) / ((double) w);
         cairo_scale(temp_context, scale, scale);
         rsvg_handle_render_cairo(handle, temp_context);
+        g_object_unref(handle);
     } else {
         *surface = cairo_image_surface_create_from_png(path.c_str());
         cairo_status_t status = cairo_surface_status(*surface);
@@ -517,8 +519,10 @@ bool paint_png_to_surface(cairo_surface_t *surface, std::string path, int target
 #endif
     auto *png_surface = cairo_image_surface_create_from_png(path.c_str());
 
-    if (cairo_surface_status(png_surface) != CAIRO_STATUS_SUCCESS)
+    if (cairo_surface_status(png_surface) != CAIRO_STATUS_SUCCESS) {
+        cairo_surface_destroy(png_surface);
         return false;
+    }
 
     auto *temp_context = cairo_create(surface);
     int w = cairo_image_surface_get_width(png_surface);

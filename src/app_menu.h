@@ -19,6 +19,17 @@ public:
     cairo_surface_t *icon_32 = nullptr;
     cairo_surface_t *icon_24 = nullptr;
     cairo_surface_t *icon_64 = nullptr;
+
+    ~Launcher() {
+        if (icon_16)
+            cairo_surface_destroy(icon_16);
+        if (icon_32)
+            cairo_surface_destroy(icon_32);
+        if (icon_24)
+            cairo_surface_destroy(icon_24);
+        if (icon_64)
+            cairo_surface_destroy(icon_64);
+    }
 };
 
 extern bool launchers_done;

@@ -119,6 +119,8 @@ struct App {
 
     xcb_atom_t MOTIF_WM_HINTS = 0;
 
+    cairo_device_t *device = nullptr;
+
     App();
 };
 

@@ -133,7 +133,6 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     auto taskbar_root = taskbar_entity->root;
 
     if (container->parent->wanted_bounds.w != taskbar_root->children[0]->real_bounds.w) {
-        cairo_save(cr);
         cairo_push_group(cr);
 
         PangoLayout *layout =
@@ -155,6 +154,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
 
         pango_cairo_show_layout(cr, layout);
 
+        // TODO: for some reason valgrind is picking this up as a huge source of leaks
         cairo_pop_group_to_source(cr);
 
         cairo_rectangle(cr,
@@ -164,7 +164,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
                         container->real_bounds.h);
         cairo_clip(cr);
         cairo_paint(cr);
-        cairo_restore(cr);
+        cairo_reset_clip(cr);
     }
 }
 
@@ -559,11 +559,8 @@ clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) 
 
 static void
 clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
-    config_load();
-    client_close_threaded(client->app, client);
-    set_textarea_inactive();
-    xcb_flush(app->connection);
-    app->grab_window = -1;
+    client->app->running = false;
+    restart = true;
 }
 
 static void
@@ -967,7 +964,7 @@ void load_all_desktop_files() {
 
     load_desktop_files("/usr/share/applications/");
     std::string local_desktop_files = getenv("HOME");
-    local_desktop_files += "/.local/share/applications/";
+    local_desktop_files += "/.local/share/applicaxtions/";
     load_desktop_files(local_desktop_files);
 
     std::sort(launchers.begin(), launchers.end(), [](const auto &lhs, const auto &rhs) {

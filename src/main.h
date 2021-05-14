@@ -7,4 +7,6 @@
 
 extern App *app;
 
+extern bool restart;
+
 #endif// MAIN_H

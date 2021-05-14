@@ -1,0 +1,18 @@
+# so we stop getting false positives on valgrind
+# these are taken from chromium's suppression file (the third party section)
+{
+  ...
+  fun:pango_layout_get_pixel_size
+}
+{
+  ...
+  fun:pango_layout_get_iter
+}
+{
+  ...
+  fun:pango_layout_line_get_extents
+}
+{
+  ...
+  fun:pango_layout_get_pixel_size
+}

@@ -577,9 +577,8 @@ client_new(App *app, Settings settings, const std::string &name) {
     AppClient *client = new AppClient();
     init_client(client);
 
-    memcpy(client->name, name.c_str(), 255);
     client->app = app;
-    client->name[255] = '\0';
+    client->name = name;
 
     client->window = window;
     client->popup = settings.popup;
@@ -598,6 +597,8 @@ client_new(App *app, Settings settings, const std::string &name) {
     set_cursor(app, screen, client, "left_ptr", XC_left_ptr);
 
     client->window_supports_transparency = settings.window_transparent;
+
+    app->device = cairo_device_reference(cairo_surface_get_device(cairo_get_target(client->cr)));
 
     init_xkb(app, client);
 
@@ -820,6 +821,8 @@ void client_close(App *app, AppClient *client) {
     if (app->clients.empty()) {
         app->running = false;
     }
+
+    delete client;
 }
 
 void client_close_threaded(App *app, AppClient *client) {
@@ -1634,6 +1637,16 @@ void app_clean(App *app) {
 
     cleanup_cached_fonts();
     cleanup_cached_atoms();
+
+    for (auto a : animations_list) {
+        delete a;
+    }
+    animations_list.clear();
+
+    if (app->device) {
+        cairo_device_finish(app->device);
+        cairo_device_destroy(app->device);
+    }
 
     xcb_disconnect(app->connection);
 }

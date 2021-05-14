@@ -387,8 +387,10 @@ void start_systray() {
     if (selection_owner_reply->owner != systray->window) {
         client_close_threaded(app, systray);
         systray = nullptr;
+        free(selection_owner_reply);
         return;
     }
+    free(selection_owner_reply);
 
     xcb_client_message_event_t ev;
     ev.response_type = XCB_CLIENT_MESSAGE;

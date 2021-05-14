@@ -678,7 +678,7 @@ launch_item(AppClient *client, Container *item) {
         history_scripts.insert(history_scripts.begin(), historic_script);
         if (history_scripts.size() > 100) {
             delete history_scripts[history_scripts.size() - 1];
-            history_scripts.erase(history_scripts.end());
+            history_scripts.erase(history_scripts.begin() + (history_scripts.size() - 1));
         }
 
         launch_command(script->path + "/" + script->name);
