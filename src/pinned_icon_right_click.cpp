@@ -366,6 +366,25 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     data->text_offset = 40;
     open->user_data = data;
 
+    if (pinned_icon_data->pinned) {
+        auto *edit = root->child(FILL_SPACE, 30);
+        edit->when_paint = paint_option;
+        data = new OptionData();
+        edit->when_clicked = option_clicked;
+
+        d = new DelayedSurfacePainting();
+        d->surface = &data->surface;
+        d->size = 16;
+
+        data->text = "Edit";
+        d->path = as_resource_path("taskbar-edit.png");
+        data->option_type = option_data_type::EDIT;
+        delayed->push_back(d);
+
+        data->text_offset = 40;
+        edit->user_data = data;
+    }
+
     auto *pinned = root->child(FILL_SPACE, 30);
     pinned->when_paint = paint_option;
     data = new OptionData();
@@ -388,25 +407,6 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
 
     data->text_offset = 40;
     pinned->user_data = data;
-
-    {
-        auto *edit = root->child(FILL_SPACE, 30);
-        edit->when_paint = paint_option;
-        data = new OptionData();
-        edit->when_clicked = option_clicked;
-
-        d = new DelayedSurfacePainting();
-        d->surface = &data->surface;
-        d->size = 16;
-
-        data->text = "Edit";
-        d->path = as_resource_path("taskbar-edit.png");
-        data->option_type = option_data_type::EDIT;
-        delayed->push_back(d);
-
-        data->text_offset = 40;
-        edit->user_data = data;
-    }
 
     if (!pinned_icon_data->windows_data_list.empty()) {
         auto *close = root->child(FILL_SPACE, 30);

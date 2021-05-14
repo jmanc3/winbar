@@ -698,7 +698,7 @@ launch_item(AppClient *client, Container *item) {
         history_apps.insert(history_apps.begin(), historic_app);
         if (history_apps.size() > 100) {
             delete history_apps[history_apps.size() - 1];
-            history_apps.erase(history_apps.end());
+            history_apps.erase(history_apps.begin() + (history_apps.size() - 1));
         }
 
         launch_command(launcher->exec);

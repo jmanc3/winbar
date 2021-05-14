@@ -360,6 +360,10 @@ unmap_child_windows(AppClient *client) {
         xcb_flush(app->connection);
         xcb_aux_sync(app->connection);
     }
+    for (auto s : systray_icons) {
+        delete s;
+    }
+    systray_icons.clear();
 }
 
 void start_systray() {
