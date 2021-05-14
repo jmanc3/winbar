@@ -16,6 +16,7 @@
 #include <xcb/xcb_image.h>
 
 int option_width = 217 * 1.2;
+int option_min_width = 100 * 1.2;
 int option_height = 144 * 1.2;
 static double close_width = 32;
 static double close_height = 32;
@@ -60,6 +61,34 @@ clicked_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     window_option_clicked(client_entity, cr, container->parent->parent);
 }
 
+static int get_width(LaunchableButton *data) {
+    double total_width = 0;
+
+    for (auto w : data->windows_data_list) {
+        if (w->marked_to_close)
+            continue;
+
+        double pad = 10;
+        double target_width = option_width - pad * 2;
+        double target_height = option_height - pad;
+        double scale_w = target_width / w->width;
+        double scale_h = target_height / w->height;
+        if (scale_w < scale_h) {
+            scale_h = scale_w;
+        } else {
+            scale_w = scale_h;
+        }
+        double width = w->width * scale_w;
+        if (width < option_min_width) {
+            width = option_min_width;
+        }
+
+        total_width += width;
+    }
+
+    return total_width;
+}
+
 static void
 window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container) {
     int index = 0;
@@ -71,6 +100,7 @@ window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container
     }
 
     xcb_window_t to_close = data->windows_data_list[index]->id;
+    data->windows_data_list[index]->marked_to_close = true;
 
     unsigned long windows_count = data->windows_data_list.size();
     xcb_ewmh_request_close_window(&app->ewmh,
@@ -82,7 +112,8 @@ window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container
 
     if (windows_count > 1) {
         container->parent->children.erase(container->parent->children.begin() + index);
-        int width = option_width * container->parent->children.size();
+
+        int width = get_width(data);
         delete container;
 
         double x = data_container->real_bounds.x - width / 2 + data_container->real_bounds.w / 2;
@@ -105,10 +136,7 @@ clicked_close(AppClient *client_entity, cairo_t *cr, Container *container) {
     window_option_closed(client_entity, cr, container->parent->parent);
 }
 
-static void
-paint_option_background(AppClient *client_entity, cairo_t *cr, Container *container) {
-    bool hovered = false;
-    bool pressed = false;
+static void paint_option_hovered_or_pressed(Container *container, bool &hovered, bool &pressed) {
     Container *titlebar = container->children[0]->children[0];
     Container *close = container->children[0]->children[1];
     Container *body = container->children[1];
@@ -120,6 +148,13 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
         body->state.mouse_pressing) {
         pressed = true;
     }
+}
+
+static void
+paint_option_background(AppClient *client_entity, cairo_t *cr, Container *container) {
+    bool hovered = false;
+    bool pressed = false;
+    paint_option_hovered_or_pressed(container, hovered, pressed);
 
     if (hovered || pressed) {
         if (pressed) {
@@ -177,6 +212,11 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
 }
 
+class BodyData : public UserData {
+public:
+    WindowsData *windows_data = nullptr;
+};
+
 static void
 paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     int index = 0;
@@ -187,25 +227,45 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
         }
     }
 
+    auto windows_data = ((BodyData *) container->parent->parent->children[1]->user_data)->windows_data;
+    std::string title = windows_data->title;
+    if (title.empty()) {
+        title = data->class_name;
+    }
+
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     int width;
     int height;
-    pango_layout_set_text(layout, data->class_name.c_str(), -1);
+    pango_layout_set_text(layout, title.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
+
+    int close_w = close_width;
+    bool hovered = false;
+    bool pressed = false;
+    paint_option_hovered_or_pressed(container->parent->parent, hovered, pressed);
+    if (hovered || pressed) {
+        close_w = 0;
+    }
+    int pad = 10;
+    if (close_w == 0) {
+        pad = 7;
+    }
+    pango_layout_set_width(layout, ((container->real_bounds.w - (pad * 2)) + close_w) * PANGO_SCALE);
+    pango_layout_set_ellipsize(layout, PangoEllipsizeMode::PANGO_ELLIPSIZE_END);
+    if (close_w == 0) {
+        pad = 10;
+    }
 
     set_argb(cr, config->color_windows_selector_text);
     cairo_move_to(cr,
-                  container->real_bounds.x + 10,
+                  container->real_bounds.x + pad,
                   container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+    pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
     pango_cairo_show_layout(cr, layout);
+    pango_layout_set_width(layout, -1); // because other people using this cached layout don't expect wrapping
 }
-
-class BodyData : public UserData {
-public:
-    WindowsData *windows_data = nullptr;
-};
 
 static void
 paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
@@ -237,7 +297,7 @@ paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
         double height = data->height * scale_h;
 
         double dest_x = container->real_bounds.x + pad + target_width / 2 - width / 2;
-        double dest_y = container->real_bounds.y;
+        double dest_y = container->real_bounds.y + target_height / 2 - height / 2;
 
         cairo_save(cr);
         cairo_set_source_surface(cr, data->scaled_thumbnail_surface,
@@ -267,10 +327,26 @@ fill_root(Container *root) {
         return;
 
     for (int i = 0; i < data->windows_data_list.size(); i++) {
+        WindowsData *w = data->windows_data_list[i];
+        double pad = 10;
+        double target_width = option_width - pad * 2;
+        double target_height = option_height - pad;
+        double scale_w = target_width / w->width;
+        double scale_h = target_height / w->height;
+        if (scale_w < scale_h) {
+            scale_h = scale_w;
+        } else {
+            scale_w = scale_h;
+        }
+        double width = w->width * scale_w;
+        if (width < option_min_width) {
+            width = option_min_width;
+        }
+
         Container *option_container = new Container();
         option_container->type = vbox;
         option_container->parent = root;
-        option_container->wanted_bounds.w = FILL_SPACE;
+        option_container->wanted_bounds.w = width;
         option_container->wanted_bounds.h = FILL_SPACE;
         option_container->when_paint = paint_option_background;
         root->children.push_back(option_container);
@@ -306,7 +382,7 @@ fill_root(Container *root) {
         option_body->when_paint = paint_body;
         option_body->when_clicked = clicked_body;
         auto body_data = new BodyData;
-        body_data->windows_data = data->windows_data_list[i];
+        body_data->windows_data = w;
         option_body->user_data = body_data;
         option_container->children.push_back(option_body);
     }
@@ -384,7 +460,7 @@ void start_windows_selector(Container *container, window_selector_state selector
     data = static_cast<LaunchableButton *>(container->user_data);
     data->window_selector_open = selector_state;
 
-    int width = option_width * data->windows_data_list.size();
+    int width = get_width(data);
     Settings settings;
     settings.x = container->real_bounds.x - width / 2 + data_container->real_bounds.w / 2;
     if (settings.x < 0) {

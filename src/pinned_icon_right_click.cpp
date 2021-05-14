@@ -26,6 +26,7 @@ enum option_data_type {
     UNPIN = 3,
     OPEN = 4,
     CUSTOM = 5,
+    EDIT = 6,
 };
 
 class OptionData : public UserData {
@@ -265,6 +266,10 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
             launch_command(custom_data->command);
             break;
         }
+        case EDIT: {
+            start_pinned_icon_editor(pinned_icon_container);
+            break;
+        }
     }
 
     client_close(app, client);
@@ -384,6 +389,25 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     data->text_offset = 40;
     pinned->user_data = data;
 
+    {
+        auto *edit = root->child(FILL_SPACE, 30);
+        edit->when_paint = paint_option;
+        data = new OptionData();
+        edit->when_clicked = option_clicked;
+
+        d = new DelayedSurfacePainting();
+        d->surface = &data->surface;
+        d->size = 16;
+
+        data->text = "Edit";
+        d->path = as_resource_path("taskbar-edit.png");
+        data->option_type = option_data_type::EDIT;
+        delayed->push_back(d);
+
+        data->text_offset = 40;
+        edit->user_data = data;
+    }
+
     if (!pinned_icon_data->windows_data_list.empty()) {
         auto *close = root->child(FILL_SPACE, 30);
         close->when_paint = paint_option;
@@ -468,9 +492,21 @@ icon_menu_event_handler(App *app, xcb_generic_event_t *event) {
     return false;
 }
 
+static void when_pinned_icon_right_click_menu_closed(AppClient *client) {
+    pinned_icon_data->window_selector_open = window_selector_state::CLOSED;
+    if (auto c = client_by_name(app, "taskbar")) {
+        if (!(pinned_icon_container->state.mouse_hovering || pinned_icon_container->state.mouse_pressing)) {
+            if (pinned_icon_data->hover_amount == 1) {
+                client_create_animation(app, c, &pinned_icon_data->hover_amount, 70, 0, 0);
+            }
+        }
+    }
+}
+
 void start_pinned_icon_right_click(Container *container) {
     pinned_icon_container = container;
     pinned_icon_data = (LaunchableButton *) container->user_data;
+    pinned_icon_data->window_selector_open = window_selector_state::OPEN_CLICKED;
 
     load_custom_items();
     Settings settings;
@@ -489,6 +525,7 @@ void start_pinned_icon_right_click(Container *container) {
 
     AppClient *client = client_new(app, settings, "right_click_menu");
     client->grab_event_handler = grab_event_handler;
+    client->when_closed = when_pinned_icon_right_click_menu_closed;
     delete client->root;
     client->root = root;
     client_entity = client;

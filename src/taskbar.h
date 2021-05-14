@@ -28,6 +28,8 @@ public:
 
     xcb_window_t id = -1;
 
+    std::string title;
+
     // This is the surface that is linked to the actual window content
     cairo_surface_t *window_surface = nullptr;
     int width = -1;
@@ -42,6 +44,8 @@ public:
     // This is where we rescale the screenshot to the correct thumbnail size
     cairo_surface_t *scaled_thumbnail_surface = nullptr;
     cairo_t *scaled_thumbnail_cr = nullptr;
+
+    bool marked_to_close = false;
 
     WindowsData(App *app, xcb_window_t window);
 

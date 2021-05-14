@@ -1661,6 +1661,46 @@ taskbar_on_screen_size_change(App *app, AppClient *client) {
     }
 }
 
+static void
+update_window_title_name(xcb_window_t window) {
+    if (auto client = client_by_name(app, "taskbar")) {
+        if (client->root) {
+            if (auto icons = container_by_name("icons", client->root)) {
+                for (auto icon : icons->children) {
+                    auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                    for (auto windows_data : data->windows_data_list) {
+                        if (windows_data->id == window) {
+                            const xcb_get_property_cookie_t &propertyCookie = xcb_ewmh_get_wm_name(
+                                    &app->ewmh, window);
+                            xcb_ewmh_get_utf8_strings_reply_t data;
+                            uint8_t success = xcb_ewmh_get_wm_name_reply(&app->ewmh, propertyCookie, &data,
+                                                                         nullptr);
+                            if (success) {
+                                windows_data->title = strndup(data.strings, data.strings_len);
+                                xcb_ewmh_get_utf8_strings_reply_wipe(&data);
+                                return;
+                            }
+
+                            const xcb_get_property_cookie_t &cookie = xcb_icccm_get_wm_name(app->connection,
+                                                                                            window);
+                            xcb_icccm_get_text_property_reply_t reply;
+                            success = xcb_icccm_get_wm_name_reply(app->connection, cookie, &reply,
+                                                                  nullptr);
+                            if (success) {
+                                windows_data->title = std::string(reply.name, reply.name_len);
+                                xcb_icccm_get_text_property_reply_wipe(&reply);
+                                return;
+                            }
+
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 static bool
 window_event_handler(App *app, xcb_generic_event_t *event) {
     // This will listen to configure notify events and check if it's about a
@@ -1711,6 +1751,14 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                         }
                     }
                 }
+            }
+            break;
+        }
+        case XCB_PROPERTY_NOTIFY: {
+            auto e = (xcb_property_notify_event_t *) event;
+            if (e->atom == get_cached_atom(app, "WM_NAME") ||
+                e->atom == get_cached_atom(app, "_NET_WM_NAME")) {
+                update_window_title_name(e->window);
             }
             break;
         }
@@ -1898,11 +1946,12 @@ void add_window(App *app, xcb_window_t window) {
     for (auto icon : icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
         if (data->class_name == window_class_name) {
-            const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY};
+            const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
             xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
             xcb_flush(app->connection);
 
             data->windows_data_list.push_back(new WindowsData(app, window));
+            update_window_title_name(window);
             update_minimize_icon_positions();
             request_refresh(app, client);
             return;
@@ -1936,7 +1985,7 @@ void add_window(App *app, xcb_window_t window) {
         err = nullptr;
     }
 
-    const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY};
+    const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
     xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
     xcb_flush(app->connection);
 
@@ -1953,6 +2002,7 @@ void add_window(App *app, xcb_window_t window) {
     data->class_name = window_class_name;
     data->icon_name = window_class_name;
     a->user_data = data;
+    update_window_title_name(window);
 
     xcb_get_property_cookie_t prop_cookie = xcb_ewmh_get_wm_pid(&app->ewmh, window);
     uint32_t pid = -1;

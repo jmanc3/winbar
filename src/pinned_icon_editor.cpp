@@ -78,6 +78,8 @@ void fill_root(AppClient *client) {
 
 void start_pinned_icon_editor(Container *icon_container) {
     Settings settings;
+    settings.w = 300;
+    settings.h = 300;
     if (auto client = client_new(app, settings, "pinned_icon_editor")) {
         fill_root(client);
         std::string title = "Pinned Icon Editor";
