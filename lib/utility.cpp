@@ -443,7 +443,7 @@ load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surfac
         int w = gdk_pixbuf_get_width(pixel_buffer);
         int h = gdk_pixbuf_get_height(pixel_buffer);
 
-        *surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, target_size, target_size);
+        *surface = accelerated_surface(app, client_entity, target_size, target_size);
         auto temp_context = cairo_create(*surface);
         double scale = ((double) target_size) / ((double) w);
         cairo_scale(temp_context, scale, scale);
@@ -456,15 +456,14 @@ load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surfac
             int width = cairo_image_surface_get_width(*surface);
             int height = cairo_image_surface_get_height(*surface);
 
-            cairo_surface_t *accelerated_surface = cairo_surface_create_similar_image(
-                    cairo_get_target(client_entity->cr), CAIRO_FORMAT_ARGB32, width, height);
+            cairo_surface_t *accel_surface = accelerated_surface(app, client_entity, width, height);
 
-            cairo_t *cr = cairo_create(accelerated_surface);
+            cairo_t *cr = cairo_create(accel_surface);
             cairo_set_source_surface(cr, *surface, 0, 0);
             cairo_paint(cr);
 
             cairo_surface_destroy(*surface);
-            *surface = accelerated_surface;
+            *surface = accel_surface;
             cairo_destroy(cr);
         }
     }
@@ -693,3 +692,17 @@ uint32_t argb_to_color(ArgbColor color) {
     return (a << 24) + (r << 16) + (g << 8) + (b);
 }
 
+void
+paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, double pad) {
+    cairo_rectangle(cr, b.x + pad, b.y + pad, b.w - pad * 2, width);
+    cairo_fill(cr);
+
+    cairo_rectangle(cr, b.x + pad, b.y + pad, width, b.h - pad * 2);
+    cairo_fill(cr);
+
+    cairo_rectangle(cr, b.x + b.w - width - pad, b.y + pad, width, b.h - pad * 2);
+    cairo_fill(cr);
+
+    cairo_rectangle(cr, b.x + pad, b.y + b.h - width - pad, b.w - pad * 2, width);
+    cairo_fill(cr);
+}

@@ -150,5 +150,8 @@ bool overlaps(double ax, double ay, double aw, double ah,
 double calculate_overlap_percentage(double ax, double ay, double aw, double ah,
                                     double bx, double by, double bw, double bh);
 
+void
+paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, double pad);
+
 
 #endif

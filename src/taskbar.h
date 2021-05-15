@@ -120,6 +120,8 @@ void remove_non_pinned_icons();
 
 void update_pinned_items_file();
 
+void update_pinned_items_icon();
+
 uint32_t
 get_wm_state(xcb_window_t window);
 

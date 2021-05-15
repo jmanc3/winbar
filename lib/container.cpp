@@ -56,7 +56,7 @@ modify_all(Container *container, double x_change, double y_change) {
     container->real_bounds.y += y_change;
 }
 
-void layout_vbox(Container *container, const Bounds &bounds) {
+void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
     double fill_h = single_filler_height(container);
 
     double offset = 0;
@@ -78,6 +78,9 @@ void layout_vbox(Container *container, const Bounds &bounds) {
                 target_h += reserved_height(child);
             } else {
                 target_h += child->wanted_bounds.h;
+            }
+            if (child->wanted_bounds.w == DYNAMIC || child->wanted_bounds.h == DYNAMIC) {
+                child->when_layout(client, container, bounds, &target_w, &target_h);
             }
 
             // Keep within horizontal bounds
@@ -132,7 +135,7 @@ void layout_vbox(Container *container, const Bounds &bounds) {
                 }
             }
 
-            layout(child,
+            layout(client, cr, child,
                    Bounds(container->children_bounds.x + container->scroll_h_visual,
                           container->children_bounds.y + offset + container->scroll_v_visual,
                           target_w,
@@ -206,7 +209,7 @@ single_filler_width(Container *container) {
     return single_fill_size;
 }
 
-void layout_hbox(Container *container, const Bounds &bounds) {
+void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
     double fill_w = single_filler_width(container);
 
     double offset = 0;
@@ -228,6 +231,9 @@ void layout_hbox(Container *container, const Bounds &bounds) {
                 target_h += reserved_height(child);
             } else {
                 target_h += child->wanted_bounds.h;
+            }
+            if (child->wanted_bounds.w == DYNAMIC || child->wanted_bounds.h == DYNAMIC) {
+                child->when_layout(client, container, bounds, &target_w, &target_h);
             }
 
             // Keep within horizontal bounds
@@ -282,7 +288,7 @@ void layout_hbox(Container *container, const Bounds &bounds) {
                 }
             }
 
-            layout(child,
+            layout(client, cr, child,
                    Bounds(container->children_bounds.x + offset + container->scroll_h_visual,
                           container->children_bounds.y + container->scroll_v_visual,
                           target_w,
@@ -300,9 +306,9 @@ void layout_hbox(Container *container, const Bounds &bounds) {
     }
 }
 
-void layout_stack(Container *container, const Bounds &bounds) {
+void layout_stack(AppClient *client, cairo_t *cr, Container *container, const Bounds& bounds) {
     for (auto child : container->children) {
-        layout(child, container->children_bounds);
+        layout(client, cr, child, bounds);
     }
 }
 
@@ -310,7 +316,7 @@ void layout_stack(Container *container, const Bounds &bounds) {
 // [required] right_box
 // [required] bottom_box
 // [required] content_area
-void layout_scrollpane(Container *container, const Bounds &bounds) {
+void layout_scrollpane(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
     assert(container->children.size() == 3 && !container->children[2]->children.empty());
 
     auto *r_bar = container->children[0];
@@ -326,7 +332,7 @@ void layout_scrollpane(Container *container, const Bounds &bounds) {
     int vh = content_area->scroll_h_visual;
     content_area->scroll_v_visual = 0;
     content_area->scroll_h_visual = 0;
-    layout(content_area, Bounds(bounds.x, bounds.y, bounds.w, bounds.h));
+    layout(client, cr, content_area, Bounds(bounds.x, bounds.y, bounds.w, bounds.h));
     content_area->scroll_v_real = rv;
     content_area->scroll_h_real = rh;
     content_area->scroll_v_visual = vv;
@@ -391,23 +397,23 @@ void layout_scrollpane(Container *container, const Bounds &bounds) {
     b_bar->exists = (b_h != 0);
 
     if (!(options & ::scrollpane_inline_r) && !(options & ::scrollpane_inline_b)) {
-        layout(content_area, Bounds(bounds.x, bounds.y, bounds.w - r_w, bounds.h - b_h));
+        layout(client, cr, content_area, Bounds(bounds.x, bounds.y, bounds.w - r_w, bounds.h - b_h));
     } else if (!(options & ::scrollpane_inline_r)) {
-        layout(content_area, Bounds(bounds.x, bounds.y, bounds.w - r_w, bounds.h));
+        layout(client, cr, content_area, Bounds(bounds.x, bounds.y, bounds.w - r_w, bounds.h));
     } else if (!(options & ::scrollpane_inline_b)) {
-        layout(content_area, Bounds(bounds.x, bounds.y, bounds.w, bounds.h - b_h));
+        layout(client, cr, content_area, Bounds(bounds.x, bounds.y, bounds.w, bounds.h - b_h));
     } else {
-        layout(content_area, Bounds(bounds.x, bounds.y, bounds.w, bounds.h));
+        layout(client, cr, content_area, Bounds(bounds.x, bounds.y, bounds.w, bounds.h));
     }
 
     if (r_bar->exists) {
-        layout(r_bar, Bounds(bounds.x + bounds.w - r_w, bounds.y, r_w, bounds.h - b_h));
+        layout(client, cr, r_bar, Bounds(bounds.x + bounds.w - r_w, bounds.y, r_w, bounds.h - b_h));
     }
     if (b_bar->exists)
-        layout(b_bar, Bounds(bounds.x, bounds.y + bounds.h - b_h, bounds.w - r_w, b_h));
+        layout(client, cr, b_bar, Bounds(bounds.x, bounds.y + bounds.h - b_h, bounds.w - r_w, b_h));
 }
 
-void layout(Container *container, const Bounds &bounds, bool generate_event) {
+void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
     container->real_bounds.x = bounds.x;
     container->real_bounds.y = bounds.y;
 
@@ -429,13 +435,13 @@ void layout(Container *container, const Bounds &bounds, bool generate_event) {
         return;
 
     if (container->type & layout_type::hbox) {
-        layout_hbox(container, container->children_bounds);
+        layout_hbox(client, cr, container, container->children_bounds);
     } else if (container->type & layout_type::vbox) {
-        layout_vbox(container, container->children_bounds);
+        layout_vbox(client, cr, container, container->children_bounds);
     } else if (container->type & layout_type::stack) {
-        layout_stack(container, container->children_bounds);
+        layout_stack(client, cr, container, container->children_bounds);
     } else if (container->type & layout_type::scrollpane) {
-        layout_scrollpane(container, container->children_bounds);
+        layout_scrollpane(client, cr, container, container->children_bounds);
     }
 
     // TODO: this only covers the first layer and not all of them
@@ -454,22 +460,11 @@ void layout(Container *container, const Bounds &bounds, bool generate_event) {
         }
     }
 
-    if (generate_event) {
-        if (container->when_layout) {
-            container->when_layout(container);
-        }
-    }
-}
-
-void layout(Container *container, const Bounds &bounds) {
-    layout(container, bounds, true);
-}
-
-Container *
-layout_copy(Container *container, const Bounds &bounds) {
-    auto *copy = new Container(*container);
-    layout(copy, bounds);
-    return copy;
+//    if (generate_event) {
+//        if (container->when_layout) {
+//            container->when_layout(container);
+//        }
+//    }
 }
 
 Container *
@@ -574,6 +569,7 @@ Container::Container(const Container &c) {
     clip_children = c.clip_children;
 
     when_paint = c.when_paint;
+    when_layout = c.when_layout;
     when_mouse_enters_container = c.when_mouse_enters_container;
     when_mouse_leaves_container = c.when_mouse_leaves_container;
     when_scrolled = c.when_scrolled;

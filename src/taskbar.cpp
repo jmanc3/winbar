@@ -690,7 +690,7 @@ icons_align(AppClient *client_entity, Container *icon_container, bool all_except
 #endif
     auto *icon_container_copy = new Container(*icon_container);
     icon_container_copy->should_layout_children = true;
-    layout(icon_container_copy, icon_container_copy->real_bounds);
+    layout(client_entity, client_entity->cr, icon_container_copy, icon_container_copy->real_bounds);
 
     for (int i = 0; i < icon_container->children.size(); ++i) {
         auto *real_icon = icon_container->children[i];
@@ -764,7 +764,7 @@ pinned_icon_drag(AppClient *client_entity, cairo_t *cr, Container *container) {
 
     auto *copy_parent = new Container(*container->parent);
     copy_parent->should_layout_children = true;
-    layout(copy_parent, copy_parent->real_bounds);
+    layout(client_entity, cr, copy_parent, copy_parent->real_bounds);
 
     std::vector<int> centers;
     for (auto child : copy_parent->children) {
@@ -2529,6 +2529,33 @@ void register_popup(xcb_window_t window) {
             if (c->window != window) {
                 if (c->popup) {
                     client_close_threaded(app, c);
+                }
+            }
+        }
+    }
+}
+
+void update_pinned_items_icon() {
+    if (auto client = client_by_name(app, "taskbar")) {
+        if (client->root) {
+            if (auto icons = container_by_name("icons", client->root)) {
+                for (auto icon : icons->children) {
+                    auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                    if (data->surface) {
+                        cairo_surface_destroy(data->surface);
+                        data->surface = nullptr;
+                    }
+
+                    std::string path;
+                    if (!data->icon_name.empty()) {
+                        path = find_icon(data->icon_name, 24);
+                    }
+                    if (path.empty()) {
+                        path = find_icon(data->class_name, 24);
+                    }
+                    if (!path.empty()) {
+                        load_icon_full_path(app, client, &data->surface, path, 24);
+                    }
                 }
             }
         }

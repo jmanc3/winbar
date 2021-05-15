@@ -241,7 +241,9 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
             }
 
             itemPath += pinned_icon_data->class_name + ".png";
-            cairo_surface_write_to_png(pinned_icon_data->surface, itemPath.c_str());
+            if (pinned_icon_data->surface) {
+                cairo_surface_write_to_png(pinned_icon_data->surface, itemPath.c_str());
+            }
 
             update_pinned_items_file();
 
@@ -504,6 +506,9 @@ static void when_pinned_icon_right_click_menu_closed(AppClient *client) {
 }
 
 void start_pinned_icon_right_click(Container *container) {
+    if (auto c = client_by_name(app, "pinned_icon_editor")) {
+        client_close_threaded(app, c);
+    }
     pinned_icon_container = container;
     pinned_icon_data = (LaunchableButton *) container->user_data;
     pinned_icon_data->window_selector_open = window_selector_state::OPEN_CLICKED;

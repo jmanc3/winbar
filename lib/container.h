@@ -355,7 +355,7 @@ struct Container {
 
     // When layout is called on this container and generate_event is true on that
     // call
-    void (*when_layout)(Container *container) = nullptr;
+    void (*when_layout)(AppClient *client, Container *self, const Bounds &bounds, double *target_w, double *target_h) = nullptr;
 
     void (*when_key_event)(AppClient *client, cairo_t *cr, Container *self, bool is_string, xkb_keysym_t keysym,
                            char string[64],
@@ -379,12 +379,7 @@ struct Container {
 Bounds
 scroll_bounds(Container *container);
 
-void layout(Container *container, const Bounds &bounds, bool generate_event);
-
-void layout(Container *container, const Bounds &bounds);
-
-Container *
-layout_copy(Container *container, const Bounds &bounds);
+void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds);
 
 Container *
 container_by_name(std::string name, Container *root);

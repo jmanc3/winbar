@@ -46,7 +46,7 @@ void scrollpane_scrolled(AppClient *client,
 
     container->scroll_h_visual = container->scroll_h_real;
     container->scroll_v_visual = container->scroll_v_real;
-    ::layout(container, container->real_bounds, false);
+    ::layout(client, cr, container, container->real_bounds);
 }
 
 static void
@@ -945,6 +945,14 @@ clicked_textarea(AppClient *client, cairo_t *cr, Container *container) {
     container = container->children[0];
     auto *data = (TextAreaData *) container->user_data;
 
+    if ((get_current_time_in_ms() - data->state->last_time_mouse_press) < 220) {
+        data->state->cursor = data->state->text.size();
+        data->state->selection_x = 0;
+        put_cursor_on_screen(client, container);
+        return;
+    }
+    data->state->last_time_mouse_press = get_current_time_in_ms();
+
     PangoLayout *layout = get_cached_pango_font(
             client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
 
@@ -1199,11 +1207,13 @@ make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings s
 #endif
 
     Container *content_area = make_scrollpane(parent, settings);
+    content_area->wanted_pad = settings.pad;
 
     int width = 0;
     if (settings.wrap)
         width = FILL_SPACE;
     Container *textarea = content_area->child(::vbox, width, settings.font_size);
+    textarea->wanted_pad = settings.pad;
 
     textarea->when_paint = paint_textarea;
     textarea->when_key_event = textarea_key_release;

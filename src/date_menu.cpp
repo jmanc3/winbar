@@ -371,21 +371,6 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
-paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, double pad) {
-    cairo_rectangle(cr, b.x + pad, b.y + pad, b.w - pad * 2, width);
-    cairo_fill(cr);
-
-    cairo_rectangle(cr, b.x + pad, b.y + pad, width, b.h - pad * 2);
-    cairo_fill(cr);
-
-    cairo_rectangle(cr, b.x + b.w - width - pad, b.y + pad, width, b.h - pad * 2);
-    cairo_fill(cr);
-
-    cairo_rectangle(cr, b.x + pad, b.y + b.h - width - pad, b.w - pad * 2, width);
-    cairo_fill(cr);
-}
-
-static void
 paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
     if (auto *c = container_by_name("main_text_area", client->root)) {
         auto *data = (TextAreaData *) c->user_data;

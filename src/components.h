@@ -72,6 +72,7 @@ public:
     int cursor = 0;
     bool cursor_on = true;
     long last_time_key_press = 0;
+    long last_time_mouse_press = 0;
 
     int preferred_x = 0;
 
@@ -131,6 +132,7 @@ public:
     ArgbColor color = ArgbColor(1, 1, 0, 1);
     ArgbColor color_cursor = ArgbColor(0, 1, 1, 1);
     double cursor_width = 1;
+    Bounds pad = Bounds(0, 0, 0, 0);
 };
 
 Container *

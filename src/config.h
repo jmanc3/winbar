@@ -168,15 +168,15 @@ struct Config {
     ArgbColor color_search_content_left_set_active_button_icon_pressed = ArgbColor("#ffffffff");
 
     ArgbColor color_pinned_icon_editor_background = ArgbColor("#ffffffff");
-    ArgbColor color_pinned_icon_editor_default_background = ArgbColor("#fff3f3f3");
-    ArgbColor color_pinned_icon_editor_hovered_background = ArgbColor("#ffffffff");
-    ArgbColor color_pinned_icon_editor_pressed_background = ArgbColor("#ffffffff");
-    ArgbColor color_pinned_icon_editor_default_text = ArgbColor("#ff2b2b2b");
-    ArgbColor color_pinned_icon_editor_hovered_text = ArgbColor("#ff2d2d2d");
-    ArgbColor color_pinned_icon_editor_pressed_text = ArgbColor("#ff020202");
-    ArgbColor color_pinned_icon_editor_default_border = ArgbColor("#ffb4b4b4");
-    ArgbColor color_pinned_icon_editor_hovered_border = ArgbColor("#ffb4b4b4");
-    ArgbColor color_pinned_icon_editor_pressed_border = ArgbColor("#ff0078d7");
+    ArgbColor color_pinned_icon_editor_field_default_text = ArgbColor("#ff000000");
+    ArgbColor color_pinned_icon_editor_field_hovered_text = ArgbColor("#ff2d2d2d");
+    ArgbColor color_pinned_icon_editor_field_pressed_text = ArgbColor("#ff020202");
+    ArgbColor color_pinned_icon_editor_field_default_border = ArgbColor("#ffb4b4b4");
+    ArgbColor color_pinned_icon_editor_field_hovered_border = ArgbColor("#ff646464");
+    ArgbColor color_pinned_icon_editor_field_pressed_border = ArgbColor("#ff0078d7");
+    ArgbColor color_pinned_icon_editor_cursor = ArgbColor("#ff000000");
+    ArgbColor color_pinned_icon_editor_button_default = ArgbColor("#ffcccccc");
+    ArgbColor color_pinned_icon_editor_button_text_default = ArgbColor("#ff000000");
 };
 
 extern Config *config;

@@ -287,24 +287,24 @@ void config_load() {
 
                         load_hex(theme, "color_pinned_icon_editor_background",
                                  &config->color_pinned_icon_editor_background);
-                        load_hex(theme, "color_pinned_icon_editor_default_background",
-                                 &config->color_pinned_icon_editor_default_background);
-                        load_hex(theme, "color_pinned_icon_editor_hovered_background",
-                                 &config->color_pinned_icon_editor_hovered_background);
-                        load_hex(theme, "color_pinned_icon_editor_pressed_background",
-                                 &config->color_pinned_icon_editor_pressed_background);
-                        load_hex(theme, "color_pinned_icon_editor_default_text",
-                                 &config->color_pinned_icon_editor_default_text);
-                        load_hex(theme, "color_pinned_icon_editor_hovered_text",
-                                 &config->color_pinned_icon_editor_hovered_text);
-                        load_hex(theme, "color_pinned_icon_editor_pressed_text",
-                                 &config->color_pinned_icon_editor_pressed_text);
-                        load_hex(theme, "color_pinned_icon_editor_default_border",
-                                 &config->color_pinned_icon_editor_default_border);
-                        load_hex(theme, "color_pinned_icon_editor_hovered_border",
-                                 &config->color_pinned_icon_editor_hovered_border);
-                        load_hex(theme, "color_pinned_icon_editor_pressed_border",
-                                 &config->color_pinned_icon_editor_pressed_border);
+                        load_hex(theme, "color_pinned_icon_editor_field_default_text",
+                                 &config->color_pinned_icon_editor_field_default_text);
+                        load_hex(theme, "color_pinned_icon_editor_field_hovered_text",
+                                 &config->color_pinned_icon_editor_field_hovered_text);
+                        load_hex(theme, "color_pinned_icon_editor_field_pressed_text",
+                                 &config->color_pinned_icon_editor_field_pressed_text);
+                        load_hex(theme, "color_pinned_icon_editor_field_default_border",
+                                 &config->color_pinned_icon_editor_field_default_border);
+                        load_hex(theme, "color_pinned_icon_editor_field_hovered_border",
+                                 &config->color_pinned_icon_editor_field_hovered_border);
+                        load_hex(theme, "color_pinned_icon_editor_field_pressed_border",
+                                 &config->color_pinned_icon_editor_field_pressed_border);
+                        load_hex(theme, "color_pinned_icon_editor_cursor",
+                                 &config->color_pinned_icon_editor_cursor);
+                        load_hex(theme, "color_pinned_icon_editor_button_default",
+                                 &config->color_pinned_icon_editor_button_default);
+                        load_hex(theme, "color_pinned_icon_editor_button_text_default",
+                                 &config->color_pinned_icon_editor_button_text_default);
                         break;
                     }
                 } else {

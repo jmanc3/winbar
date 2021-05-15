@@ -843,7 +843,7 @@ void client_layout(App *app, AppClient *client) {
         Bounds copy = *client->bounds;
         copy.x = 0;
         copy.y = 0;
-        layout(client->root, copy);
+        layout(client, client->cr, client->root, copy);
     }
 }
 
@@ -1190,7 +1190,7 @@ void handle_mouse_button_press(App *app) {
             p->when_mouse_down(client, client->cr, p);
         }
     }
-    // set_active(client->root, false);
+    set_active(client->root, false);
     for (auto child : mouse_downed) {
         child->active = true;
     }
