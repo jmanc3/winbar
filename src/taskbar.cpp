@@ -1929,7 +1929,7 @@ void add_window(App *app, xcb_window_t window) {
     uint32_t desktop = 0;
     xcb_ewmh_get_wm_desktop_from_reply(&desktop, NULL);
 
-    std::vector<xcb_window_t> old_windows;
+    std::vector <xcb_window_t> old_windows;
     AppClient *client = client_by_name(app, "taskbar");
     if (!client)
         return;
@@ -2077,41 +2077,50 @@ void add_window(App *app, xcb_window_t window) {
 
         if (error) {
             std::free(error);
-        } else if (0 < xcb_ewmh_get_wm_icon_length(&wm_icon)) {
-            uint32_t width = 0;
-            uint32_t height = 0;
-            uint32_t *icon_data = NULL;
+            data->surface = accelerated_surface(app, client, 24, 24);
+            paint_surface_with_image(data->surface, as_resource_path("unknown-24.svg"),
+                                     24, nullptr);
+        } else {
+            if (0 < xcb_ewmh_get_wm_icon_length(&wm_icon)) {
+                uint32_t width = 0;
+                uint32_t height = 0;
+                uint32_t *icon_data = NULL;
 
-            xcb_ewmh_wm_icon_iterator_t iter = xcb_ewmh_get_wm_icon_iterator(&wm_icon);
-            for (; iter.rem; xcb_ewmh_get_wm_icon_next(&iter)) {
-                if (iter.width > width) {
-                    width = iter.width;
-                    height = iter.height;
-                    icon_data = iter.data;
-                    if (width == 24) {
-                        break;
+                xcb_ewmh_wm_icon_iterator_t iter = xcb_ewmh_get_wm_icon_iterator(&wm_icon);
+                for (; iter.rem; xcb_ewmh_get_wm_icon_next(&iter)) {
+                    if (iter.width > width) {
+                        width = iter.width;
+                        height = iter.height;
+                        icon_data = iter.data;
+                        if (width == 24) {
+                            break;
+                        }
                     }
                 }
+                auto stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
+                auto surface = cairo_image_surface_create_for_data(
+                        (unsigned char *) icon_data, CAIRO_FORMAT_ARGB32, width, height, stride);
+
+                cairo_pattern_t *pattern = cairo_pattern_create_for_surface(surface);
+                cairo_pattern_set_filter(pattern, CAIRO_FILTER_BEST);
+
+                data->surface = accelerated_surface(app, client, 24, 24);
+                cairo_t *cr = cairo_create(data->surface);
+
+                cairo_save(cr);
+                double taskbar_icon_size = 24;
+                cairo_scale(cr, taskbar_icon_size / (width), taskbar_icon_size / (width));
+                cairo_set_source(cr, pattern);
+                cairo_paint(cr);
+                cairo_restore(cr);
+
+                cairo_destroy(cr);
+                xcb_ewmh_get_wm_icon_reply_wipe(&wm_icon);
+            } else {
+                data->surface = accelerated_surface(app, client, 24, 24);
+                paint_surface_with_image(data->surface, as_resource_path("unknown-24.svg"),
+                                         24, nullptr);
             }
-            auto stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
-            auto surface = cairo_image_surface_create_for_data(
-                    (unsigned char *) icon_data, CAIRO_FORMAT_ARGB32, width, height, stride);
-
-            cairo_pattern_t *pattern = cairo_pattern_create_for_surface(surface);
-            cairo_pattern_set_filter(pattern, CAIRO_FILTER_BEST);
-
-            data->surface = accelerated_surface(app, client, 24, 24);
-            cairo_t *cr = cairo_create(data->surface);
-
-            cairo_save(cr);
-            double taskbar_icon_size = 24;
-            cairo_scale(cr, taskbar_icon_size / (width), taskbar_icon_size / (width));
-            cairo_set_source(cr, pattern);
-            cairo_paint(cr);
-            cairo_restore(cr);
-
-            cairo_destroy(cr);
-            xcb_ewmh_get_wm_icon_reply_wipe(&wm_icon);
         }
     }
 

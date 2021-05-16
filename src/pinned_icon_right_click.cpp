@@ -529,18 +529,20 @@ void start_pinned_icon_right_click(Container *container) {
 
     for (auto *d : delayed) {
         if (d->path.empty()) {
-            *d->surface = accelerated_surface(app, client, d->size, d->size);
-            cairo_t *cr = cairo_create(*d->surface);
+            if (pinned_icon_data->surface) {
+                *d->surface = accelerated_surface(app, client, d->size, d->size);
+                cairo_t *cr = cairo_create(*d->surface);
 
-            double starting_w = cairo_image_surface_get_width(pinned_icon_data->surface);
-            double target_w = 16;
-            double sx = target_w / starting_w;
+                double starting_w = cairo_image_surface_get_width(pinned_icon_data->surface);
+                double target_w = 16;
+                double sx = target_w / starting_w;
 
-            cairo_scale(cr, sx, sx);
-            cairo_set_source_surface(cr, pinned_icon_data->surface, 0, 0);
-            cairo_paint(cr);
+                cairo_scale(cr, sx, sx);
+                cairo_set_source_surface(cr, pinned_icon_data->surface, 0, 0);
+                cairo_paint(cr);
 
-            cairo_destroy(cr);
+                cairo_destroy(cr);
+            }
         } else {
             *d->surface = accelerated_surface(app, client, d->size, d->size);
             paint_surface_with_image(*d->surface, d->path, d->size, nullptr);
