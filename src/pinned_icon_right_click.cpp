@@ -279,7 +279,10 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
 
 class DelayedSurfacePainting {
 public:
-    cairo_surface_t **surface;
+    cairo_t *cr = nullptr;
+    cairo_surface_t **surface = nullptr;
+
+    cairo_surface_t *original_surface = nullptr;
     std::string path;
     int size = 0;
 };
@@ -343,22 +346,11 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     data->option_type = option_data_type::OPEN;
     auto *open = root->child(FILL_SPACE, 30);
     pinned_icon_data->icon_name = c3ic_fix_wm_class(pinned_icon_data->icon_name);
-    std::string path;
-    if (pinned_icon_data->user_icon_name.empty()) {
-        path = find_icon(pinned_icon_data->icon_name, 16);
-    } else {
-        path = find_icon(pinned_icon_data->user_icon_name, 16);
-    }
 
     auto *d = new DelayedSurfacePainting();
     d->surface = &data->surface;
     d->size = 16;
-
-    if (!path.empty()) {
-        d->path = path;
-    } else {
-        d->path = as_resource_path("unknown-16.svg");
-    }
+    d->original_surface = pinned_icon_data->surface;
     delayed->push_back(d);
 
     open->when_paint = paint_open;
@@ -536,10 +528,26 @@ void start_pinned_icon_right_click(Container *container) {
     client_entity = client;
 
     for (auto *d : delayed) {
-        *d->surface = accelerated_surface(app, client, d->size, d->size);
-        paint_surface_with_image(*d->surface, d->path, d->size, nullptr);
+        if (d->path.empty()) {
+            *d->surface = accelerated_surface(app, client, d->size, d->size);
+            cairo_t *cr = cairo_create(*d->surface);
+
+            double starting_w = cairo_image_surface_get_width(pinned_icon_data->surface);
+            double target_w = 16;
+            double sx = target_w / starting_w;
+
+            cairo_scale(cr, sx, sx);
+            cairo_set_source_surface(cr, pinned_icon_data->surface, 0, 0);
+            cairo_paint(cr);
+
+            cairo_destroy(cr);
+        } else {
+            *d->surface = accelerated_surface(app, client, d->size, d->size);
+            paint_surface_with_image(*d->surface, d->path, d->size, nullptr);
+        }
         delete d;
     }
+    delayed.clear();
 
     app_create_custom_event_handler(app, client->window, icon_menu_event_handler);
 

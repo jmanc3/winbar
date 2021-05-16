@@ -2555,6 +2555,16 @@ void update_pinned_items_icon() {
                     }
                     if (!path.empty()) {
                         load_icon_full_path(app, client, &data->surface, path, 24);
+                    } else {
+                        data->surface = accelerated_surface(app, client, 24, 24);
+                        char *string = getenv("HOME");
+                        std::string home(string);
+                        home += "/.config/winbar/cached_icons/" + data->class_name + ".png";
+                        bool b = paint_surface_with_image(data->surface, home, 24, nullptr);
+                        if (!b) {
+                            paint_surface_with_image(
+                                    data->surface, as_resource_path("unknown-24.svg"), 24, nullptr);
+                        }
                     }
                 }
             }
