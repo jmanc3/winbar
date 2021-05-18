@@ -85,8 +85,10 @@ void possibly_open(App *app, AppClient *client, Container *container, Launchable
     if (auto c = client_by_name(app, "windows_selector")) {
         auto pii = (PinnedIconInfo *) c->root->user_data;
         if (pii->data->type == OPEN_HOVERED) {
-            client_close(app, c);
-            on_open_timeout(app, client, container);
+            if (c != client) {
+                client_close(app, c);
+                on_open_timeout(app, client, container);
+            }
             return;
         }
     }
@@ -573,13 +575,6 @@ static void when_closed(AppClient *client) {
     app_timeout_stop(client->app, client, pii->data->open_timeout_fd);
     pii->data->close_timeout_fd = -1;
     pii->data->open_timeout_fd = -1;
-    if (auto c = client_by_name(app, "taskbar")) {
-        if (!(pii->data_container->state.mouse_hovering || pii->data_container->state.mouse_pressing)) {
-            if (pii->data->hover_amount == 1) {
-                client_create_animation(app, c, &pii->data->hover_amount, 70, 0, 0);
-            }
-        }
-    }
 }
 
 void start_windows_selector(Container *container, selector_type selector_state) {
@@ -590,9 +585,6 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     pii->data->type = selector_state;
     pii->data->open_timeout_fd = -1;
     pii->data->close_timeout_fd = -1;
-    if (auto taskbar_client = client_by_name(app, "taskbar")) {
-        client_create_animation(app, taskbar_client, &pii->data->hover_amount, 70, nullptr, 1);
-    }
 
     int width = get_width(pii->data);
     Settings settings;

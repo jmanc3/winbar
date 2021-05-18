@@ -257,6 +257,9 @@ paint_double_bar(cairo_t *cr,
     LaunchableButton *data = (LaunchableButton *) container->user_data;
 
     double bar_amount = std::max(data->hover_amount, data->active_amount);
+    if (data->type != selector_type::CLOSED) {
+        bar_amount = 1;
+    }
     double bar_inset = 4 * (1 - bar_amount);
     double bar_right = 4 + (4 * (1 - bar_amount));
 
@@ -362,6 +365,9 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     int highlight_height = 2;
 
     double bar_amount = std::max(data->hover_amount, active_amount);
+    if (data->type != selector_type::CLOSED) {
+        bar_amount = 1;
+    }
     double highlight_inset = 4 * (1 - bar_amount);
 
     double bg_openess = highlight_inset;
@@ -558,9 +564,6 @@ pinned_icon_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
     if (client_by_name(app, "right_click_menu") == nullptr) {
         possibly_open(app, client, container, data);
     }
-    if (data->type != selector_type::CLOSED) {
-        return;
-    }
 
     client_create_animation(app, client, &data->hover_amount, 70, 0, 1);
 }
@@ -573,9 +576,8 @@ pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     if (auto c = client_by_name(app, "windows_selector")) {
         possibly_close(app, c, container, data);
-    }
-    if (data->type != selector_type::CLOSED) {
-        return;
+    } else if (data->close_timeout_fd != -1){
+        app_timeout_stop(app, client, data->close_timeout_fd);
     }
     client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
 }
@@ -1809,7 +1811,6 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                 e->atom == get_cached_atom(app, "_NET_WM_NAME")) {
                 update_window_title_name(e->window);
             } else if (e->atom == get_cached_atom(app, "WM_CLASS")) {
-                printf("WM_CLASS PROPERTY CHANGE\n");
             }
             break;
         }
