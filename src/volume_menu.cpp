@@ -804,7 +804,11 @@ void open_volume_menu() {
     bottom_arrow->user_data = bottom_data;
 
     fill_root(content);
-    content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
+    if (audio_connected) {
+        content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
+    } else {
+        content->wanted_bounds.h = 80;
+    }
 
     client_show(app, client_entity);
 }
