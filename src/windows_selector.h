@@ -11,6 +11,9 @@ class PinnedIconInfo : public IconButton {
 public:
     Container *data_container = nullptr;
     LaunchableButton *data = nullptr;
+    cairo_surface_t *icon_surface = nullptr;
+
+    ~PinnedIconInfo();
 };
 
 void possibly_open(App *app, AppClient *client, Container *container, LaunchableButton *data);

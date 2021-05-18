@@ -18,6 +18,7 @@
 int option_width = 217 * 1.2;
 int option_min_width = 100 * 1.2;
 int option_height = 144 * 1.2;
+int option_pad = 8;
 static double close_width = 32;
 static double close_height = 32;
 
@@ -45,19 +46,19 @@ static void on_open_timeout(App *app, AppClient *client, void *user_data) {
 }
 
 static void on_close_timeout(App *app, AppClient *client, void *user_data) {
-    if (auto c = client_by_name(app, "windows_selector")) {
-        auto pii = (PinnedIconInfo *) c->root->user_data;
+    if (valid_client(app, client)) {
+        auto pii = (PinnedIconInfo *) client->root->user_data;
         if (pii->data->type == OPEN_CLICKED) {
             return;
         } else {
-            client_close_threaded(app, c);
+            auto container = (Container *) user_data;
+            if (container_by_container(container, client->root)) {
+                auto data = (LaunchableButton *) container->user_data;
+                data->close_timeout_fd = -1;
+                data->type = ::CLOSED;
+            }
+            client_close_threaded(app, client);
         }
-    }
-    auto container = (Container *) user_data;
-    if (container_by_container(container, client->root)) {
-        auto data = (LaunchableButton *) container->user_data;
-        data->close_timeout_fd = -1;
-        data->type = ::CLOSED;
     }
 }
 
@@ -158,7 +159,7 @@ static int get_width(LaunchableButton *data) {
         if (w->marked_to_close)
             continue;
 
-        double pad = 10;
+        double pad = option_pad;
         double target_width = option_width - pad * 2;
         double target_height = option_height - pad;
         double scale_w = target_width / w->width;
@@ -319,6 +320,12 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
         }
     }
 
+    auto pii = (PinnedIconInfo *) client_entity->root->user_data;
+    if (pii->icon_surface != nullptr) {
+        cairo_set_source_surface(cr, pii->icon_surface, container->real_bounds.x + 8, container->real_bounds.y + 8);
+        cairo_paint(cr);
+    }
+
     auto windows_data = ((BodyData *) container->parent->parent->children[1]->user_data)->windows_data;
     std::string title = windows_data->title;
     if (title.empty()) {
@@ -341,19 +348,19 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     if (hovered || pressed) {
         close_w = 0;
     }
-    int pad = 10;
+    int pad = option_pad;
     if (close_w == 0) {
-        pad = 7;
+        pad = 5;
     }
-    pango_layout_set_width(layout, ((container->real_bounds.w - (pad * 2)) + close_w) * PANGO_SCALE);
+    pango_layout_set_width(layout, (((container->real_bounds.w - (pad * 2)) + close_w) - 24) * PANGO_SCALE);
     pango_layout_set_ellipsize(layout, PangoEllipsizeMode::PANGO_ELLIPSIZE_END);
     if (close_w == 0) {
-        pad = 10;
+        pad = option_pad;
     }
 
     set_argb(cr, config->color_windows_selector_text);
     cairo_move_to(cr,
-                  container->real_bounds.x + pad,
+                  container->real_bounds.x + pad + 24,
                   container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
     pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
     pango_cairo_show_layout(cr, layout);
@@ -367,7 +374,7 @@ paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
 #endif
     auto data = ((BodyData *) container->user_data)->windows_data;
 
-    double pad = 10;
+    double pad = option_pad;
     double target_width = container->real_bounds.w - pad * 2;
     double target_height = container->real_bounds.h - pad;
     double scale_w = target_width / data->width;
@@ -436,7 +443,7 @@ fill_root(AppClient *client, Container *root) {
 
     for (int i = 0; i < pii->data->windows_data_list.size(); i++) {
         WindowsData *w = pii->data->windows_data_list[i];
-        double pad = 10;
+        double pad = option_pad;
         double target_width = option_width - pad * 2;
         double target_height = option_height - pad;
         double scale_w = target_width / w->width;
@@ -603,6 +610,21 @@ void start_windows_selector(Container *container, selector_type selector_state) 
 
     auto client = client_new(app, settings, "windows_selector");
     client->root->user_data = pii;
+    if (pii->data->surface) {
+        pii->icon_surface = accelerated_surface(app, client, 16, 16);
+        cairo_t *cr = cairo_create(pii->icon_surface);
+
+        double starting_w = cairo_image_surface_get_width(pii->data->surface);
+        double target_w = 16;
+        double sx = target_w / starting_w;
+
+        cairo_scale(cr, sx, sx);
+        cairo_set_source_surface(cr, pii->data->surface, 0, 0);
+        cairo_paint(cr);
+
+        cairo_destroy(cr);
+    }
+
 
     client->fps = 2;
     client->grab_event_handler = grab_event_handler;
@@ -614,4 +636,8 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     fill_root(client, client->root);
 
     client_show(app, client);
+}
+
+PinnedIconInfo::~PinnedIconInfo() {
+    cairo_surface_destroy(icon_surface);
 }

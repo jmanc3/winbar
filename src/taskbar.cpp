@@ -571,7 +571,9 @@ pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
-    possibly_close(app, client, container, data);
+    if (auto c = client_by_name(app, "windows_selector")) {
+        possibly_close(app, c, container, data);
+    }
     if (data->type != selector_type::CLOSED) {
         return;
     }
