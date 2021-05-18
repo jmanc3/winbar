@@ -1200,6 +1200,15 @@ textarea_key_release(AppClient *client,
                      uint16_t mods,
                      xkb_key_direction direction);
 
+static void
+textarea_active_status_changed(AppClient *client, cairo_t *cr, Container *container) {
+    container = container->children[0];
+    auto *data = (TextAreaData *) container->user_data;
+    if (!container->active) {
+        data->state->selection_x = data->state->cursor;
+    }
+}
+
 Container *
 make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings settings) {
 #ifdef TRACY_ENABLE
@@ -1223,6 +1232,7 @@ make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings s
     content_area->when_drag_end = drag_end_textarea;
     content_area->when_clicked = clicked_textarea;
     content_area->when_mouse_down = mouse_down_textarea;
+    content_area->when_active_status_changed = textarea_active_status_changed;
 
     auto data = new TextAreaData();
     data->cursor_width = settings.cursor_width;

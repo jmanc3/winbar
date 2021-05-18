@@ -482,6 +482,21 @@ container_by_name(std::string name, Container *root) {
     return nullptr;
 }
 
+Container *
+container_by_container(Container *target, Container *root) {
+    if (root == target) {
+        return root;;
+    }
+
+    for (auto child : root->children) {
+        auto possible = container_by_container(target, child);
+        if (possible)
+            return possible;
+    }
+
+    return nullptr;
+}
+
 bool overlaps(Bounds a, Bounds b) {
     if (a.x > (b.x + b.w) || b.x > (a.x + a.w))
         return false;

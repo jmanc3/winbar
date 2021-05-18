@@ -331,6 +331,9 @@ struct Container {
     // of any motion the mouse did in between those two events
     void (*when_clicked)(AppClient *client, cairo_t *cr, Container *self) = nullptr;
 
+    // Called when the containers status is changed
+    void (*when_active_status_changed)(AppClient *client, cairo_t *cr, Container *self) = nullptr;
+
     // Called when this container was scrolled on
     void (*when_scrolled)(AppClient *client,
                           cairo_t *cr,
@@ -383,6 +386,9 @@ void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &
 
 Container *
 container_by_name(std::string name, Container *root);
+
+Container *
+container_by_container(Container *target, Container *root);
 
 bool overlaps(Bounds a, Bounds b);
 

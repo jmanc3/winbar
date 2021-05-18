@@ -352,12 +352,12 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     double b_c = real.b;
 
     int windows_count = data->windows_data_list.size();
-    bool active = active_container == container || (data->window_selector_open == window_selector_state::OPEN_CLICKED);
+    bool active = active_container == container || (data->type == selector_type::OPEN_CLICKED);
     bool pressed = container->state.mouse_pressing;
-    bool hovered = container->state.mouse_hovering || (data->window_selector_open != window_selector_state::CLOSED);
+    bool hovered = container->state.mouse_hovering || (data->type != selector_type::CLOSED);
     bool dragging = container->state.mouse_dragging;
     double active_amount = data->active_amount;
-    if (data->window_selector_open == window_selector_state::OPEN_CLICKED) active_amount = 1;
+    if (data->type == selector_type::OPEN_CLICKED) active_amount = 1;
 
     int highlight_height = 2;
 
@@ -555,9 +555,13 @@ pinned_icon_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
-    if (data->window_selector_open != window_selector_state::CLOSED) {
+    if (client_by_name(app, "right_click_menu") == nullptr) {
+        possibly_open(app, client, container, data);
+    }
+    if (data->type != selector_type::CLOSED) {
         return;
     }
+
     client_create_animation(app, client, &data->hover_amount, 70, 0, 1);
 }
 
@@ -567,7 +571,8 @@ pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
-    if (data->window_selector_open != window_selector_state::CLOSED) {
+    possibly_close(app, client, container, data);
+    if (data->type != selector_type::CLOSED) {
         return;
     }
     client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
@@ -735,6 +740,11 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    for (auto c : app->clients) {
+        if (c->name == "windows_selector") {
+            client_close_threaded(app, c);
+        }
+    }
     backup_active_window = active_window;
     active_window_changed(-1);
     container->parent->should_layout_children = false;
@@ -976,12 +986,34 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
         if (data->windows_data_list.empty()) {
             launch_command(data->command_launched_by);
+            app_timeout_stop(client->app, client, data->open_timeout_fd);
+            for (auto c : app->clients) {
+                if (c->name == "windows_selector") {
+                    client_close(app, c);
+                }
+            }
         } else if (data->windows_data_list.size() > 1) {
-            start_windows_selector(container, window_selector_state::OPEN_CLICKED);
+            for (auto c : app->clients) {
+                if (c->name == "windows_selector") {
+                    auto pii = (PinnedIconInfo *) c->root->user_data;
+                    if (pii->data->type == ::OPEN_HOVERED && data == pii->data) {
+                        register_popup(c->window);
+                        pii->data->type = ::OPEN_CLICKED;
+                        return;
+                    }
+                }
+            }
+            start_windows_selector(container, selector_type::OPEN_CLICKED);
         } else {
             // TODO: choose window if there are more then one
-            xcb_window_t window = data->windows_data_list[0]->id;
+            app_timeout_stop(client->app, client, data->open_timeout_fd);
 
+            xcb_window_t window = data->windows_data_list[0]->id;
+            for (auto c : app->clients) {
+                if (c->name == "windows_selector") {
+                    client_close(app, c);
+                }
+            }
             uint32_t state = get_wm_state(window);
 
             if (state == XCB_ICCCM_WM_STATE_NORMAL) {
@@ -1017,6 +1049,12 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
             }
         }
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        app_timeout_stop(client->app, client, data->open_timeout_fd);
+        for (auto c : app->clients) {
+            if (c->name == "windows_selector") {
+                client_close(app, c);
+            }
+        }
         start_pinned_icon_right_click(container);
     }
 }
@@ -1431,9 +1469,9 @@ scrolled_workspace(AppClient *client_entity,
 static void
 clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {// left
-        scrolled_workspace(client_entity, cr, container, 0, 1);
-    } else {// right
         scrolled_workspace(client_entity, cr, container, 0, -1);
+    } else {// right
+        scrolled_workspace(client_entity, cr, container, 0, 1);
     }
 }
 
@@ -1533,6 +1571,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     settings.right_show_amount = 2;
     settings.bottom_show_amount = 2;
     field_search->wanted_pad.x = 12 + 16 + 12;
+    field_search->wanted_pad.w = 8;
     auto *con = field_search->child(FILL_SPACE, FILL_SPACE);
     Container *textarea = make_textarea(app, client, con, settings);
     textarea->name = "main_text_area";
@@ -1701,6 +1740,10 @@ update_window_title_name(xcb_window_t window) {
     }
 }
 
+void remove_window(App *app, xcb_window_t window);
+
+void add_window(App *app, xcb_window_t window);
+
 static bool
 window_event_handler(App *app, xcb_generic_event_t *event) {
     // This will listen to configure notify events and check if it's about a
@@ -1756,9 +1799,15 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
         }
         case XCB_PROPERTY_NOTIFY: {
             auto e = (xcb_property_notify_event_t *) event;
+//            const xcb_get_atom_name_cookie_t &cookie = xcb_get_atom_name(app->connection, e->atom);
+//            xcb_get_atom_name_reply_t *reply = xcb_get_atom_name_reply(app->connection, cookie, nullptr);
+//            char *string = xcb_get_atom_name_name(reply);
+//            printf("%s\n", string);
             if (e->atom == get_cached_atom(app, "WM_NAME") ||
                 e->atom == get_cached_atom(app, "_NET_WM_NAME")) {
                 update_window_title_name(e->window);
+            } else if (e->atom == get_cached_atom(app, "WM_CLASS")) {
+                printf("WM_CLASS PROPERTY CHANGE\n");
             }
             break;
         }
@@ -2509,9 +2558,10 @@ void register_popup(xcb_window_t window) {
     // TODO why don't we grab the pointer instead?
     xcb_void_cookie_t grab_cookie =
             xcb_grab_button_checked(app->connection,
-                                    True,
+                                    False,
                                     app->screen->root,
-                                    XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE,
+                                    XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
+                                    XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_POINTER_MOTION_HINT,
                                     XCB_GRAB_MODE_SYNC,
                                     XCB_GRAB_MODE_ASYNC,
                                     XCB_NONE,

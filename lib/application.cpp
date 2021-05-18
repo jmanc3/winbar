@@ -1110,12 +1110,32 @@ void handle_mouse_motion(App *app) {
     handle_mouse_motion(app, client, e->event_x, e->event_y);
 }
 
-void set_active(Container *c, bool state) {
+void set_active(AppClient *client, const std::vector<Container *> &active_containers, Container *c, bool state) {
     for (auto child : c->children) {
-        set_active(child, state);
+        set_active(client, active_containers, child, state);
     }
 
-    c->active = state;
+    bool will_be_activated = false;
+    for (auto active_container : active_containers) {
+        if (active_container == c) {
+            will_be_activated = true;
+        }
+    }
+    if (will_be_activated) {
+        if (!c->active) {
+            c->active = true;
+            if (c->when_active_status_changed) {
+                c->when_active_status_changed(client, client->cr, c);
+            }
+        }
+    } else {
+        if (c->active) {
+            c->active = false;
+            if (c->when_active_status_changed) {
+                c->when_active_status_changed(client, client->cr, c);
+            }
+        }
+    }
 }
 
 void handle_mouse_button_press(App *app) {
@@ -1190,10 +1210,7 @@ void handle_mouse_button_press(App *app) {
             p->when_mouse_down(client, client->cr, p);
         }
     }
-    set_active(client->root, false);
-    for (auto child : mouse_downed) {
-        child->active = true;
-    }
+    set_active(client, mouse_downed, client->root, false);
 }
 
 bool handle_mouse_button_release(App *app) {

@@ -456,6 +456,7 @@ icon_menu_event_handler(App *app, xcb_generic_event_t *event) {
         case XCB_MAP_NOTIFY: {
             auto *e = (xcb_map_notify_event_t *) (event);
             register_popup(e->window);
+            pinned_icon_data->type = selector_type::OPEN_CLICKED;
             break;
         }
         case XCB_FOCUS_OUT: {
@@ -487,7 +488,7 @@ icon_menu_event_handler(App *app, xcb_generic_event_t *event) {
 }
 
 static void when_pinned_icon_right_click_menu_closed(AppClient *client) {
-    pinned_icon_data->window_selector_open = window_selector_state::CLOSED;
+    pinned_icon_data->type = selector_type::CLOSED;
     if (auto c = client_by_name(app, "taskbar")) {
         if (!(pinned_icon_container->state.mouse_hovering || pinned_icon_container->state.mouse_pressing)) {
             if (pinned_icon_data->hover_amount == 1) {
@@ -503,7 +504,7 @@ void start_pinned_icon_right_click(Container *container) {
     }
     pinned_icon_container = container;
     pinned_icon_data = (LaunchableButton *) container->user_data;
-    pinned_icon_data->window_selector_open = window_selector_state::OPEN_CLICKED;
+    pinned_icon_data->type = selector_type::OPEN_CLICKED;
 
     load_custom_items();
     Settings settings;

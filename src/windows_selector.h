@@ -7,6 +7,15 @@
 extern int option_width;
 extern int option_height;
 
-void start_windows_selector(Container *container, window_selector_state selector_state);
+class PinnedIconInfo : public IconButton {
+public:
+    Container *data_container = nullptr;
+    LaunchableButton *data = nullptr;
+};
+
+void possibly_open(App *app, AppClient *client, Container *container, LaunchableButton *data);
+void possibly_close(App *app, AppClient *client, Container *container, LaunchableButton *data);
+
+void start_windows_selector(Container *container, selector_type selector_state);
 
 #endif// WINDOWS_SELECTOR_H

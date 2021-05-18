@@ -20,12 +20,100 @@ int option_min_width = 100 * 1.2;
 int option_height = 144 * 1.2;
 static double close_width = 32;
 static double close_height = 32;
-static Container *data_container = nullptr;
-static LaunchableButton *data = nullptr;
-static AppClient *client = nullptr;
 
 static void
 fill_root(Container *root);
+
+static void when_closed(AppClient *client);
+
+static void on_open_timeout(App *app, AppClient *client, void *user_data) {
+    if (auto c = client_by_name(app, "windows_selector")) {
+        auto pii = (PinnedIconInfo *) c->root->user_data;
+        if (pii->data->type == OPEN_CLICKED) {
+            return;
+        } else {
+            pii->data->type = ::CLOSED;
+            client_close_threaded(app, c);
+        }
+    }
+    auto container = (Container *) user_data;
+    if (container_by_container(container, client->root)) {
+        auto data = (LaunchableButton *) container->user_data;
+        data->open_timeout_fd = -1;
+        start_windows_selector(container, selector_type::OPEN_HOVERED);
+    }
+}
+
+static void on_close_timeout(App *app, AppClient *client, void *user_data) {
+    if (auto c = client_by_name(app, "windows_selector")) {
+        auto pii = (PinnedIconInfo *) c->root->user_data;
+        if (pii->data->type == OPEN_CLICKED) {
+            return;
+        } else {
+            client_close_threaded(app, c);
+        }
+    }
+    auto container = (Container *) user_data;
+    if (container_by_container(container, client->root)) {
+        auto data = (LaunchableButton *) container->user_data;
+        data->close_timeout_fd = -1;
+        data->type = ::CLOSED;
+    }
+}
+
+void possibly_open(App *app, AppClient *client, Container *container, LaunchableButton *data) {
+    if (auto c = client_by_name(app, "windows_selector")) {
+        auto pii = (PinnedIconInfo *) c->root->user_data;
+        if (pii->data->type == OPEN_CLICKED) {
+            return;
+        }
+    }
+
+    if (data->windows_data_list.empty()) {
+        return;
+    }
+
+    if (data->open_timeout_fd != -1) {
+        return;
+    }
+    if (data->close_timeout_fd != -1) {
+        app_timeout_stop(app, client, data->close_timeout_fd);
+        data->close_timeout_fd = -1;
+        return;
+    }
+    if (auto c = client_by_name(app, "windows_selector")) {
+        auto pii = (PinnedIconInfo *) c->root->user_data;
+        if (pii->data->type == OPEN_HOVERED) {
+            client_close(app, c);
+            on_open_timeout(app, client, container);
+            return;
+        }
+    }
+    data->open_timeout_fd = app_timeout_create(app, client, 300, on_open_timeout, container);
+}
+
+void possibly_close(App *app, AppClient *client, Container *container, LaunchableButton *data) {
+    if (auto c = client_by_name(app, "windows_selector")) {
+        auto pii = (PinnedIconInfo *) c->root->user_data;
+        if (pii->data->type == OPEN_CLICKED) {
+            return;
+        }
+    }
+
+    if (data->type == OPEN_CLICKED) {
+        return;
+    }
+
+    if (data->close_timeout_fd != -1) {
+        return;
+    }
+    if (data->open_timeout_fd != -1) {
+        app_timeout_stop(app, client, data->open_timeout_fd);
+        data->open_timeout_fd = -1;
+        return;
+    }
+    data->close_timeout_fd = app_timeout_create(app, client, 300, on_close_timeout, container);
+}
 
 static void
 window_option_clicked(AppClient *client_entity, cairo_t *cr, Container *container) {
@@ -37,7 +125,9 @@ window_option_clicked(AppClient *client_entity, cairo_t *cr, Container *containe
         }
     }
 
-    xcb_window_t to_focus = data->windows_data_list[index]->id;
+    auto pii = (PinnedIconInfo *) client_entity->root->user_data;
+
+    xcb_window_t to_focus = pii->data->windows_data_list[index]->id;
 
     xcb_ewmh_request_change_active_window(&app->ewmh,
                                           app->screen_number,
@@ -46,7 +136,7 @@ window_option_clicked(AppClient *client_entity, cairo_t *cr, Container *containe
                                           XCB_CURRENT_TIME,
                                           XCB_NONE);
 
-    client_close_threaded(app, client);
+    client_close_threaded(app, client_entity);
     xcb_flush(app->connection);
     app->grab_window = -1;
 }
@@ -99,10 +189,12 @@ window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container
         }
     }
 
-    xcb_window_t to_close = data->windows_data_list[index]->id;
-    data->windows_data_list[index]->marked_to_close = true;
+    auto pii = (PinnedIconInfo *) client_entity->root->user_data;
 
-    unsigned long windows_count = data->windows_data_list.size();
+    xcb_window_t to_close = pii->data->windows_data_list[index]->id;
+    pii->data->windows_data_list[index]->marked_to_close = true;
+
+    unsigned long windows_count = pii->data->windows_data_list.size();
     xcb_ewmh_request_close_window(&app->ewmh,
                                   app->screen_number,
                                   to_close,
@@ -113,10 +205,10 @@ window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container
     if (windows_count > 1) {
         container->parent->children.erase(container->parent->children.begin() + index);
 
-        int width = get_width(data);
+        int width = get_width(pii->data);
         delete container;
 
-        double x = data_container->real_bounds.x - width / 2 + data_container->real_bounds.w / 2;
+        double x = pii->data_container->real_bounds.x - width / 2 + pii->data_container->real_bounds.w / 2;
         if (x < 0) {
             x = 0;
         }
@@ -175,7 +267,7 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
 
 static void
 paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
-    auto *data = static_cast<IconButton *>(client->root->user_data);
+    auto *data = static_cast<PinnedIconInfo *>(client_entity->root->user_data);
 
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         ArgbColor color;
@@ -230,7 +322,8 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto windows_data = ((BodyData *) container->parent->parent->children[1]->user_data)->windows_data;
     std::string title = windows_data->title;
     if (title.empty()) {
-        title = data->class_name;
+        auto pii = (PinnedIconInfo *) client_entity->root->user_data;
+        title = pii->data->class_name;
     }
 
     PangoLayout *layout =
@@ -309,25 +402,40 @@ paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
 }
 
-static void
-fill_root(Container *root) {
-    IconButton *image = new IconButton;
-    image->surface = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(image->surface, as_resource_path("taskbar-close.png"), 16, nullptr);
-    root->user_data = image;
+void when_enter(AppClient *client, cairo_t *cr, Container *self) {
+    auto pii = (PinnedIconInfo *) client->root->user_data;
+    if (pii->data->type == selector_type::OPEN_HOVERED) {
+        possibly_open(app, client, pii->data_container, pii->data);
+    }
+}
 
+void when_leave(AppClient *client, cairo_t *cr, Container *self) {
+    auto pii = (PinnedIconInfo *) client->root->user_data;
+    if (pii->data->type == selector_type::OPEN_HOVERED) {
+        possibly_close(app, client, pii->data_container, pii->data);
+    }
+}
+
+static void
+fill_root(AppClient *client, Container *root) {
+    auto pii = (PinnedIconInfo *) root->user_data;
+    pii->surface = accelerated_surface(app, client, 16, 16);
+    paint_surface_with_image(pii->surface, as_resource_path("taskbar-close.png"), 16, nullptr);
+    root->receive_events_even_if_obstructed = true;
+    root->when_mouse_enters_container = when_enter;
+    root->when_mouse_leaves_container = when_leave;
 
     if (screen_has_transparency(app)) {
-        for (auto window_data : data->windows_data_list) {
+        for (auto window_data : pii->data->windows_data_list) {
             window_data->last_rescale_timestamp = -1;
         }
     }
 
-    if (data == nullptr)
+    if (pii->data == nullptr)
         return;
 
-    for (int i = 0; i < data->windows_data_list.size(); i++) {
-        WindowsData *w = data->windows_data_list[i];
+    for (int i = 0; i < pii->data->windows_data_list.size(); i++) {
+        WindowsData *w = pii->data->windows_data_list[i];
         double pad = 10;
         double target_width = option_width - pad * 2;
         double target_height = option_height - pad;
@@ -412,7 +520,15 @@ windows_selector_event_handler(App *app, xcb_generic_event_t *event) {
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
         case XCB_MAP_NOTIFY: {
             auto *e = (xcb_map_notify_event_t *) (event);
-            register_popup(e->window);
+            if (auto c = client_by_window(app, e->window)) {
+                if (c->name == "windows_selector") {
+                    auto pii = (PinnedIconInfo *) c->root->user_data;
+                    if (pii->data->type == ::OPEN_CLICKED) {
+                        register_popup(e->window);
+                    }
+                }
+            }
+
             break;
         }
         case XCB_FOCUS_OUT: {
@@ -443,26 +559,37 @@ windows_selector_event_handler(App *app, xcb_generic_event_t *event) {
     return false;
 }
 
-void when_closed(AppClient *client) {
-    data->window_selector_open = window_selector_state::CLOSED;
+static void when_closed(AppClient *client) {
+    auto pii = (PinnedIconInfo *) client->root->user_data;
+    pii->data->type = selector_type::CLOSED;
+    app_timeout_stop(client->app, client, pii->data->close_timeout_fd);
+    app_timeout_stop(client->app, client, pii->data->open_timeout_fd);
+    pii->data->close_timeout_fd = -1;
+    pii->data->open_timeout_fd = -1;
     if (auto c = client_by_name(app, "taskbar")) {
-        if (!(data_container->state.mouse_hovering || data_container->state.mouse_pressing)) {
-            if (data->hover_amount == 1) {
-                client_create_animation(app, c, &data->hover_amount, 70, 0, 0);
+        if (!(pii->data_container->state.mouse_hovering || pii->data_container->state.mouse_pressing)) {
+            if (pii->data->hover_amount == 1) {
+                client_create_animation(app, c, &pii->data->hover_amount, 70, 0, 0);
             }
         }
     }
 }
 
-void start_windows_selector(Container *container, window_selector_state selector_state) {
+void start_windows_selector(Container *container, selector_type selector_state) {
     first_expose = true;
-    data_container = container;
-    data = static_cast<LaunchableButton *>(container->user_data);
-    data->window_selector_open = selector_state;
+    auto pii = new PinnedIconInfo;
+    pii->data_container = container;
+    pii->data = static_cast<LaunchableButton *>(container->user_data);
+    pii->data->type = selector_state;
+    pii->data->open_timeout_fd = -1;
+    pii->data->close_timeout_fd = -1;
+    if (auto taskbar_client = client_by_name(app, "taskbar")) {
+        client_create_animation(app, taskbar_client, &pii->data->hover_amount, 70, nullptr, 1);
+    }
 
-    int width = get_width(data);
+    int width = get_width(pii->data);
     Settings settings;
-    settings.x = container->real_bounds.x - width / 2 + data_container->real_bounds.w / 2;
+    settings.x = container->real_bounds.x - width / 2 + pii->data_container->real_bounds.w / 2;
     if (settings.x < 0) {
         settings.x = 0;
     }
@@ -474,7 +601,8 @@ void start_windows_selector(Container *container, window_selector_state selector
     settings.skip_taskbar = true;
     settings.popup = true;
 
-    client = client_new(app, settings, "windows_selector");
+    auto client = client_new(app, settings, "windows_selector");
+    client->root->user_data = pii;
 
     client->fps = 2;
     client->grab_event_handler = grab_event_handler;
@@ -483,7 +611,7 @@ void start_windows_selector(Container *container, window_selector_state selector
 
     app_create_custom_event_handler(app, client->window, windows_selector_event_handler);
 
-    fill_root(client->root);
+    fill_root(client, client->root);
 
     client_show(app, client);
 }

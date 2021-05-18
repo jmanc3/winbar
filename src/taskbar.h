@@ -56,7 +56,7 @@ public:
     ~WindowsData();
 };
 
-enum window_selector_state {
+enum selector_type {
     CLOSED,
     OPEN_HOVERED,
     OPEN_CLICKED,
@@ -77,9 +77,9 @@ public:
     double active_amount = 0;
     double hover_amount = 0;
 
-    window_selector_state window_selector_open = window_selector_state::CLOSED;
-    int open_window_selector_timeout = -1;
-    int close_window_selector_timeout = -1;
+    selector_type type = selector_type::CLOSED;
+    int open_timeout_fd = -1;
+    int close_timeout_fd = -1;
 
     // For icon lerping to correct position
     bool animating = false;
