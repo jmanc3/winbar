@@ -39,14 +39,6 @@ public:
     std::string text;
 };
 
-class HistoricalNameUsed {
-public:
-    std::string text;
-};
-
-std::vector<HistoricalNameUsed *> history_scripts;
-std::vector<HistoricalNameUsed *> history_apps;
-
 std::vector<Script *> scripts;
 
 std::string active_tab = "Apps";
@@ -178,7 +170,7 @@ static inline int
 determine_priority(Sortable *item,
                    const std::string &text,
                    const std::string &lowercase_text,
-                   std::vector<HistoricalNameUsed *> *history) {
+                   const std::vector<HistoricalNameUsed *> &history) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -230,8 +222,8 @@ determine_priority(Sortable *item,
     // Find it in history and attach a ranking
     if (prio != -1) {    // if it wasn't a perfect match
         if (prio != 11) {// but it was a match
-            for (int i = 0; i < history->size(); i++) {
-                HistoricalNameUsed *h = (*history)[i];
+            for (int i = 0; i < history.size(); i++) {
+                HistoricalNameUsed *h = (history)[i];
                 auto lowercase_historic_find = h->text.find(item->lowercase_name);
                 if (lowercase_historic_find != std::string::npos) {
                     item->historical_ranking = i;
@@ -687,40 +679,40 @@ launch_item(AppClient *client, Container *item) {
     if (active_tab == "Scripts") {
         Script *script = (Script *) data->user_data;
 
-        for (int i = 0; i < history_scripts.size(); i++) {
-            auto *historic_script = history_scripts[i];
+        for (int i = 0; i < global->history_scripts.size(); i++) {
+            auto *historic_script = global->history_scripts[i];
             if (historic_script->text == script->lowercase_name) {
                 delete historic_script;
-                history_scripts.erase(history_scripts.begin() + i);
+                global->history_scripts.erase(global->history_scripts.begin() + i);
                 break;
             }
         }
         auto *historic_script = new HistoricalNameUsed;
         historic_script->text = script->lowercase_name;
-        history_scripts.insert(history_scripts.begin(), historic_script);
-        if (history_scripts.size() > 100) {
-            delete history_scripts[history_scripts.size() - 1];
-            history_scripts.erase(history_scripts.begin() + (history_scripts.size() - 1));
+        global->history_scripts.insert(global->history_scripts.begin(), historic_script);
+        if (global->history_scripts.size() > 100) {
+            delete global->history_scripts[global->history_scripts.size() - 1];
+            global->history_scripts.erase(global->history_scripts.end() - 1);
         }
 
         launch_command(script->path + "/" + script->name);
     } else if (active_tab == "Apps") {
         Launcher *launcher = (Launcher *) data->user_data;
 
-        for (int i = 0; i < history_apps.size(); i++) {
-            auto *historic_app = history_apps[i];
+        for (int i = 0; i < global->history_apps.size(); i++) {
+            auto *historic_app = global->history_apps[i];
             if (historic_app->text == launcher->lowercase_name) {
                 delete historic_app;
-                history_apps.erase(history_apps.begin() + i);
+                global->history_apps.erase(global->history_apps.begin() + i);
                 break;
             }
         }
         auto *historic_app = new HistoricalNameUsed;
         historic_app->text = launcher->lowercase_name;
-        history_apps.insert(history_apps.begin(), historic_app);
-        if (history_apps.size() > 100) {
-            delete history_apps[history_apps.size() - 1];
-            history_apps.erase(history_apps.begin() + (history_apps.size() - 1));
+        global->history_apps.insert(global->history_apps.begin(), historic_app);
+        if (global->history_apps.size() > 100) {
+            delete global->history_apps[global->history_apps.size() - 1];
+            global->history_apps.erase(global->history_apps.end() - 1);
         }
 
         launch_command(launcher->exec);
@@ -949,7 +941,7 @@ template<class T>
 void sort_and_add(std::vector<T> *sortables,
                   Container *bottom,
                   std::string text,
-                  std::vector<HistoricalNameUsed *> *history);
+                  const std::vector<HistoricalNameUsed *> &history);
 
 static void
 clicked_tab_timeout(App *app, AppClient *client, void *user_data) {
@@ -967,14 +959,14 @@ clicked_tab_timeout(App *app, AppClient *client, void *user_data) {
             bottom->children.clear();
             if (!data->state->text.empty()) {
                 if (active_tab == "Scripts") {
-                    sort_and_add<Script *>(&scripts, bottom, data->state->text, &history_scripts);
+                    sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
                 } else if (active_tab == "Apps") {
                     // We create a copy because app_menu relies on the order
                     std::vector<Launcher *> launchers_copy;
                     for (auto *l : launchers) {
                         launchers_copy.push_back(l);
                     }
-                    sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, &history_apps);
+                    sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, global->history_apps);
                 }
             }
             client_layout(app, client);
@@ -1029,7 +1021,7 @@ template<class T>
 void sort_and_add(std::vector<T> *sortables,
                   Container *bottom,
                   std::string text,
-                  std::vector<HistoricalNameUsed *> *history) {
+                  const std::vector<HistoricalNameUsed *> &history) {
     std::vector<T> sorted;
 
     {
@@ -1198,14 +1190,14 @@ when_key_event(AppClient *client,
                     bottom->children.clear();
                     if (!data->state->text.empty()) {
                         if (active_tab == "Scripts") {
-                            sort_and_add<Script *>(&scripts, bottom, data->state->text, &history_scripts);
+                            sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
                         } else if (active_tab == "Apps") {
                             // We create a copy because app_menu relies on the order
                             std::vector<Launcher *> launchers_copy;
                             for (auto *l : launchers) {
                                 launchers_copy.push_back(l);
                             }
-                            sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, &history_apps);
+                            sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, global->history_apps);
                         }
                     }
                     client_layout(app, client);
@@ -1239,14 +1231,14 @@ when_key_event(AppClient *client,
             bottom->children.clear();
             if (!data->state->text.empty()) {
                 if (active_tab == "Scripts") {
-                    sort_and_add<Script *>(&scripts, bottom, data->state->text, &history_scripts);
+                    sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
                 } else if (active_tab == "Apps") {
                     // We create a copy because app_menu relies on the order
                     std::vector<Launcher *> launchers_copy;
                     for (auto *l : launchers) {
                         launchers_copy.push_back(l);
                     }
-                    sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, &history_apps);
+                    sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, global->history_apps);
                 }
             }
             client_layout(app, search_menu_client);
@@ -1302,7 +1294,10 @@ void load_historic_scripts() {
         while (getline(status_file, line)) {
             auto *h = new HistoricalNameUsed;
             h->text = line;
-            history_scripts.push_back(h);
+            global->history_scripts.push_back(h);
+            if (global->history_scripts.size() > 100) {
+                break;
+            }
         }
     }
     status_file.close();
@@ -1319,7 +1314,10 @@ void load_historic_apps() {
         while (getline(status_file, line)) {
             auto *h = new HistoricalNameUsed;
             h->text = line;
-            history_apps.push_back(h);
+            global->history_apps.push_back(h);
+            if (global->history_apps.size() > 100) {
+                break;
+            }
         }
     }
     status_file.close();
@@ -1362,7 +1360,7 @@ write_historic_scripts() {
 
     std::ofstream myfile;
     myfile.open(scriptsPath);
-    for (HistoricalNameUsed *h : history_scripts) {
+    for (HistoricalNameUsed *h : global->history_scripts) {
         myfile << h->text + "\n";
     }
     myfile.close();
@@ -1402,7 +1400,7 @@ write_historic_apps() {
 
     std::ofstream myfile;
     myfile.open(scriptsPath);
-    for (HistoricalNameUsed *h : history_apps) {
+    for (HistoricalNameUsed *h : global->history_apps) {
         myfile << h->text + "\n";
     }
     myfile.close();

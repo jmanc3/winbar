@@ -6,6 +6,13 @@
 #define WINBAR_GLOBALS_H
 
 #include <cairo.h>
+#include <string>
+#include <vector>
+
+class HistoricalNameUsed {
+public:
+    std::string text;
+};
 
 class globals {
 public:
@@ -13,6 +20,9 @@ public:
     cairo_surface_t *unknown_icon_32 = nullptr;
     cairo_surface_t *unknown_icon_24 = nullptr;
     cairo_surface_t *unknown_icon_64 = nullptr;
+
+    std::vector<HistoricalNameUsed *> history_scripts;
+    std::vector<HistoricalNameUsed *> history_apps;
 
     ~globals() {
         if (unknown_icon_16)
@@ -23,6 +33,12 @@ public:
             cairo_surface_destroy(unknown_icon_24);
         if (unknown_icon_64)
             cairo_surface_destroy(unknown_icon_64);
+        for (auto s : history_scripts)
+            delete s;
+        history_scripts.clear();
+        for (auto a : history_apps)
+            delete a;
+        history_apps.clear();
     }
 };
 
