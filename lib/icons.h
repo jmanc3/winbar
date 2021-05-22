@@ -29,6 +29,7 @@ public:
     int scale;
     IconExtension extension;
     std::string theme;
+    std::string name;
     std::string path;
 };
 
@@ -60,5 +61,26 @@ c3ic_strict_find_icons(const std::string &theme,
                        const std::vector<int> &strict_sizes,
                        const std::vector<int> &strict_scales,
                        const std::vector<IconExtension> &strict_extensions);
+
+std::string
+get_current_theme_name();
+
+
+void
+c3ic_strict_load_multiple_icons(std::vector<Icon> &icons,
+                                std::vector<std::string> &names,
+                                const std::vector<int> &strict_sizes,
+                                const std::vector<int> &strict_scales,
+                                const std::vector<IconExtension> &strict_extensions,
+                                const bool is_parent_theme);
+
+void
+c3ic_strict_load_multiple_icons(std::vector<Icon> &icons,
+                                const std::string &theme,
+                                std::vector<std::string> &names,
+                                const std::vector<int> &strict_sizes,
+                                const std::vector<int> &strict_scales,
+                                const std::vector<IconExtension> &strict_extensions,
+                                const bool is_parent_theme);
 
 #endif //ICONS_H

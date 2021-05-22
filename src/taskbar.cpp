@@ -576,7 +576,7 @@ pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     if (auto c = client_by_name(app, "windows_selector")) {
         possibly_close(app, c, container, data);
-    } else if (data->close_timeout_fd != -1){
+    } else if (data->close_timeout_fd != -1) {
         app_timeout_stop(app, client, data->close_timeout_fd);
     }
     client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
@@ -1981,7 +1981,7 @@ void add_window(App *app, xcb_window_t window) {
     uint32_t desktop = 0;
     xcb_ewmh_get_wm_desktop_from_reply(&desktop, NULL);
 
-    std::vector <xcb_window_t> old_windows;
+    std::vector<xcb_window_t> old_windows;
     AppClient *client = client_by_name(app, "taskbar");
     if (!client)
         return;

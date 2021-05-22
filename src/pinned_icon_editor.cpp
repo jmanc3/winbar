@@ -120,7 +120,7 @@ static void paint_restore(AppClient *client, cairo_t *cr, Container *container) 
 
     bool disabled = true;
     if (pinned_icon_data->command_launched_by != launch_field_data->state->text ||
-        pinned_icon_data->icon_name != icon_field_data->state->text |\
+        pinned_icon_data->icon_name != icon_field_data->state->text | \
         pinned_icon_data->class_name != wm_field_data->state->text) {
         disabled = false;
     }
@@ -238,7 +238,7 @@ static void update_icon(AppClient *client) {
 static void clicked_restore(AppClient *client, cairo_t *cr, Container *container) {
     bool disabled = true;
     if (pinned_icon_data->command_launched_by != launch_field_data->state->text ||
-        pinned_icon_data->icon_name != icon_field_data->state->text |\
+        pinned_icon_data->icon_name != icon_field_data->state->text | \
         pinned_icon_data->class_name != wm_field_data->state->text) {
         disabled = false;
     }
@@ -266,11 +266,11 @@ static void clicked_cancel(AppClient *client, cairo_t *cr, Container *container)
 
 static void
 icon_name_key_event(AppClient *client,
-                     cairo_t *cr,
-                     Container *container,
-                     bool is_string, xkb_keysym_t keysym, char string[64],
-                     uint16_t mods,
-                     xkb_key_direction direction) {
+                    cairo_t *cr,
+                    Container *container,
+                    bool is_string, xkb_keysym_t keysym, char string[64],
+                    uint16_t mods,
+                    xkb_key_direction direction) {
     if (direction == XKB_KEY_UP) {
         return;
     }
@@ -389,11 +389,11 @@ void fill_root(AppClient *client) {
 
         Container *save_button = make_button(client, button_hbox, "Save & Quit");
         save_button->when_clicked = clicked_save_and_quit;
-        
+
         Container *restore_button = make_button(client, button_hbox, "Restore");
         restore_button->when_paint = paint_restore;
         restore_button->when_clicked = clicked_restore;
-        
+
         Container *cancel_button = make_button(client, button_hbox, "Close");
         cancel_button->when_clicked = clicked_cancel;
     }

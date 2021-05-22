@@ -17,6 +17,7 @@ public:
 };
 
 void possibly_open(App *app, AppClient *client, Container *container, LaunchableButton *data);
+
 void possibly_close(App *app, AppClient *client, Container *container, LaunchableButton *data);
 
 void start_windows_selector(Container *container, selector_type selector_state);

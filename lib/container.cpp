@@ -306,7 +306,7 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
     }
 }
 
-void layout_stack(AppClient *client, cairo_t *cr, Container *container, const Bounds& bounds) {
+void layout_stack(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
     for (auto child : container->children) {
         layout(client, cr, child, bounds);
     }
