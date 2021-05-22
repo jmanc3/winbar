@@ -32,7 +32,6 @@ public:
     }
 };
 
-extern bool launchers_done;
 extern std::vector<Launcher *> launchers;
 
 void start_app_menu();

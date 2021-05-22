@@ -16,6 +16,7 @@
 #include "config.h"
 #include "main.h"
 #include "taskbar.h"
+#include "globals.h"
 
 #include <algorithm>
 #include <fstream>
@@ -436,10 +437,17 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
         }
     } else if (active_tab == "Apps") {
         auto *l_data = (Launcher *) data->user_data;
-        cairo_set_source_surface(cr,
-                                 l_data->icon_16,
-                                 container->real_bounds.x + 12,
-                                 container->real_bounds.y + container->real_bounds.h / 2 - 8);
+        if (l_data->icon_16) {
+            cairo_set_source_surface(cr,
+                                     l_data->icon_16,
+                                     container->real_bounds.x + 12,
+                                     container->real_bounds.y + container->real_bounds.h / 2 - 8);
+        } else {
+            cairo_set_source_surface(cr,
+                                     global->unknown_icon_16,
+                                     container->real_bounds.x + 12,
+                                     container->real_bounds.y + container->real_bounds.h / 2 - 8);
+        }
         cairo_paint(cr);
     }
 }
@@ -515,10 +523,17 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
         }
     } else if (active_tab == "Apps") {
         auto *l_data = (Launcher *) data->user_data;
-        cairo_set_source_surface(cr,
-                                 l_data->icon_32,
-                                 container->real_bounds.x + 12,
-                                 container->real_bounds.y + container->real_bounds.h / 2 - 16);
+        if (l_data->icon_32) {
+            cairo_set_source_surface(cr,
+                                     l_data->icon_32,
+                                     container->real_bounds.x + 12,
+                                     container->real_bounds.y + container->real_bounds.h / 2 - 16);
+        } else {
+            cairo_set_source_surface(cr,
+                                     global->unknown_icon_32,
+                                     container->real_bounds.x + 12,
+                                     container->real_bounds.y + container->real_bounds.h / 2 - 16);
+        }
         cairo_paint(cr);
     }
 }
@@ -602,10 +617,17 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
         }
     } else if (active_tab == "Apps") {
         auto *l_data = (Launcher *) data->user_data;
-        cairo_set_source_surface(cr,
-                                 l_data->icon_64,
-                                 container->real_bounds.x + container->real_bounds.w / 2 - 32,
-                                 container->real_bounds.y + 21);
+        if (l_data->icon_64) {
+            cairo_set_source_surface(cr,
+                                     l_data->icon_64,
+                                     container->real_bounds.x + container->real_bounds.w / 2 - 32,
+                                     container->real_bounds.y + 21);
+        } else {
+            cairo_set_source_surface(cr,
+                                     global->unknown_icon_64,
+                                     container->real_bounds.x + container->real_bounds.w / 2 - 32,
+                                     container->real_bounds.y + 21);
+        }
         cairo_paint(cr);
     }
 }
@@ -933,9 +955,6 @@ static void
 clicked_tab_timeout(App *app, AppClient *client, void *user_data) {
     auto *container = (Container *) user_data;
     auto *tab_data = (TabData *) container->user_data;
-    if (!launchers_done && tab_data->name == "Apps") {
-        return;
-    }
     active_tab = tab_data->name;
     auto *taskbar_client = client_by_name(app, "taskbar");
     if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
@@ -1168,31 +1187,29 @@ when_key_event(AppClient *client,
             set_textarea_inactive();
             return;
         } else if (keysym == XKB_KEY_Tab) {
-            if (launchers_done) {
-                active_tab = active_tab == "Apps" ? "Scripts" : "Apps";
-                if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
-                    auto *data = (TextAreaData *) textarea->user_data;
+            active_tab = active_tab == "Apps" ? "Scripts" : "Apps";
+            if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
+                auto *data = (TextAreaData *) textarea->user_data;
 
-                    auto *bottom = container_by_name("bottom", client->root);
-                    if (bottom) {
-                        for (auto *c : bottom->children)
-                            delete c;
-                        bottom->children.clear();
-                        if (!data->state->text.empty()) {
-                            if (active_tab == "Scripts") {
-                                sort_and_add<Script *>(&scripts, bottom, data->state->text, &history_scripts);
-                            } else if (active_tab == "Apps") {
-                                // We create a copy because app_menu relies on the order
-                                std::vector<Launcher *> launchers_copy;
-                                for (auto *l : launchers) {
-                                    launchers_copy.push_back(l);
-                                }
-                                sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, &history_apps);
+                auto *bottom = container_by_name("bottom", client->root);
+                if (bottom) {
+                    for (auto *c : bottom->children)
+                        delete c;
+                    bottom->children.clear();
+                    if (!data->state->text.empty()) {
+                        if (active_tab == "Scripts") {
+                            sort_and_add<Script *>(&scripts, bottom, data->state->text, &history_scripts);
+                        } else if (active_tab == "Apps") {
+                            // We create a copy because app_menu relies on the order
+                            std::vector<Launcher *> launchers_copy;
+                            for (auto *l : launchers) {
+                                launchers_copy.push_back(l);
                             }
+                            sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, &history_apps);
                         }
-                        client_layout(app, client);
-                        client_paint(app, client);
                     }
+                    client_layout(app, client);
+                    client_paint(app, client);
                 }
             }
             return;

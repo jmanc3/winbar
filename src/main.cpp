@@ -9,6 +9,7 @@
 #include "systray.h"
 #include "taskbar.h"
 #include "config.h"
+#include "globals.h"
 
 #include "wpa_ctrl.h"
 
@@ -17,6 +18,8 @@ App *app;
 bool restart = false;
 
 int main() {
+    global = new globals;
+
     // Open connection to app
     app = app_new();
 
@@ -66,6 +69,8 @@ int main() {
         delete l;
     }
     launchers.clear();
+
+    delete global;
 
     if (restart) {
         restart = false;

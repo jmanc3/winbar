@@ -16,6 +16,7 @@
 #include "main.h"
 #include "search_menu.h"
 #include "taskbar.h"
+#include "globals.h"
 
 #include <cmath>
 #include <pango/pangocairo.h>
@@ -23,7 +24,6 @@
 #include <xcb/xcb_aux.h>
 #include <hsluv.h>
 
-bool launchers_done = false;
 std::vector<Launcher *> launchers;
 
 class ItemData : public HoverableButton {
@@ -228,6 +228,10 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
 
         cairo_rectangle(cr, container->real_bounds.x + 4, container->real_bounds.y + 2, 32, 32);
         cairo_fill(cr);
+    } else {
+        set_argb(cr, config->color_apps_item_icon_background);
+        cairo_rectangle(cr, container->real_bounds.x + 4, container->real_bounds.y + 2, 32, 32);
+        cairo_fill(cr);
     }
 
     PangoLayout *layout =
@@ -249,6 +253,12 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     if (data->launcher->icon_24) {
         cairo_set_source_surface(cr,
                                  data->launcher->icon_24,
+                                 (int) (container->real_bounds.x + 4 + 4),
+                                 (int) (container->real_bounds.y + 2 + 4));
+        cairo_paint(cr);
+    } else {
+        cairo_set_source_surface(cr,
+                                 global->unknown_icon_24,
                                  (int) (container->real_bounds.x + 4 + 4),
                                  (int) (container->real_bounds.y + 2 + 4));
         cairo_paint(cr);
@@ -914,7 +924,6 @@ paint_desktop_files() {
         }
     }
     icons.clear();
-    launchers_done = true;
 }
 
 static std::optional<int> ends_with(const char *str, const char *suffix) {

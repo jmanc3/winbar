@@ -23,6 +23,7 @@
 #include "wifi_menu.h"
 #include "windows_selector.h"
 #include "hsluv.h"
+#include "globals.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -1863,6 +1864,19 @@ create_taskbar(App *app) {
     AppClient *taskbar = client_new(app, settings, "taskbar");
     taskbar->when_closed = when_taskbar_closed;
     taskbar->on_any_screen_change = taskbar_on_screen_size_change;
+
+    global->unknown_icon_16 = accelerated_surface(app, taskbar, 16, 16);
+    global->unknown_icon_24 = accelerated_surface(app, taskbar, 24, 24);
+    global->unknown_icon_32 = accelerated_surface(app, taskbar, 32, 32);
+    global->unknown_icon_64 = accelerated_surface(app, taskbar, 64, 64);
+    paint_surface_with_image(
+            global->unknown_icon_16, as_resource_path("unknown-16.svg"), 16, nullptr);
+    paint_surface_with_image(
+            global->unknown_icon_24, as_resource_path("unknown-24.svg"), 24, nullptr);
+    paint_surface_with_image(
+            global->unknown_icon_32, as_resource_path("unknown-32.svg"), 32, nullptr);
+    paint_surface_with_image(
+            global->unknown_icon_64, as_resource_path("unknown-64.svg"), 64, nullptr);
 
     app_create_custom_event_handler(app, taskbar->window, taskbar_event_handler);
     app_create_custom_event_handler(app, INT_MAX, window_event_handler);
