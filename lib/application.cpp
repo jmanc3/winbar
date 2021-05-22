@@ -768,6 +768,10 @@ void client_unregister_animation(App *app, AppClient *client) {
     assert(app != nullptr && app->running);
     assert(client != nullptr);
     client->animations_running--;
+    // TODO: why can this even occur in the first place
+    if (client->animations_running < 0) {
+        client->animations_running = 0;
+    }
 }
 
 void client_close(App *app, AppClient *client) {
