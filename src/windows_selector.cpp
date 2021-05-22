@@ -628,6 +628,10 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     fill_root(client, client->root);
 
     client_show(app, client);
+
+    if (auto c = client_by_name(app, "taskbar")) {
+        request_refresh(app, c);
+    }
 }
 
 PinnedIconInfo::~PinnedIconInfo() {

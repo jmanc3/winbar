@@ -1033,18 +1033,8 @@ static bool time_update_thread_updated = false;
 
 static void paint_date_menu(App *app, AppClient *client, void *data) {
     if (auto *client = client_by_name(app, "date_menu")) {
-        auto *event = new xcb_expose_event_t;
-
-        event->response_type = XCB_EXPOSE;
-        event->window = client->window;
-
-        xcb_send_event(
-                app->connection, true, event->window, XCB_EVENT_MASK_EXPOSURE, (char *) event);
-        xcb_flush(app->connection);
-
-        delete event;
-
-        app_timeout_create(app, client, 0, paint_date_menu, nullptr);
+        client_paint(app, client);
+        app_timeout_create(app, client, 500, paint_date_menu, nullptr);
     }
 }
 
@@ -1073,7 +1063,7 @@ void start_date_menu() {
 
     if (!time_update_thread_updated) {
         time_update_thread_updated = true;
-        app_timeout_create(app, client, 0, paint_date_menu, nullptr);
+        app_timeout_create(app, client, 500, paint_date_menu, nullptr);
     }
 
     read_agenda_from_disk(client);
