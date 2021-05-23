@@ -242,7 +242,6 @@ c3ic_cache_the_theme(const std::string &theme) {
                         if ((strstr(entry->d_name, "org.flameshot.Flameshot") != nullptr)) {
                             int k = 0;
                         }
-                        // TODO: using strstr doesn't perfectly protect against multiple extensions but it's good enough probably
                         std::optional<int> index;
                         if (index = ends_with(entry->d_name, ".svg")) {
                             cache_file << (unsigned char) IconExtension::SVG;
@@ -281,10 +280,24 @@ c3i3_load_theme(const std::string &theme) {
     struct stat buffer{};
     int cache_exists = stat(icon_cache_path.c_str(), &buffer) == 0;
 
-    // TODO: we have to compare modified time of the folders to see if we are up to date
-    if (!cache_exists) {
+    if (cache_exists) {
+        struct stat theme_buffer{};
+        int theme_exists = stat(std::string("/usr/share/icons/" + theme).c_str(), &theme_buffer) == 0;
+        if (theme_exists) {
+            // if the theme is newer than the cache, regenerate cache
+            if (theme_buffer.st_mtim.tv_sec > buffer.st_mtim.tv_sec) {
+                if (!(cache_exists = c3ic_cache_the_theme(theme))) {
+                    return {};
+                }
+            }
+        } else {
+            // if cache exists but theme doesn't, delete the cache file and return
+            remove(icon_cache_path.c_str());
+            return {};
+        }
+    } else {
+        // if cache doesn't exists, attempt to create it
         if (!(cache_exists = c3ic_cache_the_theme(theme))) {
-//            printf("Couldn't cache icon theme: %s", theme.c_str());
             return {};
         }
     }
