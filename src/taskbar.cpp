@@ -2120,9 +2120,8 @@ void add_window(App *app, xcb_window_t window) {
                                                                                             "_GTK_APPLICATION_ID"));
         xcb_icccm_get_text_property_reply_t props;
         if (xcb_icccm_get_text_property_reply(app->connection, c, &props, nullptr)) {
-            props.name[props.name_len] = '\0';
-            data->icon_name = props.name;
-            path = find_icon(props.name, 24);
+            data->icon_name = std::string(props.name, props.name_len);
+            path = find_icon(data->icon_name, 24);
             xcb_icccm_get_text_property_reply_wipe(&props);
         }
     }
