@@ -458,13 +458,17 @@ load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surfac
 
             cairo_surface_t *accel_surface = accelerated_surface(app, client_entity, width, height);
 
-            cairo_t *cr = cairo_create(accel_surface);
-            cairo_set_source_surface(cr, *surface, 0, 0);
-            cairo_paint(cr);
+            cairo_t *temp_context = cairo_create(accel_surface);
+            if (target_size != width) {
+                double scale = ((double) target_size) / ((double) width);
+                cairo_scale(temp_context, scale, scale);
+            }
+            cairo_set_source_surface(temp_context, *surface, 0, 0);
+            cairo_paint(temp_context);
 
             cairo_surface_destroy(*surface);
             *surface = accel_surface;
-            cairo_destroy(cr);
+            cairo_destroy(temp_context);
         }
     }
 }

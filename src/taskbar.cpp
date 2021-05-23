@@ -1554,7 +1554,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((IconButton *) button_super->user_data)->surface,
-                        as_resource_path("windows.png"), 24);
+                        as_resource_path("windows.png"), 16);
 
     field_search->when_paint = paint_search;
     field_search->when_mouse_down = clicked_search;
@@ -1564,7 +1564,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((IconButton *) field_search->user_data)->surface,
-                        as_resource_path("search.png"), 24);
+                        as_resource_path("search.png"), 16);
 
     TextAreaSettings settings;
     settings.font_size = 12;
@@ -1589,11 +1589,11 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((WorkspaceButton *) button_workspace->user_data)->surface,
-                        as_resource_path("taskview.png"), 24);
+                        as_resource_path("taskview.png"), 16);
     load_icon_full_path(app,
                         client,
                         &((WorkspaceButton *) button_workspace->user_data)->surface_hover,
-                        as_resource_path("taskview-hovered.png"), 24);
+                        as_resource_path("taskview-hovered.png"), 16);
 
     container_icons->spacing = 1;
     container_icons->type = hbox;
@@ -1607,7 +1607,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((IconButton *) button_systray->user_data)->surface,
-                        as_resource_path("arrow.png"), 24);
+                        as_resource_path("arrow.png"), 16);
 
     button_wifi->when_paint = paint_wifi;
     button_wifi->when_clicked = clicked_wifi;

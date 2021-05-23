@@ -428,12 +428,25 @@ c3ic_strict_load_icons(std::vector<Icon *> &icons,
 
     // We don't want to recurse children backup themes, only top-level parent backup themes
     if (is_parent_theme && icons.empty()) {
+        bool tried_loading_hicolor = false;
         for (const auto &backup_theme : backup_themes) {
             // so we don't recurse hicolor twice in some instances
             if (backup_theme == "hicolor" && theme == "hicolor") {
+                tried_loading_hicolor = true;
+                c3ic_strict_load_icons(icons, "Papirus", name, strict_sizes, strict_scales, strict_extensions, false);
                 continue;
             }
+            if (theme == "hicolor") {
+                tried_loading_hicolor = true;
+                if (theme != "Papirus") {
+                    c3ic_strict_load_icons(icons, "Papirus", name, strict_sizes, strict_scales, strict_extensions, false);
+                }
+            }
             c3ic_strict_load_icons(icons, backup_theme, name, strict_sizes, strict_scales, strict_extensions, false);
+        }
+        if (!tried_loading_hicolor) {
+            c3ic_strict_load_icons(icons, "Papirus", name, strict_sizes, strict_scales, strict_extensions, false);
+            c3ic_strict_load_icons(icons, "hicolor", name, strict_sizes, strict_scales, strict_extensions, false);
         }
     }
 }
@@ -475,7 +488,7 @@ c3ic_strict_find_icons(const std::string &theme,
                     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                         continue;
                     std::string nuclear_theme_name = std::string(entry->d_name);
-                    if (nuclear_theme_name != theme && nuclear_theme_name != "hicolor") {
+                    if (nuclear_theme_name != theme && nuclear_theme_name != "hicolor" && nuclear_theme_name != "Papirus") {
                         c3ic_strict_load_icons(icons, nuclear_theme_name, name, strict_sizes, strict_scales,
                                                strict_extensions, false);
                     }
@@ -821,6 +834,11 @@ c3ic_strict_load_multiple_icons(std::vector<Icon> &icons,
     c3ic_strict_load_multiple_icons(icons, theme, names, strict_sizes, strict_scales,
                                     strict_extensions, false);
 
+    if (theme != "Papirus") {
+        c3ic_strict_load_multiple_icons(icons, "Papirus", names, strict_sizes, strict_scales,
+                                        strict_extensions, false);
+    }
+
     c3ic_strict_load_multiple_icons(icons, "hicolor", names, strict_sizes, strict_scales,
                                     strict_extensions, false);
 
@@ -833,7 +851,7 @@ c3ic_strict_load_multiple_icons(std::vector<Icon> &icons,
                 if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                     continue;
                 std::string nuclear_theme_name = std::string(entry->d_name);
-                if (nuclear_theme_name != theme && nuclear_theme_name != "hicolor") {
+                if (nuclear_theme_name != theme && nuclear_theme_name != "hicolor" && nuclear_theme_name != "Papirus") {
                     c3ic_strict_load_multiple_icons(icons, nuclear_theme_name, names, strict_sizes, strict_scales,
                                                     strict_extensions, false);
                 }
