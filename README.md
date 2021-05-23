@@ -38,10 +38,10 @@ cd winbar
 unzip winbar.zip -d ~/.config
 ```
 
-* Finally once you've done everything above, do the following.
+* Finally once you've done everything above, run the install script as root.
 
 ```bash
-./install.sh
+sudo ./install.sh
 ``` 
 
 If compilation fails, it should tell you what headers are missing and you can look up what you need to install for your

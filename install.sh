@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Check for root permissions.
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Must be run as root, exiting..."
+    exit
+fi
+
 #exit when any of the following commands fails
 set -e
 
@@ -15,7 +21,7 @@ make
 
 # install
 if [[ -f /usr/bin/dpkg ]]; then                 # debian based distro
-  sudo checkinstall --default --install=yes
+  checkinstall --default --install=yes
 else
-  sudo make -j 4 install
+  make -j 4 install
 fi
