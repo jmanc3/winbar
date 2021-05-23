@@ -445,31 +445,15 @@ load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surfac
 
         *surface = accelerated_surface(app, client_entity, target_size, target_size);
         auto temp_context = cairo_create(*surface);
-        double scale = ((double) target_size) / ((double) w);
-        cairo_scale(temp_context, scale, scale);
+        if (target_size != w) {
+            double scale = ((double) target_size) / ((double) w);
+            cairo_scale(temp_context, scale, scale);
+        }
         rsvg_handle_render_cairo(handle, temp_context);
         g_object_unref(handle);
-    } else {
-        *surface = cairo_image_surface_create_from_png(path.c_str());
-        cairo_status_t status = cairo_surface_status(*surface);
-        if (status == CAIRO_STATUS_SUCCESS) {
-            int width = cairo_image_surface_get_width(*surface);
-            int height = cairo_image_surface_get_height(*surface);
-
-            cairo_surface_t *accel_surface = accelerated_surface(app, client_entity, width, height);
-
-            cairo_t *temp_context = cairo_create(accel_surface);
-            if (target_size != width) {
-                double scale = ((double) target_size) / ((double) width);
-                cairo_scale(temp_context, scale, scale);
-            }
-            cairo_set_source_surface(temp_context, *surface, 0, 0);
-            cairo_paint(temp_context);
-
-            cairo_surface_destroy(*surface);
-            *surface = accel_surface;
-            cairo_destroy(temp_context);
-        }
+    } else if (path.find("png") != std::string::npos) {
+        *surface = accelerated_surface(app, client_entity, target_size, target_size);
+        paint_png_to_surface(*surface, path, target_size);
     }
 }
 
@@ -500,8 +484,10 @@ bool paint_svg_to_surface(cairo_surface_t *surface, std::string path, int target
     int h = gdk_pixbuf_get_height(pixel_buffer);
 
     auto *temp_context = cairo_create(surface);
-    double scale = ((double) target_size) / ((double) w);
-    cairo_scale(temp_context, scale, scale);
+    if (target_size != w) {
+        double scale = ((double) target_size) / ((double) w);
+        cairo_scale(temp_context, scale, scale);
+    }
     cairo_save(temp_context);
     cairo_set_operator(temp_context, CAIRO_OPERATOR_CLEAR);
     cairo_paint(temp_context);
@@ -531,8 +517,10 @@ bool paint_png_to_surface(cairo_surface_t *surface, std::string path, int target
     int w = cairo_image_surface_get_width(png_surface);
     int h = cairo_image_surface_get_height(png_surface);
 
-    double scale = ((double) target_size) / ((double) w);
-    cairo_scale(temp_context, scale, scale);
+    if (target_size != w) {
+        double scale = ((double) target_size) / ((double) w);
+        cairo_scale(temp_context, scale, scale);
+    }
     cairo_save(temp_context);
     cairo_set_operator(temp_context, CAIRO_OPERATOR_CLEAR);
     cairo_paint(temp_context);

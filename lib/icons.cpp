@@ -452,7 +452,8 @@ c3ic_strict_load_icons(std::vector<Icon *> &icons,
             if (theme == "hicolor") {
                 tried_loading_hicolor = true;
                 if (theme != "Papirus") {
-                    c3ic_strict_load_icons(icons, "Papirus", name, strict_sizes, strict_scales, strict_extensions, false);
+                    c3ic_strict_load_icons(icons, "Papirus", name, strict_sizes, strict_scales, strict_extensions,
+                                           false);
                 }
             }
             c3ic_strict_load_icons(icons, backup_theme, name, strict_sizes, strict_scales, strict_extensions, false);
@@ -501,7 +502,8 @@ c3ic_strict_find_icons(const std::string &theme,
                     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                         continue;
                     std::string nuclear_theme_name = std::string(entry->d_name);
-                    if (nuclear_theme_name != theme && nuclear_theme_name != "hicolor" && nuclear_theme_name != "Papirus") {
+                    if (nuclear_theme_name != theme && nuclear_theme_name != "hicolor" &&
+                        nuclear_theme_name != "Papirus") {
                         c3ic_strict_load_icons(icons, nuclear_theme_name, name, strict_sizes, strict_scales,
                                                strict_extensions, false);
                     }

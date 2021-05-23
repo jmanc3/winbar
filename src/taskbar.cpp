@@ -1776,20 +1776,20 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                         cairo_surface_destroy(windows_data->scaled_thumbnail_surface);
                                         cairo_destroy(windows_data->scaled_thumbnail_cr);
 
-                                        windows_data->raw_thumbnail_surface = accelerated_surface_rgb(app,
-                                                                                                      client_by_name(
-                                                                                                              app,
-                                                                                                              "taskbar"),
-                                                                                                      windows_data->width,
-                                                                                                      windows_data->height);
+                                        windows_data->raw_thumbnail_surface = accelerated_surface(app,
+                                                                                                  client_by_name(
+                                                                                                          app,
+                                                                                                          "taskbar"),
+                                                                                                  windows_data->width,
+                                                                                                  windows_data->height);
                                         windows_data->raw_thumbnail_cr = cairo_create(
                                                 windows_data->raw_thumbnail_surface);
-                                        windows_data->scaled_thumbnail_surface = accelerated_surface_rgb(app,
-                                                                                                         client_by_name(
-                                                                                                                 app,
-                                                                                                                 "taskbar"),
-                                                                                                         option_width,
-                                                                                                         option_height);
+                                        windows_data->scaled_thumbnail_surface = accelerated_surface(app,
+                                                                                                     client_by_name(
+                                                                                                             app,
+                                                                                                             "taskbar"),
+                                                                                                     option_width,
+                                                                                                     option_height);
                                         windows_data->scaled_thumbnail_cr = cairo_create(
                                                 windows_data->scaled_thumbnail_surface);
                                     }
@@ -2671,10 +2671,10 @@ WindowsData::WindowsData(App *app, xcb_window_t window) {
                                                       (width = geom->width),
                                                       (height = geom->height));
 
-            raw_thumbnail_surface = accelerated_surface_rgb(app, client_by_name(app, "taskbar"), width, height);
+            raw_thumbnail_surface = accelerated_surface(app, client_by_name(app, "taskbar"), width, height);
             raw_thumbnail_cr = cairo_create(raw_thumbnail_surface);
-            scaled_thumbnail_surface = accelerated_surface_rgb(app, client_by_name(app, "taskbar"), option_width,
-                                                               option_height);
+            scaled_thumbnail_surface = accelerated_surface(app, client_by_name(app, "taskbar"), option_width,
+                                                           option_height);
             scaled_thumbnail_cr = cairo_create(scaled_thumbnail_surface);
             take_screenshot();
             free(geom);
