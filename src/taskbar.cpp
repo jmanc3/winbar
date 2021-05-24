@@ -323,7 +323,7 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
     LaunchableButton *data = (LaunchableButton *) container->user_data;
 
     if (data->surface) {
-        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
+        // Assumes the size of the icon to be 24x24 and tries to draw it centered
         cairo_set_source_surface(
                 cr,
                 data->surface,
@@ -1815,6 +1815,42 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
             }
             break;
         }
+        case XCB_MAP_NOTIFY: {
+            auto *e = (xcb_map_notify_event_t *) event;
+            if (auto client = client_by_name(app, "taskbar")) {
+                if (client->root) {
+                    if (auto icons = container_by_name("icons", client->root)) {
+                        for (auto icon : icons->children) {
+                            auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                            for (auto windows_data : data->windows_data_list) {
+                                if (windows_data->id == e->window) {
+                                    windows_data->mapped = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        }
+        case XCB_UNMAP_NOTIFY: {
+            auto *e = (xcb_unmap_notify_event_t *) event;
+            if (auto client = client_by_name(app, "taskbar")) {
+                if (client->root) {
+                    if (auto icons = container_by_name("icons", client->root)) {
+                        for (auto icon : icons->children) {
+                            auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                            for (auto windows_data : data->windows_data_list) {
+                                if (windows_data->id == e->window) {
+                                    windows_data->mapped = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        }
     }
     return false;
 }
@@ -2656,6 +2692,7 @@ WindowsData::WindowsData(App *app, xcb_window_t window) {
                                                                                     attributesCookie,
                                                                                     nullptr);
     if (attributes) {
+        mapped = attributes->map_state == XCB_MAP_STATE_VIEWABLE;
         // TODO: screen should be found using the window somehow I think
         xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
         xcb_visualtype_t *visual = xcb_aux_find_visual_by_id(screen, attributes->visual);
@@ -2697,7 +2734,11 @@ void WindowsData::take_screenshot() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (!mapped)
+        return;
+
     cairo_set_source_surface(raw_thumbnail_cr, window_surface, 0, 0);
+
     cairo_paint(raw_thumbnail_cr);
 
     cairo_surface_flush(window_surface);
@@ -2710,7 +2751,6 @@ void WindowsData::rescale(double scale_w, double scale_h) {
 #endif
     last_rescale_timestamp = get_current_time_in_ms();
 
-    // TODO: make sure the window is mapped.
     cairo_pattern_t *pattern = cairo_pattern_create_for_surface(raw_thumbnail_surface);
     cairo_pattern_set_filter(pattern, CAIRO_FILTER_GOOD);
 

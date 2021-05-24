@@ -30,6 +30,9 @@ public:
 
     std::string title;
 
+    // Window is shown on screen
+    bool mapped = true;
+
     // This is the surface that is linked to the actual window content
     cairo_surface_t *window_surface = nullptr;
     int width = -1;
