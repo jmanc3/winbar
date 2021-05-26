@@ -53,7 +53,7 @@ distribution to get that library.
 
 * The default font set in ~/.config/winbar/winbar.cfg is "Segoe UI" so either have that on your system or set it to something else
 
-* There are three themes available default, light, dark, and dark-clear. Set your preferred in ~/.config/winbar/winbar.cfg
+* There are four themes available default, light, dark, and dark-clear. Set your preferred in ~/.config/winbar/winbar.cfg
 
 * Winbar is tested against openbox but it should work with other EWMH compliant window managers.
 
