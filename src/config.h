@@ -12,6 +12,8 @@ struct Config {
 
     std::string font = "Segoe UI";
 
+    std::string open_pinned_icon_editor = "WHEN_ANY_FIELD_EMPTY";
+
     std::string volume_command;
     std::string wifi_command;
     std::string date_command;

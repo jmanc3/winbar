@@ -247,7 +247,14 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
 
             update_pinned_items_file();
 
-            start_pinned_icon_editor(pinned_icon_container);
+            if (config->open_pinned_icon_editor == "ALWAYS") {
+                start_pinned_icon_editor(pinned_icon_container);
+            } else if (config->open_pinned_icon_editor != "NEVER") { // WHEN ANY FIELD EMPTY
+                if (pinned_icon_data->class_name.empty() || pinned_icon_data->icon_name.empty() ||
+                    pinned_icon_data->command_launched_by.empty()) {
+                    start_pinned_icon_editor(pinned_icon_container);
+                }
+            }
             break;
         }
         case UNPIN: {

@@ -51,6 +51,10 @@ distribution to get that library.
 
 * It's recommended you set Papirus as your systems icon theme (you can use something like lxappearance to do that)
 
+* The default font set in ~/.config/winbar/winbar.cfg is "Segoe UI" so either have that on your system or set it to something else
+
+* There are three themes available default, light, dark, and dark-clear. Set your preferred in ~/.config/winbar/winbar.cfg
+
 * Winbar is tested against openbox but it should work with other EWMH compliant window managers.
 
 * Change the value of the interface variable in the config file so winbar can display correct network status information. (~/.config/winbar/winbar.cfg)

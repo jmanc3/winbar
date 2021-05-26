@@ -47,6 +47,8 @@ void config_load() {
 
     success = cfg.lookupValue("font", config->font);
 
+    success = cfg.lookupValue("open_pinned_icon_editor", config->open_pinned_icon_editor);
+
     success = cfg.lookupValue("volume_command", config->volume_command);
     success = cfg.lookupValue("wifi_command", config->wifi_command);
     success = cfg.lookupValue("date_command", config->date_command);
@@ -333,7 +335,8 @@ bool config_parse(libconfig::Config &cfg) {
         return false;
     } catch (const libconfig::ParseException &pex) {
 
-        std::cout << "Parsing error:  " << config_file << " Line: " << pex.getLine() << std::endl;
+        std::cout << "Parsing error:  " << config_file << " Line: " << pex.getLine() << " Error: " << pex.getError()
+                  << std::endl;
         return false;
     }
 
