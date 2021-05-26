@@ -187,7 +187,7 @@ void client_create_animation(App *app,
                              double length,
                              easingFunction easing,
                              double target,
-                             void (*finished)());
+                             void (*finished)(AppClient *client));
 
 void client_create_animation(App *app,
                              AppClient *client,
@@ -263,5 +263,7 @@ send_key_actual(App *app, AppClient *client, Container *container, bool is_strin
 
 int
 update_keymap(struct ClientKeyboard *kbd);
+
+void paint_container(App *app, AppClient *client, Container *container);
 
 #endif

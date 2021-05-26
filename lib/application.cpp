@@ -912,8 +912,13 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
                 cairo_restore(client->cr);
             }
 
-            // TODO: Crucial!!!
-            xcb_flush(app->connection);
+            {
+#ifdef TRACY_ENABLE
+                ZoneScopedN("flush");
+#endif
+                // TODO: Crucial!!!
+                xcb_flush(app->connection);
+            }
         }
     }
 }
@@ -968,7 +973,9 @@ concerned_containers(App *app, AppClient *client) {
 
 void fill_list_with_pierced(std::vector<Container *> &containers, Container *parent, int x, int y) {
     for (auto child : parent->children) {
-        fill_list_with_pierced(containers, child, x, y);
+        if (child->interactable) {
+            fill_list_with_pierced(containers, child, x, y);
+        }
     }
 
     if (parent->exists) {
@@ -1333,7 +1340,6 @@ void handle_configure_notify(App *app, AppClient *client, double x, double y, do
     cairo_xcb_surface_set_size(cairo_get_target(client->cr), client->bounds->w, client->bounds->h);
 
     client_layout(app, client);
-    client_paint(app, client);
 }
 
 void handle_configure_notify(App *app) {
@@ -1570,7 +1576,7 @@ struct animation_data {
 
     bool done = false;
 
-    void (*finished)();
+    void (*finished)(AppClient *client);
 };
 
 static std::vector<animation_data *> animations_list;
@@ -1678,7 +1684,7 @@ void client_create_animation(App *app,
                              double length,
                              easingFunction easing,
                              double target,
-                             void (*finished)(),
+                             void (*finished)(AppClient *client),
                              bool relayout) {
     bool break_out = false;
 
@@ -1733,7 +1739,7 @@ void client_create_animation(App *app,
                              double length,
                              easingFunction easing,
                              double target,
-                             void (*finished)()) {
+                             void (*finished)(AppClient *client)) {
     client_create_animation(app, client, value, length, easing, target, finished, false);
 }
 
@@ -1936,6 +1942,9 @@ void client_animation_paint(App *app, AppClient *client, void *user_data) {
                 if (scalar >= 1) {
                     *data->value = data->target;
                     data->done = true;
+                    if (data->finished) {
+                        data->finished(client);
+                    }
                     client_unregister_animation(app, client);
                 }
             }

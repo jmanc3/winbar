@@ -174,6 +174,12 @@ long get_current_time_in_ms() {
     return currentTime.count();
 }
 
+long get_current_time_in_seconds() {
+    using namespace std::chrono;
+    milliseconds currentTime = duration_cast<seconds>(system_clock::now().time_since_epoch());
+    return currentTime.count();
+}
+
 void set_argb(cairo_t *cr, ArgbColor color) {
     cairo_set_source_rgba(cr, color.r, color.g, color.b, color.a);
 }
@@ -686,15 +692,15 @@ uint32_t argb_to_color(ArgbColor color) {
 
 void
 paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, double pad) {
-    cairo_rectangle(cr, b.x + pad, b.y + pad, b.w - pad * 2, width);
+    cairo_rectangle(cr, (int) (b.x + pad), (int) (b.y + pad), (int) (b.w - pad * 2 - width), (int) (width));
     cairo_fill(cr);
 
-    cairo_rectangle(cr, b.x + pad, b.y + pad, width, b.h - pad * 2);
+    cairo_rectangle(cr, (int) (b.x + pad), (int) (b.y + pad + width), (int) (width), (int) (b.h - pad * 2 - width * 2));
     cairo_fill(cr);
 
-    cairo_rectangle(cr, b.x + b.w - width - pad, b.y + pad, width, b.h - pad * 2);
+    cairo_rectangle(cr, (int) (b.x + b.w - width - pad), (int) (b.y + pad), (int) (width), (int) (b.h - pad * 2));
     cairo_fill(cr);
 
-    cairo_rectangle(cr, b.x + pad, b.y + b.h - width - pad, b.w - pad * 2, width);
+    cairo_rectangle(cr, (int) (b.x + pad), (int) (b.y + b.h - width - pad), (int) (b.w - pad * 2 - width), (width));
     cairo_fill(cr);
 }

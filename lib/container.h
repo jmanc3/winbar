@@ -51,6 +51,8 @@ enum layout_type {
     scrollpane_b_always = 1 << 8,
     scrollpane_b_sometimes = 1 << 9,
     scrollpane_b_never = 1 << 10,
+
+    transition = 1 << 11,
 };
 
 enum container_alignment {

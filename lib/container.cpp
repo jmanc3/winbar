@@ -304,6 +304,18 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
     if (container->wanted_bounds.h == USE_CHILD_SIZE) {
         container->real_bounds.h = reserved_height(container);
     }
+
+    if (container->alignment & ALIGN_CENTER) {
+        for (auto c : container->children) {
+            if (c->wanted_bounds.h != FILL_SPACE) {
+                // Get height, divide by two, subtract that by parent y - h / 2
+                double full_height = c->real_bounds.h;
+                double align_offset = bounds.h / 2 - full_height / 2;
+
+                modify_all(c, 0, align_offset);
+            }
+        }
+    }
 }
 
 void layout_stack(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
@@ -442,6 +454,16 @@ void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &
         layout_stack(client, cr, container, container->children_bounds);
     } else if (container->type & layout_type::scrollpane) {
         layout_scrollpane(client, cr, container, container->children_bounds);
+    } else if (container->type & layout_type::transition) {
+        for (int i = 0; i < container->children.size(); i++) {
+            auto child = container->children[i];
+            if (i == 0) {
+                child->exists = true;
+                layout(client, cr, child, bounds);
+            } else {
+                child->exists = false;
+            }
+        }
     }
 
     // TODO: this only covers the first layer and not all of them

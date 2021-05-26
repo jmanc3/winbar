@@ -23,6 +23,7 @@
 #include <vector>
 #include <xcb/xcb_aux.h>
 #include <hsluv.h>
+#include <sys/stat.h>
 
 std::vector<Launcher *> launchers;
 
@@ -43,6 +44,9 @@ static double scrollbar_visible = 0;
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     set_rect(cr, container->real_bounds);
     set_argb(cr, correct_opaqueness(client, config->color_apps_background));
     cairo_fill(cr);
@@ -169,6 +173,59 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+clicked_title(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    Container *right_content = container_by_name("right_content", client->root);
+    if (right_content->children[0]->name == "app_list_container") {
+        transition_same_container(client, cr, right_content,
+                                  Transition::ANIM_DEFAULT_TO_SQUASHED | Transition::ANIM_FADE_OUT,
+                                  Transition::ANIM_EXPANDED_TO_DEFAULT | Transition::ANIM_FADE_IN);
+    } else {
+        transition_same_container(client, cr, right_content,
+                                  Transition::ANIM_DEFAULT_TO_EXPANDED | Transition::ANIM_FADE_OUT,
+                                  Transition::ANIM_SQUASHED_TO_DEFAULT | Transition::ANIM_FADE_IN);
+    }
+}
+
+int get_offset(Container *target, Container *scroll_pane) {
+    int offset = 0;
+
+    for (int i = 0; i < scroll_pane->children[0]->children.size(); i++) {
+        auto possible = scroll_pane->children[0]->children[i];
+
+        if (possible == target) {
+            return offset;
+        }
+
+        offset += possible->real_bounds.h;
+        offset += scroll_pane->children[0]->spacing;
+    }
+
+    return offset;
+}
+
+static void
+clicked_grid(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    // Set the correct scroll offset
+    auto data = (ButtonData *) container->user_data;
+    if (auto c = container_by_name(data->text, client->root)) {
+        if (auto scroll_pane = container_by_name("scroll_pane", client->root)) {
+            int offset = get_offset(c, scroll_pane) + scroll_pane->children_bounds.y;
+            scroll_pane->scroll_v_real = -offset;
+            scroll_pane->scroll_v_visual = scroll_pane->scroll_v_real;
+            ::layout(client, cr, scroll_pane->parent, scroll_pane->real_bounds);
+
+            clicked_title(client, cr, container);
+        }
+    }
+}
+
+static void
 clicked_item(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -206,31 +263,6 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
                         container->real_bounds.y + border,
                         container->real_bounds.w - border * 2,
                         container->real_bounds.h - border * 2);
-        cairo_fill(cr);
-    }
-
-
-    if (data->launcher->icon_24) {
-        ArgbColor average_color;
-        get_average_color(data->launcher->icon_24, &average_color);
-        //        average_color.r = 1 - average_color.r;
-        //        average_color.g = 1 - average_color.g;
-        //        average_color.b = 1 - average_color.b;
-        double ph;
-        double ps;
-        double pl;
-        rgb2hsluv(average_color.r, average_color.g, average_color.b, &ph, &ps, &pl);
-        ph = 360 - ph;
-        ps = 100;
-        pl = 70;
-        hsluv2rgb(ph, ps, pl, &average_color.r, &average_color.g, &average_color.b);
-        set_argb(cr, average_color);
-
-        cairo_rectangle(cr, container->real_bounds.x + 4, container->real_bounds.y + 2, 32, 32);
-        cairo_fill(cr);
-    } else {
-        set_argb(cr, config->color_apps_item_icon_background);
-        cairo_rectangle(cr, container->real_bounds.x + 4, container->real_bounds.y + 2, 32, 32);
         cairo_fill(cr);
     }
 
@@ -301,6 +333,11 @@ paint_item_title(AppClient *client, cairo_t *cr, Container *container) {
                   container->real_bounds.y + container->real_bounds.h / 2 -
                   ((logical.height / PANGO_SCALE) / 2));
     pango_cairo_show_layout(cr, layout);
+
+    if (data->surface) {
+        cairo_set_source_surface(cr, data->surface, container->real_bounds.x, container->real_bounds.y);
+        cairo_paint(cr);
+    }
 }
 
 static void
@@ -318,6 +355,9 @@ paint_scroll_bg(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     auto *data = (IconButton *) container->user_data;
 
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
@@ -403,16 +443,25 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 when_scrollbar_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     client_create_animation(client->app, client, &scrollbar_openess, 100, 0, 1);
 }
 
 static void
 when_scrollbar_container_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     client_create_animation(client->app, client, &scrollbar_visible, 100, 0, 1);
 }
 
 static void
 when_scrollbar_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     client_create_animation(client->app, client, &scrollbar_openess, 100, 0, 0);
     client_create_animation(client->app, client, &scrollbar_visible, 100, 0, 0);
 }
@@ -421,6 +470,9 @@ static int scrollbar_leave_fd = -1;
 
 static void
 scrollbar_leaves_timeout(App *app, AppClient *client, void *data) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (valid_client(app, client)) {
         auto *container = (Container *) data;
         if (scrollbar_openess != 0 && scrollbar_openess == 1 &&
@@ -436,6 +488,9 @@ scrollbar_leaves_timeout(App *app, AppClient *client, void *data) {
 
 static void
 when_scrollbar_mouse_leaves_slow(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (scrollbar_leave_fd == -1) {
         scrollbar_leave_fd = app_timeout_create(app, client, 3000, scrollbar_leaves_timeout, container);
     } else {
@@ -447,6 +502,9 @@ static int left_open_fd = -1;
 
 static void
 left_open_timeout(App *app, AppClient *client, void *data) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     auto *container = (Container *) data;
     if (app && app->running && valid_client(app, client) &&
         (container->state.mouse_hovering || container->state.mouse_pressing)) {
@@ -458,6 +516,9 @@ left_open_timeout(App *app, AppClient *client, void *data) {
 
 static void
 left_open(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (left_open_fd == -1) {
         left_open_fd = app_timeout_create(client->app, client, 160, left_open_timeout, container);
     } else {
@@ -467,11 +528,17 @@ left_open(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 left_close(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     client_create_animation(app, client, &container->wanted_bounds.w, 70, nullptr, 48, true);
 }
 
 static bool
 right_content_handles_pierced(Container *container, int x, int y) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (auto *client = client_by_name(app, "app_menu")) {
         if (auto *container = container_by_name("left_buttons", client->root)) {
             if (bounds_contains(container->real_bounds, x, y)) {
@@ -487,6 +554,9 @@ void scrolled_content_area(AppClient *client,
                            Container *container,
                            int scroll_x,
                            int scroll_y) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (auto *client = client_by_name(app, "app_menu")) {
         if (auto *container = container_by_name("left_buttons", client->root)) {
             if (bounds_contains(
@@ -501,6 +571,9 @@ void scrolled_content_area(AppClient *client,
 
 static void
 clicked_start_button(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     // Toggle left menu openess
     if (auto *client = client_by_name(app, "app_menu")) {
         if (auto *container = container_by_name("left_buttons", client->root)) {
@@ -534,6 +607,9 @@ bool DirectoryExists(const char *pzPath) {
 
 static void
 clicked_open_folder_button(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     std::string home = getenv("HOME");
     auto *data = (ButtonData *) container->user_data;
     set_textarea_inactive();
@@ -558,6 +634,9 @@ clicked_open_folder_button(AppClient *client, cairo_t *cr, Container *container)
 
 static void
 clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (!config->file_manager.empty()) {
         launch_command(config->file_manager);
     }
@@ -569,6 +648,9 @@ clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) 
 
 static void
 clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     client->app->running = false;
     restart = true;
 }
@@ -580,6 +662,9 @@ when_key_event(AppClient *client,
                bool is_string, xkb_keysym_t keysym, char string[64],
                uint16_t mods,
                xkb_key_direction direction) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (direction == XKB_KEY_UP) {
         return;
     }
@@ -609,7 +694,66 @@ when_key_event(AppClient *client,
 
 static void
 clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     client->app->running = false;
+}
+
+
+static void
+paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        set_argb(cr, config->color_apps_pressed_item);
+        int pad = 2;
+        paint_margins_rect(client, cr, container->real_bounds, pad, 0);
+
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_apps_pressed_item);
+        } else {
+            set_argb(cr, config->color_apps_hovered_item);
+        }
+        set_rect(cr, container->real_bounds);
+        cairo_fill(cr);
+    }
+
+    auto *data = (ButtonData *) container->user_data;
+
+    if (data->surface) {
+        if (container->interactable) {
+            dye_surface(data->surface, config->color_apps_text);
+        } else {
+            dye_surface(data->surface, config->color_apps_text_inactive);
+        }
+        cairo_set_source_surface(cr, data->surface,
+                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - 10),
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - 10));
+        cairo_paint(cr);
+    } else {
+        PangoLayout *layout =
+                get_cached_pango_font(cr, config->font, 14, PangoWeight::PANGO_WEIGHT_NORMAL);
+        std::string text(data->text);
+        pango_layout_set_text(layout, text.c_str(), text.size());
+
+        PangoRectangle ink;
+        PangoRectangle logical;
+        pango_layout_get_extents(layout, &ink, &logical);
+
+        if (container->interactable) {
+            set_argb(cr, config->color_apps_text);
+        } else {
+            set_argb(cr, config->color_apps_text_inactive);
+        }
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                             ((logical.width / PANGO_SCALE) / 2)),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                             ((logical.height / PANGO_SCALE) / 2)));
+        pango_cairo_show_layout(cr, layout);
+    }
 }
 
 static void
@@ -691,18 +835,35 @@ fill_root(AppClient *client) {
     Container *right_hbox = stack->child(::hbox, FILL_SPACE, FILL_SPACE);
     right_hbox->wanted_pad.w = 1;
     right_hbox->child(width, FILL_SPACE);
-    auto *right_content = right_hbox->child(FILL_SPACE, FILL_SPACE);
+
+    auto *right_content = right_hbox->child(::transition, FILL_SPACE, FILL_SPACE);
     right_content->receive_events_even_if_obstructed = true;
+    right_content->name = "right_content";
     right_content->when_mouse_leaves_container = when_scrollbar_mouse_leaves;
     right_content->when_mouse_enters_container = when_scrollbar_container_mouse_enters;
     right_content->handles_pierced = right_content_handles_pierced;
+
+    auto *app_list_container = right_content->child(FILL_SPACE, FILL_SPACE);
+    app_list_container->name = "app_list_container";
+
+    auto *grid_container = right_content->child(layout_type::vbox, FILL_SPACE, FILL_SPACE);
+    grid_container->name = "grid_container";
+
+    auto *grid = grid_container->child(layout_type::hbox, FILL_SPACE, FILL_SPACE);
+    grid->child(FILL_SPACE, FILL_SPACE);
+    grid->alignment = ALIGN_CENTER;
+
+    int pad = 4;
+    auto *g = grid->child(layout_type::vbox, 48 * 4 + (pad * 3), 48 * 8 + (pad  * 7));
+    g->spacing = pad;
 
     ScrollPaneSettings settings;
     settings.right_width = 12;
     settings.right_arrow_height = 12;
     settings.right_inline_track = true;
-    Container *content_area = make_scrollpane(right_content, settings);
+    Container *content_area = make_scrollpane(app_list_container, settings);
     content_area->when_scrolled = scrolled_content_area;
+    content_area->name = "scroll_pane";
     Container *right_thumb_container = content_area->parent->children[0]->children[1];
     right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
     right_thumb_container->parent->when_mouse_enters_container = when_scrollbar_mouse_enters;
@@ -729,55 +890,105 @@ fill_root(AppClient *client) {
     Container *content = content_area->child(FILL_SPACE, 0);
     content->spacing = 2;
 
-    // TODO: add title for ranges
     char previous_char = '\0';
+    int previous_priority = 0;
     for (int i = 0; i < launchers.size(); i++) {
-        Launcher *launcher = launchers[i];
-        char c = launcher->name.at(0);
-        char new_char = std::tolower(c);
-        if (new_char != previous_char) {
-            if (std::isdigit(new_char)) {
-                if (!std::isdigit(previous_char)) {
-                    // Only one title for names that start with digit
-                    auto *title = new Container();
-                    title->parent = content;
-                    content->children.push_back(title);
+        Launcher *l = launchers[i];
+        // Insert title
+        if (l->priority == 4) {
+            char new_char = std::tolower(l->name.at(0));
+            if (previous_char != new_char) {
+                previous_char = new_char;
 
-                    title->wanted_bounds.w = FILL_SPACE;
-                    title->wanted_bounds.h = 34;
-                    title->when_paint = paint_item_title;
-                    // title->when_mouse_enters_container = mouse_enters_fading_button;
-                    // title->when_mouse_leaves_container = leave_fade;
-
-                    auto *data = new ButtonData();
-                    data->text += "#";
-                    title->user_data = data;
-                }
-            } else {
+                auto *data = new ButtonData();
+                data->text = std::toupper(new_char);
                 auto *title = new Container();
                 title->parent = content;
+                title->name = data->text;
                 content->children.push_back(title);
 
                 title->wanted_bounds.w = FILL_SPACE;
                 title->wanted_bounds.h = 34;
                 title->when_paint = paint_item_title;
-                // title->when_mouse_enters_container = mouse_enters_fading_button;
-                // title->when_mouse_leaves_container = leave_fade;
+                title->when_clicked = clicked_title;
 
-                auto *data = new ButtonData();
-                data->text += std::toupper(new_char);
                 title->user_data = data;
             }
-            previous_char = new_char;
+        } else if (previous_priority != l->priority) {
+            previous_priority = l->priority;
+
+            auto *title = new Container();
+            title->parent = content;
+            content->children.push_back(title);
+
+            title->wanted_bounds.w = FILL_SPACE;
+            title->wanted_bounds.h = 34;
+            title->when_paint = paint_item_title;
+            title->when_clicked = clicked_title;
+
+            auto *data = new ButtonData();
+            if (l->priority == 1) {
+                title->name = "Recently added";
+                data->text = "Recently added";
+            } else if (l->priority == 2) {
+                title->name = "&";
+                data->text = "&";
+            } else if (l->priority == 3) {
+                title->name = "#";
+                data->text = "#";
+            }
+            title->user_data = data;
         }
 
         auto *child = content->child(FILL_SPACE, 36);
         auto *data = new ItemData;
-        data->launcher = launcher;
+        data->launcher = l;
         child->user_data = data;
         child->when_paint = paint_item;
         child->when_clicked = clicked_item;
     }
+
+    int count = 0;
+    for (int y = 0; y < 8; y++) {
+        auto hbox = g->child(layout_type::hbox, (48 * 8) + (pad * 7), 48);
+        hbox->spacing = pad;
+        for (int x = 0; x < 4; x++) {
+            count++;
+            if (count > 8 * 4 - 3) {
+                break;
+            }
+            auto c = hbox->child(48, 48);
+            c->when_paint = paint_grid_item;
+            c->when_clicked = clicked_grid;
+            auto data = new ButtonData;
+            c->user_data = data;
+            if (count == 1) { // Recent
+                if (!container_by_name("Recently added", root)) {
+                    c->interactable = false;
+                }
+                data->surface = accelerated_surface(app, client, 20, 20);
+                paint_png_to_surface(data->surface, as_resource_path("recent.png"), 20);
+                data->text = "Recently added";
+            } else if (count == 2) { // &
+                if (!container_by_name("&", root)) {
+                    c->interactable = false;
+                }
+                data->text = "&";
+            } else if (count == 3) { // Numbers
+                if (!container_by_name("#", root)) {
+                    c->interactable = false;
+                }
+                data->text = "#";
+            } else { // ASCII
+                data->text = (char) (61 + count);
+                if (!container_by_name(data->text, root)) {
+                    c->interactable = false;
+                }
+            }
+
+        }
+    }
+    grid->child(FILL_SPACE, FILL_SPACE);
 
     content->wanted_bounds.h = true_height(content_area) + true_height(content);
 }
@@ -948,8 +1159,14 @@ void load_desktop_files(std::string directory) {
             if (!ends_with(ent->d_name, ".desktop")) {
                 continue;
             }
+            std::string path = directory + ent->d_name;
+            struct stat buffer{};
+            if (stat(path.c_str(), &buffer) != 0) {
+                continue;
+            }
+
             // Parse desktop file
-            INIReader desktop_application(directory + ent->d_name);
+            INIReader desktop_application(path);
             if (desktop_application.ParseError() != 0) {
                 continue;
             }
@@ -981,6 +1198,7 @@ void load_desktop_files(std::string directory) {
             launcher->exec = exec;
             launcher->wmclass = wmclass;
             launcher->icon = icon;
+            launcher->time_modified = buffer.st_mtim.tv_sec;
 
             launchers.push_back(launcher);
         }
@@ -1006,13 +1224,42 @@ void load_all_desktop_files() {
     local_desktop_files += "/.local/share/applicaxtions/";
     load_desktop_files(local_desktop_files);
 
-    std::sort(launchers.begin(), launchers.end(), [](const auto &lhs, const auto &rhs) {
-        std::string first_name = lhs->name;
-        std::string second_name = rhs->name;
-        std::for_each(first_name.begin(), first_name.end(), [](char &c) { c = std::tolower(c); });
-        std::for_each(second_name.begin(), second_name.end(), [](char &c) { c = std::tolower(c); });
+    time_t now;
+    time(&now);
 
-        return first_name < second_name;
+    auto recently_added_threshold = 86400 * 2; // two days  in seconds
+    for (auto l : launchers) {
+        double diff = difftime(now, l->time_modified);
+        if (diff < recently_added_threshold) { // less than two days old
+            l->priority = 1;
+        } else if (!l->name.empty()) {
+            if (!isalnum(l->name[0])) { // is symbol
+                l->priority = 2;
+            } else if (isdigit(l->name[0])) { // is number
+                l->priority = 3;
+            } else { // is ascii
+                l->priority = 4;
+            }
+        }
+    }
+
+    // TODO: sort in order latest, &, #, A...Z
+    std::sort(launchers.begin(), launchers.end(), [](const auto &lhs, const auto &rhs) {
+        if (lhs->priority == rhs->priority) {
+            if (lhs->priority == 1) { // time based
+                return lhs->time_modified > rhs->time_modified;
+            }
+
+            // alphabetical order
+            std::string first_name = lhs->name;
+            std::string second_name = rhs->name;
+            std::for_each(first_name.begin(), first_name.end(), [](char &c) { c = std::tolower(c); });
+            std::for_each(second_name.begin(), second_name.end(), [](char &c) { c = std::tolower(c); });
+
+            return first_name < second_name;
+        } else {
+            return lhs->priority < rhs->priority;
+        }
     });
     std::thread(paint_desktop_files).detach();
 }

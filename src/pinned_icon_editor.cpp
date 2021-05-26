@@ -11,6 +11,12 @@
 #include "taskbar.h"
 #include "icons.h"
 
+#ifdef TRACY_ENABLE
+
+#include "../tracy/Tracy.hpp"
+
+#endif
+
 static Container *pinned_icon_container = nullptr;
 static LaunchableButton *pinned_icon_data = nullptr;
 static TextAreaData *icon_field_data = nullptr;
@@ -29,12 +35,18 @@ public:
 static Label *icon_search_state = nullptr;
 
 static void paint_background(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     set_rect(cr, container->real_bounds);
     set_argb(cr, config->color_pinned_icon_editor_background);
     cairo_fill(cr);
 }
 
 static void paint_icon(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     IconButton *icon_data = (IconButton *) container->user_data;
     if (icon_data->surface) {
         cairo_set_source_surface(cr, icon_data->surface, container->real_bounds.x, container->real_bounds.y);
@@ -43,6 +55,9 @@ static void paint_icon(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void paint_state_label(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -65,6 +80,9 @@ static void paint_state_label(AppClient *client, cairo_t *cr, Container *contain
 }
 
 static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_BOLD);
@@ -80,6 +98,9 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     ArgbColor color = config->color_pinned_icon_editor_button_default;
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing) {
@@ -116,6 +137,9 @@ static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void paint_restore(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     ArgbColor color = config->color_pinned_icon_editor_button_default;
 
     bool disabled = true;
@@ -171,6 +195,9 @@ static void paint_restore(AppClient *client, cairo_t *cr, Container *container) 
 }
 
 static void paint_textarea_border(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (container->state.mouse_hovering || container->state.mouse_pressing || container->active) {
         if (container->state.mouse_pressing || container->active) {
             if (container->state.mouse_pressing && container->active) {
@@ -188,6 +215,9 @@ static void paint_textarea_border(AppClient *client, cairo_t *cr, Container *con
 }
 
 static Container *make_button(AppClient *client, Container *parent, std::string text) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     Container *button = parent->child(FILL_SPACE, FILL_SPACE);
 
     PangoLayout *layout =
@@ -206,6 +236,9 @@ static Container *make_button(AppClient *client, Container *parent, std::string 
 }
 
 static void clicked_save_and_quit(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     pinned_icon_data->command_launched_by = launch_field_data->state->text;
     pinned_icon_data->class_name = wm_field_data->state->text;
     pinned_icon_data->icon_name = icon_field_data->state->text;
@@ -216,6 +249,9 @@ static void clicked_save_and_quit(AppClient *client, cairo_t *cr, Container *con
 }
 
 static void update_icon(AppClient *client) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (auto icon = container_by_name("icon", client->root)) {
         auto icon_data = (IconButton *) icon->user_data;
         std::string icon_path = find_icon(icon_field_data->state->text, 64);
@@ -236,6 +272,9 @@ static void update_icon(AppClient *client) {
 }
 
 static void clicked_restore(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     bool disabled = true;
     if (pinned_icon_data->command_launched_by != launch_field_data->state->text ||
         pinned_icon_data->icon_name != icon_field_data->state->text | \
@@ -271,6 +310,9 @@ icon_name_key_event(AppClient *client,
                     bool is_string, xkb_keysym_t keysym, char string[64],
                     uint16_t mods,
                     xkb_key_direction direction) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     if (direction == XKB_KEY_UP) {
         return;
     }
@@ -282,6 +324,9 @@ icon_name_key_event(AppClient *client,
 }
 
 void fill_root(AppClient *client) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     Container *root = client->root;
     root->wanted_pad = Bounds(10, 10, 10, 10);
     root->spacing = 10;
@@ -400,6 +445,9 @@ void fill_root(AppClient *client) {
 }
 
 void start_pinned_icon_editor(Container *icon_container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     pinned_icon_container = icon_container;
     pinned_icon_data = (LaunchableButton *) icon_container->user_data;
     if (!pinned_icon_container || !pinned_icon_data) {

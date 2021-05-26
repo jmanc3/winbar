@@ -105,6 +105,7 @@ struct Config {
 
     ArgbColor color_apps_background = ArgbColor("#f31f1f1f");
     ArgbColor color_apps_text = ArgbColor("#ffffffff");
+    ArgbColor color_apps_text_inactive = ArgbColor("#ff505050");
     ArgbColor color_apps_icons = ArgbColor("#ffffffff");
     ArgbColor color_apps_default_item = ArgbColor("#00ffffff");
     ArgbColor color_apps_hovered_item = ArgbColor("#22ffffff");

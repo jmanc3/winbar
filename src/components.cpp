@@ -1857,3 +1857,240 @@ blink_loop(App *app, AppClient *client, void *textarea) {
     request_refresh(app, client);
 }
 
+class TransitionData : public UserData {
+public:
+    Container *first = nullptr;
+    cairo_surface_t *original_surface = nullptr;
+    cairo_t *original_cr = nullptr;
+
+    Container *second = nullptr;
+    cairo_surface_t *replacement_surface = nullptr;
+    cairo_t *replacement_cr = nullptr;
+
+    double transition_scalar = 0;
+
+    int original_anim = 0;
+    int replacement_anim = 0;
+};
+
+void paint_default(AppClient *client, cairo_t *cr, Container *container,
+                   TransitionData *data, cairo_surface_t *surface) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    cairo_set_source_surface(cr, surface, container->real_bounds.x, container->real_bounds.y);
+    cairo_paint(cr);
+}
+
+
+void paint_transition_scaled(AppClient *client, cairo_t *cr, Container *container,
+                             TransitionData *data, cairo_surface_t *surface, double scale_amount) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    double translate_x = container->real_bounds.x;
+    double translate_y = container->real_bounds.y;
+    if (scale_amount < 1) {
+        // to x and y we will add
+        translate_x += (container->real_bounds.w / 2) * (1 - scale_amount);
+        translate_y += (container->real_bounds.h / 2) * (1 - scale_amount);
+    } else {
+        // to x and y we will subtract
+        translate_x -= (container->real_bounds.w / 2) * (scale_amount - 1);
+        translate_y -= (container->real_bounds.h / 2) * (scale_amount - 1);
+    }
+
+    if (scale_amount == 0) {
+        // If you try passing cairo_scale "0" it breaks everything and it was VERY hard to debug that
+        return;
+    }
+
+    cairo_save(cr);
+    cairo_translate(cr, translate_x, translate_y);
+    cairo_scale(cr, scale_amount, scale_amount);
+    cairo_set_source_surface(cr, surface, 0, 0);
+    cairo_pattern_set_filter (cairo_get_source (cr), CAIRO_FILTER_FAST);
+    cairo_paint(cr);
+    cairo_restore(cr);
+}
+
+void paint_default_to_squashed(AppClient *client, cairo_t *cr, Container *container,
+                               TransitionData *data, cairo_surface_t *surface) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    double start = 1;
+    double target = .5;
+    double total_diff = target - start;
+    double scale_amount = start + (total_diff * data->transition_scalar);
+
+    paint_transition_scaled(client, cr, container, data, surface, scale_amount);
+}
+
+void paint_squashed_to_default(AppClient *client, cairo_t *cr, Container *container,
+                               TransitionData *data, cairo_surface_t *surface) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    double start = .5;
+    double target = 1;
+    double total_diff = target - start;
+    double scale_amount = start + (total_diff * data->transition_scalar);
+
+    paint_transition_scaled(client, cr, container, data, surface, scale_amount);
+}
+
+void paint_default_to_expanded(AppClient *client, cairo_t *cr, Container *container,
+                               TransitionData *data, cairo_surface_t *surface) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    double start = 1;
+    double target = 1.75;
+    double total_diff = target - start;
+    double scale_amount = start + (total_diff * data->transition_scalar);
+
+    paint_transition_scaled(client, cr, container, data, surface, scale_amount);
+}
+
+void paint_expanded_to_default(AppClient *client, cairo_t *cr, Container *container,
+                               TransitionData *data, cairo_surface_t *surface) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    double start = 1.75;
+    double target = 1;
+    double total_diff = target - start;
+    double scale_amount = start + (total_diff * data->transition_scalar);
+
+    paint_transition_scaled(client, cr, container, data, surface, scale_amount);
+}
+
+void paint_transition_surface(AppClient *client, cairo_t *cr, Container *container,
+                              TransitionData *data, cairo_surface_t *surface, int anim) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (anim & Transition::ANIM_FADE_IN || anim & Transition::ANIM_FADE_OUT) {
+        cairo_push_group(cr);
+    }
+    if (anim & Transition::ANIM_NONE) {
+        paint_default(client, cr, container, data, surface);
+    } else if (anim & Transition::ANIM_DEFAULT_TO_SQUASHED) {
+        paint_default_to_squashed(client, cr, container, data, surface);
+    } else if (anim & Transition::ANIM_SQUASHED_TO_DEFAULT) {
+        paint_squashed_to_default(client, cr, container, data, surface);
+    } else if (anim & Transition::ANIM_DEFAULT_TO_EXPANDED) {
+        paint_default_to_expanded(client, cr, container, data, surface);
+    } else if (anim & Transition::ANIM_EXPANDED_TO_DEFAULT) {
+        paint_expanded_to_default(client, cr, container, data, surface);
+    }
+
+    if (anim & Transition::ANIM_FADE_IN) {
+        auto p = cairo_pop_group(cr);
+
+        cairo_set_source(cr, p);
+        cairo_paint_with_alpha(cr, data->transition_scalar);
+    } else if (anim & Transition::ANIM_FADE_OUT) {
+        auto p = cairo_pop_group(cr);
+
+        cairo_set_source(cr, p);
+        cairo_paint_with_alpha(cr, 1 - data->transition_scalar);
+    }
+}
+
+static void layout_and_repaint(App *app, AppClient *client, void *user_data) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *container = (Container *) user_data;
+    auto data = (TransitionData *) container->user_data;
+    container->children.clear();
+    container->children.push_back(data->second);
+    container->children.push_back(data->first);
+    data->first->interactable = true;
+    data->second->interactable = true;
+    delete data;
+    container->automatically_paint_children = true;
+    container->user_data = nullptr;
+    container->when_paint = nullptr;
+
+    client_layout(client->app, client);
+    client_paint(client->app, client);
+}
+
+void paint_transition(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto data = (TransitionData *) container->user_data;
+    if (!data->original_surface || !data->replacement_surface) {
+        return;
+    }
+
+    paint_transition_surface(client, cr, container, data, data->original_surface,
+                             data->original_anim);
+
+    paint_transition_surface(client, cr, container, data, data->replacement_surface,
+                             data->replacement_anim);
+
+    if (data->transition_scalar >= 1) {
+        app_timeout_create(client->app, client, 0, layout_and_repaint, container);
+    }
+}
+
+void transition_same_container(AppClient *client, cairo_t *cr, Container *parent, int original_anim,
+                               int replacement_anim) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (parent->user_data != nullptr) {
+        return;
+    }
+    auto data = new TransitionData;
+    parent->user_data = data;
+    parent->when_paint = paint_transition;
+    parent->automatically_paint_children = false;
+
+    data->first = parent->children[0];
+    data->second = parent->children[1];
+    data->first->interactable = false;
+    data->second->interactable = false;
+    data->original_anim = original_anim;
+    data->replacement_anim = replacement_anim;
+
+    // layout and paint both first and second containers into their own temp surfaces
+    {
+        data->original_surface = accelerated_surface(client->app, client, parent->real_bounds.w,
+                                                     parent->real_bounds.h);
+        data->original_cr = cairo_create(data->original_surface);
+        layout(client, cr, data->first,
+               Bounds(0,
+                      0,
+                      parent->real_bounds.w,
+                      parent->real_bounds.h));
+        auto main_cr = client->cr;
+        client->cr = data->original_cr;
+        paint_container(client->app, client, data->first);
+        client->cr = main_cr;
+    }
+    {
+        data->replacement_surface = accelerated_surface(client->app, client, parent->real_bounds.w,
+                                                        parent->real_bounds.h);
+        data->replacement_cr = cairo_create(data->replacement_surface);
+        data->second->exists = true;
+        layout(client, cr, data->second,
+               Bounds(0,
+                      0,
+                      parent->real_bounds.w,
+                      parent->real_bounds.h));
+        auto main_cr = client->cr;
+        client->cr = data->replacement_cr;
+        paint_container(client->app, client, data->second);
+        data->second->exists = false;
+        client->cr = main_cr;
+    }
+
+    client_create_animation(client->app, client, &data->transition_scalar, 500,
+                            getEasingFunction(::EaseOutQuint), 1, false);
+}

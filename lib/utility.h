@@ -73,6 +73,8 @@ void dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold);
 
 long get_current_time_in_ms();
 
+long get_current_time_in_seconds();
+
 ArgbColor
 lerp_argb(double scalar, ArgbColor start_color, ArgbColor target_color);
 

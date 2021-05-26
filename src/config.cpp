@@ -180,6 +180,7 @@ void config_load() {
 
                         load_hex(theme, "color_apps_background", &config->color_apps_background);
                         load_hex(theme, "color_apps_text", &config->color_apps_text);
+                        load_hex(theme, "color_apps_text_inactive", &config->color_apps_text_inactive);
                         load_hex(theme, "color_apps_icons", &config->color_apps_icons);
                         load_hex(theme, "color_apps_default_item", &config->color_apps_default_item);
                         load_hex(theme, "color_apps_hovered_item", &config->color_apps_hovered_item);

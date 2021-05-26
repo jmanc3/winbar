@@ -152,4 +152,18 @@ blink_on(App *app, AppClient *client, void *textarea);
 void
 insert_action(AppClient *client, Container *textarea, TextAreaData *data, std::string text);
 
+enum Transition {
+    ANIM_NONE = 1 << 0,
+
+    ANIM_DEFAULT_TO_SQUASHED = 1 << 1,
+    ANIM_SQUASHED_TO_DEFAULT = 1 << 2,
+    ANIM_DEFAULT_TO_EXPANDED = 1 << 3,
+    ANIM_EXPANDED_TO_DEFAULT = 1 << 4,
+    ANIM_FADE_IN = 1 << 5,
+    ANIM_FADE_OUT = 1 << 6,
+};
+
+void transition_same_container(AppClient *client, cairo_t *cr, Container *parent,
+                               int original_anim, int replacement_anim);
+
 #endif// SCROLL_COMPONENTS_H
