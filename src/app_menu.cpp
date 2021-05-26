@@ -707,17 +707,13 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        set_argb(cr, config->color_apps_pressed_item);
-        int pad = 2;
-        paint_margins_rect(client, cr, container->real_bounds, pad, 0);
-
         if (container->state.mouse_pressing) {
             set_argb(cr, config->color_apps_pressed_item);
         } else {
             set_argb(cr, config->color_apps_hovered_item);
         }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
+        int pad = 2;
+        paint_margins_rect(client, cr, container->real_bounds, pad, 0);
     }
 
     auto *data = (ButtonData *) container->user_data;
