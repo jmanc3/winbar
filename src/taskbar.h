@@ -20,6 +20,11 @@ class IconButton : public HoverableButton {
 public:
     cairo_surface_t *surface = nullptr;
 
+    // These three things are so that opening menus with buttons toggles between opening and closing
+    std::string invalidate_button_press_if_client_with_this_name_is_open;
+    bool invalid_button_down = false;
+    long timestamp = 0;
+
     ~IconButton() { cairo_surface_destroy(surface); }
 };
 
@@ -93,7 +98,7 @@ public:
     }
 };
 
-class wifi_surfaces : public HoverableButton {
+class wifi_surfaces : public IconButton {
 public:
     cairo_surface_t *wireless_up = nullptr;
     cairo_surface_t *wireless_down = nullptr;

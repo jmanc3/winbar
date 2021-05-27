@@ -13,14 +13,7 @@
 
 extern double marker_position_scalar;
 
-struct data_fading_button : public UserData {
-    double fade_amount = 1;
-    ArgbColor pre_fade_color = {0, 0, 0, 0};
-
-    ~data_fading_button() {}
-};
-
-struct data_battery_surfaces : public HoverableButton, public data_fading_button {
+struct data_battery_surfaces : public IconButton {
     std::vector<cairo_surface_t *> normal_surfaces;
     std::vector<cairo_surface_t *> charging_surfaces;
     std::string status;

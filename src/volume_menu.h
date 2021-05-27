@@ -8,7 +8,7 @@
 #include "taskbar.h"
 #include <cairo.h>
 
-class volume_surfaces : HoverableButton {
+class volume_surfaces : public IconButton {
 public:
     cairo_surface_t *none = nullptr;
     cairo_surface_t *low = nullptr;

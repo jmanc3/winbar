@@ -1134,46 +1134,61 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_date(AppClient *client, cairo_t *cr, Container *container) {
-    if (config->date_command.empty()) {
-        start_date_menu();
-    } else {
-        launch_command(config->date_command);
+    auto *data = (IconButton *) container->user_data;
+    if (!data->invalid_button_down) {
+        if (config->date_command.empty()) {
+            start_date_menu();
+        } else {
+            launch_command(config->date_command);
+        }
     }
 }
 
 static void
 clicked_wifi(AppClient *client, cairo_t *cr, Container *container) {
-    if (config->wifi_command.empty()) {
-        start_wifi_menu();
-    } else {
-        launch_command(config->wifi_command);
+    auto *data = (wifi_surfaces *) container->user_data;
+    if (!data->invalid_button_down) {
+        if (config->wifi_command.empty()) {
+            start_wifi_menu();
+        } else {
+            launch_command(config->wifi_command);
+        }
     }
 }
 
 static void
 clicked_systray(AppClient *client, cairo_t *cr, Container *container) {
-    if (config->systray_command.empty()) {
-        open_systray();
-    } else {
-        launch_command(config->systray_command);
+    auto *data = (IconButton *) container->user_data;
+    if (!data->invalid_button_down) {
+        if (config->systray_command.empty()) {
+            open_systray();
+        } else {
+            launch_command(config->systray_command);
+        }
     }
 }
 
 static void
 clicked_battery(AppClient *client, cairo_t *cr, Container *container) {
-    if (config->battery_command.empty()) {
-        start_battery_menu();
-    } else {
-        launch_command(config->battery_command);
+    auto *data = (data_battery_surfaces *) container->user_data;
+    if (!data->invalid_button_down) {
+        if (config->battery_command.empty()) {
+            start_battery_menu();
+        } else {
+            launch_command(config->battery_command);
+        }
     }
 }
 
 static void
 clicked_volume(AppClient *client, cairo_t *cr, Container *container) {
-    if (config->volume_command.empty()) {
-        open_volume_menu();
-    } else {
-        launch_command(config->volume_command);
+    auto *data = (volume_surfaces *) container->user_data;
+    if (!data->invalid_button_down) {
+        if (config->volume_command.empty()) {
+            open_volume_menu();
+        } else {
+            launch_command(config->volume_command);
+        }
     }
 }
 
@@ -1411,6 +1426,19 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     }
 }
 
+void invalidate_icon_button_press_if_window_open(AppClient *client, cairo_t *cr, Container *container) {
+    auto data = (IconButton *) container->user_data;
+
+    if (get_current_time_in_ms() - data->timestamp > 100) {
+        if (auto c = client_by_name(app, data->invalidate_button_press_if_client_with_this_name_is_open)) {
+            data->invalid_button_down = true;
+        } else {
+            data->invalid_button_down = false;
+        }
+        data->timestamp = get_current_time_in_ms();
+    }
+}
+
 static void
 make_battery_button(Container *parent, AppClient *client_entity) {
     auto *c = new Container();
@@ -1420,8 +1448,11 @@ make_battery_button(Container *parent, AppClient *client_entity) {
     c->wanted_bounds.h = FILL_SPACE;
     c->when_paint = paint_battery;
     c->when_clicked = clicked_battery;
+    c->name = "battery";
 
     auto *data = new data_battery_surfaces;
+    data->invalidate_button_press_if_client_with_this_name_is_open = "app_menu";
+    c->when_mouse_down = invalidate_icon_button_press_if_window_open;
     for (int i = 0; i <= 9; i++) {
         auto *normal_surface = accelerated_surface(app, client_entity, 16, 16);
         paint_surface_with_image(
@@ -1482,7 +1513,10 @@ clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
 
 static void
 clicked_super(AppClient *client, cairo_t *cr, Container *container) {
-    start_app_menu();
+    auto data = (IconButton *) container->user_data;
+    if (!data->invalid_button_down) {
+        start_app_menu();
+    }
 }
 
 static void
@@ -1549,7 +1583,11 @@ fill_root(App *app, AppClient *client, Container *root) {
     Container *button_minimize = root->child(5, FILL_SPACE);
 
     button_super->when_paint = paint_super;
-    button_super->user_data = new IconButton;
+    auto button_super_data = new IconButton;
+    button_super_data->invalidate_button_press_if_client_with_this_name_is_open = "app_menu";
+    button_super->user_data = button_super_data;
+    button_super->when_mouse_down = invalidate_icon_button_press_if_window_open;
+    button_super->name = "super";
     button_super->when_clicked = clicked_super;
     load_icon_full_path(app,
                         client,
@@ -1601,7 +1639,10 @@ fill_root(App *app, AppClient *client, Container *root) {
     container_icons->when_paint = paint_all_icons;
 
     button_systray->when_paint = paint_systray;
-    button_systray->user_data = new IconButton;
+    auto button_systray_data = new IconButton;
+    button_systray_data->invalidate_button_press_if_client_with_this_name_is_open = "display";
+    button_systray->user_data = button_systray_data;
+    button_systray->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_systray->when_clicked = clicked_systray;
     button_systray->name = "systray";
     load_icon_full_path(app,
@@ -1611,6 +1652,7 @@ fill_root(App *app, AppClient *client, Container *root) {
 
     button_wifi->when_paint = paint_wifi;
     button_wifi->when_clicked = clicked_wifi;
+    button_wifi->name = "wifi";
     auto wifi_data = new wifi_surfaces;
     wifi_data->wired_up = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(
@@ -1624,11 +1666,14 @@ fill_root(App *app, AppClient *client, Container *root) {
     wifi_data->wireless_up = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(
             wifi_data->wireless_up, as_resource_path("wifi/16/wireless_up.png"), 16, nullptr);
+    wifi_data->invalidate_button_press_if_client_with_this_name_is_open = "wifi_menu";
+    button_wifi->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_wifi->user_data = wifi_data;
 
     button_volume->when_paint = paint_volume;
     button_volume->when_clicked = clicked_volume;
     button_volume->when_scrolled = scrolled_volume;
+    button_volume->name = "volume";
     auto surfaces = new volume_surfaces;
     surfaces->none = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(surfaces->none, as_resource_path("audio/none16.png"), 16, nullptr);
@@ -1640,6 +1685,8 @@ fill_root(App *app, AppClient *client, Container *root) {
     paint_surface_with_image(surfaces->high, as_resource_path("audio/high16.png"), 16, nullptr);
     surfaces->mute = accelerated_surface(app, client, 16, 16);
     paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute16.png"), 16, nullptr);
+    surfaces->invalidate_button_press_if_client_with_this_name_is_open = "volume";
+    button_volume->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_volume->user_data = surfaces;
 
     double opacity_diff = .5;
@@ -1652,7 +1699,11 @@ fill_root(App *app, AppClient *client, Container *root) {
 
     button_date->when_paint = paint_date;
     button_date->when_clicked = clicked_date;
-    button_date->user_data = new IconButton;
+    auto button_date_data = new IconButton;
+    button_date->user_data = button_date_data;
+    button_date_data->invalidate_button_press_if_client_with_this_name_is_open = "date_menu";
+    button_date->when_mouse_down = invalidate_icon_button_press_if_window_open;
+    button_date->name = "date";
 
     app_timeout_create(app, client, 0, update_time, nullptr);
     app_timeout_create(app, client, 0, late_classes_update, nullptr);

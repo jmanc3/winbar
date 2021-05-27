@@ -207,6 +207,17 @@ grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
                 app->grab_window = -1;
                 set_textarea_inactive();
                 display_close(true);
+
+
+                if (auto c = client_by_name(client->app, "taskbar")) {
+                    if (auto co = container_by_name("systray", c->root)) {
+                        if (co->state.mouse_hovering) {
+                            auto data = (IconButton *) co->user_data;
+                            data->invalid_button_down = true;
+                            data->timestamp = get_current_time_in_ms();
+                        }
+                    }
+                }
             }
             break;
         }
