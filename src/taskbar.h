@@ -86,8 +86,8 @@ public:
     double hover_amount = 0;
 
     selector_type type = selector_type::CLOSED;
-    int open_timeout_fd = -1;
-    int close_timeout_fd = -1;
+    int possibly_open_timeout_fd = -1;
+    int possibly_stop_timeout_fd = -1;
 
     // For icon lerping to correct position
     bool animating = false;

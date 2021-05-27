@@ -28,94 +28,95 @@ fill_root(Container *root);
 static void when_closed(AppClient *client);
 
 static void on_open_timeout(App *app, AppClient *client, void *user_data) {
-    if (auto c = client_by_name(app, "windows_selector")) {
-        auto pii = (PinnedIconInfo *) c->root->user_data;
-        if (pii->data->type == OPEN_CLICKED) {
-            return;
-        } else {
-            pii->data->type = ::CLOSED;
-            client_close_threaded(app, c);
-        }
-    }
     auto container = (Container *) user_data;
-    if (container_by_container(container, client->root)) {
-        auto data = (LaunchableButton *) container->user_data;
-        data->open_timeout_fd = -1;
-        start_windows_selector(container, selector_type::OPEN_HOVERED);
+    if (auto c = client_by_name(app, "taskbar")) {
+        if (container_by_container(container, c->root)) {
+            auto data = (LaunchableButton *) container->user_data;
+            data->possibly_open_timeout_fd = -1;
+            start_windows_selector(container, selector_type::OPEN_HOVERED);
+        }
     }
 }
 
 static void on_close_timeout(App *app, AppClient *client, void *user_data) {
-    if (valid_client(app, client)) {
-        auto pii = (PinnedIconInfo *) client->root->user_data;
-        if (pii->data->type == OPEN_CLICKED) {
-            return;
+    if (auto c = client_by_name(app, "windows_selector")) {
+        auto pii = (PinnedIconInfo *) c->root->user_data;
+        pii->data->possibly_stop_timeout_fd = -1;
+        pii->data->type = ::CLOSED;
+        client_close_threaded(app, c);
+    }
+}
+
+void possibly_open(App *app, Container *container, LaunchableButton *data) {
+    selector_type we_are = data->type;
+
+    auto they = client_by_name(app, "windows_selector");
+    bool they_are_us = false;
+    selector_type they_are = selector_type::CLOSED;
+    if (they) {
+        auto pii = (PinnedIconInfo *) they->root->user_data;
+        if (pii->data_container == container) {
+            they_are_us = true;
+        }
+        they_are = pii->data->type;
+    }
+
+    // cancel any possibly_stop
+    if (data->possibly_stop_timeout_fd != -1) {
+        app_timeout_stop(app, nullptr, data->possibly_stop_timeout_fd);
+        data->possibly_stop_timeout_fd = -1;
+    }
+
+    if (they && they_are_us) { // we are already open, we don't need to reopen
+        return;
+    }
+
+    if (we_are == selector_type::CLOSED) {
+        if (they) {
+            if (they_are != selector_type::OPEN_CLICKED) {
+                // instantly close them
+                client_close(app, they);
+                // instantly open us
+                on_open_timeout(app, nullptr, container);
+            }
         } else {
-            auto container = (Container *) user_data;
-            if (container_by_container(container, client->root)) {
-                auto data = (LaunchableButton *) container->user_data;
-                data->close_timeout_fd = -1;
-                data->type = ::CLOSED;
+            // start timeout
+            if (data->possibly_open_timeout_fd == -1) {
+                data->possibly_open_timeout_fd = app_timeout_create(app, nullptr, 300, on_open_timeout, container);
             }
-            client_close_threaded(app, client);
         }
     }
 }
 
-void possibly_open(App *app, AppClient *client, Container *container, LaunchableButton *data) {
-    if (auto c = client_by_name(app, "windows_selector")) {
-        auto pii = (PinnedIconInfo *) c->root->user_data;
-        if (pii->data->type == OPEN_CLICKED) {
-            return;
+void possibly_close(App *app, Container *container, LaunchableButton *data) {
+    selector_type we_are = data->type;
+
+    auto they = client_by_name(app, "windows_selector");
+    bool they_are_us = false;
+    selector_type they_are = selector_type::CLOSED;
+    if (they) {
+        auto pii = (PinnedIconInfo *) they->root->user_data;
+        if (pii->data_container == container) {
+            they_are_us = true;
+        }
+        they_are = pii->data->type;
+    }
+
+    // cancel any possibly_open
+    if (data->possibly_open_timeout_fd != -1) {
+        app_timeout_stop(app, nullptr, data->possibly_open_timeout_fd);
+        data->possibly_open_timeout_fd = -1;
+    }
+
+    if (we_are == selector_type::CLOSED) { // if we are already closed, we don't need to re-close
+        return;
+    }
+
+    if (we_are == selector_type::OPEN_HOVERED) {
+        if (data->possibly_stop_timeout_fd == -1) {
+            data->possibly_stop_timeout_fd = app_timeout_create(app, nullptr, 300, on_close_timeout, container);
         }
     }
-
-    if (data->windows_data_list.empty()) {
-        return;
-    }
-
-    if (data->open_timeout_fd != -1) {
-        return;
-    }
-    if (data->close_timeout_fd != -1) {
-        app_timeout_stop(app, client, data->close_timeout_fd);
-        data->close_timeout_fd = -1;
-        return;
-    }
-    if (auto c = client_by_name(app, "windows_selector")) {
-        auto pii = (PinnedIconInfo *) c->root->user_data;
-        if (pii->data->type == OPEN_HOVERED) {
-            if (c != client) {
-                client_close(app, c);
-                on_open_timeout(app, client, container);
-            }
-            return;
-        }
-    }
-    data->open_timeout_fd = app_timeout_create(app, client, 300, on_open_timeout, container);
-}
-
-void possibly_close(App *app, AppClient *client, Container *container, LaunchableButton *data) {
-    if (auto c = client_by_name(app, "windows_selector")) {
-        auto pii = (PinnedIconInfo *) c->root->user_data;
-        if (pii->data->type == OPEN_CLICKED) {
-            return;
-        }
-    }
-
-    if (data->type == OPEN_CLICKED) {
-        return;
-    }
-
-    if (data->close_timeout_fd != -1) {
-        return;
-    }
-    if (data->open_timeout_fd != -1) {
-        app_timeout_stop(app, client, data->open_timeout_fd);
-        data->open_timeout_fd = -1;
-        return;
-    }
-    data->close_timeout_fd = app_timeout_create(app, client, 300, on_close_timeout, container);
 }
 
 static void
@@ -414,14 +415,14 @@ paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
 void when_enter(AppClient *client, cairo_t *cr, Container *self) {
     auto pii = (PinnedIconInfo *) client->root->user_data;
     if (pii->data->type == selector_type::OPEN_HOVERED) {
-        possibly_open(app, client, pii->data_container, pii->data);
+        possibly_open(app, pii->data_container, pii->data);
     }
 }
 
 void when_leave(AppClient *client, cairo_t *cr, Container *self) {
     auto pii = (PinnedIconInfo *) client->root->user_data;
     if (pii->data->type == selector_type::OPEN_HOVERED) {
-        possibly_close(app, client, pii->data_container, pii->data);
+        possibly_close(app, pii->data_container, pii->data);
     }
 }
 
@@ -571,20 +572,21 @@ windows_selector_event_handler(App *app, xcb_generic_event_t *event) {
 static void when_closed(AppClient *client) {
     auto pii = (PinnedIconInfo *) client->root->user_data;
     pii->data->type = selector_type::CLOSED;
-    app_timeout_stop(client->app, client, pii->data->close_timeout_fd);
-    app_timeout_stop(client->app, client, pii->data->open_timeout_fd);
-    pii->data->close_timeout_fd = -1;
-    pii->data->open_timeout_fd = -1;
+    app_timeout_stop(client->app, client, pii->data->possibly_stop_timeout_fd);
+    app_timeout_stop(client->app, client, pii->data->possibly_open_timeout_fd);
+    pii->data->possibly_stop_timeout_fd = -1;
+    pii->data->possibly_open_timeout_fd = -1;
 }
 
 void start_windows_selector(Container *container, selector_type selector_state) {
     first_expose = true;
+    auto data = (LaunchableButton *) container->user_data;
     auto pii = new PinnedIconInfo;
     pii->data_container = container;
-    pii->data = static_cast<LaunchableButton *>(container->user_data);
+    pii->data = data;
     pii->data->type = selector_state;
-    pii->data->open_timeout_fd = -1;
-    pii->data->close_timeout_fd = -1;
+    pii->data->possibly_open_timeout_fd = -1;
+    pii->data->possibly_stop_timeout_fd = -1;
 
     int width = get_width(pii->data);
     Settings settings;
