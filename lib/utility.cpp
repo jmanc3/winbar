@@ -15,6 +15,7 @@
 #include <zconf.h>
 #include <cassert>
 #include <sys/wait.h>
+#include <xcb/xcb_aux.h>
 
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
 #ifdef TRACY_ENABLE
@@ -442,21 +443,8 @@ load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surfac
     ZoneScoped;
 #endif
     if (path.find("svg") != std::string::npos) {
-        GError *error = nullptr;
-        RsvgHandle *handle = rsvg_handle_new_from_file(path.c_str(), &error);
-
-        const GdkPixbuf *pixel_buffer = rsvg_handle_get_pixbuf(handle);
-        int w = gdk_pixbuf_get_width(pixel_buffer);
-        int h = gdk_pixbuf_get_height(pixel_buffer);
-
         *surface = accelerated_surface(app, client_entity, target_size, target_size);
-        auto temp_context = cairo_create(*surface);
-        if (target_size != w) {
-            double scale = ((double) target_size) / ((double) w);
-            cairo_scale(temp_context, scale, scale);
-        }
-        rsvg_handle_render_cairo(handle, temp_context);
-        g_object_unref(handle);
+        paint_svg_to_surface(*surface, path, target_size);
     } else if (path.find("png") != std::string::npos) {
         *surface = accelerated_surface(app, client_entity, target_size, target_size);
         paint_png_to_surface(*surface, path, target_size);
@@ -485,25 +473,20 @@ bool paint_svg_to_surface(cairo_surface_t *surface, std::string path, int target
     if (handle == nullptr)
         return false;
 
-    GdkPixbuf *pixel_buffer = rsvg_handle_get_pixbuf(handle);
-    int w = gdk_pixbuf_get_width(pixel_buffer);
-    int h = gdk_pixbuf_get_height(pixel_buffer);
-
     auto *temp_context = cairo_create(surface);
-    if (target_size != w) {
-        double scale = ((double) target_size) / ((double) w);
-        cairo_scale(temp_context, scale, scale);
-    }
     cairo_save(temp_context);
     cairo_set_operator(temp_context, CAIRO_OPERATOR_CLEAR);
     cairo_paint(temp_context);
     cairo_restore(temp_context);
-    rsvg_handle_render_cairo(handle, temp_context);
+
+    cairo_save(temp_context);
+    const RsvgRectangle viewport{0, 0, (double) target_size, (double) target_size};
+    rsvg_handle_render_layer(handle, temp_context, NULL, &viewport, nullptr);
+    cairo_restore(temp_context);
     cairo_destroy(temp_context);
 
     g_object_unref(gfile);
     g_object_unref(handle);
-    g_object_unref(pixel_buffer);
 
     return true;
 }
@@ -523,17 +506,19 @@ bool paint_png_to_surface(cairo_surface_t *surface, std::string path, int target
     int w = cairo_image_surface_get_width(png_surface);
     int h = cairo_image_surface_get_height(png_surface);
 
-    if (target_size != w) {
-        double scale = ((double) target_size) / ((double) w);
-        cairo_scale(temp_context, scale, scale);
-    }
     cairo_save(temp_context);
     cairo_set_operator(temp_context, CAIRO_OPERATOR_CLEAR);
     cairo_paint(temp_context);
     cairo_restore(temp_context);
 
+    cairo_save(temp_context);
+    if (target_size != w) {
+        double scale = ((double) target_size) / ((double) w);
+        cairo_scale(temp_context, scale, scale);
+    }
     cairo_set_source_surface(temp_context, png_surface, 0, 0);
     cairo_paint(temp_context);
+    cairo_restore(temp_context);
     cairo_destroy(temp_context);
     cairo_surface_destroy(png_surface);
 

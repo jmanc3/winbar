@@ -2091,6 +2091,6 @@ void transition_same_container(AppClient *client, cairo_t *cr, Container *parent
         client->cr = main_cr;
     }
 
-    client_create_animation(client->app, client, &data->transition_scalar, 500,
+    client_create_animation(client->app, client, &data->transition_scalar, 350,
                             getEasingFunction(::EaseOutQuint), 1, false);
 }
