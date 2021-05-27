@@ -2297,6 +2297,13 @@ void remove_window(App *app, xcb_window_t window) {
         LaunchableButton *data = (LaunchableButton *) container->user_data;
         for (int i = 0; i < data->windows_data_list.size(); i++) {
             if (data->windows_data_list[i]->id == window) {
+                if (auto c = client_by_name(app, "windows_selector")) {
+                    auto pii = (PinnedIconInfo *) c->root->user_data;
+                    if (pii->data == data) {
+                        client_close(app, c);
+                    }
+                }
+
                 delete data->windows_data_list[i];
                 data->windows_data_list.erase(data->windows_data_list.begin() + i);
 
