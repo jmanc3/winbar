@@ -48,6 +48,9 @@ static void on_close_timeout(App *app, AppClient *client, void *user_data) {
 }
 
 void possibly_open(App *app, Container *container, LaunchableButton *data) {
+    if (data->windows_data_list.empty()) {
+        return;
+    }
     selector_type we_are = data->type;
 
     auto they = client_by_name(app, "windows_selector");
@@ -89,6 +92,9 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
 }
 
 void possibly_close(App *app, Container *container, LaunchableButton *data) {
+    if (data->windows_data_list.empty()) {
+        return;
+    }
     selector_type we_are = data->type;
 
     auto they = client_by_name(app, "windows_selector");
