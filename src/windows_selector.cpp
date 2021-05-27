@@ -582,6 +582,9 @@ static void when_closed(AppClient *client) {
     app_timeout_stop(client->app, client, pii->data->possibly_open_timeout_fd);
     pii->data->possibly_stop_timeout_fd = -1;
     pii->data->possibly_open_timeout_fd = -1;
+    if (auto c = client_by_name(app, "taskbar")) {
+        request_refresh(app, c);
+    }
 }
 
 void start_windows_selector(Container *container, selector_type selector_state) {
