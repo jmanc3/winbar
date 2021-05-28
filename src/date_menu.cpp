@@ -31,6 +31,17 @@ public:
     int year = 0;
 };
 
+class AgendaData : public UserData {
+public:
+    cairo_surface_t *down = nullptr;
+    cairo_surface_t *up = nullptr;
+
+    ~AgendaData() {
+        if (down) cairo_surface_destroy(down);
+        if (up) cairo_surface_destroy(up);
+    }
+};
+
 static int view_month = 0;
 static int view_year = 0;
 
@@ -287,7 +298,7 @@ paint_events(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (IconButton *) container->user_data;
+    auto *data = (AgendaData *) container->user_data;
 
     PangoLayout *text_layout =
             get_cached_pango_font(client->cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -320,11 +331,20 @@ paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
     cairo_move_to(cr, pos_x, pos_y);
     pango_cairo_show_layout(cr, text_layout);
 
-    if (data->surface) {
-        dye_surface(data->surface, color);
-        cairo_set_source_surface(
-                cr, data->surface, pos_x + (text_logical.width / PANGO_SCALE) + 5, pos_y + 4);
-        cairo_paint(cr);
+    if (agenda_showing) {
+        if (data->down) {
+            dye_surface(data->down, color);
+            cairo_set_source_surface(
+                    cr, data->down, pos_x + (text_logical.width / PANGO_SCALE) + 5, pos_y + 4);
+            cairo_paint(cr);
+        }
+    } else {
+        if (data->up) {
+            dye_surface(data->up, color);
+            cairo_set_source_surface(
+                    cr, data->up, pos_x + (text_logical.width / PANGO_SCALE) + 5, pos_y + 4);
+            cairo_paint(cr);
+        }
     }
 }
 
@@ -793,8 +813,9 @@ fill_root(AppClient *client) {
     agenda->type = ::hbox;
     agenda->when_paint = paint_agenda;
     agenda->when_clicked = clicked_agenda;
-    auto *agenda_data = new IconButton;
-    load_icon_full_path(app, client, &agenda_data->surface, as_resource_path("arrow-down-12.png"), 12);
+    auto *agenda_data = new AgendaData;
+    load_icon_full_path(app, client, &agenda_data->down, as_resource_path("arrow-down-12.png"), 12);
+    load_icon_full_path(app, client, &agenda_data->up, as_resource_path("arrow-up-12.png"), 12);
     agenda->user_data = agenda_data;
 }
 
