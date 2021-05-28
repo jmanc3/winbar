@@ -357,6 +357,14 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     auto *d = new DelayedSurfacePainting();
     d->surface = &data->surface;
     d->size = 16;
+    std::string icon_path;
+    icon_path = find_icon(pinned_icon_data->icon_name, 16);
+    if (icon_path.empty()) {
+        icon_path = find_icon(c3ic_fix_wm_class(pinned_icon_data->class_name), 16);
+    }
+    if (!icon_path.empty()) {
+        d->path = icon_path;
+    }
     d->original_surface = pinned_icon_data->surface;
     delayed->push_back(d);
 

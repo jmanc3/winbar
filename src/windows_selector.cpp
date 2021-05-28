@@ -14,6 +14,7 @@
 
 #include <pango/pangocairo.h>
 #include <xcb/xcb_image.h>
+#include <icons.h>
 
 int option_width = 217 * 1.2;
 int option_min_width = 100 * 1.2;
@@ -49,6 +50,9 @@ static void on_close_timeout(App *app, AppClient *client, void *user_data) {
 
 void possibly_open(App *app, Container *container, LaunchableButton *data) {
     if (data->windows_data_list.empty()) {
+        return;
+    }
+    if (client_by_name(app, "right_click_menu")) {
         return;
     }
     selector_type we_are = data->type;
@@ -93,6 +97,9 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
 
 void possibly_close(App *app, Container *container, LaunchableButton *data) {
     if (data->windows_data_list.empty()) {
+        return;
+    }
+    if (client_by_name(app, "right_click_menu")) {
         return;
     }
     selector_type we_are = data->type;
@@ -598,18 +605,27 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     auto client = client_new(app, settings, "windows_selector");
     client->root->user_data = pii;
     if (pii->data->surface) {
-        pii->icon_surface = accelerated_surface(app, client, 16, 16);
-        cairo_t *cr = cairo_create(pii->icon_surface);
+        std::string path;
+        path = find_icon(pii->data->icon_name, 16);
+        if (path.empty()) {
+            path = find_icon(c3ic_fix_wm_class(pii->data->class_name), 16);
+        }
+        if (path.empty()) {
+            pii->icon_surface = accelerated_surface(app, client, 16, 16);
+            cairo_t *cr = cairo_create(pii->icon_surface);
 
-        double starting_w = cairo_image_surface_get_width(pii->data->surface);
-        double target_w = 16;
-        double sx = target_w / starting_w;
+            double starting_w = cairo_image_surface_get_width(pii->data->surface);
+            double target_w = 16;
+            double sx = target_w / starting_w;
 
-        cairo_scale(cr, sx, sx);
-        cairo_set_source_surface(cr, pii->data->surface, 0, 0);
-        cairo_paint(cr);
+            cairo_scale(cr, sx, sx);
+            cairo_set_source_surface(cr, pii->data->surface, 0, 0);
+            cairo_paint(cr);
 
-        cairo_destroy(cr);
+            cairo_destroy(cr);
+        } else {
+            load_icon_full_path(app, client, &pii->icon_surface, path, 16);
+        }
     }
 
 
