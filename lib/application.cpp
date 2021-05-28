@@ -1556,7 +1556,8 @@ void handle_xcb_event(App *app) {
                 // If the handler's target window is INT_MAX that means it wants to see every event
                 if (handler->target_window == INT_MAX) {
                     if (handler->event_handler(app, event)) {
-                        handler->event_handler(app, event);
+                        // TODO: is this supposed to be called twice? I doubt it
+//                        handler->event_handler(app, event);
                         event_consumed_by_custom_handler = true;
                     }
                 } else if (handler->target_window ==

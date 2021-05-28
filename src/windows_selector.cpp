@@ -210,27 +210,6 @@ window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container
                                   to_close,
                                   XCB_CURRENT_TIME,
                                   XCB_EWMH_CLIENT_SOURCE_TYPE_NORMAL);
-
-
-    if (windows_count > 1) {
-        container->parent->children.erase(container->parent->children.begin() + index);
-
-        int width = get_width(pii->data);
-        delete container;
-
-        double x = pii->data_container->real_bounds.x - width / 2 + pii->data_container->real_bounds.w / 2;
-        if (x < 0) {
-            x = 0;
-        }
-        double y = app->bounds.h - option_height - config->taskbar_height;
-        double h = option_height;
-
-        handle_configure_notify(app, client_entity, x, y, width, h);
-        client_set_position_and_size(app, client_entity, x, y, width, h);
-    } else {
-        client_close_threaded(app, client_entity);
-        app->grab_window = -1;
-    }
 }
 
 static void
@@ -473,6 +452,7 @@ fill_root(AppClient *client, Container *root) {
         option_container->wanted_bounds.w = width;
         option_container->wanted_bounds.h = FILL_SPACE;
         option_container->when_paint = paint_option_background;
+        option_container->name = std::to_string(w->id);
         root->children.push_back(option_container);
 
         Container *option_top_hbox = new Container();
@@ -588,6 +568,10 @@ static void when_closed(AppClient *client) {
 }
 
 void start_windows_selector(Container *container, selector_type selector_state) {
+    if (auto c = client_by_name(app, "windows_selector")) {
+        client_close(app, c);
+        xcb_flush(app->connection);
+    }
     first_expose = true;
     auto data = (LaunchableButton *) container->user_data;
     auto pii = new PinnedIconInfo;

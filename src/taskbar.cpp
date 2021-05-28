@@ -2297,6 +2297,40 @@ void remove_window(App *app, xcb_window_t window) {
         LaunchableButton *data = (LaunchableButton *) container->user_data;
         for (int i = 0; i < data->windows_data_list.size(); i++) {
             if (data->windows_data_list[i]->id == window) {
+                if (auto windows_selector_client = client_by_name(app, "windows_selector")) {
+                    if (auto windows_selector_container = container_by_name(std::to_string(window),
+                                                                            windows_selector_client->root)) {
+                        auto sub_width = windows_selector_container->real_bounds.w;
+
+                        auto parent = windows_selector_container->parent;
+                        for (int i = 0; i < parent->children.size(); i++) {
+                            if (parent->children[i] == windows_selector_container) {
+                                parent->children.erase(parent->children.begin() + i);
+                                break;
+                            }
+                        }
+
+                        delete windows_selector_container;
+
+                        if (parent->children.empty()) {
+                            client_close(app, windows_selector_client);
+                            app->grab_window = -1;
+                        } else {
+                            int width = windows_selector_client->root->real_bounds.w - sub_width;
+
+                            double x = container->real_bounds.x - width / 2 + container->real_bounds.w / 2;
+                            if (x < 0) {
+                                x = 0;
+                            }
+                            double y = app->bounds.h - option_height - config->taskbar_height;
+                            double h = option_height;
+
+                            handle_configure_notify(app, windows_selector_client, x, y, width, h);
+                            client_set_position_and_size(app, windows_selector_client, x, y, width, h);
+                        }
+                    }
+                }
+
                 delete data->windows_data_list[i];
                 data->windows_data_list.erase(data->windows_data_list.begin() + i);
 
