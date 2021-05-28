@@ -769,10 +769,26 @@ void client_unregister_animation(App *app, AppClient *client) {
     assert(client != nullptr);
     client->animations_running--;
     // TODO: why can this even occur in the first place
-    if (client->animations_running < 0) {
-        client->animations_running = 0;
-    }
+    assert(client->animations_running >= 0);
 }
+
+struct animation_data {
+    App *app;
+    AppClient *client;
+    double start_value;
+    double *value;
+    double length;
+    double target;
+    easingFunction easing;
+    long start_time;
+    bool relayout;
+
+    bool done = false;
+
+    void (*finished)(AppClient *client);
+};
+
+static std::vector<animation_data *> animations_list;
 
 void client_close(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
@@ -805,9 +821,20 @@ void client_close(App *app, AppClient *client) {
                                            auto *timeout_client = (AppClient *) timeout->client;
                                            if (timeout_client == client) {
                                                close(timeout->file_descriptor);
+                                               delete timeout;
                                            }
                                            return timeout_client == client;
                                        }), app->timeouts.end());
+
+    animations_list.erase(std::remove_if(animations_list.begin(),
+                                         animations_list.end(),
+                                         [client](animation_data *data) {
+                                             auto c = data->client;
+                                             if (c == client) {
+                                                 delete data;
+                                             }
+                                             return c == client;
+                                         }), animations_list.end());
 
 
     xcb_unmap_window(app->connection, client->window);
@@ -1562,24 +1589,6 @@ void handle_xcb_event(App *app) {
         free(event);
     }
 }
-
-struct animation_data {
-    App *app;
-    AppClient *client;
-    double start_value;
-    double *value;
-    double length;
-    double target;
-    easingFunction easing;
-    long start_time;
-    bool relayout;
-
-    bool done = false;
-
-    void (*finished)(AppClient *client);
-};
-
-static std::vector<animation_data *> animations_list;
 
 #include <ctime>
 
