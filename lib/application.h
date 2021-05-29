@@ -78,6 +78,7 @@ struct Timeout {
     void *user_data = nullptr;
 };
 
+struct DBusConnection;
 
 struct App {
     xcb_ewmh_connection_t ewmh;
@@ -106,9 +107,12 @@ struct App {
 
     xcb_screen_t *screen = nullptr;
 
-    int epoll_fd = 0;
+    int epoll_fd = -1;
 
-    int xcb_fd = 0;
+    int xcb_fd = -1;
+
+    DBusConnection *dbus_connection = nullptr;
+    int dbus_fd = -1;
 
     std::vector<Timeout *> timeouts;
 

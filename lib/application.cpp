@@ -9,6 +9,7 @@
 
 #include "utility.h"
 #include "dpi.h"
+#include "simple_dbus.h"
 
 #include <X11/keysym.h>
 #include <algorithm>
@@ -335,6 +336,8 @@ App *app_new() {
     xcb_flush(app->connection);
 
     poll_descriptor(app, app->xcb_fd);
+
+    dbus_start_connection(app);
 
     auto atom_cookie = xcb_intern_atom(app->connection, 1, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
     xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(app->connection, atom_cookie, NULL);
@@ -1633,6 +1636,8 @@ void app_main(App *app) {
                 handle_xcb_event(app);
                 xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
                 xcb_flush(app->connection);
+            } else if (events[event_index].data.fd == app->dbus_fd) {
+                dbus_process_event(app);
             } else {
                 for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
                     Timeout *timeout = app->timeouts[timeout_index];
@@ -1679,6 +1684,16 @@ void app_clean(App *app) {
         delete a;
     }
     animations_list.clear();
+
+    for (auto t : app->timeouts) {
+        close(t->file_descriptor);
+        delete t;
+    }
+    app->timeouts.clear();
+
+    dbus_stop_connection(app);
+
+    close(app->epoll_fd);
 
     if (app->device) {
         cairo_device_finish(app->device);
