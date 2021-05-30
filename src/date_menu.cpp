@@ -16,6 +16,7 @@
 #include <sstream>//std::stringstream
 #include <stdio.h>
 #include <sys/stat.h>
+#include <iomanip>
 
 class weekday_title : public UserData {
 public:
@@ -162,21 +163,13 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
             "January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December"};
 
-    int hour = ltm->tm_hour;
-    if (hour > 12) {
-        hour -= 12;
-    }
-    std::string sec_start = std::to_string(ltm->tm_sec);
-    if (ltm->tm_sec < 10) {
-        sec_start = std::string(1, '0').append(sec_start);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&now), "%I:%M:%S");
+    std::string top_text = ss.str();
+    if (top_text.at(0) == '0') {
+        top_text = top_text.erase(0, 1);
     }
 
-    std::string min_start = std::to_string(ltm->tm_min);
-    if (ltm->tm_min < 10) {
-        min_start = std::string(1, '0').append(min_start);
-    }
-
-    std::string top_text = std::to_string(hour) + ":" + min_start + ":" + sec_start;
     PangoLayout *top_layout =
             get_cached_pango_font(client->cr, config->font, 34, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(top_layout, top_text.c_str(), top_text.length());
@@ -184,11 +177,10 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
     PangoRectangle top_logical;
     pango_layout_get_extents(top_layout, &top_ink, &top_logical);
 
-    ltm->tm_hour = 12;
-    std::string top_right_text = "AM";
-    if (ltm->tm_hour > 11) {
-        top_right_text = "PM";
-    }
+    std::stringstream sl;
+    sl << std::put_time(std::localtime(&now), "%p");
+    std::string top_right_text = sl.str();
+
     PangoLayout *top_right_layout =
             get_cached_pango_font(client->cr, config->font, 14, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(top_right_layout, top_right_text.c_str(), top_right_text.length());
@@ -217,7 +209,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, top_layout);
 
     int top_right_x = container->real_bounds.x + 24 - (top_right_ink.x / PANGO_SCALE) +
-                      (top_ink.width / PANGO_SCALE) + 10;
+                      (top_logical.width / PANGO_SCALE) + 10;
     int top_right_y = container->real_bounds.y + 27 - (top_right_ink.y / PANGO_SCALE) +
                       (top_ink.height / PANGO_SCALE) - (top_right_ink.height / PANGO_SCALE);
     set_argb(cr, config->color_date_text_title_period);
