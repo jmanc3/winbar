@@ -15,6 +15,7 @@
 #include <xcb/xcb_keysyms.h>
 #include <xcb/xkb.h>
 #include <xcb/xcb_cursor.h>
+#include "easing.h"
 
 #undef explicit
 
@@ -155,6 +156,22 @@ struct ScreenInformation {
     }
 };
 
+struct AppClient;
+
+struct ClientAnimation {
+    double start_value{};
+    double *value = nullptr;
+    double length{};
+    double target{};
+    easingFunction easing = nullptr;
+    long start_time{};
+    bool relayout = false;
+
+    bool done = false;
+
+    void (*finished)(AppClient *client) = nullptr;
+};
+
 struct AppClient {
     App *app = nullptr;
 
@@ -176,6 +193,7 @@ struct AppClient {
 
     long last_repaint_time;
 
+    std::vector<ClientAnimation> animations;
     int animations_running = 0;
     float fps = 144;
 

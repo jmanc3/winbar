@@ -666,13 +666,13 @@ void active_window_changed(xcb_window_t new_active_window) {
     if (auto c = client_by_name(app, "taskbar")) {
         if (active_container) {
             auto data = (LaunchableButton *) active_container->user_data;
-            client_create_animation(app, c, &data->active_amount, 300, nullptr, 0);
+            client_create_animation(app, c, &data->active_amount, 45, nullptr, 0);
         }
 
         active_container = new_active_container;
         if (new_active_container) {
             auto data = (LaunchableButton *) new_active_container->user_data;
-            client_create_animation(app, c, &data->active_amount, 300, nullptr, 1);
+            client_create_animation(app, c, &data->active_amount, 45, nullptr, 1);
 
             for (auto w_d : data->windows_data_list) {
                 if (w_d->id == new_active_window) {

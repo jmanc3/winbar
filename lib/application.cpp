@@ -11,7 +11,6 @@
 #include "dpi.h"
 #include "simple_dbus.h"
 
-#include <X11/keysym.h>
 #include <algorithm>
 #include <iostream>
 #include <set>
@@ -774,24 +773,6 @@ void client_unregister_animation(App *app, AppClient *client) {
     assert(client->animations_running >= 0);
 }
 
-struct animation_data {
-    App *app;
-    AppClient *client;
-    double start_value;
-    double *value;
-    double length;
-    double target;
-    easingFunction easing;
-    long start_time;
-    bool relayout;
-
-    bool done = false;
-
-    void (*finished)(AppClient *client);
-};
-
-static std::vector<animation_data *> animations_list;
-
 void client_close(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -828,16 +809,8 @@ void client_close(App *app, AppClient *client) {
                                            return timeout_client == client;
                                        }), app->timeouts.end());
 
-    animations_list.erase(std::remove_if(animations_list.begin(),
-                                         animations_list.end(),
-                                         [client](animation_data *data) {
-                                             auto c = data->client;
-                                             if (c == client) {
-                                                 delete data;
-                                             }
-                                             return c == client;
-                                         }), animations_list.end());
-
+    client->animations.clear();
+    client->animations.shrink_to_fit();
 
     xcb_unmap_window(app->connection, client->window);
     xcb_destroy_window(app->connection, client->window);
@@ -1679,11 +1652,6 @@ void app_clean(App *app) {
     cleanup_cached_fonts();
     cleanup_cached_atoms();
 
-    for (auto a : animations_list) {
-        delete a;
-    }
-    animations_list.clear();
-
     for (auto t : app->timeouts) {
         close(t->file_descriptor);
         delete t;
@@ -1710,40 +1678,29 @@ void client_create_animation(App *app,
                              double target,
                              void (*finished)(AppClient *client),
                              bool relayout) {
-    bool break_out = false;
-
-    for (animation_data *data : animations_list) {
-        if (data->value == value && data->client == client) {
-            data->app = app;
-            data->client = client;
-            data->value = value;
-            data->length = length;
-            data->easing = easing;
-            data->target = target;
-            data->start_time = get_current_time_in_ms();
-            data->start_value = *value;
-            data->finished = finished;
-            data->relayout = relayout;
-
-            break_out = true;
+    for (auto &animation : client->animations) {
+        if (animation.value == value) {
+            animation.length = length;
+            animation.easing = easing;
+            animation.target = target;
+            animation.start_time = get_current_time_in_ms();
+            animation.start_value = *value;
+            animation.finished = finished;
+            animation.relayout = relayout;
+            return;
         }
     }
 
-    if (break_out)
-        return;
-
-    auto data = new animation_data();
-    data->app = app;
-    data->client = client;
-    data->value = value;
-    data->length = length;
-    data->easing = easing;
-    data->target = target;
-    data->start_time = get_current_time_in_ms();
-    data->start_value = *value;
-    data->finished = finished;
-    data->relayout = relayout;
-    animations_list.push_back(data);
+    ClientAnimation animation;
+    animation.value = value;
+    animation.length = length;
+    animation.easing = easing;
+    animation.target = target;
+    animation.start_time = get_current_time_in_ms();
+    animation.start_value = *value;
+    animation.finished = finished;
+    animation.relayout = relayout;
+    client->animations.push_back(animation);
 
     client_register_animation(app, client);
 }
@@ -1948,28 +1905,25 @@ void client_animation_paint(App *app, AppClient *client, void *user_data) {
 
         bool wants_to_relayout = false;
 
-        for (auto *data : animations_list) {
-            if (data->client == client) {
-                long elapsed_time = now - data->start_time;
-                double scalar = (double) elapsed_time / data->length;
+        for (auto &animation : client->animations) {
+            long elapsed_time = now - animation.start_time;
+            double scalar = (double) elapsed_time / animation.length;
+            animation.done = scalar >= 1;
 
-                if (data->easing != nullptr) {
-                    scalar = data->easing(scalar);
-                }
+            if (animation.easing != nullptr)
+                scalar = animation.easing(scalar);
 
-                double diff = (data->target - data->start_value) * scalar;
-                *data->value = data->start_value + diff;
+            double diff = (animation.target - animation.start_value) * scalar;
+            *animation.value = animation.start_value + diff;
 
-                if (data->relayout) {
-                    wants_to_relayout = true;
-                }
-                if (scalar >= 1) {
-                    *data->value = data->target;
-                    data->done = true;
-                    if (data->finished) {
-                        data->finished(client);
-                    }
-                    client_unregister_animation(app, client);
+            if (animation.relayout)
+                wants_to_relayout = true;
+
+            if (animation.done) {
+                *animation.value = animation.target;
+                client_unregister_animation(app, client);
+                if (animation.finished) {
+                    animation.finished(client);
                 }
             }
         }
@@ -1979,15 +1933,12 @@ void client_animation_paint(App *app, AppClient *client, void *user_data) {
             handle_mouse_motion(app, client, client->mouse_current_x, client->mouse_current_y);
         }
 
-        animations_list.erase(std::remove_if(animations_list.begin(),
-                                             animations_list.end(),
-                                             [](animation_data *data) {
-                                                 if (data->done) {
-                                                     delete data;
-                                                     return true;
-                                                 }
-                                                 return false;
-                                             }), animations_list.end());
+        client->animations.erase(std::remove_if(client->animations.begin(),
+                                                client->animations.end(),
+                                                [](const ClientAnimation &data) {
+                                                    return data.done;
+                                                }), client->animations.end());
+        client->animations.shrink_to_fit();
     }
 
     {
