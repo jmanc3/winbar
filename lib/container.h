@@ -176,8 +176,6 @@ struct AppClient {
 
     long last_repaint_time;
 
-    int animation_count;
-
     int animations_running = 0;
     float fps = 144;
 

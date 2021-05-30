@@ -634,39 +634,55 @@ void update_time(App *app, AppClient *client, void *data) {
     app_timeout_create(app, client, 1000, update_time, nullptr);
 }
 
+Container *get_pinned_icon_representing_window(xcb_window_t window) {
+    if (auto c = client_by_name(app, "taskbar")) {
+        if (auto icons = container_by_name("icons", c->root)) {
+            for (Container *container : icons->children) {
+                auto data = (LaunchableButton *) container->user_data;
+
+                for (auto windows_data : data->windows_data_list) {
+                    if (windows_data->id == window) {
+                        return container;
+                    }
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
 void active_window_changed(xcb_window_t new_active_window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (new_active_window == active_window)
+        return;
     active_window = new_active_window;
 
-    AppClient *entity = client_by_name(app, "taskbar");
-    if (!entity)
-        return;
-    auto *root = entity->root;
-    if (!root)
-        return;
-    auto *icons = container_by_name("icons", root);
-    if (!icons)
+    auto *new_active_container = get_pinned_icon_representing_window(new_active_window);
+    if (new_active_container == active_container)
         return;
 
-    for (Container *icon : icons->children) {
-        LaunchableButton *data = (LaunchableButton *) icon->user_data;
+    if (auto c = client_by_name(app, "taskbar")) {
         if (active_container) {
-            LaunchableButton *old_data = (LaunchableButton *) active_container->user_data;
-            client_create_animation(app, entity, &old_data->active_amount, 45, 0, 0);
+            auto data = (LaunchableButton *) active_container->user_data;
+            client_create_animation(app, c, &data->active_amount, 300, nullptr, 0);
         }
 
-        for (auto window_data : data->windows_data_list) {
-            auto window = window_data->id;
-            if (window == new_active_window) {
-                window_data->take_screenshot();
-                active_container = icon;
-                client_create_animation(app, entity, &data->active_amount, 45, 0, 1);
-                request_refresh(app, entity);
-                return;
+        active_container = new_active_container;
+        if (new_active_container) {
+            auto data = (LaunchableButton *) new_active_container->user_data;
+            client_create_animation(app, c, &data->active_amount, 300, nullptr, 1);
+
+            for (auto w_d : data->windows_data_list) {
+                if (w_d->id == new_active_window) {
+                    if (w_d->mapped) {
+                        w_d->take_screenshot();
+                    }
+                }
             }
         }
+        request_refresh(app, c);
     }
 }
 

@@ -622,7 +622,6 @@ void init_client(AppClient *client) {
     client->mouse_initial_y = -100;
     client->mouse_current_x = -100;
     client->mouse_current_y = -100;
-    client->animation_count = 0;
     client->window_supports_transparency = false;
     client->cr = nullptr;
     client->colormap = 0;
@@ -1714,7 +1713,7 @@ void client_create_animation(App *app,
     bool break_out = false;
 
     for (animation_data *data : animations_list) {
-        if (data->value == value) {
+        if (data->value == value && data->client == client) {
             data->app = app;
             data->client = client;
             data->value = value;

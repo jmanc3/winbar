@@ -491,6 +491,10 @@ void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &
 
 Container *
 container_by_name(std::string name, Container *root) {
+    if (!root) {
+        return nullptr;
+    }
+
     if (root->name == name) {
         return root;;
     }
