@@ -2089,6 +2089,9 @@ void add_window(App *app, xcb_window_t window) {
             } else if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_WM_WINDOW_TYPE_DND")) {
                 xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
                 return;
+            } else if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_WM_WINDOW_TYPE_DOCK")) {
+                xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
+                return;
             }
         }
         xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
