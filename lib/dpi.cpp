@@ -348,6 +348,7 @@ static void update_information_of_all_screens(App *app) {
     for (auto screen : screens)
         delete screen;
     screens.clear();
+    screens.shrink_to_fit();
 
     // Kinda strange that we go through (count: screen count) and then 'sub' outputs.
     /* Show it */

@@ -957,6 +957,7 @@ clicked_tab_timeout(App *app, AppClient *client, void *user_data) {
             for (auto *c : bottom->children)
                 delete c;
             bottom->children.clear();
+            bottom->children.shrink_to_fit();
             if (!data->state->text.empty()) {
                 if (active_tab == "Scripts") {
                     sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
@@ -1188,6 +1189,7 @@ when_key_event(AppClient *client,
                     for (auto *c : bottom->children)
                         delete c;
                     bottom->children.clear();
+                    bottom->children.shrink_to_fit();
                     if (!data->state->text.empty()) {
                         if (active_tab == "Scripts") {
                             sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
@@ -1229,6 +1231,7 @@ when_key_event(AppClient *client,
             for (auto *c : bottom->children)
                 delete c;
             bottom->children.clear();
+            bottom->children.shrink_to_fit();
             if (!data->state->text.empty()) {
                 if (active_tab == "Scripts") {
                     sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
@@ -1451,7 +1454,11 @@ static std::mutex script_loaded;
 
 void load_scripts() {
     std::lock_guard m(script_loaded);
+    for (auto s : scripts) {
+        delete s;
+    }
     scripts.clear();
+    scripts.shrink_to_fit();
     // go through every directory in $PATH environment variable
     // add to our scripts list if the files we check are executable
     std::string paths = std::string(getenv("PATH"));

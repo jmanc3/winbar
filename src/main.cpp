@@ -10,6 +10,7 @@
 #include "taskbar.h"
 #include "config.h"
 #include "globals.h"
+#include "dbus.h"
 
 #include "wpa_ctrl.h"
 
@@ -57,6 +58,8 @@ int main() {
 
     on_meta_key_pressed = meta_pressed;
 
+    start_watching_dbus_services(app);
+
     // Start our listening loop until the end of the program
     app_main(app);
 
@@ -69,6 +72,9 @@ int main() {
         delete l;
     }
     launchers.clear();
+    launchers.shrink_to_fit();
+
+    stop_watching_dbus_services(app);
 
     delete global;
 

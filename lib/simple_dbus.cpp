@@ -26,7 +26,7 @@ static bool poll_descriptor(App *app, int file_descriptor) {
 void dbus_start_connection(App *app) {
     DBusError error;
     dbus_error_init(&error);
-    app->dbus_connection = dbus_bus_get(DBUS_BUS_SYSTEM, &error);
+    app->dbus_connection = dbus_bus_get(DBUS_BUS_SESSION, &error);
     if (dbus_error_is_set(&error)) {
         dbus_error_free(&error);
         app->dbus_connection = nullptr;

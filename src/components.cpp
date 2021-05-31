@@ -1307,6 +1307,7 @@ insert_action(AppClient *client, Container *textarea, TextAreaData *data, std::s
     put_cursor_on_screen(client, textarea);
 
     data->state->redo_stack.clear();
+    data->state->redo_stack.shrink_to_fit();
 }
 
 static void
@@ -2006,6 +2007,7 @@ static void layout_and_repaint(App *app, AppClient *client, void *user_data) {
     auto *container = (Container *) user_data;
     auto data = (TransitionData *) container->user_data;
     container->children.clear();
+    container->children.shrink_to_fit();
     container->children.push_back(data->second);
     container->children.push_back(data->first);
     data->first->interactable = true;

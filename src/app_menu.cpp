@@ -1141,6 +1141,7 @@ paint_desktop_files() {
         }
     }
     icons.clear();
+    icons.shrink_to_fit();
 }
 
 static std::optional<int> ends_with(const char *str, const char *suffix) {
@@ -1224,6 +1225,7 @@ void load_all_desktop_files() {
         delete l;
     }
     launchers.clear();
+    launchers.shrink_to_fit();
 
     load_desktop_files("/usr/share/applications/");
     std::string local_desktop_files = getenv("HOME");

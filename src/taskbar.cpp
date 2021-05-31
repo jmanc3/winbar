@@ -24,6 +24,7 @@
 #include "windows_selector.h"
 #include "hsluv.h"
 #include "globals.h"
+#include "dbus.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -1240,6 +1241,7 @@ clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
         }
 
         minimize_button_windows_order.clear();
+        minimize_button_windows_order.shrink_to_fit();
     }
     minimize_button_hide = !minimize_button_hide;
 }
@@ -1513,6 +1515,20 @@ scrolled_workspace(AppClient *client_entity,
 
 static void
 clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
+    if (client_entity->app->dbus_connection) {
+        for (const auto &s : dbus_services) {
+            if (s == "org.kde.kglobalaccel") {
+                // On KDE try to show the desktop grid
+                dbus_kde_show_desktop_grid(client_entity->app);
+                return;
+            } else if (s == "org.gnome.Shell") {
+                // On Gnome try to show the overview screen
+                dbus_gnome_show_overview(client_entity->app);
+                return;
+            }
+        }
+    }
+
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {// left
         scrolled_workspace(client_entity, cr, container, 0, -1);
     } else {// right

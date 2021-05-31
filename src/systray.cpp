@@ -375,6 +375,7 @@ unmap_child_windows(AppClient *client) {
         delete s;
     }
     systray_icons.clear();
+    systray_icons.shrink_to_fit();
 }
 
 void start_systray() {

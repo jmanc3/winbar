@@ -1643,7 +1643,11 @@ void app_clean(App *app) {
         client_close(app, client);
     }
 
+    for (auto c : app->clients) {
+        delete c;
+    }
     app->clients.clear();
+    app->clients.shrink_to_fit();
 
     for (auto handler : app->handlers) {
         delete handler;
@@ -1657,6 +1661,7 @@ void app_clean(App *app) {
         delete t;
     }
     app->timeouts.clear();
+    app->timeouts.shrink_to_fit();
 
     dbus_stop_connection(app);
 

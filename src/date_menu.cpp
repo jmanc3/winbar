@@ -872,6 +872,7 @@ read_agenda_from_disk(AppClient *client) {
         delete ds;
     }
     unique_day_text_state.clear();
+    unique_day_text_state.shrink_to_fit();
 
     const char *home = getenv("HOME");
     std::string calendarPath(home);

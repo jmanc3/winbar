@@ -61,7 +61,11 @@ load_custom_items() {
     if (items_parsed.ParseError() != 0) {
         return;
     }
+    for (auto c : custom_items) {
+        delete c;
+    }
     custom_items.clear();
+    custom_items.shrink_to_fit();
 
     for (auto section : items_parsed.Sections()) {
         auto class_name = items_parsed.Get(section, "class_name", "");
@@ -559,6 +563,7 @@ void start_pinned_icon_right_click(Container *container) {
         delete d;
     }
     delayed.clear();
+    delayed.shrink_to_fit();
 
     app_create_custom_event_handler(app, client->window, icon_menu_event_handler);
 

@@ -565,6 +565,7 @@ find_icon(const std::string &name, int size) {
     for (auto i : options)
         delete i;
     options.clear();
+    options.shrink_to_fit();
     return path;
 }
 

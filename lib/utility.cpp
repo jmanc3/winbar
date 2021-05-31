@@ -242,6 +242,7 @@ void cleanup_cached_fonts() {
         delete font;
     }
     cached_fonts.clear();
+    cached_fonts.shrink_to_fit();
 }
 
 #define get_window_from_casted_event__explicit_member(X, Y, W) \
@@ -340,6 +341,7 @@ void cleanup_cached_atoms() {
         delete cached_atom;
     }
     cached_atoms.clear();
+    cached_atoms.shrink_to_fit();
 }
 
 void close_all_fds() {

@@ -36,9 +36,11 @@ public:
         for (auto s : history_scripts)
             delete s;
         history_scripts.clear();
+        history_scripts.shrink_to_fit();
         for (auto a : history_apps)
             delete a;
         history_apps.clear();
+        history_apps.shrink_to_fit();
     }
 };
 

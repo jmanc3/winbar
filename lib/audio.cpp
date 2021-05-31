@@ -198,6 +198,7 @@ void audio_all_clients() {
     if (!audio_connected)
         return;
     audio_clients.clear();
+    audio_clients.shrink_to_fit();
 
     pa_threaded_mainloop_lock(mainloop);
     pa_operation *pa_op =
@@ -234,7 +235,11 @@ void audio_set_client_mute(unsigned int client_index, bool state) {
 void audio_all_outputs() {
     if (!audio_connected)
         return;
+    for (auto a : audio_outputs) {
+        delete a;
+    }
     audio_outputs.clear();
+    audio_outputs.shrink_to_fit();
 
     pa_threaded_mainloop_lock(mainloop);
     pa_operation *pa_op = pa_context_get_sink_info_list(context, on_output_list_response, NULL);
