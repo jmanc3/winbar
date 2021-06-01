@@ -1135,8 +1135,8 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
 
     set_argb(cr, config->color_taskbar_date_time_text);
     cairo_move_to(cr,
-                  container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
 
     pango_layout_set_alignment(layout, initial_alignment);
@@ -2090,6 +2090,9 @@ void add_window(App *app, xcb_window_t window) {
                 xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
                 return;
             } else if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_WM_WINDOW_TYPE_DOCK")) {
+                xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
+                return;
+            } else if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_WM_WINDOW_TYPE_NOTIFICATION")) {
                 xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
                 return;
             }

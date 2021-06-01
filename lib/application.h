@@ -47,6 +47,7 @@ struct Settings {
     bool sticky = false;
     bool window_transparent = true;
     bool popup = false;
+    bool keep_above = false;
 
     Settings() { reserve_side = false; }
 };

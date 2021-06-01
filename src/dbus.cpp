@@ -67,8 +67,6 @@ static void dbus_list_services(DBusPendingCall *call, void *data) {
     char **args;
     if (dbus_message_get_args(dbus_reply, &error, DBUS_TYPE_ARRAY,
                               DBUS_TYPE_STRING, &args, &len, DBUS_TYPE_INVALID)) {
-        std::cout << "Connected to D-Bus as \"" << ::dbus_bus_get_unique_name(app->dbus_connection) << "\"."
-                  << std::endl;
         for (char *name = *args; name; name = *++args) {
             add_service(name);
         }

@@ -61,6 +61,9 @@ void config_load() {
 
     success = cfg.lookupValue("interface", config->interface);
 
+    success = cfg.lookupValue("default_notification_timeout_in_milliseconds",
+                              config->default_notification_timeout_in_milliseconds);
+
     std::string active_theme_name;
     success = cfg.lookupValue("active_theme_name", active_theme_name);
 

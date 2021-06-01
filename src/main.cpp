@@ -11,6 +11,7 @@
 #include "config.h"
 #include "globals.h"
 #include "dbus.h"
+#include "notifications.h"
 
 #include "wpa_ctrl.h"
 
@@ -60,8 +61,14 @@ int main() {
 
     start_watching_dbus_services(app);
 
+    start_notification_interceptor(app);
+
     // Start our listening loop until the end of the program
     app_main(app);
+
+    stop_notification_interceptor(app);
+
+    stop_watching_dbus_services(app);
 
     // Clean up
     app_clean(app);
@@ -73,8 +80,6 @@ int main() {
     }
     launchers.clear();
     launchers.shrink_to_fit();
-
-    stop_watching_dbus_services(app);
 
     delete global;
 

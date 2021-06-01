@@ -527,6 +527,12 @@ client_new(App *app, Settings settings, const std::string &name) {
         xcb_ewmh_set_wm_window_type(&app->ewmh, window, 1, &atom);
     }
 
+    if (settings.keep_above) {
+        xcb_atom_t atoms_state[2] = {get_cached_atom(app, "_NET_WM_STATE_ABOVE"),
+                                     get_cached_atom(app, "_NET_WM_STATE_STAYS_ON_TOP")};
+        xcb_ewmh_set_wm_state(&app->ewmh, window, 2, atoms_state);
+    }
+
     // No decorations
     if (!settings.decorations) {
         long motif_wm_hints[5] = {2, 0, 0, 0, 0};
@@ -1797,7 +1803,9 @@ bool app_timeout_replace(App *app,
 int
 app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout_function)(App *, AppClient *, void *),
                    void *user_data) {
-    assert(app != nullptr && app->running);
+    assert(app != nullptr);
+    if (!app->running)
+        return -1;
     assert(timeout_function != nullptr);
     int timeout_file_descriptor = timerfd_create(CLOCK_REALTIME, 0);
     if (timeout_file_descriptor == -1) { // error with timerfd_create

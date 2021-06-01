@@ -155,5 +155,7 @@ double calculate_overlap_percentage(double ax, double ay, double aw, double ah,
 void
 paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, double pad);
 
+bool is_light_theme(const ArgbColor &color);
+
 
 #endif

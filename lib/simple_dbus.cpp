@@ -49,6 +49,7 @@ void dbus_start_connection(App *app) {
 void dbus_stop_connection(App *app) {
     if (app->dbus_connection) {
         ::dbus_connection_unref(app->dbus_connection);
+        app->dbus_connection = nullptr;
     }
 }
 

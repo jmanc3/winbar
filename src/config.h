@@ -26,6 +26,7 @@ struct Config {
 
     std::string interface = "wlp7s0";
 
+    int default_notification_timeout_in_milliseconds = 1000 * 5;
 
     ArgbColor color_taskbar_background = ArgbColor("#dd101010");
     ArgbColor color_taskbar_button_icons = ArgbColor("#ffffffff");

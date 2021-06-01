@@ -691,3 +691,12 @@ paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, doubl
     cairo_rectangle(cr, (int) (b.x + pad), (int) (b.y + b.h - width - pad), (int) (b.w - pad * 2 - width), (width));
     cairo_fill(cr);
 }
+
+bool is_light_theme(const ArgbColor &color) {
+    double h; // hue
+    double s; // saturation
+    double p; // perceived brightness
+    rgb2hsluv(color.r, color.g, color.b, &h, &s, &p);
+
+    return p >= 50;
+}
