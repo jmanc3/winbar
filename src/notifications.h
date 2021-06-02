@@ -9,16 +9,24 @@
 #include <string>
 #include <dbus/dbus.h>
 
+struct NotificationAction {
+    std::string id;
+    std::string label;
+};
+
 struct NotificationInfo {
     dbus_uint32_t id = 0;
     long time_started = 0;
     std::string icon_path;
+    std::string calling_dbus_client;
 
     std::string app_name;
     std::string app_icon;
     std::string summary;
     std::string body;
     dbus_int32_t expire_timeout_in_milliseconds = -1; // 0 means never, -1 means the server (us) decides
+
+    std::vector<NotificationAction> actions;
 };
 
 extern std::vector<NotificationInfo *> notifications;

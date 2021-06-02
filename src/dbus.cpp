@@ -71,6 +71,7 @@ static void dbus_list_services(DBusPendingCall *call, void *data) {
             add_service(name);
         }
 
+        // TODO: crash if winbar started, dunst stareted and closed, and then winbar "settings" restarted
         dbus_bus_add_match(app->dbus_connection,
                            "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'",
                            &error);
@@ -123,6 +124,24 @@ void dbus_kde_show_desktop_grid(App *app) {
                                               "org.kde.kglobalaccel.Component",
                                               "invokeShortcut");
     const char *arg = "ShowDesktopGrid";
+    dbus_bool_t a = ::dbus_message_append_args(dbus_msg, DBUS_TYPE_STRING, &arg, DBUS_TYPE_INVALID);
+    dbus_bool_t r = ::dbus_connection_send_with_reply(app->dbus_connection, dbus_msg, &pending,
+                                                      DBUS_TIMEOUT_USE_DEFAULT);
+    dbus_bool_t x = ::dbus_pending_call_set_notify(pending, dbus_kde_show_desktop_grid_response, nullptr, nullptr);
+    ::dbus_message_unref(dbus_msg);
+    ::dbus_pending_call_unref(pending);
+}
+
+void dbus_kde_show_desktop(App *app) {
+    if (!app->dbus_connection) return;
+
+    DBusMessage *dbus_msg = nullptr;
+    DBusPendingCall *pending;
+
+    dbus_msg = ::dbus_message_new_method_call("org.kde.kglobalaccel", "/component/kwin",
+                                              "org.kde.kglobalaccel.Component",
+                                              "invokeShortcut");
+    const char *arg = "Show Desktop";
     dbus_bool_t a = ::dbus_message_append_args(dbus_msg, DBUS_TYPE_STRING, &arg, DBUS_TYPE_INVALID);
     dbus_bool_t r = ::dbus_connection_send_with_reply(app->dbus_connection, dbus_msg, &pending,
                                                       DBUS_TIMEOUT_USE_DEFAULT);

@@ -1207,6 +1207,16 @@ static bool minimize_button_hide = true;
 
 static void
 clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
+    if (client->app->dbus_connection) {
+        for (const auto &s : dbus_services) {
+            if (s == "org.kde.kglobalaccel") {
+                // On KDE try to show the desktop
+                dbus_kde_show_desktop(client->app);
+                return;
+            }
+        }
+    }
+
     if (minimize_button_hide) {
         // Here we hide the windows
         xcb_query_tree_cookie_t cookie;

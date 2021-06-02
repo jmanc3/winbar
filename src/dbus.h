@@ -18,6 +18,8 @@ void stop_watching_dbus_services(App *app);
 
 void dbus_kde_show_desktop_grid(App *app);
 
+void dbus_kde_show_desktop(App *app);
+
 void dbus_gnome_show_overview(App *app);
 
 #endif //WINBAR_DBUS_H
