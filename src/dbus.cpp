@@ -71,6 +71,13 @@ static void dbus_list_services(DBusPendingCall *call, void *data) {
             add_service(name);
         }
 
+        /*
+dbus[8754]: Attempted to unregister path (path[0] = org path[1] = freedesktop) which isn't registered
+dbus[8754]: arguments to dbus_connection_send_with_reply_and_block() were incorrect, assertion "connection != NULL" failed in file dbus-connection.c line 3544.
+This is normally a bug in some application using the D-Bus library.
+
+  D-Bus not built with -rdynamic so unable to print a backtrace
+         */
         // TODO: crash if winbar started, dunst stareted and closed, and then winbar "settings" restarted
         dbus_bus_add_match(app->dbus_connection,
                            "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'",

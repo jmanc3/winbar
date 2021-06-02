@@ -439,6 +439,39 @@ static void clicked_action(AppClient *client, cairo_t *cr, Container *container)
 //    client_close_threaded(client->app, client);
 }
 
+static bool send_to_action_pierced_handler(Container *container, int mouse_x, int mouse_y) {
+    return bounds_contains(Bounds(container->real_bounds.x + 16, container->real_bounds.y + 16, 16, 15), mouse_x,
+                           mouse_y);
+}
+
+static void clicked_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
+    auto client_wrapper = (NotificationWrapper *) client->root->user_data;
+    auto icon_button = (IconButton *) container->user_data;
+}
+
+static void paint_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
+    auto client_wrapper = (NotificationWrapper *) client->root->user_data;
+    auto icon_button = (IconButton *) container->user_data;
+    if (icon_button->surface) {
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                dye_surface(icon_button->surface, darken(config->color_taskbar_date_time_text, 40));
+            } else {
+                dye_surface(icon_button->surface, config->color_taskbar_date_time_text);
+            }
+        } else {
+            if (!bounds_contains(client->root->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+                return;
+            }
+            dye_surface(icon_button->surface, darken(config->color_taskbar_date_time_text, 20));
+        }
+        cairo_set_source_surface(cr, icon_button->surface,
+                                 container->real_bounds.x + 16 + 4,
+                                 container->real_bounds.y + 18);
+        cairo_paint(cr);
+    }
+}
+
 static void client_closed(AppClient *client) {
     for (int i = 0; i < displaying_notifications.size(); i++) {
         if (displaying_notifications[i] == client) {
@@ -480,6 +513,10 @@ static void show_notification(App *app, NotificationInfo *ni) {
     if (auto icon_container = container_by_name("icon", client->root)) {
         auto icon_data = (IconButton *) icon_container->user_data;
         load_icon_full_path(app, client, &icon_data->surface, ni->icon_path, 48);
+    }
+    if (auto icon_container = container_by_name("send_to_action_center", client->root)) {
+        auto icon_data = (IconButton *) icon_container->user_data;
+        load_icon_full_path(app, client, &icon_data->surface, as_resource_path("right-arrow.png"), 12);
     }
 
     client->when_closed = client_closed;
@@ -654,7 +691,13 @@ static Container *create_notification_container(App *app, NotificationInfo *noti
     }
     content->child(FILL_SPACE, FILL_SPACE);
 
-    auto close = icon_content_close_hbox->child(16 * 3, FILL_SPACE);
+    auto send_to_action_center = icon_content_close_hbox->child(16 * 3, FILL_SPACE);
+    send_to_action_center->name = "send_to_action_center";
+    auto send_to_action_center_data = new IconButton;
+    send_to_action_center->user_data = send_to_action_center_data;
+    send_to_action_center->when_clicked = clicked_send_to_action_center;
+    send_to_action_center->when_paint = paint_send_to_action_center;
+    send_to_action_center->handles_pierced = send_to_action_pierced_handler;
 
     if (!notification_info->actions.empty()) {
         auto actions_container = container->child(layout_type::vbox, FILL_SPACE,

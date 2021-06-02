@@ -230,11 +230,13 @@ paint_body(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, config->color_date_seperator);
     cairo_fill(cr);
 
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
-                    container->real_bounds.y + container->real_bounds.h - 1,
-                    container->real_bounds.w,
-                    1);
+    if (agenda_showing) {
+        cairo_rectangle(cr,
+                        container->real_bounds.x,
+                        container->real_bounds.y + container->real_bounds.h - 1,
+                        container->real_bounds.w,
+                        1);
+    }
     set_argb(cr, config->color_date_seperator);
     cairo_fill(cr);
 }

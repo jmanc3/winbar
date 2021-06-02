@@ -40,7 +40,21 @@ public:
     cairo_surface_t *surface = nullptr;
     cairo_surface_t *surface_hover = nullptr;
 
-    ~WorkspaceButton() { cairo_surface_destroy(surface); }
+    ~WorkspaceButton() {
+        if (surface)
+            cairo_surface_destroy(surface);
+        if (surface_hover)
+            cairo_surface_destroy(surface_hover);
+    }
+};
+
+struct ActionCenterButtonData : public IconButton {
+    cairo_surface_t *surface_unseen_notification = nullptr;
+
+    ~ActionCenterButtonData() {
+        if (surface_unseen_notification)
+            cairo_surface_destroy(surface_unseen_notification);
+    }
 };
 
 static Container *active_container = nullptr;
@@ -1089,6 +1103,29 @@ paint_minimize(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto backup_bounds = container->real_bounds;
+    container->real_bounds.w = container->real_bounds.w - 8;
+    paint_hoverable_button_background(client, cr, container);
+    container->real_bounds = backup_bounds;
+
+    auto data = (ActionCenterButtonData *) container->user_data;
+
+    if (data->surface) {
+        dye_surface(data->surface, config->color_taskbar_button_icons);
+        cairo_set_source_surface(
+                cr,
+                data->surface,
+                (int) (container->real_bounds.x + 12),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+        cairo_paint(cr);
+    }
+}
+
+static void
 paint_systray(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -1254,6 +1291,11 @@ clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
         minimize_button_windows_order.shrink_to_fit();
     }
     minimize_button_hide = !minimize_button_hide;
+}
+
+static void
+clicked_action_center(AppClient *client, cairo_t *cr, Container *container) {
+
 }
 
 static void
@@ -1615,6 +1657,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     Container *button_wifi = root->child(24, FILL_SPACE);
     Container *button_volume = root->child(24, FILL_SPACE);
     Container *button_date = root->child(80, FILL_SPACE);
+    Container *button_action_center = root->child(48, FILL_SPACE);
     Container *button_minimize = root->child(5, FILL_SPACE);
 
     button_super->when_paint = paint_super;
@@ -1742,6 +1785,15 @@ fill_root(App *app, AppClient *client, Container *root) {
 
     app_timeout_create(app, client, 0, update_time, nullptr);
     app_timeout_create(app, client, 0, late_classes_update, nullptr);
+
+    button_action_center->when_paint = paint_action_center;
+    auto action_center_data = new ActionCenterButtonData;
+    button_action_center->user_data = action_center_data;
+    load_icon_full_path(app, client, &action_center_data->surface,
+                        as_resource_path("taskbar-notification-empty.png"), 16);
+    load_icon_full_path(app, client, &action_center_data->surface_unseen_notification,
+                        as_resource_path("taskbar-notification-available.png"), 16);
+    button_action_center->when_clicked = clicked_action_center;
 
     button_minimize->when_paint = paint_minimize;
     button_minimize->user_data = new IconButton;
