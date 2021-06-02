@@ -25,6 +25,7 @@
 #include "hsluv.h"
 #include "globals.h"
 #include "dbus.h"
+#include "action_center_menu.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -45,15 +46,6 @@ public:
             cairo_surface_destroy(surface);
         if (surface_hover)
             cairo_surface_destroy(surface_hover);
-    }
-};
-
-struct ActionCenterButtonData : public IconButton {
-    cairo_surface_t *surface_unseen_notification = nullptr;
-
-    ~ActionCenterButtonData() {
-        if (surface_unseen_notification)
-            cairo_surface_destroy(surface_unseen_notification);
     }
 };
 
@@ -1295,7 +1287,10 @@ clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_action_center(AppClient *client, cairo_t *cr, Container *container) {
-
+    auto *data = (ActionCenterButtonData *) container->user_data;
+    if (!data->invalid_button_down) {
+        start_action_center(client->app);
+    }
 }
 
 static void
@@ -1793,7 +1788,11 @@ fill_root(App *app, AppClient *client, Container *root) {
                         as_resource_path("taskbar-notification-empty.png"), 16);
     load_icon_full_path(app, client, &action_center_data->surface_unseen_notification,
                         as_resource_path("taskbar-notification-available.png"), 16);
+
+    action_center_data->invalidate_button_press_if_client_with_this_name_is_open = "action_center";
+    button_action_center->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_action_center->when_clicked = clicked_action_center;
+    button_action_center->name = "action";
 
     button_minimize->when_paint = paint_minimize;
     button_minimize->user_data = new IconButton;

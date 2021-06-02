@@ -28,6 +28,15 @@ public:
     ~IconButton() { cairo_surface_destroy(surface); }
 };
 
+struct ActionCenterButtonData : public IconButton {
+    cairo_surface_t *surface_unseen_notification = nullptr;
+
+    ~ActionCenterButtonData() {
+        if (surface_unseen_notification)
+            cairo_surface_destroy(surface_unseen_notification);
+    }
+};
+
 class WindowsData {
 public:
 
