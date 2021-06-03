@@ -4,21 +4,17 @@
 
 #include "notifications.h"
 #include "application.h"
-#include "defer.h"
 #include "config.h"
 #include "taskbar.h"
 #include "utility.h"
 #include "icons.h"
+#include "simple_dbus.h"
 
-#include <dbus/dbus.h>
-#include <cstring>
 #include <pango/pangocairo.h>
 
 std::vector<NotificationInfo *> notifications;
 
-static std::vector<AppClient *> displaying_notifications;
-
-static const int notification_width = 365;
+std::vector<AppClient *> displaying_notifications;
 
 struct NotificationWrapper : public IconButton {
     NotificationInfo *ni = nullptr;
@@ -33,243 +29,6 @@ struct LabelData : UserData {
     PangoWeight weight;
     int size;
 };
-
-enum NotificationReasonClosed {
-    EXPIRED = 1,
-    DISMISSED_BY_USER = 2,
-    CLOSED_BY_CLOSE_NOTIFICATION_CALL = 3,
-    UNDEFINED_OR_RESERVED_REASON = 4,
-};
-
-static const char *introspection_xml =
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-        "<node name=\"/org/freedesktop/Notifications\">"
-        "    <interface name=\"org.freedesktop.Notifications\">"
-
-        "        <method name=\"GetCapabilities\">"
-        "            <arg direction=\"out\" name=\"capabilities\"    type=\"as\"/>"
-        "        </method>"
-
-        "        <method name=\"Notify\">"
-        "            <arg direction=\"in\"  name=\"app_name\"        type=\"s\"/>"
-        "            <arg direction=\"in\"  name=\"replaces_id\"     type=\"u\"/>"
-        "            <arg direction=\"in\"  name=\"app_icon\"        type=\"s\"/>"
-        "            <arg direction=\"in\"  name=\"summary\"         type=\"s\"/>"
-        "            <arg direction=\"in\"  name=\"body\"            type=\"s\"/>"
-        "            <arg direction=\"in\"  name=\"actions\"         type=\"as\"/>"
-        "            <arg direction=\"in\"  name=\"hints\"           type=\"a{sv}\"/>"
-        "            <arg direction=\"in\"  name=\"expire_timeout\"  type=\"i\"/>"
-        "            <arg direction=\"out\" name=\"id\"              type=\"u\"/>"
-        "        </method>"
-
-        "        <method name=\"CloseNotification\">"
-        "            <arg direction=\"in\"  name=\"id\"              type=\"u\"/>"
-        "        </method>"
-
-        "        <method name=\"GetServerInformation\">"
-        "            <arg direction=\"out\" name=\"name\"            type=\"s\"/>"
-        "            <arg direction=\"out\" name=\"vendor\"          type=\"s\"/>"
-        "            <arg direction=\"out\" name=\"version\"         type=\"s\"/>"
-        "            <arg direction=\"out\" name=\"spec_version\"    type=\"s\"/>"
-        "        </method>"
-
-        "        <signal name=\"NotificationClosed\">"
-        "            <arg name=\"id\"         type=\"u\"/>"
-        "            <arg name=\"reason\"     type=\"u\"/>"
-        "        </signal>"
-
-        "        <signal name=\"ActionInvoked\">"
-        "            <arg name=\"id\"         type=\"u\"/>"
-        "            <arg name=\"action_key\" type=\"s\"/>"
-        "        </signal>"
-
-        "    </interface>"
-
-        "    <interface name=\"org.freedesktop.DBus.Introspectable\">"
-
-        "        <method name=\"Introspect\">"
-        "            <arg direction=\"out\" name=\"xml_data\"    type=\"s\"/>"
-        "        </method>"
-
-        "    </interface>"
-        "</node>";
-
-
-static bool
-dbus_array_reply(DBusConnection *connection, DBusMessage *msg, std::vector<std::string> array) {
-    DBusMessage *reply = dbus_message_new_method_return(msg);
-    defer(dbus_message_unref(reply));
-
-    bool success = true;
-    DBusMessageIter args;
-    dbus_message_iter_init_append(reply, &args);
-    for (auto &i : array) {
-        if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &i))
-            success = false;
-    }
-
-    if (success)
-        success = dbus_connection_send(connection, reply, NULL);
-    return success;
-}
-
-static void notification_closed_signal(App *app, NotificationInfo *ni, NotificationReasonClosed reason);
-
-static void notification_action_invoked_signal(App *app, NotificationInfo *ni, NotificationAction action);
-
-static void show_notification(App *app, NotificationInfo *ni);
-
-// https://developer.gnome.org/notification-spec/
-DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *message, void *userdata) {
-    if (dbus_message_is_method_call(message, "org.freedesktop.DBus.Introspectable", "Introspect")) {
-        DBusMessage *reply = dbus_message_new_method_return(message);
-        defer(dbus_message_unref(reply));
-
-        dbus_message_append_args(reply, DBUS_TYPE_STRING, &introspection_xml, DBUS_TYPE_INVALID);
-        dbus_connection_send(connection, reply, NULL);
-
-        return DBUS_HANDLER_RESULT_HANDLED;
-    } else if (dbus_message_is_method_call(message, "org.freedesktop.Notifications", "GetCapabilities")) {
-        std::vector<std::string> strings = {"actions", "body"};
-
-        if (dbus_array_reply(connection, message, strings))
-            return DBUS_HANDLER_RESULT_HANDLED;
-    } else if (dbus_message_is_method_call(message, "org.freedesktop.Notifications", "GetServerInformation")) {
-        std::vector<std::string> strings = {"winbar", "winbar", "0.1", "1.2"};
-
-        if (dbus_array_reply(connection, message, strings))
-            return DBUS_HANDLER_RESULT_HANDLED;
-    } else if (dbus_message_is_method_call(message, "org.freedesktop.Notifications", "CloseNotification")) {
-        int result = 0;
-        DBusError error = DBUS_ERROR_INIT;
-        if (::dbus_message_get_args(message, &error, DBUS_TYPE_UINT32, &result, DBUS_TYPE_INVALID)) {
-            for (auto c : displaying_notifications) {
-                auto data = (NotificationWrapper *) c->root->user_data;
-                if (data->ni->id == result) {
-                    notification_closed_signal(c->app, data->ni,
-                                               NotificationReasonClosed::CLOSED_BY_CLOSE_NOTIFICATION_CALL);
-                    client_close_threaded(c->app, c);
-                }
-            }
-            return DBUS_HANDLER_RESULT_HANDLED;
-        } else if (dbus_error_is_set(&error)) {
-            fprintf(stderr, "CloseNotification called but couldn't parse arg. Error message: (%s)\n",
-                    error.message);
-            dbus_error_free(&error);
-        }
-    } else if (dbus_message_is_method_call(message, "org.freedesktop.Notifications", "Notify")) {
-        static int id = 1; // id can't be zero due to specification (notice [static])
-
-        DBusMessageIter args;
-        const char *app_name = nullptr;
-        dbus_uint32_t replaces_id = -1;
-        const char *app_icon = nullptr;
-        const char *summary = nullptr;
-        const char *body = nullptr;
-        dbus_int32_t expire_timeout_in_milliseconds = -1; // 0 means never unless user interacts, -1 means the server (us) decides
-        auto notification_info = new NotificationInfo;
-
-        dbus_message_iter_init(message, &args);
-        dbus_message_iter_get_basic(&args, &app_name);
-        dbus_message_iter_next(&args);
-        dbus_message_iter_get_basic(&args, &replaces_id);
-        dbus_message_iter_next(&args);
-        dbus_message_iter_get_basic(&args, &app_icon);
-        dbus_message_iter_next(&args);
-        dbus_message_iter_get_basic(&args, &summary);
-        dbus_message_iter_next(&args);
-        dbus_message_iter_get_basic(&args, &body);
-        dbus_message_iter_next(&args);
-        int actions_count = dbus_message_iter_get_element_count(&args);
-        if (actions_count > 0) {
-            DBusMessageIter el;
-            dbus_message_iter_recurse(&args, &el);
-            while (dbus_message_iter_get_arg_type(&el) != DBUS_TYPE_INVALID) {
-                const char *key = nullptr;
-                dbus_message_iter_get_basic(&el, &key);
-                dbus_message_iter_next(&el);
-
-                if (dbus_message_iter_get_arg_type(&el) != DBUS_TYPE_INVALID) {
-                    const char *value = nullptr;
-                    dbus_message_iter_get_basic(&el, &value);
-                    dbus_message_iter_next(&el);
-
-                    NotificationAction notification_action;
-                    notification_action.id = key;
-                    notification_action.label = value;
-                    notification_info->actions.push_back(notification_action);
-                }
-            }
-        }
-        dbus_message_iter_next(&args);  // actions of type ARRAY
-        dbus_message_iter_next(&args);  // hints of type DICT
-        dbus_message_iter_get_basic(&args, &expire_timeout_in_milliseconds);
-
-        // TODO: handle replacing
-        notification_info->id = id++;
-        notification_info->app_name = app_name;
-        notification_info->app_icon = app_icon;
-        notification_info->summary = summary;
-        notification_info->body = body;
-        notification_info->expire_timeout_in_milliseconds = expire_timeout_in_milliseconds;
-        notification_info->time_started = get_current_time_in_ms();
-        notification_info->calling_dbus_client = dbus_message_get_sender(message);
-        notifications.push_back(notification_info);
-
-        show_notification((App *) userdata, notification_info);
-
-        DBusMessage *reply = dbus_message_new_method_return(message);
-        defer(dbus_message_unref(reply));
-
-        dbus_message_iter_init_append(reply, &args);
-        const dbus_uint32_t current_id = notification_info->id;
-        if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &current_id) ||
-            !dbus_connection_send(connection, reply, NULL)) {
-            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-        }
-        return DBUS_HANDLER_RESULT_HANDLED;
-    }
-
-    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-}
-
-void start_notification_interceptor(App *app) {
-    if (app->dbus_connection) {
-        // TODO: instead of checking what the result of the request_name was
-        //  have a filter and check for name_aquired and name_lost. that way we can allow
-        //  ourselves to be put in queue and if the user closes another Notification manager
-        //  we will become the manager
-        DBusError error = DBUS_ERROR_INIT;
-        int result = ::dbus_bus_request_name(app->dbus_connection, "org.freedesktop.Notifications",
-                                             DBUS_NAME_FLAG_REPLACE_EXISTING | DBUS_NAME_FLAG_DO_NOT_QUEUE, &error);
-
-        if (dbus_error_is_set(&error)) {
-            fprintf(stderr, "Ran into error when trying to become the sessions notification manager (%s)\n",
-                    error.message);
-            dbus_error_free(&error);
-            return;
-        }
-        static const DBusObjectPathVTable vtable = {
-                .message_function = handle_message_cb,
-        };
-        if (result == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) {
-            ::dbus_connection_register_object_path(app->dbus_connection, "/org/freedesktop/Notifications", &vtable,
-                                                   app);
-        }
-    }
-}
-
-void stop_notification_interceptor(App *app) {
-    for (auto n : notifications) {
-        delete n;
-    }
-    notifications.clear();
-    notifications.shrink_to_fit();
-    if (app->dbus_connection) {
-        ::dbus_connection_unregister_object_path(app->dbus_connection, "/org/freedesktop/Notifications");
-        ::dbus_bus_release_name(app->dbus_connection, "org.freedesktop.Notifications", nullptr);
-    }
-}
 
 static void close_notification_timeout(App *app, AppClient *client, void *data) {
     auto root_data = (NotificationWrapper *) client->root->user_data;
@@ -488,15 +247,15 @@ static void client_closed(AppClient *client) {
     }
 }
 
-static Container *create_notification_container(App *app, NotificationInfo *notification_info);
+static Container *create_notification_container(App *app, NotificationInfo *notification_info, int width);
 
-static void show_notification(App *app, NotificationInfo *ni) {
-    auto notification_container = create_notification_container(app, ni);
+void show_notification(App *app, NotificationInfo *ni) {
+    auto notification_container = create_notification_container(app, ni, 356);
 
     Settings settings;
     settings.force_position = true;
     settings.decorations = false;
-    settings.w = notification_width;
+    settings.w = notification_container->real_bounds.w;
     settings.h = notification_container->real_bounds.h;
     settings.x = app->bounds.w - settings.w - 12;
     settings.y = app->bounds.h - config->taskbar_height - settings.h - 12;
@@ -510,11 +269,11 @@ static void show_notification(App *app, NotificationInfo *ni) {
     delete client->root;
     client->root = notification_container;
 
-    if (auto icon_container = container_by_name("icon", client->root)) {
+    if (auto icon_container = container_by_name("icon", notification_container)) {
         auto icon_data = (IconButton *) icon_container->user_data;
         load_icon_full_path(app, client, &icon_data->surface, ni->icon_path, 48);
     }
-    if (auto icon_container = container_by_name("send_to_action_center", client->root)) {
+    if (auto icon_container = container_by_name("send_to_action_center", notification_container)) {
         auto icon_data = (IconButton *) icon_container->user_data;
         load_icon_full_path(app, client, &icon_data->surface, as_resource_path("right-arrow.png"), 12);
     }
@@ -546,6 +305,17 @@ static void show_notification(App *app, NotificationInfo *ni) {
     }
 }
 
+void close_notification(int id) {
+    for (auto c : displaying_notifications) {
+        auto data = (NotificationWrapper *) c->root->user_data;
+        if (data->ni->id == id) {
+            notification_closed_signal(c->app, data->ni,
+                                       NotificationReasonClosed::CLOSED_BY_CLOSE_NOTIFICATION_CALL);
+            client_close_threaded(c->app, c);
+        }
+    }
+}
+
 static bool root_pierced_handler(Container *container, int mouse_x, int mouse_y) {
     if (auto c = container_by_name("actions_container", container)) {
         for (auto child : c->children) {
@@ -557,7 +327,7 @@ static bool root_pierced_handler(Container *container, int mouse_x, int mouse_y)
     return bounds_contains(container->real_bounds, mouse_x, mouse_y);
 }
 
-static Container *create_notification_container(App *app, NotificationInfo *notification_info) {
+Container *create_notification_container(App *app, NotificationInfo *notification_info, int width) {
     auto container = new Container(layout_type::vbox, FILL_SPACE, FILL_SPACE);
     auto data = new NotificationWrapper;
     data->ni = notification_info;
@@ -602,7 +372,7 @@ static Container *create_notification_container(App *app, NotificationInfo *noti
 
     bool has_icon = !notification_info->icon_path.empty();
 
-    int max_text_width = notification_width;
+    int max_text_width = width;
     max_text_width -= 16 * 3; // subtract the part taken up by [c]
     if (has_icon) {
         max_text_width -= 16 * 2 + 48; // subtract the part taken up [a]
@@ -638,7 +408,7 @@ static Container *create_notification_container(App *app, NotificationInfo *noti
         container_height += notification_info->actions.size() - 1 * 4; // pad between each option
     }
 
-    container->real_bounds.w = notification_width;
+    container->real_bounds.w = width;
     container->real_bounds.h = container_height;
 
     if (notification_info->expire_timeout_in_milliseconds == 0) {
@@ -717,45 +487,4 @@ static Container *create_notification_container(App *app, NotificationInfo *noti
     }
 
     return container;
-}
-
-static void notification_closed_signal(App *app, NotificationInfo *ni, NotificationReasonClosed reason) {
-    if (!app->dbus_connection || !ni)
-        return;
-
-    DBusMessage *dmsg = dbus_message_new_signal("/org/freedesktop/Notifications",
-                                                "org.freedesktop.Notifications",
-                                                "NotificationClosed");
-    defer(dbus_message_unref(dmsg));
-
-    DBusMessageIter args;
-    dbus_message_iter_init_append(dmsg, &args);
-    int id = ni->id;
-    dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &id);
-    dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &reason);
-
-    dbus_message_set_destination(dmsg, NULL);
-
-    dbus_connection_send(app->dbus_connection, dmsg, NULL);
-}
-
-static void notification_action_invoked_signal(App *app, NotificationInfo *ni, NotificationAction action) {
-    if (!app->dbus_connection || !ni)
-        return;
-
-    DBusMessage *dmsg = dbus_message_new_signal("/org/freedesktop/Notifications",
-                                                "org.freedesktop.Notifications",
-                                                "ActionInvoked");
-    defer(dbus_message_unref(dmsg));
-
-    DBusMessageIter args;
-    dbus_message_iter_init_append(dmsg, &args);
-    int id = ni->id;
-    dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &id);
-    const char *text_id = action.id.c_str();
-    dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &text_id);
-
-    dbus_message_set_destination(dmsg, ni->calling_dbus_client.c_str());
-
-    dbus_connection_send(app->dbus_connection, dmsg, NULL);
 }

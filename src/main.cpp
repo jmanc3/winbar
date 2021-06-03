@@ -10,10 +10,9 @@
 #include "taskbar.h"
 #include "config.h"
 #include "globals.h"
-#include "dbus.h"
 #include "notifications.h"
 
-#include "wpa_ctrl.h"
+#include "simple_dbus.h"
 
 App *app;
 
@@ -59,16 +58,12 @@ int main() {
 
     on_meta_key_pressed = meta_pressed;
 
-    start_watching_dbus_services(app);
-
-    start_notification_interceptor(app);
+    dbus_start();
 
     // Start our listening loop until the end of the program
     app_main(app);
 
-    stop_notification_interceptor(app);
-
-    stop_watching_dbus_services(app);
+    dbus_end();
 
     // Clean up
     app_clean(app);

@@ -7,6 +7,7 @@
 #include <application.h>
 #include <utility.h>
 #include "hsluv.h"
+#include "simple_dbus.h"
 
 #ifdef TRACY_ENABLE
 
@@ -53,7 +54,7 @@ static void function(DBusPendingCall *call, void *data) {
     if (!::dbus_message_get_args(dbus_reply, nullptr, DBUS_TYPE_STRING, &dbus_result, DBUS_TYPE_INVALID)) {
         ::dbus_message_unref(dbus_reply);
     } else {
-        std::cout << "Connected to D-Bus as \"" << ::dbus_bus_get_unique_name(app->dbus_connection) << "\"."
+        std::cout << "Connected to D-Bus as \"" << ::dbus_bus_get_unique_name(dbus_connection) << "\"."
                   << std::endl;
         std::cout << "Introspection Result:" << std::endl << std::endl;
         std::cout << dbus_result << std::endl;
@@ -71,13 +72,13 @@ void start_test_window() {
     client->root->when_paint = paint_root;
     client_show(app, client);
 
-    if (app->dbus_connection) {
+    if (dbus_connection) {
         DBusMessage *dbus_msg = nullptr;
         DBusPendingCall *pending;
 
         dbus_msg = ::dbus_message_new_method_call("org.freedesktop.DBus", "/", "org.freedesktop.DBus.Introspectable",
                                                   "Introspect");
-        dbus_bool_t r = ::dbus_connection_send_with_reply(app->dbus_connection, dbus_msg, &pending,
+        dbus_bool_t r = ::dbus_connection_send_with_reply(dbus_connection, dbus_msg, &pending,
                                                           DBUS_TIMEOUT_USE_DEFAULT);
         dbus_bool_t x = ::dbus_pending_call_set_notify(pending, function, nullptr, nullptr);
         ::dbus_message_unref(dbus_msg);

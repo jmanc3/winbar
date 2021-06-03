@@ -31,6 +31,8 @@ public:
 struct ActionCenterButtonData : public IconButton {
     cairo_surface_t *surface_unseen_notification = nullptr;
 
+    bool some_unseen = false;
+
     ~ActionCenterButtonData() {
         if (surface_unseen_notification)
             cairo_surface_destroy(surface_unseen_notification);

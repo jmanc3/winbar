@@ -14,11 +14,20 @@ struct NotificationAction {
     std::string label;
 };
 
+enum NotificationReasonClosed {
+    EXPIRED = 1,
+    DISMISSED_BY_USER = 2,
+    CLOSED_BY_CLOSE_NOTIFICATION_CALL = 3,
+    UNDEFINED_OR_RESERVED_REASON = 4,
+};
+
 struct NotificationInfo {
     dbus_uint32_t id = 0;
-    long time_started = 0;
+    std::string time_started;
     std::string icon_path;
     std::string calling_dbus_client;
+    bool sent_to_action_center = false;
+    bool removed_from_action_center = false;
 
     std::string app_name;
     std::string app_icon;
@@ -29,13 +38,19 @@ struct NotificationInfo {
     std::vector<NotificationAction> actions;
 };
 
-extern std::vector<NotificationInfo *> notifications;
+struct Container;
 
 struct App;
 
-void start_notification_interceptor(App *app);
+struct AppClient;
 
-void stop_notification_interceptor(App *app);
+extern std::vector<NotificationInfo *> notifications;
+
+extern std::vector<AppClient *> displaying_notifications;
+
+void show_notification(App *app, NotificationInfo *ni);
+
+void close_notification(int id);
 
 
 #endif //WINBAR_NOTIFICATIONS_H

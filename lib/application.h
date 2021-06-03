@@ -79,6 +79,12 @@ struct Timeout {
     void *user_data = nullptr;
 };
 
+struct PolledDescriptor {
+    int file_descriptor;
+
+    void (*function)(App *, int fd);
+};
+
 struct DBusConnection;
 
 struct App {
@@ -109,11 +115,7 @@ struct App {
     xcb_screen_t *screen = nullptr;
 
     int epoll_fd = -1;
-
-    int xcb_fd = -1;
-
-    DBusConnection *dbus_connection = nullptr;
-    int dbus_fd = -1;
+    std::vector<PolledDescriptor> descriptors_being_polled;
 
     std::vector<Timeout *> timeouts;
 
@@ -270,5 +272,7 @@ int
 update_keymap(struct ClientKeyboard *kbd);
 
 void paint_container(App *app, AppClient *client, Container *container);
+
+bool poll_descriptor(App *app, int file_descriptor, int events, void function(App *, int fd));
 
 #endif

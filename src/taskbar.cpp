@@ -24,8 +24,9 @@
 #include "windows_selector.h"
 #include "hsluv.h"
 #include "globals.h"
-#include "dbus.h"
 #include "action_center_menu.h"
+#include "notifications.h"
+#include "simple_dbus.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -1106,14 +1107,58 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
 
     auto data = (ActionCenterButtonData *) container->user_data;
 
-    if (data->surface) {
-        dye_surface(data->surface, config->color_taskbar_button_icons);
+    cairo_surface_t *surface = nullptr;
+    if (data->some_unseen) {
+        surface = data->surface_unseen_notification;
+    } else {
+        surface = data->surface;
+    }
+    if (surface) {
+        dye_surface(surface, config->color_taskbar_button_icons);
         cairo_set_source_surface(
                 cr,
-                data->surface,
+                surface,
                 (int) (container->real_bounds.x + 12),
                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
         cairo_paint(cr);
+    }
+
+    if (data->some_unseen) {
+        cairo_set_line_width(cr, 1);
+        cairo_set_source_rgba(cr, 0.6, 0.6, 0.6, .8);
+
+        cairo_arc(cr, container->real_bounds.x + 12 + 16,
+                  container->real_bounds.y + container->real_bounds.h / 2 + 8,
+                  17.0 / 2.0, 0, 2 * M_PI);
+        cairo_stroke_preserve(cr);
+
+        cairo_set_source_rgba(cr, 1, 1, 1, 0.1);
+        cairo_fill(cr);
+
+        std::string count_text;
+        int count = 0;
+        for (auto n : notifications) {
+            if (n->sent_to_action_center) {
+                count++;
+            }
+        }
+        count_text = std::to_string(count);
+
+        PangoLayout *layout =
+                get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+        pango_layout_set_text(layout, count_text.c_str(), 2);
+        PangoRectangle ink;
+        PangoRectangle logical;
+        pango_layout_get_extents(layout, &ink, &logical);
+
+        set_argb(cr, config->color_taskbar_date_time_text);
+        cairo_move_to(cr,
+                      container->real_bounds.x - (ink.x / PANGO_SCALE) + 12 + 16 -
+                      (std::ceil(ink.width / PANGO_SCALE / 2)) - 1,
+                      container->real_bounds.y - (ink.y / PANGO_SCALE) + (container->real_bounds.h / 2 + 8) -
+                      (std::ceil(ink.height / PANGO_SCALE / 2)));
+        pango_cairo_show_layout(cr, layout);
     }
 }
 
@@ -1236,12 +1281,13 @@ static bool minimize_button_hide = true;
 
 static void
 clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
-    if (client->app->dbus_connection) {
-        for (const auto &s : dbus_services) {
+    if (dbus_connection) {
+        for (const auto &s : running_dbus_services) {
             if (s == "org.kde.kglobalaccel") {
                 // On KDE try to show the desktop
-                dbus_kde_show_desktop(client->app);
-                return;
+                if (dbus_kde_show_desktop()) {
+                    return;
+                }
             }
         }
     }
@@ -1562,16 +1608,18 @@ scrolled_workspace(AppClient *client_entity,
 
 static void
 clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
-    if (client_entity->app->dbus_connection) {
-        for (const auto &s : dbus_services) {
+    if (dbus_connection) {
+        for (const auto &s : running_dbus_services) {
             if (s == "org.kde.kglobalaccel") {
                 // On KDE try to show the desktop grid
-                dbus_kde_show_desktop_grid(client_entity->app);
-                return;
+                if (dbus_kde_show_desktop_grid()) {
+                    return;
+                }
             } else if (s == "org.gnome.Shell") {
                 // On Gnome try to show the overview screen
-                dbus_gnome_show_overview(client_entity->app);
-                return;
+                if (dbus_gnome_show_overview()) {
+                    return;
+                }
             }
         }
     }

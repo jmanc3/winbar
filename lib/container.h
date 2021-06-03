@@ -299,6 +299,8 @@ struct Container {
     // function of non visible children containers
     bool clip_children = true;
 
+    bool clip = false;
+
     bool interactable = true;
 
     bool draggable = true;

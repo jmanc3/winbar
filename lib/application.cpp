@@ -9,7 +9,6 @@
 
 #include "utility.h"
 #include "dpi.h"
-#include "simple_dbus.h"
 
 #include <algorithm>
 #include <iostream>
@@ -245,14 +244,17 @@ void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keybo
     }
 }
 
-
-static bool poll_descriptor(App *app, int file_descriptor) {
+bool poll_descriptor(App *app, int file_descriptor, int events, void function(App *, int fd)) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     assert(app != nullptr);
+
+    PolledDescriptor polled = {file_descriptor, function};
+    app->descriptors_being_polled.push_back(polled);
+
     epoll_event event = {};
-    event.events = EPOLLIN;
+    event.events = events;
     event.data.fd = file_descriptor;
 
     if (epoll_ctl(app->epoll_fd, EPOLL_CTL_ADD, file_descriptor, &event) != 0) {
@@ -300,6 +302,32 @@ get_visualtype(xcb_screen_t *s) {
     return NULL;
 }
 
+void xcb_poll_wakeup(App *app, int fd);
+
+void timeout_poll_wakeup(App *app, int fd) {
+    for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
+        Timeout *timeout = app->timeouts[timeout_index];
+        if (timeout->file_descriptor == fd) {
+            timeout->function(app, timeout->client, timeout->user_data);
+            app->timeouts.erase(app->timeouts.begin() + timeout_index);
+            close(timeout->file_descriptor);
+            delete timeout;
+            break;
+        }
+    }
+
+    int BUFFER_SIZE = 400;
+    char buffer[BUFFER_SIZE];
+    read(fd, buffer, BUFFER_SIZE);
+
+    for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+        if (app->descriptors_being_polled[i].file_descriptor == fd) {
+            app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
+            return;
+        }
+    }
+}
+
 App::App() {
 }
 
@@ -320,7 +348,6 @@ App *app_new() {
     app->screen_number = screen_number;
     app->screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
     app->epoll_fd = epoll_create(40);
-    app->xcb_fd = xcb_get_file_descriptor(app->connection);
     app->argb_visualtype = get_alpha_visualtype(app->screen);
     app->root_visualtype = get_visualtype(app->screen);
     app->bounds.x = 0;
@@ -334,9 +361,7 @@ App *app_new() {
 
     xcb_flush(app->connection);
 
-    poll_descriptor(app, app->xcb_fd);
-
-    dbus_start_connection(app);
+    poll_descriptor(app, xcb_get_file_descriptor(app->connection), EPOLLIN, xcb_poll_wakeup);
 
     auto atom_cookie = xcb_intern_atom(app->connection, 1, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
     xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(app->connection, atom_cookie, NULL);
@@ -887,12 +912,28 @@ void paint_container(App *app, AppClient *client, Container *container) {
         if (container->clip_children) {
             for (auto index : render_order) {
                 if (overlaps(container->children[index]->real_bounds, container->real_bounds)) {
+                    if (container->clip) {
+                        cairo_save(client->cr);
+                        set_rect(client->cr, container->real_bounds);
+                        cairo_clip(client->cr);
+                    }
                     paint_container(app, client, container->children[index]);
+                    if (container->clip) {
+                        cairo_restore(client->cr);
+                    }
                 }
             }
         } else {
             for (auto index : render_order) {
+                if (container->clip) {
+                    cairo_save(client->cr);
+                    set_rect(client->cr, container->real_bounds);
+                    cairo_clip(client->cr);
+                }
                 paint_container(app, client, container->children[index]);
+                if (container->clip) {
+                    cairo_restore(client->cr);
+                }
             }
         }
     }
@@ -1572,6 +1613,14 @@ void handle_xcb_event(App *app) {
     }
 }
 
+void xcb_poll_wakeup(App *app, int fd) {
+    xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
+    xcb_flush(app->connection);
+    handle_xcb_event(app);
+    xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
+    xcb_flush(app->connection);
+}
+
 #include <ctime>
 
 // call this function to start a nanosecond-resolution timer
@@ -1608,29 +1657,12 @@ void app_main(App *app) {
         int event_count = epoll_wait(app->epoll_fd, events, MAX_POLLING_EVENTS_AT_THE_SAME_TIME, -1);
 
         for (int event_index = 0; event_index < event_count; event_index++) {
-            if (events[event_index].data.fd == app->xcb_fd) {
-                xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
-                xcb_flush(app->connection);
-                handle_xcb_event(app);
-                xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
-                xcb_flush(app->connection);
-            } else if (events[event_index].data.fd == app->dbus_fd) {
-                dbus_process_event(app);
-            } else {
-                for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
-                    Timeout *timeout = app->timeouts[timeout_index];
-                    if (timeout->file_descriptor == events[event_index].data.fd) {
-                        timeout->function(app, timeout->client, timeout->user_data);
-                        app->timeouts.erase(app->timeouts.begin() + timeout_index);
-                        close(timeout->file_descriptor);
-                        delete timeout;
-                        break;
+            for (auto polled : app->descriptors_being_polled) {
+                if (events[event_index].data.fd == polled.file_descriptor) {
+                    if (polled.function) {
+                        polled.function(app, polled.file_descriptor);
                     }
                 }
-
-                int BUFFER_SIZE = 400;
-                char buffer[BUFFER_SIZE];
-                read(events[event_index].data.fd, buffer, BUFFER_SIZE);
             }
         }
 
@@ -1668,8 +1700,6 @@ void app_clean(App *app) {
     }
     app->timeouts.clear();
     app->timeouts.shrink_to_fit();
-
-    dbus_stop_connection(app);
 
     close(app->epoll_fd);
 
@@ -1812,7 +1842,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout
         return -1;
     }
 
-    bool success = poll_descriptor(app, timeout_file_descriptor);
+    bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup);
     if (!success) { // error with poll_descriptor
         return -1;
     }
