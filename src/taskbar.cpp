@@ -774,6 +774,7 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
     data->initial_mouse_click_before_drag_offset_x =
             container->real_bounds.x - client_entity->mouse_initial_x;
     container->z_index = 1;
+    possibly_close(app, container, data);
 
     icons_align(client_entity, container->parent, true);
 }
@@ -793,6 +794,8 @@ pinned_icon_drag(AppClient *client_entity, cairo_t *cr, Container *container) {
             std::min(container->parent->real_bounds.x + container->parent->real_bounds.w -
                      container->real_bounds.w,
                      container->real_bounds.x);
+
+    possibly_close(app, container, data);
 
     auto *copy_parent = new Container(*container->parent);
     copy_parent->should_layout_children = true;

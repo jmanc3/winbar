@@ -10,3 +10,6 @@ tracy*
 !install.sh
 winbar/
 todo*
+.ccls-cache
+.cache
+compile_commands.json
