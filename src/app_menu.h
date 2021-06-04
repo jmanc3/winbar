@@ -23,6 +23,8 @@ public:
     time_t time_modified = 0;
     int priority = 0;
 
+    int app_menu_priority = 0;
+
     ~Launcher() {
         if (icon_16)
             cairo_surface_destroy(icon_16);

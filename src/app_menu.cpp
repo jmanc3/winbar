@@ -891,7 +891,7 @@ fill_root(AppClient *client) {
     for (int i = 0; i < launchers.size(); i++) {
         Launcher *l = launchers[i];
         // Insert title
-        if (l->priority == 4) {
+        if (l->app_menu_priority == 4) {
             char new_char = std::tolower(l->name.at(0));
             if (previous_char != new_char) {
                 previous_char = new_char;
@@ -910,8 +910,8 @@ fill_root(AppClient *client) {
 
                 title->user_data = data;
             }
-        } else if (previous_priority != l->priority) {
-            previous_priority = l->priority;
+        } else if (previous_priority != l->app_menu_priority) {
+            previous_priority = l->app_menu_priority;
 
             auto *title = new Container();
             title->parent = content;
@@ -923,13 +923,13 @@ fill_root(AppClient *client) {
             title->when_clicked = clicked_title;
 
             auto *data = new ButtonData();
-            if (l->priority == 1) {
+            if (l->app_menu_priority == 1) {
                 title->name = "Recently added";
                 data->text = "Recently added";
-            } else if (l->priority == 2) {
+            } else if (l->app_menu_priority == 2) {
                 title->name = "&";
                 data->text = "&";
-            } else if (l->priority == 3) {
+            } else if (l->app_menu_priority == 3) {
                 title->name = "#";
                 data->text = "#";
             }
@@ -1239,22 +1239,22 @@ void load_all_desktop_files() {
     for (auto l : launchers) {
         double diff = difftime(now, l->time_modified);
         if (diff < recently_added_threshold) { // less than two days old
-            l->priority = 1;
+            l->app_menu_priority = 1;
         } else if (!l->name.empty()) {
             if (!isalnum(l->name[0])) { // is symbol
-                l->priority = 2;
+                l->app_menu_priority = 2;
             } else if (isdigit(l->name[0])) { // is number
-                l->priority = 3;
+                l->app_menu_priority = 3;
             } else { // is ascii
-                l->priority = 4;
+                l->app_menu_priority = 4;
             }
         }
     }
 
     // TODO: sort in order latest, &, #, A...Z
     std::sort(launchers.begin(), launchers.end(), [](const auto &lhs, const auto &rhs) {
-        if (lhs->priority == rhs->priority) {
-            if (lhs->priority == 1) { // time based
+        if (lhs->app_menu_priority == rhs->app_menu_priority) {
+            if (lhs->app_menu_priority == 1) { // time based
                 return lhs->time_modified > rhs->time_modified;
             }
 
@@ -1266,7 +1266,7 @@ void load_all_desktop_files() {
 
             return first_name < second_name;
         } else {
-            return lhs->priority < rhs->priority;
+            return lhs->app_menu_priority < rhs->app_menu_priority;
         }
     });
     std::thread(paint_desktop_files).detach();
