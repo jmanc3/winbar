@@ -94,7 +94,6 @@ static DBusHandlerResult signal_handler(DBusConnection *connection,
             } else {
                 registered_object_path = true;
             }
-            dbus_connection_flush(dbus_connection);
         }
 
         return DBUS_HANDLER_RESULT_HANDLED;
@@ -113,7 +112,6 @@ static DBusHandlerResult signal_handler(DBusConnection *connection,
         } else {
             registered_object_path = false;
         }
-        dbus_connection_flush(dbus_connection);
 
         return DBUS_HANDLER_RESULT_HANDLED;
     }
@@ -239,7 +237,7 @@ static void dbus_kde_show_desktop_response(DBusPendingCall *call, void *data) {
 }
 
 bool dbus_kde_show_desktop_grid() {
-    if (dbus_connection) return false;
+    if (!dbus_connection) return false;
 
     DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.kglobalaccel", "/component/kwin",
                                                          "org.kde.kglobalaccel.Component",
@@ -269,7 +267,7 @@ bool dbus_kde_show_desktop_grid() {
 }
 
 bool dbus_kde_show_desktop() {
-    if (dbus_connection) return false;
+    if (!dbus_connection) return false;
 
     DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.kglobalaccel", "/component/kwin",
                                                          "org.kde.kglobalaccel.Component",
@@ -310,7 +308,7 @@ static void dbus_gnome_show_overview_response(DBusPendingCall *call, void *data)
 }
 
 bool dbus_gnome_show_overview() {
-    if (dbus_connection) return false;
+    if (!dbus_connection) return false;
 
     DBusMessage *dbus_msg = dbus_message_new_method_call("org.gnome.Shell", "/org/gnome/Shell",
                                                          "org.gnome.Shell",
@@ -628,27 +626,24 @@ void dbus_start() {
         return;
     }
 
-    dbus_connection_flush(dbus_connection);
-
     if (poll_descriptor(app, file_descriptor, EPOLLIN | EPOLLPRI | EPOLLHUP | EPOLLERR, dbus_poll_wakeup)) {
         // Get the names of all the services running
         //
         request_name_of_every_service_running();
-
-        dbus_connection_flush(dbus_connection);
 
         // Try to become the owner of the org.freedesktop.Notification name
         //
         int result = dbus_bus_request_name(dbus_connection, "org.freedesktop.Notifications",
                                            DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
 
-        dbus_connection_flush(dbus_connection);
         if (dbus_error_is_set(&error)) {
             fprintf(stderr, "Ran into error when trying to become the sessions notification manager (%s)\n",
                     error.message);
             dbus_error_free(&error);
             return;
         }
+
+        dbus_poll_wakeup(nullptr, 0);
     }
 }
 
