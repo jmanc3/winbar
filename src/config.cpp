@@ -308,6 +308,56 @@ void config_load() {
                                  &config->color_pinned_icon_editor_button_default);
                         load_hex(theme, "color_pinned_icon_editor_button_text_default",
                                  &config->color_pinned_icon_editor_button_text_default);
+
+                        load_hex(theme, "color_notification_content_background",
+                                 &config->color_notification_content_background);
+                        load_hex(theme, "color_notification_title_background",
+                                 &config->color_notification_title_background);
+                        load_hex(theme, "color_notification_content_text", &config->color_notification_content_text);
+                        load_hex(theme, "color_notification_title_text", &config->color_notification_title_text);
+                        load_hex(theme, "color_notification_button_default",
+                                 &config->color_notification_button_default);
+                        load_hex(theme, "color_notification_button_hovered",
+                                 &config->color_notification_button_hovered);
+                        load_hex(theme, "color_notification_button_pressed",
+                                 &config->color_notification_button_pressed);
+                        load_hex(theme, "color_notification_button_text_default",
+                                 &config->color_notification_button_text_default);
+                        load_hex(theme, "color_notification_button_text_hovered",
+                                 &config->color_notification_button_text_hovered);
+                        load_hex(theme, "color_notification_button_text_pressed",
+                                 &config->color_notification_button_text_pressed);
+                        load_hex(theme, "color_notification_button_send_to_action_center_default",
+                                 &config->color_notification_button_send_to_action_center_default);
+                        load_hex(theme, "color_notification_button_send_to_action_center_hovered",
+                                 &config->color_notification_button_send_to_action_center_hovered);
+                        load_hex(theme, "color_notification_button_send_to_action_center_pressed",
+                                 &config->color_notification_button_send_to_action_center_pressed);
+
+                        load_hex(theme, "color_action_center_background", &config->color_action_center_background);
+                        load_hex(theme, "color_action_center_history_text", &config->color_action_center_history_text);
+                        load_hex(theme, "color_action_center_no_new_text", &config->color_action_center_no_new_text);
+                        load_hex(theme, "color_action_center_notification_content_background",
+                                 &config->color_action_center_notification_content_background);
+                        load_hex(theme, "color_action_center_notification_title_background",
+                                 &config->color_action_center_notification_title_background);
+                        load_hex(theme, "color_action_center_notification_content_text",
+                                 &config->color_action_center_notification_content_text);
+                        load_hex(theme, "color_action_center_notification_title_text",
+                                 &config->color_action_center_notification_title_text);
+                        load_hex(theme, "color_action_center_notification_button_default",
+                                 &config->color_action_center_notification_button_default);
+                        load_hex(theme, "color_action_center_notification_button_hovered",
+                                 &config->color_action_center_notification_button_hovered);
+                        load_hex(theme, "color_action_center_notification_button_pressed",
+                                 &config->color_action_center_notification_button_pressed);
+                        load_hex(theme, "color_action_center_notification_button_text_default",
+                                 &config->color_action_center_notification_button_text_default);
+                        load_hex(theme, "color_action_center_notification_button_text_hovered",
+                                 &config->color_action_center_notification_button_text_hovered);
+                        load_hex(theme, "color_action_center_notification_button_text_pressed",
+                                 &config->color_action_center_notification_button_text_pressed);
+
                         break;
                     }
                 } else {

@@ -179,6 +179,34 @@ struct Config {
     ArgbColor color_pinned_icon_editor_cursor = ArgbColor("#ff000000");
     ArgbColor color_pinned_icon_editor_button_default = ArgbColor("#ffcccccc");
     ArgbColor color_pinned_icon_editor_button_text_default = ArgbColor("#ff000000");
+
+    ArgbColor color_notification_content_background = ArgbColor("#ff1f1f1f");
+    ArgbColor color_notification_title_background = ArgbColor("#ff191919");
+    ArgbColor color_notification_content_text = ArgbColor("#ffffffff");
+    ArgbColor color_notification_title_text = ArgbColor("#ffffffff");
+    ArgbColor color_notification_button_default = ArgbColor("#ff545454");
+    ArgbColor color_notification_button_hovered = ArgbColor("#ff616161");
+    ArgbColor color_notification_button_pressed = ArgbColor("#ff474747");
+    ArgbColor color_notification_button_text_default = ArgbColor("#ffffffff");
+    ArgbColor color_notification_button_text_hovered = ArgbColor("#ffffffff");
+    ArgbColor color_notification_button_text_pressed = ArgbColor("#ffffffff");
+    ArgbColor color_notification_button_send_to_action_center_default = ArgbColor("#ff9c9c9c");
+    ArgbColor color_notification_button_send_to_action_center_hovered = ArgbColor("#ffcccccc");
+    ArgbColor color_notification_button_send_to_action_center_pressed = ArgbColor("#ff888888");
+
+    ArgbColor color_action_center_background = ArgbColor("#ff1f1f1f");
+    ArgbColor color_action_center_history_text = ArgbColor("#ffa5d6fd");
+    ArgbColor color_action_center_no_new_text = ArgbColor("#ffffffff");
+    ArgbColor color_action_center_notification_content_background = ArgbColor("#ff282828");
+    ArgbColor color_action_center_notification_title_background = ArgbColor("#ff1f1f1f");
+    ArgbColor color_action_center_notification_content_text = ArgbColor("#ffffffff");
+    ArgbColor color_action_center_notification_title_text = ArgbColor("#ffffffff");
+    ArgbColor color_action_center_notification_button_default = ArgbColor("#ff545454");
+    ArgbColor color_action_center_notification_button_hovered = ArgbColor("#ff616161");
+    ArgbColor color_action_center_notification_button_pressed = ArgbColor("#ff474747");
+    ArgbColor color_action_center_notification_button_text_default = ArgbColor("#ffffffff");
+    ArgbColor color_action_center_notification_button_text_hovered = ArgbColor("#ffffffff");
+    ArgbColor color_action_center_notification_button_text_pressed = ArgbColor("#ffffffff");
 };
 
 extern Config *config;

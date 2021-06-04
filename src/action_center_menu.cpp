@@ -45,7 +45,7 @@ static void paint_prompt(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, text.c_str(), text.size());
     pango_layout_get_pixel_size(layout, &width, &height);
 
-    set_argb(cr, config->color_taskbar_date_time_text);
+    set_argb(cr, config->color_action_center_no_new_text);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
@@ -55,7 +55,7 @@ static void paint_prompt(AppClient *client, cairo_t *cr, Container *container) {
 static void paint_root(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationWrapper *) container->user_data;
 
-    set_argb(cr, config->color_volume_background);
+    set_argb(cr, config->color_action_center_background);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 }
@@ -63,27 +63,9 @@ static void paint_root(AppClient *client, cairo_t *cr, Container *container) {
 static void paint_notification_root(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationWrapper *) container->user_data;
 
-    set_argb(cr, config->color_volume_background);
+    set_argb(cr, config->color_action_center_notification_content_background);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
-
-    if (data->surface) {
-        if (container->state.mouse_hovering || container->state.mouse_pressing) {
-            if (container->state.mouse_pressing) {
-                dye_surface(data->surface, ArgbColor(.7, .7, .7, 1));
-            } else {
-                dye_surface(data->surface, ArgbColor(.9, .9, .9, 1));
-            }
-        } else {
-            dye_surface(data->surface, ArgbColor(.4, .4, .4, 1));
-        }
-
-        // TODO: dye this surface the variable in config that we need to create
-        cairo_set_source_surface(cr, data->surface,
-                                 (int) (container->real_bounds.x + container->real_bounds.w - 16 - 12),
-                                 (int) (container->real_bounds.y + 12));
-        cairo_paint(cr);
-    }
 }
 
 static int determine_height_of_text(App *app, std::string text, PangoWeight weight, int size, int width) {
@@ -121,7 +103,7 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, data->text.c_str(), data->text.length());
     pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
 
-    set_argb(cr, config->color_taskbar_date_time_text);
+    set_argb(cr, config->color_action_center_notification_content_text);
     cairo_move_to(cr,
                   container->real_bounds.x,
                   container->real_bounds.y);
@@ -141,7 +123,7 @@ static void paint_label_button(AppClient *client, cairo_t *cr, Container *contai
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
 
-    set_argb(cr, config->color_date_text_default_button);
+    set_argb(cr, config->color_action_center_history_text);
     cairo_move_to(cr,
                   container->real_bounds.x,
                   container->real_bounds.y);
@@ -152,7 +134,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
 
 static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
-    set_argb(cr, darken(config->color_volume_background, 4));
+    set_argb(cr, config->color_action_center_notification_title_background);
     cairo_fill(cr);
 
     auto wrapper = (NotificationWrapper *) container->parent->user_data;
@@ -168,7 +150,7 @@ static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
 
-    set_argb(cr, config->color_taskbar_date_time_text);
+    set_argb(cr, config->color_action_center_notification_title_text);
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 -
                   ((logical.width / PANGO_SCALE) / 2),
@@ -181,15 +163,14 @@ static void paint_action(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationActionWrapper *) container->user_data;
     auto action = data->action;
 
-    auto color = ArgbColor(.294, .294, .294, 1);
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, darken(color, 3));
+            set_argb(cr, config->color_action_center_notification_button_pressed);
         } else {
-            set_argb(cr, lighten(color, 3));
+            set_argb(cr, config->color_action_center_notification_button_hovered);
         }
     } else {
-        set_argb(cr, color);
+        set_argb(cr, config->color_action_center_notification_button_default);
     }
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
@@ -206,7 +187,15 @@ static void paint_action(AppClient *client, cairo_t *cr, Container *container) {
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
 
-    set_argb(cr, config->color_taskbar_date_time_text);
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_action_center_notification_button_text_pressed);
+        } else {
+            set_argb(cr, config->color_action_center_notification_button_text_hovered);
+        }
+    } else {
+        set_argb(cr, config->color_action_center_notification_button_text_default);
+    }
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 -
                   ((logical.width / PANGO_SCALE) / 2),
@@ -418,7 +407,8 @@ static void fill_root(AppClient *client, Container *root) {
     content->name = "content";
     content->spacing = 8;
 
-    for (auto n : notifications) {
+    for (int i = notifications.size(); i--;) {
+        NotificationInfo *n = notifications[i];
         if (n->removed_from_action_center)
             continue;
         auto notification_container = create_notification_container(app, n, 364);
@@ -512,13 +502,6 @@ void start_action_center(App *app) {
         notification_closed_signal(c->app, wrapper->ni, NotificationReasonClosed::UNDEFINED_OR_RESERVED_REASON);
         client_close_threaded(app, c);
     }
-    if (auto c = client_by_name(app, "taskbar")) {
-        if (auto co = container_by_name("action", c->root)) {
-            auto data = (ActionCenterButtonData *) co->user_data;
-            data->some_unseen = false;
-            request_refresh(app, c);
-        }
-    }
 
     Settings settings;
     settings.w = 396;
@@ -536,4 +519,13 @@ void start_action_center(App *app) {
     app_create_custom_event_handler(app, client->window, event_handler);
 
     client_show(app, client);
+
+    if (auto c = client_by_name(app, "taskbar")) {
+        if (auto co = container_by_name("action", c->root)) {
+            auto data = (ActionCenterButtonData *) co->user_data;
+            data->some_unseen = false;
+            client_create_animation(app, c, &data->slide_anim, 220, nullptr, 0);
+            request_refresh(app, c);
+        }
+    }
 }

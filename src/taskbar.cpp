@@ -1107,23 +1107,43 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
 
     auto data = (ActionCenterButtonData *) container->user_data;
 
-    cairo_surface_t *surface = nullptr;
-    if (data->some_unseen) {
-        surface = data->surface_unseen_notification;
-    } else {
-        surface = data->surface;
-    }
-    if (surface) {
-        dye_surface(surface, config->color_taskbar_button_icons);
+    if (data->surface) {
+        dye_surface(data->surface, config->color_taskbar_button_icons);
         cairo_set_source_surface(
                 cr,
-                surface,
+                data->surface,
                 (int) (container->real_bounds.x + 12),
                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
         cairo_paint(cr);
     }
 
-    if (data->some_unseen) {
+    if (data->slide_anim != 1) {
+        cairo_save(cr);
+        dye_surface(data->surface_unseen_notification, config->color_taskbar_button_icons);
+        cairo_set_source_surface(
+                cr,
+                data->surface_unseen_notification,
+                (int) (container->real_bounds.x + 12 + (1 - data->slide_anim) * 16),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+        cairo_mask_surface(
+                cr,
+                data->surface_unseen_notification,
+                (int) (container->real_bounds.x + 12),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+        cairo_fill(cr);
+        cairo_restore(cr);
+    } else if (data->some_unseen) {
+        dye_surface(data->surface_unseen_notification, config->color_taskbar_button_icons);
+        cairo_set_source_surface(
+                cr,
+                data->surface_unseen_notification,
+                (int) (container->real_bounds.x + 12 + (1 - data->slide_anim) * 16),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+        cairo_paint(cr);
+    }
+
+    if (data->slide_anim != 0 && data->some_unseen) {
+        cairo_push_group(cr);
         cairo_set_line_width(cr, 1);
         cairo_set_source_rgba(cr, 0.6, 0.6, 0.6, .8);
 
@@ -1157,8 +1177,14 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
                       container->real_bounds.x - (ink.x / PANGO_SCALE) + 12 + 16 -
                       (std::ceil(ink.width / PANGO_SCALE / 2)) - 1,
                       container->real_bounds.y - (ink.y / PANGO_SCALE) + (container->real_bounds.h / 2 + 8) -
-                      (std::ceil(ink.height / PANGO_SCALE / 2)));
+                      (std::ceil(ink.height / PANGO_SCALE / 2)) - 1);
         pango_cairo_show_layout(cr, layout);
+
+        cairo_pop_group_to_source(cr);
+        double time = data->slide_anim * 2;
+        if (time > 1)
+            time = 1;
+        cairo_paint_with_alpha(cr, time);
     }
 }
 
@@ -1836,6 +1862,8 @@ fill_root(App *app, AppClient *client, Container *root) {
                         as_resource_path("taskbar-notification-empty.png"), 16);
     load_icon_full_path(app, client, &action_center_data->surface_unseen_notification,
                         as_resource_path("taskbar-notification-available.png"), 16);
+    load_icon_full_path(app, client, &action_center_data->surface_mask,
+                        as_resource_path("taskbar-notification-mask.png"), 16);
 
     action_center_data->invalidate_button_press_if_client_with_this_name_is_open = "action_center";
     button_action_center->when_mouse_down = invalidate_icon_button_press_if_window_open;

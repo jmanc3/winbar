@@ -39,27 +39,9 @@ static void close_notification_timeout(App *app, AppClient *client, void *data) 
 static void paint_root(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationWrapper *) container->user_data;
 
-    set_argb(cr, config->color_volume_background);
+    set_argb(cr, config->color_notification_content_background);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
-
-    if (data->surface) {
-        if (container->state.mouse_hovering || container->state.mouse_pressing) {
-            if (container->state.mouse_pressing) {
-                dye_surface(data->surface, ArgbColor(.7, .7, .7, 1));
-            } else {
-                dye_surface(data->surface, ArgbColor(.9, .9, .9, 1));
-            }
-        } else {
-            dye_surface(data->surface, ArgbColor(.4, .4, .4, 1));
-        }
-
-        // TODO: dye this surface the variable in config that we need to create
-        cairo_set_source_surface(cr, data->surface,
-                                 (int) (container->real_bounds.x + container->real_bounds.w - 16 - 12),
-                                 (int) (container->real_bounds.y + 12));
-        cairo_paint(cr);
-    }
 }
 
 static void clicked_root(AppClient *client, cairo_t *cr, Container *container) {
@@ -104,7 +86,7 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, data->text.c_str(), data->text.length());
     pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
 
-    set_argb(cr, config->color_taskbar_date_time_text);
+    set_argb(cr, config->color_notification_content_text);
     cairo_move_to(cr,
                   container->real_bounds.x,
                   container->real_bounds.y);
@@ -115,7 +97,7 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
 
 static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
-    set_argb(cr, darken(config->color_volume_background, 4));
+    set_argb(cr, config->color_notification_title_background);
     cairo_fill(cr);
 
     std::string text = "Interaction Required";
@@ -130,7 +112,7 @@ static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
 
-    set_argb(cr, config->color_taskbar_date_time_text);
+    set_argb(cr, config->color_notification_title_text);
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 -
                   ((logical.width / PANGO_SCALE) / 2),
@@ -153,15 +135,14 @@ static void paint_action(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationActionWrapper *) container->user_data;
     auto action = data->action;
 
-    auto color = ArgbColor(.294, .294, .294, 1);
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, darken(color, 3));
+            set_argb(cr, config->color_notification_button_pressed);
         } else {
-            set_argb(cr, lighten(color, 3));
+            set_argb(cr, config->color_notification_button_hovered);
         }
     } else {
-        set_argb(cr, color);
+        set_argb(cr, config->color_notification_button_default);
     }
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
@@ -178,7 +159,15 @@ static void paint_action(AppClient *client, cairo_t *cr, Container *container) {
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
 
-    set_argb(cr, config->color_taskbar_date_time_text);
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_notification_button_text_pressed);
+        } else {
+            set_argb(cr, config->color_notification_button_text_hovered);
+        }
+    } else {
+        set_argb(cr, config->color_notification_button_text_default);
+    }
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 -
                   ((logical.width / PANGO_SCALE) / 2),
@@ -214,15 +203,21 @@ static void paint_send_to_action_center(AppClient *client, cairo_t *cr, Containe
     if (icon_button->surface) {
         if (container->state.mouse_pressing || container->state.mouse_hovering) {
             if (container->state.mouse_pressing) {
-                dye_surface(icon_button->surface, darken(config->color_taskbar_date_time_text, 40));
+                dye_surface(icon_button->surface, config->color_notification_button_send_to_action_center_pressed);
             } else {
-                dye_surface(icon_button->surface, config->color_taskbar_date_time_text);
+                dye_surface(icon_button->surface, config->color_notification_button_send_to_action_center_hovered);
             }
         } else {
             if (!bounds_contains(client->root->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
                 return;
             }
-            dye_surface(icon_button->surface, darken(config->color_taskbar_date_time_text, 20));
+            if (auto c = container_by_name("actions_container", client->root)) {
+                for (auto co : c->children) {
+                    if (bounds_contains(co->real_bounds, client->mouse_current_x, client->mouse_current_y))
+                        return;
+                }
+            }
+            dye_surface(icon_button->surface, config->color_notification_button_send_to_action_center_default);
         }
         cairo_set_source_surface(cr, icon_button->surface,
                                  container->real_bounds.x + 16 + 4,
