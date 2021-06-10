@@ -53,6 +53,8 @@ public:
     // Window is shown on screen
     bool mapped = true;
 
+    bool wants_attention = false;
+
     // This is the surface that is linked to the actual window content
     cairo_surface_t *window_surface = nullptr;
     int width = -1;
@@ -99,6 +101,7 @@ public:
 
     double active_amount = 0;
     double hover_amount = 0;
+    double wants_attention_amount = 0;
 
     selector_type type = selector_type::CLOSED;
     int possibly_open_timeout_fd = -1;

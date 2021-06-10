@@ -189,23 +189,6 @@ clicked_title(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
-int get_offset(Container *target, Container *scroll_pane) {
-    int offset = 0;
-
-    for (int i = 0; i < scroll_pane->children[0]->children.size(); i++) {
-        auto possible = scroll_pane->children[0]->children[i];
-
-        if (possible == target) {
-            return offset;
-        }
-
-        offset += possible->real_bounds.h;
-        offset += scroll_pane->children[0]->spacing;
-    }
-
-    return offset;
-}
-
 static void
 clicked_grid(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE

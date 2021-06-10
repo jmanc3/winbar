@@ -2096,3 +2096,20 @@ void transition_same_container(AppClient *client, cairo_t *cr, Container *parent
     client_create_animation(client->app, client, &data->transition_scalar, 350,
                             getEasingFunction(::EaseOutQuint), 1, false);
 }
+
+int get_offset(Container *target, Container *scroll_pane) {
+    int offset = 0;
+
+    for (int i = 0; i < scroll_pane->children[0]->children.size(); i++) {
+        auto possible = scroll_pane->children[0]->children[i];
+
+        if (possible == target) {
+            return offset;
+        }
+
+        offset += possible->real_bounds.h;
+        offset += scroll_pane->children[0]->spacing;
+    }
+
+    return offset;
+}

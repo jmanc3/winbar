@@ -121,6 +121,10 @@ void config_load() {
                                  &config->color_taskbar_application_icons_accent);
                         load_hex(theme, "color_taskbar_minimize_line",
                                  &config->color_taskbar_minimize_line);
+                        load_hex(theme, "color_taskbar_attention_accent",
+                                 &config->color_taskbar_attention_accent);
+                        load_hex(theme, "color_taskbar_attention_background",
+                                 &config->color_taskbar_attention_background);
 
                         load_hex(theme, "color_systray_background", &config->color_systray_background);
 
@@ -231,6 +235,8 @@ void config_load() {
                                  &config->color_windows_selector_close_icon_hovered_background);
                         load_hex(theme, "color_windows_selector_close_icon_pressed_background",
                                  &config->color_windows_selector_close_icon_pressed_background);
+                        load_hex(theme, "color_windows_selector_attention_background",
+                                 &config->color_windows_selector_attention_background);
 
                         load_hex(theme, "color_search_tab_bar_background", &config->color_search_tab_bar_background);
                         load_hex(theme, "color_search_accent", &config->color_search_accent);

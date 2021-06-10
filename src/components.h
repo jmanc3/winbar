@@ -166,4 +166,6 @@ enum Transition {
 void transition_same_container(AppClient *client, cairo_t *cr, Container *parent,
                                int original_anim, int replacement_anim);
 
+int get_offset(Container *target, Container *scroll_pane);
+
 #endif// SCROLL_COMPONENTS_H

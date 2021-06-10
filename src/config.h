@@ -50,6 +50,8 @@ struct Config {
     ArgbColor color_taskbar_application_icons_background = ArgbColor("#ffffffff");
     ArgbColor color_taskbar_application_icons_accent = ArgbColor("#ff76b9ed");
     ArgbColor color_taskbar_minimize_line = ArgbColor("#ff222222");
+    ArgbColor color_taskbar_attention_accent = ArgbColor("#fffc8803");
+    ArgbColor color_taskbar_attention_background = ArgbColor("#fffc8803");
 
     ArgbColor color_systray_background = ArgbColor("#f3282828");
 
@@ -138,6 +140,7 @@ struct Config {
     ArgbColor color_windows_selector_text = ArgbColor("#ffffffff");
     ArgbColor color_windows_selector_close_icon_hovered_background = ArgbColor("#ffc61a28");
     ArgbColor color_windows_selector_close_icon_pressed_background = ArgbColor("#ffe81123");
+    ArgbColor color_windows_selector_attention_background = ArgbColor("#fffc8803");
 
     ArgbColor color_search_tab_bar_background = ArgbColor("#f31f1f1f");
     ArgbColor color_search_accent = ArgbColor("#ff0078d7");

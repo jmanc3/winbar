@@ -15,6 +15,7 @@
 #include <pango/pangocairo.h>
 #include <xcb/xcb_image.h>
 #include <icons.h>
+#include <cmath>
 
 int option_width = 217 * 1.2;
 int option_min_width = 100 * 1.2;
@@ -240,19 +241,43 @@ static void paint_option_hovered_or_pressed(Container *container, bool &hovered,
 
 static void
 paint_option_background(AppClient *client_entity, cairo_t *cr, Container *container) {
+    int index = 0;
+    for (int i = 0; i < container->parent->children.size(); i++) {
+        if (container->parent->children[i] == container) {
+            index = i;
+            break;
+        }
+    }
+    auto pii = (PinnedIconInfo *) client_entity->root->user_data;
+
     bool hovered = false;
     bool pressed = false;
     paint_option_hovered_or_pressed(container, hovered, pressed);
 
+    ArgbColor background = config->color_windows_selector_default_background;
     if (hovered || pressed) {
         if (pressed) {
-            set_argb(cr, correct_opaqueness(client_entity, config->color_windows_selector_pressed_background));
+            background = correct_opaqueness(client_entity, config->color_windows_selector_pressed_background);
         } else {
-            set_argb(cr, correct_opaqueness(client_entity, config->color_windows_selector_hovered_background));
+            background = correct_opaqueness(client_entity, config->color_windows_selector_hovered_background);
         }
     } else {
-        set_argb(cr, correct_opaqueness(client_entity, config->color_windows_selector_default_background));
+        background = correct_opaqueness(client_entity, config->color_windows_selector_default_background);
     }
+
+    if (pii->data->wants_attention_amount != 0 && pii->data->windows_data_list[index]->wants_attention) {
+        double blinks = 10.5;
+        double scalar = fmod(pii->data->wants_attention_amount, (1.0 / blinks)); // get N blinks
+        scalar *= blinks;
+        if (scalar > .5)
+            scalar = 1 - scalar;
+        scalar *= 2;
+        if (pii->data->wants_attention_amount == 1)
+            scalar = 1;
+        background = lerp_argb(scalar, background, config->color_windows_selector_attention_background);
+    }
+
+    set_argb(cr, background);
     cairo_rectangle(cr,
                     container->real_bounds.x - 1,
                     container->real_bounds.y,
@@ -629,7 +654,7 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     }
 
 
-    client->fps = 2;
+    client->fps = 30;
     client->grab_event_handler = grab_event_handler;
     client->when_closed = when_closed;
     client_register_animation(app, client);

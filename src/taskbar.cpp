@@ -269,6 +269,9 @@ paint_double_bar(cairo_t *cr,
     if (data->type != selector_type::CLOSED) {
         bar_amount = 1;
     }
+    if (data->wants_attention_amount != 0) {
+        bar_amount = 1;
+    }
     double bar_inset = 4 * (1 - bar_amount);
     double bar_right = 4 + (4 * (1 - bar_amount));
 
@@ -346,22 +349,18 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    LaunchableButton *data = (LaunchableButton *) container->user_data;
+    auto *data = (LaunchableButton *) container->user_data;
     // This is the real underlying color
-    ArgbColor real = config->color_taskbar_application_icons_background;
     // is_light_theme determines if generated secondary colors should go up or down in brightness
     bool is_light_theme = false;
     {
         double h; // hue
         double s; // saturation
         double p; // perceived brightness
+        ArgbColor real = config->color_taskbar_application_icons_background;
         rgb2hsluv(real.r, real.g, real.b, &h, &s, &p);
         is_light_theme = p > 50; // if the perceived perceived brightness is greater than that we are a light theme
     }
-
-    double r_c = real.r;
-    double g_c = real.g;
-    double b_c = real.b;
 
     int windows_count = data->windows_data_list.size();
     bool active = active_container == container || (data->type == selector_type::OPEN_CLICKED);
@@ -374,57 +373,66 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     int highlight_height = 2;
 
     double bar_amount = std::max(data->hover_amount, active_amount);
-    if (data->type != selector_type::CLOSED) {
+    if (data->type != selector_type::CLOSED)
         bar_amount = 1;
-    }
+    if (data->wants_attention_amount != 0)
+        bar_amount = 1;
     double highlight_inset = 4 * (1 - bar_amount);
 
     double bg_openess = highlight_inset;
     double right_size = 0;
 
-    ArgbColor c = config->color_taskbar_application_icons_accent;
-    ArgbColor bottom_bar_left = c;
-    ArgbColor bottom_bar_middle = c;
-    darken(&bottom_bar_middle, 20);
-    ArgbColor bottom_bar_right = c;
-    darken(&bottom_bar_right, 15);
-
+    ArgbColor original_color_taskbar_application_icons_background = config->color_taskbar_application_icons_background;
     // The pinned icon is composed of three sections;
     // The background pane, the foreground pane, and the accent bar.
     //
+    ArgbColor accent = config->color_taskbar_application_icons_accent;
+    ArgbColor background = config->color_taskbar_application_icons_background;
+
+    if (data->wants_attention_amount != 0) {
+        double blinks = 10.5;
+        double scalar = fmod(data->wants_attention_amount, (1.0 / blinks)); // get N blinks
+        scalar *= blinks;
+        if (scalar > .5)
+            scalar = 1 - scalar;
+        scalar *= 2;
+        if (data->wants_attention_amount == 1)
+            scalar = 1;
+        accent = lerp_argb(scalar, accent, config->color_taskbar_attention_accent);
+        background = lerp_argb(scalar, background, config->color_taskbar_attention_background);
+        active_amount = 1;
+    }
 
     // The following colors are used on the accent bar
-    ArgbColor color_accent_bar_left = config->color_taskbar_application_icons_accent;
-    ArgbColor color_accent_bar_middle = darken(config->color_taskbar_application_icons_accent, 20);
-    ArgbColor color_accent_bar_right = darken(config->color_taskbar_application_icons_accent, 15);
-
-    ArgbColor original_color_taskbar_application_icons_background = config->color_taskbar_application_icons_background;
+    ArgbColor color_accent_bar_left = accent;
+    ArgbColor color_accent_bar_middle = darken(accent, 20);
+    ArgbColor color_accent_bar_right = darken(accent, 15);
 
     if (screen_has_transparency(app)) {
-        config->color_taskbar_application_icons_background.a = config->color_taskbar_background.a;
+        background.a = config->color_taskbar_background.a;
     }
 
     // The following colors are used for the background pane
-    ArgbColor color_background_pane_hovered_left = darken(config->color_taskbar_application_icons_background, 15);
-    ArgbColor color_background_pane_hovered_middle = darken(config->color_taskbar_application_icons_background, 22);
-    ArgbColor color_background_pane_hovered_right = darken(config->color_taskbar_application_icons_background, 17);
+    ArgbColor color_background_pane_hovered_left = darken(background, 15);
+    ArgbColor color_background_pane_hovered_middle = darken(background, 22);
+    ArgbColor color_background_pane_hovered_right = darken(background, 17);
 
-    ArgbColor color_background_pane_pressed_left = darken(config->color_taskbar_application_icons_background, 20);
-    ArgbColor color_background_pane_pressed_middle = darken(config->color_taskbar_application_icons_background, 27);
-    ArgbColor color_background_pane_pressed_right = darken(config->color_taskbar_application_icons_background, 22);
+    ArgbColor color_background_pane_pressed_left = darken(background, 20);
+    ArgbColor color_background_pane_pressed_middle = darken(background, 27);
+    ArgbColor color_background_pane_pressed_right = darken(background, 22);
 
     // The following colors are used for the foreground pane
-    ArgbColor color_foreground_pane_default_left = darken(config->color_taskbar_application_icons_background, 10);
-    ArgbColor color_foreground_pane_default_middle = darken(config->color_taskbar_application_icons_background, 17);
-    ArgbColor color_foreground_pane_default_right = darken(config->color_taskbar_application_icons_background, 12);
+    ArgbColor color_foreground_pane_default_left = darken(background, 10);
+    ArgbColor color_foreground_pane_default_middle = darken(background, 17);
+    ArgbColor color_foreground_pane_default_right = darken(background, 12);
 
-    ArgbColor color_foreground_pane_hovered_left = darken(config->color_taskbar_application_icons_background, 0);
-    ArgbColor color_foreground_pane_hovered_middle = darken(config->color_taskbar_application_icons_background, 7);
-    ArgbColor color_foreground_pane_hovered_right = darken(config->color_taskbar_application_icons_background, 2);
+    ArgbColor color_foreground_pane_hovered_left = darken(background, 0);
+    ArgbColor color_foreground_pane_hovered_middle = darken(background, 7);
+    ArgbColor color_foreground_pane_hovered_right = darken(background, 2);
 
-    ArgbColor color_foreground_pane_pressed_left = darken(config->color_taskbar_application_icons_background, 0 + 2);
-    ArgbColor color_foreground_pane_pressed_middle = darken(config->color_taskbar_application_icons_background, 7 + 2);
-    ArgbColor color_foreground_pane_pressed_right = darken(config->color_taskbar_application_icons_background, 2 + 2);
+    ArgbColor color_foreground_pane_pressed_left = darken(background, 0 + 2);
+    ArgbColor color_foreground_pane_pressed_middle = darken(background, 7 + 2);
+    ArgbColor color_foreground_pane_pressed_right = darken(background, 2 + 2);
 
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
 
@@ -2027,7 +2035,71 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
             if (e->atom == get_cached_atom(app, "WM_NAME") ||
                 e->atom == get_cached_atom(app, "_NET_WM_NAME")) {
                 update_window_title_name(e->window);
+            } else if (e->atom == get_cached_atom(app, "_NET_WM_NAME") ||
+                       e->atom == get_cached_atom(app, "_NET_WM_NAME")) {
+                update_window_title_name(e->window);
             } else if (e->atom == get_cached_atom(app, "WM_CLASS")) {
+                late_classes_update(app, client_by_name(app, "taskbar"), nullptr);
+            } else if (e->atom == get_cached_atom(app, "_NET_WM_CLASS")) {
+                late_classes_update(app, client_by_name(app, "taskbar"), nullptr);
+            } else if (e->atom == get_cached_atom(app, "_NET_WM_STATE")) {
+                xcb_generic_error_t *err = nullptr;
+                auto cookie = xcb_get_property(app->connection, 0, e->window, get_cached_atom(app, "_NET_WM_STATE"),
+                                               XCB_ATOM_ATOM, 0,
+                                               BUFSIZ);
+                xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, &err);
+                if (reply) {
+                    if (reply->type == XCB_ATOM_ATOM) {
+                        auto *state_atoms = (xcb_atom_t *) xcb_get_property_value(reply);
+                        bool attention = false;
+                        for (unsigned int a = 0; a < sizeof(xcb_atom_t); a++) {
+                            if (state_atoms[a] == get_cached_atom(app, "_NET_WM_STATE_DEMANDS_ATTENTION")) {
+                                attention = true;
+                                if (auto client = client_by_name(app, "taskbar")) {
+                                    if (client->root) {
+                                        if (auto icons = container_by_name("icons", client->root)) {
+                                            for (auto icon : icons->children) {
+                                                auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                                                for (auto windows_data : data->windows_data_list) {
+                                                    if (windows_data->id == e->window) {
+                                                        client_create_animation(app, client,
+                                                                                &data->wants_attention_amount, 10000, 0,
+                                                                                1);
+                                                        windows_data->wants_attention = true;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                free(reply);
+                                break;
+                            }
+                        }
+                        if (!attention) {
+                            if (auto client = client_by_name(app, "taskbar")) {
+                                if (client->root) {
+                                    if (auto icons = container_by_name("icons", client->root)) {
+                                        for (auto icon : icons->children) {
+                                            auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                                            for (auto windows_data : data->windows_data_list) {
+                                                if (windows_data->id == e->window) {
+                                                    client_create_animation(app, client, &data->wants_attention_amount,
+                                                                            0, 0, 0);
+                                                    windows_data->wants_attention = false;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (err) {
+                    free(err);
+                    err = nullptr;
+                }
             }
             break;
         }
@@ -2791,7 +2863,6 @@ late_classes_update(App *app, AppClient *client, void *data) {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Late WM_CLASS Thread");
 #endif
-    return;
     auto *root = client->root;
     if (!root)
         return;
@@ -2805,11 +2876,14 @@ late_classes_update(App *app, AppClient *client, void *data) {
         // since when windows don't have real classes on them we set their names to their class.
         // they should only be stacked by one
         if (data->windows_data_list.size() == 1) {
-            auto name = class_name(app, data->windows_data_list[0]->id);
+            xcb_window_t id = data->windows_data_list[0]->id;
+            auto name = class_name(app, id);
+            name = c3ic_fix_wm_class(name);
 
             if (name != data->class_name) {
-                remove_window(app, data->windows_data_list[0]->id);
-                add_window(app, data->windows_data_list[0]->id);
+                remove_window(app, id);
+                add_window(app, id);
+                break;
             }
         }
     }
