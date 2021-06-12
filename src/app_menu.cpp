@@ -21,6 +21,7 @@
 #include <cmath>
 #include <pango/pangocairo.h>
 #include <vector>
+#include <optional>
 #include <xcb/xcb_aux.h>
 #include <hsluv.h>
 #include <sys/stat.h>

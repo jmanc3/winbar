@@ -1468,64 +1468,65 @@ void load_scripts() {
     std::stringstream ss(paths);
     std::string string_path;
     while (ss >> string_path) {
-        DIR *dir = opendir(string_path.c_str());
-        struct dirent *dp;
-        while ((dp = readdir(dir)) != NULL) {
-            struct stat st, ln;
+        if (auto *dir = opendir(string_path.c_str())) {
+            struct dirent *dp;
+            while ((dp = readdir(dir)) != NULL) {
+                struct stat st, ln;
 
-            // This is what determines if its an executable and its from dmenu and its not good. oh
-            // well
-            static int flag[26];
+                // This is what determines if its an executable and its from dmenu and its not good. oh
+                // well
+                static int flag[26];
 #define FLAG(x) (flag[(x) - 'a'])
 
-            const char *path = string_path.c_str();
-            if ((!stat(path, &st) && (FLAG('a') || dp->d_name[0] != '.')       /* hidden files      */
-                 && (!FLAG('b') || S_ISBLK(st.st_mode))                        /* block special     */
-                 && (!FLAG('c') || S_ISCHR(st.st_mode))                        /* character special */
-                 && (!FLAG('d') || S_ISDIR(st.st_mode))                        /* directory         */
-                 && (!FLAG('e') || access(path, F_OK) == 0)                    /* exists            */
-                 && (!FLAG('f') || S_ISREG(st.st_mode))                        /* regular file      */
-                 && (!FLAG('g') || st.st_mode & S_ISGID)                       /* set-group-id flag */
-                 && (!FLAG('h') || (!lstat(path, &ln) && S_ISLNK(ln.st_mode))) /* symbolic link */
-                 && (!FLAG('p') || S_ISFIFO(st.st_mode))                       /* named pipe        */
-                 && (!FLAG('r') || access(path, R_OK) == 0)                    /* readable          */
-                 && (!FLAG('s') || st.st_size > 0)                             /* not empty         */
-                 && (!FLAG('u') || st.st_mode & S_ISUID)                       /* set-user-id flag  */
-                 && (!FLAG('w') || access(path, W_OK) == 0)                    /* writable          */
-                 && (!FLAG('x') || access(path, X_OK) == 0)) != FLAG('v')) {   /* executable        */
+                const char *path = string_path.c_str();
+                if ((!stat(path, &st) && (FLAG('a') || dp->d_name[0] != '.')       /* hidden files      */
+                     && (!FLAG('b') || S_ISBLK(st.st_mode))                        /* block special     */
+                     && (!FLAG('c') || S_ISCHR(st.st_mode))                        /* character special */
+                     && (!FLAG('d') || S_ISDIR(st.st_mode))                        /* directory         */
+                     && (!FLAG('e') || access(path, F_OK) == 0)                    /* exists            */
+                     && (!FLAG('f') || S_ISREG(st.st_mode))                        /* regular file      */
+                     && (!FLAG('g') || st.st_mode & S_ISGID)                       /* set-group-id flag */
+                     && (!FLAG('h') || (!lstat(path, &ln) && S_ISLNK(ln.st_mode))) /* symbolic link */
+                     && (!FLAG('p') || S_ISFIFO(st.st_mode))                       /* named pipe        */
+                     && (!FLAG('r') || access(path, R_OK) == 0)                    /* readable          */
+                     && (!FLAG('s') || st.st_size > 0)                             /* not empty         */
+                     && (!FLAG('u') || st.st_mode & S_ISUID)                       /* set-user-id flag  */
+                     && (!FLAG('w') || access(path, W_OK) == 0)                    /* writable          */
+                     && (!FLAG('x') || access(path, X_OK) == 0)) != FLAG('v')) {   /* executable        */
 
-                if (!(FLAG('q'))) {
-                    bool already_have_this_script = false;
-                    std::string name = std::string(dp->d_name);
-                    for (auto *script : scripts) {
-                        if (script->name == name) {
-                            already_have_this_script = true;
-                            break;
+                    if (!(FLAG('q'))) {
+                        bool already_have_this_script = false;
+                        std::string name = std::string(dp->d_name);
+                        for (auto *script : scripts) {
+                            if (script->name == name) {
+                                already_have_this_script = true;
+                                break;
+                            }
                         }
-                    }
-                    if (already_have_this_script)
-                        continue;
+                        if (already_have_this_script)
+                            continue;
 
-                    auto *script = new Script();
-                    script->name = name;
-                    script->lowercase_name = script->name;
-                    std::transform(script->lowercase_name.begin(),
-                                   script->lowercase_name.end(),
-                                   script->lowercase_name.begin(),
-                                   ::tolower);
+                        auto *script = new Script();
+                        script->name = name;
+                        script->lowercase_name = script->name;
+                        std::transform(script->lowercase_name.begin(),
+                                       script->lowercase_name.end(),
+                                       script->lowercase_name.begin(),
+                                       ::tolower);
 
-                    script->path = path;
-                    if (!script->path.empty()) {
-                        if (script->path[script->path.length() - 1] == '/' ||
-                            script->path[script->path.length() - 1] == '\\') {
-                            script->path.erase(script->path.begin() + (script->path.length() - 1));
+                        script->path = path;
+                        if (!script->path.empty()) {
+                            if (script->path[script->path.length() - 1] == '/' ||
+                                script->path[script->path.length() - 1] == '\\') {
+                                script->path.erase(script->path.begin() + (script->path.length() - 1));
+                            }
                         }
-                    }
 
-                    scripts.push_back(script);
+                        scripts.push_back(script);
+                    }
                 }
             }
+            closedir(dir);
         }
-        closedir(dir);
     }
 }

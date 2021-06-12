@@ -2,6 +2,7 @@
 #include "icons.h"
 #include "INIReader.h"
 #include <cmath>
+#include <optional>
 #include <sys/stat.h>
 
 #ifdef TRACY_ENABLE
