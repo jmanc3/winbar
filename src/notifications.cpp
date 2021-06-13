@@ -254,6 +254,7 @@ void show_notification(App *app, NotificationInfo *ni) {
     settings.h = notification_container->real_bounds.h;
     settings.x = app->bounds.w - settings.w - 12;
     settings.y = app->bounds.h - config->taskbar_height - settings.h - 12;
+    settings.popup = true;
     settings.sticky = true;
     settings.skip_taskbar = true;
     settings.keep_above = true;
