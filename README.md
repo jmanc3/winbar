@@ -14,7 +14,7 @@ sudo xbps-install -S git gcc cmake make pkg-config pango-devel cairo-devel librs
 * Arch Linux
 
 ```bash
-sudo pacman -Sy git gcc cmake make pkg-config pango cairo librsvg libxcb xcb-util pulseaudio xcb-util-wm libxkbcommon libxkbcommon-x11 libconfig xcb-util-keysyms xcb-util-image xcb-util-cursor dbus papirus-icon-theme lxappearance unzip
+sudo pacman -S git gcc cmake make pkg-config pango cairo librsvg libxcb xcb-util pulseaudio xcb-util-wm libxkbcommon libxkbcommon-x11 libconfig xcb-util-keysyms xcb-util-image xcb-util-cursor dbus papirus-icon-theme lxappearance unzip
 ```
 
 * Ubuntu
