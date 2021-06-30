@@ -387,15 +387,11 @@ void start_systray() {
     systray->keeps_app_running = false;
 
     app_create_custom_event_handler(app, systray->window, systray_event_handler);
+    app_create_custom_event_handler(app, INT_MAX, icon_event_handler);
 
-    auto icon_windows_event_handler = new Handler();
-    icon_windows_event_handler->target_window =
-            INT_MAX;// INT_MAX means give us every event irregardless of the window number
-    icon_windows_event_handler->event_handler = icon_event_handler;
-    app->handlers.push_back(icon_windows_event_handler);
-
-    auto tray_atom =
-            get_cached_atom(app, "_NET_SYSTEM_TRAY_S" + std::to_string(app->screen_number));
+    std::string selection = "_NET_SYSTEM_TRAY_S";
+    selection.append(std::to_string(app->screen_number));
+    auto tray_atom = get_cached_atom(app, selection.c_str());
     xcb_set_selection_owner(app->connection, systray->window, tray_atom, XCB_CURRENT_TIME);
     auto selection_owner_cookie = xcb_get_selection_owner(app->connection, tray_atom);
     auto *selection_owner_reply =

@@ -1213,7 +1213,7 @@ void load_all_desktop_files() {
 
     load_desktop_files("/usr/share/applications/");
     std::string local_desktop_files = getenv("HOME");
-    local_desktop_files += "/.local/share/applicaxtions/";
+    local_desktop_files += "/.local/share/applications/";
     load_desktop_files(local_desktop_files);
 
     time_t now;
