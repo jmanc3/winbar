@@ -624,8 +624,8 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     if (auto *taskbar = client_by_name(app, "taskbar")) {
         settings.x = taskbar->bounds->x +
                      (container->real_bounds.x - settings.w / 2 + pii->data_container->real_bounds.w / 2);
-        if (settings.x < 0)
-            settings.x = 0;
+        if (settings.x < taskbar->bounds->x)
+            settings.x = taskbar->bounds->x;
         settings.y = taskbar->bounds->y - settings.h;
     }
     settings.force_position = true;
