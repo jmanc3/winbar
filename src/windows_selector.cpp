@@ -615,13 +615,19 @@ void start_windows_selector(Container *container, selector_type selector_state) 
 
     int width = get_width(pii->data);
     Settings settings;
-    settings.x = container->real_bounds.x - width / 2 + pii->data_container->real_bounds.w / 2;
-    if (settings.x < 0) {
-        settings.x = 0;
-    }
-    settings.y = app->bounds.h - option_height - config->taskbar_height;
     settings.w = width;
     settings.h = option_height;
+    settings.x = container->real_bounds.x - settings.w / 2 + pii->data_container->real_bounds.w / 2;
+    if (settings.x < 0)
+        settings.x = 0;
+    settings.y = app->bounds.h - settings.h - config->taskbar_height;
+    if (auto *taskbar = client_by_name(app, "taskbar")) {
+        settings.x = taskbar->bounds->x +
+                     (container->real_bounds.x - settings.w / 2 + pii->data_container->real_bounds.w / 2);
+        if (settings.x < 0)
+            settings.x = 0;
+        settings.y = taskbar->bounds->y - settings.h;
+    }
     settings.force_position = true;
     settings.decorations = false;
     settings.skip_taskbar = true;

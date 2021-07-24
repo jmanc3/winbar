@@ -330,6 +330,8 @@ layout_systray() {
             if (auto container = container_by_name("systray", taskbar->root)) {
                 window_x = (uint32_t) (container->real_bounds.x + container->real_bounds.w / 2 -
                                        window_width / 2);
+                window_x += taskbar->bounds->x;
+                window_y = taskbar->bounds->y - window_height;
             }
         }
 

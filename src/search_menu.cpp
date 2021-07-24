@@ -1431,11 +1431,13 @@ void start_search_menu() {
     settings.w = 762;
     settings.h = 641;
     int width = 48;
-    if (auto *taskbar = client_by_name(app, "taskbar")) {
-        width = taskbar->root->children[0]->real_bounds.w;
-    }
     settings.x = width;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
+    if (auto *taskbar = client_by_name(app, "taskbar")) {
+        width = taskbar->root->children[0]->real_bounds.w;
+        settings.x = width + taskbar->bounds->x;
+        settings.y = taskbar->bounds->y - settings.h;
+    }
     settings.popup = true;
 
     AppClient *client = client_new(app, settings, "search_menu");

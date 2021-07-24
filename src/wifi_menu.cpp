@@ -319,6 +319,10 @@ void start_wifi_menu() {
     settings.w = 360;
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
+    if (auto *taskbar = client_by_name(app, "taskbar")) {
+        settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
+        settings.y = taskbar->bounds->y - settings.h;
+    }
     settings.skip_taskbar = true;
     settings.decorations = false;
     settings.force_position = true;

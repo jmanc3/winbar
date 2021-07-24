@@ -508,6 +508,10 @@ void start_action_center(App *app) {
     settings.h = app->bounds.h - config->taskbar_height;
     settings.x = app->bounds.x + app->bounds.w - settings.w;
     settings.y = 0;
+    if (auto *taskbar = client_by_name(app, "taskbar")) {
+        settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
+        settings.y = taskbar->screen_information->y;
+    }
     settings.popup = true;
     settings.skip_taskbar = true;
     settings.decorations = false;

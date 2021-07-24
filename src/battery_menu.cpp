@@ -400,6 +400,10 @@ void start_battery_menu() {
     settings.h = 164;
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
+    if (auto *taskbar = client_by_name(app, "taskbar")) {
+        settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
+        settings.y = taskbar->bounds->y - settings.h;
+    }
     settings.force_position = true;
     settings.decorations = false;
     settings.skip_taskbar = true;

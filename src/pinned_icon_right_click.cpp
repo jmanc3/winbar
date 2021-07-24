@@ -528,6 +528,10 @@ void start_pinned_icon_right_click(Container *container) {
     settings.h = root->wanted_bounds.h;
     settings.x = container->real_bounds.x + container->real_bounds.w / 2 - settings.w / 2;
     settings.y = app->bounds.h - config->taskbar_height - settings.h;
+    if (auto *taskbar = client_by_name(app, "taskbar")) {
+        settings.x = taskbar->bounds->x + (container->real_bounds.x + container->real_bounds.w / 2 - settings.w / 2);
+        settings.y = taskbar->bounds->y - settings.h;
+    }
     settings.decorations = false;
     settings.force_position = true;
     settings.skip_taskbar = true;

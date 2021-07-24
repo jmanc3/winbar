@@ -1275,6 +1275,10 @@ void start_app_menu() {
     settings.h = 641;
     settings.x = 0;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
+    if (auto *taskbar = client_by_name(app, "taskbar")) {
+        settings.x = taskbar->bounds->x;
+        settings.y = taskbar->bounds->y - settings.h;
+    }
     settings.skip_taskbar = true;
     settings.decorations = false;
     settings.popup = true;
