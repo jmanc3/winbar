@@ -4,6 +4,7 @@
 
 #include <pango/pangocairo.h>
 #include <icons.h>
+#include <dpi.h>
 #include "action_center_menu.h"
 #include "application.h"
 #include "config.h"
@@ -509,8 +510,15 @@ void start_action_center(App *app) {
     settings.x = app->bounds.x + app->bounds.w - settings.w;
     settings.y = 0;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
+        // TODO screen_info can be null if window is not half in any screen, we should preserve most recent screen
         settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
-        settings.y = taskbar->screen_information->y;
+        ScreenInformation *primary_screen = nullptr;
+        for (auto s: screens)
+            if (s->is_primary) primary_screen = s;
+        if (primary_screen != nullptr) {
+            settings.y = primary_screen->y;
+            settings.h = primary_screen->height_in_pixels - config->taskbar_height;
+        }
     }
     settings.popup = true;
     settings.skip_taskbar = true;

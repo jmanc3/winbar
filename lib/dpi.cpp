@@ -119,27 +119,28 @@ static bool listen_to_randr_and_client_configured_events(App *app, xcb_generic_e
 }
 
 void dpi_setup(App *app) {
-    // Create a client that won't be shown and selects to have RandR events sent to it
-    AppClient *client = client_new(app, Settings(), "hidden_client_to_be_notified_of_randr_events");
-    client->keeps_app_running = false;
-    assert(client != nullptr);
+    // PASS US ALL EVENTS
+    app_create_custom_event_handler(app, INT_MAX, listen_to_randr_and_client_configured_events);
 
     randr_query = xcb_get_extension_data(app->connection, &xcb_randr_id);
     if (!randr_query->present) {
         perror("XRandr was not present on Xorg server.\n");
         assert(false);
     }
-    auto xrandr_mask = XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE | XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE;
-    xcb_randr_select_input(app->connection, client->window, xrandr_mask);
-
-    // PASS US ALL EVENTS
-    app_create_custom_event_handler(app, INT_MAX, listen_to_randr_and_client_configured_events);
 
     update_information_of_all_screens(app);
     for (auto c : app->clients) {
         check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, c, false);
     }
     assert(!screens.empty());
+
+    // Create a client that won't be shown and selects to have RandR events sent to it
+    AppClient *client = client_new(app, Settings(), "hidden_client_to_be_notified_of_randr_events");
+    client->keeps_app_running = false;
+    assert(client != nullptr);
+
+    auto xrandr_mask = XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE | XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE;
+    xcb_randr_select_input(app->connection, client->window, xrandr_mask);
 }
 
 // TODO we should probably us "monitors" instead even if they don't have a concept of rotation

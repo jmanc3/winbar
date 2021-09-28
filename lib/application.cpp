@@ -379,6 +379,8 @@ App *app_new() {
     app->MOTIF_WM_HINTS = reply->atom;
     free(reply);
 
+    dpi_setup(app);
+
     return app;
 }
 
@@ -420,6 +422,11 @@ client_new(App *app, Settings settings, const std::string &name) {
 
     xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
 
+    ScreenInformation *primary_screen_info = nullptr;
+    for (auto s : screens)
+        if (s->is_primary) primary_screen_info = s;
+    assert(primary_screen_info != nullptr);
+
     /* Create a window */
     xcb_window_t window = xcb_generate_id(app->connection);
 
@@ -433,7 +440,7 @@ client_new(App *app, Settings settings, const std::string &name) {
     xcb_create_colormap(
             app->connection,
             XCB_COLORMAP_ALLOC_NONE,
-            colormap, screen->root,
+            colormap, primary_screen_info->root_window,
             visual->visual_id
     );
 
@@ -458,7 +465,7 @@ client_new(App *app, Settings settings, const std::string &name) {
     xcb_create_window(app->connection,
                       depth,
                       window,
-                      screen->root,
+                      primary_screen_info->root_window,
                       settings.x, settings.y, settings.w, settings.h,
                       0,
                       XCB_WINDOW_CLASS_INPUT_OUTPUT,
@@ -588,6 +595,16 @@ client_new(App *app, Settings settings, const std::string &name) {
                                 32,
                                 1,
                                 &app->delete_window_atom);
+
+    long zero = 0;
+    xcb_change_property_checked(app->connection,
+                                XCB_PROP_MODE_REPLACE,
+                                window,
+                                get_cached_atom(app, "_KDE_NET_WM_BLUR_BEHIND_REGION"),
+                                XCB_ATOM_CARDINAL,
+                                32,
+                                1,
+                                &zero);
 
     // strut (a.k.a what part we want to reserve for ourselves)
     if (settings.reserve_side) {
@@ -1646,8 +1663,6 @@ void app_main(App *app) {
         assert(app != nullptr);
         return;
     }
-
-    dpi_setup(app);
 
     int MAX_POLLING_EVENTS_AT_THE_SAME_TIME = 40;
     epoll_event events[MAX_POLLING_EVENTS_AT_THE_SAME_TIME];

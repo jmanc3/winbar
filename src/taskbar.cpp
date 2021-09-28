@@ -36,6 +36,7 @@
 #include <cassert>
 #include <pango/pangocairo.h>
 #include <xcb/xproto.h>
+#include <dpi.h>
 
 class WorkspaceButton : public HoverableButton {
 public:
@@ -1907,15 +1908,20 @@ taskbar_event_handler(App *app, xcb_generic_event_t *event) {
 
 static void
 taskbar_on_screen_size_change(App *app, AppClient *client) {
+    ScreenInformation *primary_screen = client->screen_information;
+    for (auto s: screens)
+        if (s->is_primary) primary_screen = s;
+    client->screen_information = primary_screen;
+    if (!primary_screen) return;
     client_set_position_and_size(app, client,
-                                 client->screen_information->x,
-                                 client->screen_information->y + client->screen_information->height_in_pixels -
+                                 primary_screen->x,
+                                 primary_screen->y + primary_screen->height_in_pixels -
                                  config->taskbar_height,
-                                 client->screen_information->width_in_pixels,
+                                 primary_screen->width_in_pixels,
                                  config->taskbar_height);
-    handle_configure_notify(app, client, client->screen_information->x,
-                            client->screen_information->y + client->screen_information->height_in_pixels -
-                            config->taskbar_height, client->screen_information->width_in_pixels,
+    handle_configure_notify(app, client, primary_screen->x,
+                            primary_screen->y + primary_screen->height_in_pixels -
+                            config->taskbar_height, primary_screen->width_in_pixels,
                             config->taskbar_height);
     for (auto *c : app->clients) {
         if (c->popup) {
@@ -2176,9 +2182,15 @@ create_taskbar(App *app) {
     settings.skip_taskbar = true;
     settings.reserve_side = true;
     settings.reserve_bottom = config->taskbar_height;
+
+    ScreenInformation *primary_screen_info = nullptr;
+    for (auto s : screens)
+        if (s->is_primary) primary_screen_info = s;
+    assert(primary_screen_info != nullptr);
+
     settings.x = 0;
-    settings.y = app->bounds.h - config->taskbar_height;
-    settings.w = app->bounds.w;
+    settings.y = primary_screen_info->height_in_pixels - config->taskbar_height;
+    settings.w = primary_screen_info->width_in_pixels;
     settings.h = config->taskbar_height;
     settings.sticky = true;
     settings.force_position = true;
