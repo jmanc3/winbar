@@ -2286,6 +2286,11 @@ std::string get_icon_name(xcb_window_t win) {
     return "";
 }
 
+static inline void rtrim(std::string &s) {
+    s.erase(std::find_if(s.rbegin(), s.rend(),
+                         std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
+}
+
 void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -2370,6 +2375,7 @@ void add_window(App *app, xcb_window_t window) {
             index += 1;
         }
     }
+    rtrim(command_launched_by_line);
 
     std::string window_class_name = class_name(app, window);
     if (window_class_name.empty()) {
