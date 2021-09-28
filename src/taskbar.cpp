@@ -2266,7 +2266,7 @@ class_name(App *app, xcb_window_t window) {
             std::free(r);
         }
     }
-    return std::to_string(window);
+    return "";
 }
 
 std::string get_reply_string(xcb_ewmh_get_utf8_strings_reply_t *reply) {
@@ -2348,8 +2348,35 @@ void add_window(App *app, xcb_window_t window) {
     if (!icons)
         return;
 
+    xcb_get_property_cookie_t prop_cookie = xcb_ewmh_get_wm_pid(&app->ewmh, window);
+    uint32_t pid = -1;
+    xcb_ewmh_get_wm_pid_reply(&app->ewmh, prop_cookie, &pid, NULL);
+    std::string command_launched_by_line;
+    if (pid != -1) {
+        std::ifstream cmdline("/proc/" + std::to_string(pid) + "/cmdline");
+        std::getline((cmdline), command_launched_by_line);
+
+        size_t index = 0;
+        while (true) {
+            /* Locate the substring to replace. */
+            index = command_launched_by_line.find('\000', index);
+            if (index == std::string::npos)
+                break;
+
+            /* Make the replacement. */
+            command_launched_by_line.replace(index, 1, " ");
+
+            /* Advance index forward so the next iteration doesn't pick it up as well. */
+            index += 1;
+        }
+    }
+
     std::string window_class_name = class_name(app, window);
-    window_class_name = c3ic_fix_wm_class(window_class_name);
+    if (window_class_name.empty()) {
+        window_class_name = command_launched_by_line;
+    } else {
+        window_class_name = c3ic_fix_wm_class(window_class_name);
+    }
 
     for (auto icon : icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
@@ -2412,31 +2439,9 @@ void add_window(App *app, xcb_window_t window) {
     a->user_data = data;
     update_window_title_name(window);
 
-    xcb_get_property_cookie_t prop_cookie = xcb_ewmh_get_wm_pid(&app->ewmh, window);
-    uint32_t pid = -1;
-    xcb_ewmh_get_wm_pid_reply(&app->ewmh, prop_cookie, &pid, NULL);
     if (pid != -1) {
-        std::string line;
-
-        std::ifstream cmdline("/proc/" + std::to_string(pid) + "/cmdline");
-        std::getline((cmdline), line);
-
-        size_t index = 0;
-        while (true) {
-            /* Locate the substring to replace. */
-            index = line.find('\000', index);
-            if (index == std::string::npos)
-                break;
-
-            /* Make the replacement. */
-            line.replace(index, 1, " ");
-
-            /* Advance index forward so the next iteration doesn't pick it up as well. */
-            index += 1;
-        }
-
         data->has_launchable_info = true;
-        data->command_launched_by = line;
+        data->command_launched_by = command_launched_by_line;
     }
 
     std::string path;
@@ -2890,7 +2895,7 @@ late_classes_update(App *app, AppClient *client, void *data) {
         if (data->windows_data_list.size() == 1) {
             xcb_window_t id = data->windows_data_list[0]->id;
             auto name = class_name(app, id);
-            name = c3ic_fix_wm_class(name);
+            if (name.empty()) name = c3ic_fix_wm_class(name);
 
             if (name != data->class_name) {
                 remove_window(app, id);
