@@ -30,5 +30,12 @@ void notification_closed_signal(App *app, NotificationInfo *ni, NotificationReas
 
 void notification_action_invoked_signal(App *app, NotificationInfo *ni, NotificationAction action);
 
+double dbus_get_kde_max_brightness();
+
+double dbus_get_kde_current_brightness();
+
+/// Number from 0 to 1
+bool dbus_kde_set_brightness(double percentage);
+
 
 #endif //WINBAR_SIMPLE_DBUS_H

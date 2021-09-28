@@ -337,6 +337,111 @@ bool dbus_gnome_show_overview() {
     return true;
 }
 
+static double max_kde_brightness = 0;
+
+static void dbus_kde_max_brightness_response(DBusPendingCall *call, void *data) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    DBusMessage *dbus_reply = dbus_pending_call_steal_reply(call);
+    defer(dbus_message_unref(dbus_reply));
+
+    if (::dbus_message_get_type(dbus_reply) != DBUS_MESSAGE_TYPE_METHOD_RETURN)
+        return;
+
+    int dbus_result = 0;
+    if (::dbus_message_get_args(dbus_reply, nullptr, DBUS_TYPE_INT32, &dbus_result, DBUS_TYPE_INVALID)) {
+        max_kde_brightness = dbus_result;
+    }
+}
+
+bool dbus_kde_max_brightness() {
+    if (!dbus_connection) return false;
+
+    DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil", "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
+                                                         "org.kde.Solid.PowerManagement.Actions.BrightnessControl",
+                                                         "brightnessMax");
+    defer(dbus_message_unref(dbus_msg));
+
+    DBusPendingCall *pending = nullptr;
+    defer(dbus_pending_call_unref(pending));
+
+    if (!dbus_connection_send_with_reply(dbus_connection, dbus_msg, &pending,
+                                         DBUS_TIMEOUT_USE_DEFAULT)) {
+        fprintf(stderr, "Not enough memory available to create message for interface: %s\n",
+                dbus_message_get_interface(dbus_msg));
+        return false;
+    }
+    if (!dbus_pending_call_set_notify(pending, dbus_kde_max_brightness_response, app, nullptr)) {
+        fprintf(stderr, "Not enough memory available to set notification function for interface: %s\n",
+                dbus_message_get_interface(dbus_msg));
+        return false;
+    }
+    return true;
+}
+
+double dbus_get_kde_max_brightness() {
+    return max_kde_brightness;
+}
+
+double dbus_get_kde_current_brightness() {
+    if (!dbus_connection) return false;
+
+    DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil", "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
+                                                         "org.kde.Solid.PowerManagement.Actions.BrightnessControl",
+                                                         "brightness");
+    defer(dbus_message_unref(dbus_msg));
+
+    DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection, dbus_msg, 200, nullptr);
+    if (dbus_reply) {
+        defer(dbus_message_unref(dbus_reply));
+
+        int dbus_result = 0;
+        if (::dbus_message_get_args(dbus_reply, nullptr, DBUS_TYPE_INT32, &dbus_result, DBUS_TYPE_INVALID))
+            return dbus_result;
+    }
+    return 0;
+}
+
+static void dbus_kde_set_brightness_response(DBusPendingCall *call, void *data) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    DBusMessage *dbus_reply = dbus_pending_call_steal_reply(call);
+    defer(dbus_message_unref(dbus_reply));
+}
+
+bool dbus_kde_set_brightness(double percentage) {
+    if (!dbus_connection) return false;
+
+    DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil", "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
+                                                         "org.kde.Solid.PowerManagement.Actions.BrightnessControl",
+                                                         "setBrightness");
+    defer(dbus_message_unref(dbus_msg));
+
+    const int brightness = max_kde_brightness * percentage;
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &brightness, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_kde_set_brightness\" couldn't append an argument to the DBus message.");
+        return false;
+    }
+
+    DBusPendingCall *pending = nullptr;
+    defer(dbus_pending_call_unref(pending));
+
+    if (!dbus_connection_send_with_reply(dbus_connection, dbus_msg, &pending,
+                                         DBUS_TIMEOUT_USE_DEFAULT)) {
+        fprintf(stderr, "Not enough memory available to create message for interface: %s\n",
+                dbus_message_get_interface(dbus_msg));
+        return false;
+    }
+    if (!dbus_pending_call_set_notify(pending, dbus_kde_set_brightness_response, app, nullptr)) {
+        fprintf(stderr, "Not enough memory available to set notification function for interface: %s\n",
+                dbus_message_get_interface(dbus_msg));
+        return false;
+    }
+    return true;
+}
+
 
 /*************************************************
  *
@@ -645,6 +750,8 @@ void dbus_start() {
 
         dbus_poll_wakeup(nullptr, 0);
     }
+
+    dbus_kde_max_brightness();
 }
 
 void dbus_end() {
