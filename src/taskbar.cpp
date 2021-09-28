@@ -2374,6 +2374,8 @@ void add_window(App *app, xcb_window_t window) {
     std::string window_class_name = class_name(app, window);
     if (window_class_name.empty()) {
         window_class_name = command_launched_by_line;
+        if (window_class_name.empty())
+            window_class_name = std::to_string(window);
     } else {
         window_class_name = c3ic_fix_wm_class(window_class_name);
     }
@@ -2895,7 +2897,12 @@ late_classes_update(App *app, AppClient *client, void *data) {
         if (data->windows_data_list.size() == 1) {
             xcb_window_t id = data->windows_data_list[0]->id;
             auto name = class_name(app, id);
-            if (name.empty()) name = c3ic_fix_wm_class(name);
+            if (name.empty()) {
+                name = data->command_launched_by;
+                if (name.empty()) name = std::to_string(id);
+            } else {
+                name = c3ic_fix_wm_class(name);
+            }
 
             if (name != data->class_name) {
                 remove_window(app, id);
