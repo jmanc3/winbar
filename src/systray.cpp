@@ -417,6 +417,7 @@ void start_systray() {
     ev.data.data32[3] = ev.data.data32[4] = 0;
 
     xcb_send_event_checked(app->connection, false, app->screen->root, 0xFFFFFF, (char *) &ev);
+    xcb_flush(app->connection);
 }
 
 void open_systray() {

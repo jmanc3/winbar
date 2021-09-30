@@ -25,6 +25,8 @@
 class Script : public Sortable {
 public:
     std::string path;
+
+    bool path_is_full_command = false;
 };
 
 class SearchItemData : public UserData {
@@ -32,6 +34,13 @@ public:
     Sortable *sortable = nullptr;
     void *user_data = nullptr;
     int item_number = 0;
+    bool delete_user_data_as_script = false;
+
+    ~SearchItemData() {
+        if (delete_user_data_as_script) {
+            delete (Script *) user_data;
+        }
+    }
 };
 
 class TitleData : public UserData {
@@ -531,13 +540,82 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_item_background(client, cr, container, 1);
+
+    auto *data = (SearchItemData *) container->parent->user_data;
+    PangoLayout *layout =
+            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+    int location = -1;
+    int length = -1;
+    if (auto *taskbar = client_by_name(client->app, "taskbar")) {
+        if (auto *textarea = container_by_name("main_text_area", taskbar->root)) {
+            auto *textarea_data = (TextAreaData *) textarea->user_data;
+            std::string text(textarea_data->state->text);
+            std::string lowercase_text(text);
+            std::transform(
+                    lowercase_text.begin(), lowercase_text.end(), lowercase_text.begin(), ::tolower);
+            length = text.length();
+            determine_priority_location(*data->sortable, text, lowercase_text, &location);
+        }
+    }
+
+    if (location != -1) {
+        pango_layout_set_attributes(layout, nullptr);
+        std::string text(data->sortable->name);
+        text.insert(location + length, "</b>");
+        text.insert(location, "<b>");
+
+        PangoAttrList *attrs = nullptr;
+        pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
+
+        if (layout && attrs) {
+            pango_layout_set_attributes(layout, attrs);
+        }
+    }
+
+    int width;
+    int height;
+    pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
+    pango_layout_get_pixel_size(layout, &width, &height);
+
+    set_argb(cr, config->color_search_content_text_primary);
+    cairo_move_to(cr, (int) (container->real_bounds.x + 56), (int) (container->real_bounds.y + 10));
+    pango_cairo_show_layout(cr, layout);
+    pango_layout_set_attributes(layout, nullptr);
+
+    layout = get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+    std::string subtitle_text = "Run command anyways";
+    pango_layout_set_text(layout, subtitle_text.c_str(), subtitle_text.size());
+    pango_layout_get_pixel_size(layout, &width, &height);
+
+    set_argb(cr, config->color_search_content_text_secondary);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + 56),
+                  (int) (container->real_bounds.y + container->real_bounds.h - 10 - height));
+    pango_cairo_show_layout(cr, layout);
+    pango_layout_set_attributes(layout, nullptr);
+
+    cairo_set_source_surface(cr,
+                             script_32,
+                             container->real_bounds.x + 12,
+                             container->real_bounds.y + container->real_bounds.h / 2 - 16);
+    cairo_paint(cr);
+}
+
+static void
 paint_title(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     auto *data = (TitleData *) container->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_BOLD);
 
     int width;
     int height;
@@ -625,6 +703,64 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+paint_right_active_title_for_no_results(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *data = (SearchItemData *) container->parent->user_data;
+    PangoLayout *layout =
+            get_cached_pango_font(cr, config->font, 13, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+    if (container->state.mouse_hovering || container->state.mouse_pressing) {
+        std::string text(data->sortable->name);
+        text.insert(text.length(), "</u>");
+        text.insert(0, "<u>");
+
+        PangoAttrList *attrs = nullptr;
+        pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
+
+        if (layout && attrs) {
+            pango_layout_set_attributes(layout, attrs);
+        }
+    }
+
+    int width;
+    int height;
+    pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
+    pango_layout_get_pixel_size(layout, &width, &height);
+
+    set_argb(cr, config->color_search_content_text_primary);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + 106 - height / 2));
+    pango_cairo_show_layout(cr, layout);
+
+    if (container->state.mouse_hovering || container->state.mouse_pressing) {
+        pango_layout_set_attributes(layout, nullptr);
+    }
+
+    layout = get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+    std::string subtitle_text = "Run command anyways";
+    pango_layout_set_text(layout, subtitle_text.data(), subtitle_text.length());
+    pango_layout_get_pixel_size(layout, &width, &height);
+
+    set_argb(cr, config->color_search_content_text_secondary);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + 106 + height - (height / 3)));
+    pango_cairo_show_layout(cr, layout);
+
+    if (script_32) {
+        cairo_set_source_surface(cr,
+                                 script_64,
+                                 container->real_bounds.x + container->real_bounds.w / 2 - 32,
+                                 container->real_bounds.y + 21);
+        cairo_paint(cr);
+    }
+}
+
+static void
 paint_spacer(AppClient *client, cairo_t *cr, Container *container) {
     Bounds b = container->real_bounds;
     b.x += 6;
@@ -676,7 +812,7 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
 static void
 launch_item(AppClient *client, Container *item) {
     SearchItemData *data = (SearchItemData *) item->user_data;
-    if (active_tab == "Scripts") {
+    if (active_tab == "Scripts" || data->delete_user_data_as_script) {
         Script *script = (Script *) data->user_data;
 
         for (int i = 0; i < global->history_scripts.size(); i++) {
@@ -695,7 +831,11 @@ launch_item(AppClient *client, Container *item) {
             global->history_scripts.erase(global->history_scripts.end() - 1);
         }
 
-        launch_command(script->path + "/" + script->name);
+        if (script->path_is_full_command) {
+            launch_command(script->path);
+        } else {
+            launch_command(script->path + "/" + script->name);
+        }
     } else if (active_tab == "Apps") {
         Launcher *launcher = (Launcher *) data->user_data;
 
@@ -1054,10 +1194,6 @@ void sort_and_add(std::vector<T> *sortables,
         right->when_paint = paint_right_bg;
         right->wanted_pad = Bounds(12, 12, 12, 0);
 
-        if (sorted.empty()) {
-            return;
-        }
-
         Container *right_fg = right->child(::vbox, FILL_SPACE, FILL_SPACE);
         right_fg->when_paint = paint_right_fg;
         right_fg->name = "right_fg";
@@ -1082,6 +1218,60 @@ void sort_and_add(std::vector<T> *sortables,
         }
         if (active_item > sorted.size() - 1) {
             active_item = sorted.size() - 1;
+        }
+
+        if (sorted.empty()) {
+            Container *title = content->child(::hbox, FILL_SPACE, 32);
+            title->when_paint = paint_title;
+            auto *title_data = new TitleData;
+            title_data->text = "Zero results";
+            title->user_data = title_data;
+
+            bool top_item = true;
+            Container *hbox = content->child(::hbox, FILL_SPACE, top_item ? 64 : 32);
+            hbox->when_paint = paint_hbox;
+            Container *item = hbox->child(FILL_SPACE, FILL_SPACE);
+
+            item->when_paint = paint_no_result_item;
+            item->when_clicked = clicked_item;
+            auto *data = new SearchItemData;
+            auto *sortable_data = new Script;
+            sortable_data->name = text;
+            sortable_data->lowercase_name = text;
+            sortable_data->priority = -1;
+            sortable_data->historical_ranking = -1;
+            sortable_data->path_is_full_command = true;
+            sortable_data->path = text;
+
+            data->sortable = sortable_data;
+            data->user_data = sortable_data;
+            data->delete_user_data_as_script = true;
+            data->item_number = 0;
+            hbox->user_data = data;
+
+            auto *right_data = new SearchItemData;
+            right_data->sortable = sortable_data;
+            right_data->user_data = sortable_data;
+            right_data->item_number = 0;
+            right_fg->user_data = right_data;
+
+            Container *right_active_title = right_fg->child(FILL_SPACE, 176);
+            right_active_title->when_paint = paint_right_active_title_for_no_results;
+            right_active_title->when_clicked = clicked_right_active_title;
+
+            auto *spacer = right_fg->child(FILL_SPACE, 2);
+            spacer->when_paint = paint_spacer;
+
+            right_fg->child(FILL_SPACE, 12);
+
+            Container *open = right_fg->child(FILL_SPACE, 32);
+            open->when_paint = paint_open;
+            open->when_clicked = clicked_open;
+
+            right_fg->child(FILL_SPACE, 12);
+
+            content->wanted_bounds.h = true_height(content_area) + true_height(content);
+            return;
         }
 
         for (int i = 0; i < sorted.size(); i++) {
