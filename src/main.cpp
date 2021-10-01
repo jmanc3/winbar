@@ -38,7 +38,7 @@ int main() {
     root_start(app);
 
     // Start the pulseaudio connection
-    audio_start();
+    audio_start(app);
 
     // We need to register as the systray
     start_systray();

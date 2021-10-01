@@ -423,9 +423,16 @@ client_new(App *app, Settings settings, const std::string &name) {
     xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
 
     ScreenInformation *primary_screen_info = nullptr;
-    for (auto s : screens)
+    for (auto s: screens) {
         if (s->is_primary) primary_screen_info = s;
-    assert(primary_screen_info != nullptr);
+    }
+    if (primary_screen_info == nullptr) {
+        if (screens.empty()) {
+            assert(primary_screen_info != nullptr);
+        } else {
+            primary_screen_info = screens[0];
+        }
+    }
 
     /* Create a window */
     xcb_window_t window = xcb_generate_id(app->connection);

@@ -41,9 +41,15 @@ static double opacity_thresh = 200;
 
 class option_data : UserData {
 public:
-    int type = option_type::client;
-    int index = 0;
+    int unique_client_id = -100;
     long last_update = get_current_time_in_ms();
+
+    Audio_Client *client() const {
+        for (auto c: audio_clients)
+            if (c->unique_id() == unique_client_id)
+                return c;
+        return nullptr;
+    };
 
     ~option_data() {}
 };
@@ -70,7 +76,7 @@ paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
     set_argb(cr, correct_opaqueness(client_entity, config->color_volume_background));
     cairo_fill(cr);
 
-    if (!audio_connected) {
+    if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
         PangoLayout *layout =
                 get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
 
@@ -93,28 +99,18 @@ static void
 paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto data = static_cast<option_data *>(container->parent->parent->user_data);
     auto surfaces = static_cast<volume_surfaces *>(container->user_data);
-    Audio *client = nullptr;
-    if (data->type == option_type::client) {
-        client = audio_clients[data->index];
-    } else {
-        client = audio_outputs[data->index];
-    }
+    Audio_Client *client = data->client();
+    if (!client) return;
 
     if (surfaces->mute == nullptr || surfaces->high == nullptr || surfaces->low == nullptr ||
         surfaces->medium == nullptr)
         return;
 
-    double scalar = ((double) client->volume.values[0]) / ((double) 65535);
+    double scalar = client->get_volume();
     int val = (int) (scalar * 100);
 
     cairo_surface_t *surface = nullptr;
-    bool mute_state;
-    if (data->type == option_type::client) {
-        mute_state = audio_clients[data->index]->mute_state;
-    } else {
-        mute_state = audio_outputs[data->index]->mute_state;
-    }
-    if (mute_state) {
+    if (client->is_muted()) {
         surface = surfaces->mute;
     } else if (val == 0) {
         surface = surfaces->none;
@@ -148,16 +144,15 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto data = static_cast<option_data *>(container->parent->parent->user_data);
-    Audio *client = nullptr;
-    if (data->type == option_type::client) {
-        client = audio_clients[data->index];
-    } else {
-        client = audio_outputs[data->index];
-    }
+    Audio_Client *client = data->client();
+    if (!client) return;
+
+//    printf("is mater: %d, volume: %f, muted: %d\n", client->is_master, client->get_volume(), client->is_muted());
+
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 17, PangoWeight::PANGO_WEIGHT_NORMAL);
 
-    double scalar = ((double) client->volume.values[0]) / ((double) 65535);
+    double scalar = client->get_volume();
 
     std::string text = std::to_string((int) (scalar * 100));
 
@@ -176,46 +171,39 @@ paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container)
 static void
 paint_label(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto data = static_cast<option_data *>(container->parent->user_data);
+    Audio_Client *client = data->client();
+    if (!client) return;
+
+    std::string text = client->title;
+    if (!client->subtitle.empty())
+        text = client->subtitle;
 
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
-
-    std::string text;
-
-    if (data->type == option_type::client) {
-        auto client = audio_clients[data->index];
-        text = client->application_name + ": " + client->client_name;
-    } else {
-        auto output = audio_outputs[data->index];
-        text = output->output_description;
-    }
-
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
 
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr, container->real_bounds.x + 13, container->real_bounds.y + 12);
+
+    pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
     pango_cairo_show_layout(cr, layout);
+
+    pango_layout_set_attributes(layout, nullptr);
 }
 
 static void
 paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto data = static_cast<option_data *>(container->parent->parent->user_data);
+    Audio_Client *client = data->client();
+    if (!client) return;
 
     double marker_height = 24;
     double marker_width = 8;
-    double marker_position = 0;
-    if (data->type == option_type::client) {
-        auto client = audio_clients[data->index];
-        marker_position =
-                container->real_bounds.w * ((double) client->volume.values[0]) / ((double) 65535);
-    } else {
-        auto output = audio_outputs[data->index];
-        marker_position =
-                container->real_bounds.w * ((double) output->volume.values[0]) / ((double) 65535);
-    }
+    double marker_position = client->get_volume() * container->real_bounds.w;
 
     double line_height = 2;
     set_argb(cr, config->color_volume_slider_background);
@@ -251,64 +239,33 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 toggle_mute(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto data = static_cast<option_data *>(container->parent->parent->user_data);
-    Audio *client = nullptr;
-    if (data->type == option_type::client) {
-        client = audio_clients[data->index];
-    } else {
-        client = audio_outputs[data->index];
-    }
+    Audio_Client *client = data->client();
+    if (!client) return;
 
-    client->mute_state = !client->mute_state;
-    if (data->type == option_type::client) {
-        audio_set_client_mute(client->index, client->mute_state);
-    } else {
-        audio_set_output_mute(client->index, client->mute_state);
-    }
+    client->set_mute(!client->is_muted());
     update_taskbar_volume_icon();
 }
 
 static void
 scroll(AppClient *client_entity, cairo_t *cr, Container *container, int scroll_x, int scroll_y) {
     auto data = static_cast<option_data *>(container->parent->parent->user_data);
-    Audio *client = nullptr;
-    if (data->type == option_type::client) {
-        client = audio_clients[data->index];
-    } else {
-        client = audio_outputs[data->index];
-    }
-    pa_cvolume copy = client->volume;
-    double val = client->volume.values[0];
-    val += (655.35 * scroll_y) + (655.35 * -scroll_x);
-    if (val < 0) {
-        val = 0;
-    } else if (val > 65535) {
-        val = 65535;
-    }
-    client->volume.values[0] = (int) val;
+    Audio_Client *client = data->client();
+    if (!client) return;
 
-    if (client->volume.values[0] < 0) {
-        client->volume.values[0] = 0;
-    } else if (client->volume.values[0] > 65535) {
-        client->volume.values[0] = 65535;
+    double new_volume = client->get_volume() + (.05 * scroll_y) + (.05 * -scroll_x);
+    if (new_volume < 0) {
+        new_volume = 0;
+    } else if (new_volume > 1) {
+        new_volume = 1;
     }
-    if (copy.values[0] != client->volume.values[0]) {
-        for (int i = 0; i < client->volume.channels; i++) {
-            copy.values[i] = client->volume.values[0];
-        }
-        if (client->mute_state) {
-            client->mute_state = !client->mute_state;
-            if (data->type == option_type::client) {
-                audio_set_client_mute(client->index, client->mute_state);
-            } else {
-                audio_set_output_mute(client->index, client->mute_state);
-            }
-        }
-        if (data->type == option_type::client) {
-            audio_set_client_volume(client->index, copy);
-        } else {
-            audio_set_output_volume(client->index, copy);
+
+    if (new_volume != client->get_volume()) {
+        if (client->is_muted())
+            client->set_mute(false);
+
+        client->set_volume(new_volume);
+        if (client->is_master_volume())
             update_taskbar_volume_icon();
-        }
     }
 }
 
@@ -322,13 +279,8 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool force) {
         }
     }
     data->last_update = get_current_time_in_ms();
-    Audio *client = nullptr;
-    if (data->type == option_type::client) {
-        client = audio_clients[data->index];
-    } else {
-        client = audio_outputs[data->index];
-    }
-    pa_cvolume copy = client->volume;
+    Audio_Client *client = data->client();
+    if (!client) return;
 
     // mouse_current_x and y are relative to the top left point of the window
     int limited_x = client_entity->mouse_current_x;
@@ -340,32 +292,20 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool force) {
     }
 
     limited_x -= container->real_bounds.x;
-    double scalar = limited_x / container->real_bounds.w;
-    client->volume.values[0] = ((double) 65535) * scalar;
-
-    if (client->volume.values[0] < 0) {
-        client->volume.values[0] = 0;
-    } else if (client->volume.values[0] > 65535) {
-        client->volume.values[0] = 65535;
+    double new_volume = limited_x / container->real_bounds.w;
+    if (new_volume < 0) {
+        new_volume = 0;
+    } else if (new_volume > 1) {
+        new_volume = 1;
     }
-    if (copy.values[0] != client->volume.values[0]) {
-        for (int i = 0; i < client->volume.channels; i++) {
-            copy.values[i] = client->volume.values[0];
-        }
-        if (client->mute_state) {
-            client->mute_state = !client->mute_state;
-            if (data->type == option_type::client) {
-                audio_set_client_mute(client->index, client->mute_state);
-            } else {
-                audio_set_output_mute(client->index, client->mute_state);
-            }
-        }
-        if (data->type == option_type::client) {
-            audio_set_client_volume(client->index, copy);
-        } else {
-            audio_set_output_volume(client->index, copy);
+
+    if (new_volume != client->get_volume()) {
+        if (client->is_muted())
+            client->set_mute(false);
+
+        client->set_volume(new_volume);
+        if (client->is_master_volume())
             update_taskbar_volume_icon();
-        }
     }
 }
 
@@ -383,95 +323,14 @@ void fill_root(Container *root) {
     root->when_paint = paint_root;
     root->type = vbox;
 
-    if (!audio_connected)
-        return;
-
-    for (int i = 0; i < audio_outputs.size(); i++) {
-        auto vbox_container = new Container();
-        vbox_container->type = vbox;
-        vbox_container->wanted_bounds.h = 96;
-        vbox_container->wanted_bounds.w = FILL_SPACE;
-        auto data = new option_data();
-        data->type = option_type::output;
-        data->index = i;
-        vbox_container->user_data = data;
-
-        auto label = new Container();
-        label->wanted_bounds.h = 34;
-        label->wanted_bounds.w = FILL_SPACE;
-        label->when_paint = paint_label;
-
-        auto hbox_volume = new Container();
-        hbox_volume->type = hbox;
-        hbox_volume->wanted_bounds.h = FILL_SPACE;
-        hbox_volume->wanted_bounds.w = FILL_SPACE;
-
-        auto volume_icon = new Container();
-        volume_icon->wanted_bounds.h = FILL_SPACE;
-        volume_icon->wanted_bounds.w = 55;
-        volume_icon->when_paint = paint_volume_icon;
-        volume_icon->when_clicked = toggle_mute;
-        volume_icon->when_scrolled = scroll;
-        volume_icon->parent = hbox_volume;
-        hbox_volume->children.push_back(volume_icon);
-        auto surfaces = new volume_surfaces();
-        surfaces->none = accelerated_surface(app, client_entity, 24, 24);
-        paint_surface_with_image(surfaces->none, as_resource_path("audio/none24.png"), 24, nullptr);
-        surfaces->low = accelerated_surface(app, client_entity, 24, 24);
-        paint_surface_with_image(surfaces->low, as_resource_path("audio/low24.png"), 24, nullptr);
-        surfaces->medium = accelerated_surface(app, client_entity, 24, 24);
-        paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium24.png"), 24, nullptr);
-        surfaces->high = accelerated_surface(app, client_entity, 24, 24);
-        paint_surface_with_image(surfaces->high, as_resource_path("audio/high24.png"), 24, nullptr);
-        surfaces->mute = accelerated_surface(app, client_entity, 24, 24);
-        paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute24.png"), 24, nullptr);
-        volume_icon->user_data = surfaces;
-        dye_opacity(surfaces->none, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->low, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->medium, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->high, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->mute, opacity_diff, opacity_thresh);
-
-        auto volume_bar = new Container();
-        volume_bar->wanted_bounds.h = FILL_SPACE;
-        volume_bar->wanted_bounds.w = FILL_SPACE;
-        volume_bar->when_paint = paint_option;
-        volume_bar->when_drag_start = drag_force;
-        volume_bar->when_drag = drag_whenever;
-        volume_bar->when_drag_end = drag_force;
-        volume_bar->when_mouse_down = drag_force;
-        volume_bar->when_mouse_up = drag_force;
-        volume_bar->draggable = true;
-        volume_bar->parent = hbox_volume;
-        volume_bar->when_scrolled = scroll;
-        hbox_volume->children.push_back(volume_bar);
-
-        auto volume_amount = new Container();
-        volume_amount->wanted_bounds.h = FILL_SPACE;
-        volume_amount->wanted_bounds.w = 65;
-        volume_amount->when_paint = paint_volume_amount;
-        volume_amount->parent = hbox_volume;
-        volume_amount->when_scrolled = scroll;
-        hbox_volume->children.push_back(volume_amount);
-
-        label->parent = vbox_container;
-        vbox_container->children.push_back(label);
-
-        hbox_volume->parent = vbox_container;
-        vbox_container->children.push_back(hbox_volume);
-
-        vbox_container->parent = root;
-        root->children.push_back(vbox_container);
-    }
-
     for (int i = 0; i < audio_clients.size(); i++) {
         auto vbox_container = new Container();
         vbox_container->type = vbox;
         vbox_container->wanted_bounds.h = 96;
         vbox_container->wanted_bounds.w = FILL_SPACE;
         auto data = new option_data();
-        data->type = option_type::client;
-        data->index = i;
+        auto uid = audio_clients[i]->unique_id();
+        data->unique_client_id = uid;
         vbox_container->user_data = data;
 
         auto label = new Container();
@@ -612,14 +471,11 @@ volume_menu_event_handler(App *app, xcb_generic_event_t *event) {
     return false;
 }
 
-void close_volume_menu() {}
-
 void updates() {
     if (valid_client(app, client_entity)) {
         request_refresh(app, client_entity);
     }
 }
-
 
 static void
 paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
@@ -718,42 +574,19 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 }
 
-
-void right_thumb_scrolled(AppClient *client,
-                          cairo_t *cr,
-                          Container *container,
-                          int scroll_x,
-                          int scroll_y) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    /*
-        auto cookie = xcb_xkb_get_state(client->app->connection, client->keyboard->device_id);
-        auto reply = xcb_xkb_get_state_reply(client->app->connection, cookie, nullptr);
-
-        if (reply->mods & XKB_KEY_Shift_L || reply->mods & XKB_KEY_Control_L) {
-            container->scroll_h_real += scroll_x * scroll_amount + scroll_y * scroll_amount;
-        } else {
-    */
-    //}
-
-}
-
 void open_volume_menu() {
-    if (audio_connected) {
-        audio_all_clients();
-        audio_all_outputs();
+    if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
+        connected_message = "Failed to establish connection with an audio server (PulseAudio, Alsa)";
+    } else if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO) {
+        audio_update_list_of_clients();
 
-        if (audio_clients.empty() && audio_outputs.empty()) {
-            // TODO: we need a variable to keep track of this state
-            // audio_connected = false;
+        if (audio_clients.empty()) {
             connected_message = "Successfully established connection to PulseAudio but found no "
                                 "clients or devices running";
         }
-
-        audio_set_callback(updates);
-    } else {
-        connected_message = "Failed to establish connection to PulseAudio";
+    }
+    if (audio_backend_data->audio_backend != Audio_Backend::NONE) {
+        audio_state_change_callback(updates);
     }
 
     first_expose = true;
@@ -763,18 +596,19 @@ void open_volume_menu() {
     settings.skip_taskbar = true;
     settings.sticky = true;
     settings.w = 360;
-    if (audio_connected) {
-        unsigned long count = audio_clients.size() + audio_outputs.size();
-        double d = app->bounds.h * .70 / 96;
-        if (count < d) {
+    if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
+        settings.h = 80;
+    } else {
+        unsigned long count = audio_clients.size();
+        double maximum_visiually_pleasing_volume_menu_items_count = app->bounds.h * .70 / 96;
+        if (count < maximum_visiually_pleasing_volume_menu_items_count) {
             settings.h = count * 96;
         } else {
             settings.w += 12;
-            settings.h = d * 96;
+            settings.h = maximum_visiually_pleasing_volume_menu_items_count * 96;
         }
-    } else {
-        settings.h = 80;
     }
+
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
@@ -800,7 +634,6 @@ void open_volume_menu() {
     Container *right_thumb_container = scrollpane->parent->children[0]->children[1];
     right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
     right_thumb_container->when_paint = paint_right_thumb;
-    right_thumb_container->when_scrolled = right_thumb_scrolled;
 
     Container *top_arrow = scrollpane->parent->children[0]->children[0];
     top_arrow->when_paint = paint_arrow;
@@ -818,11 +651,15 @@ void open_volume_menu() {
     bottom_arrow->user_data = bottom_data;
 
     fill_root(content);
-    if (audio_connected) {
+    if (audio_backend_data->audio_backend != Audio_Backend::NONE) {
         content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
     } else {
         content->wanted_bounds.h = 80;
     }
 
     client_show(app, client_entity);
+}
+
+void update_volume_menu() {
+    updates();
 }

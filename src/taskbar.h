@@ -6,7 +6,6 @@
 #include <utility.h>
 #include <xcb/xcb_aux.h>
 #include "application.h"
-#include "audio.h"
 
 class HoverableButton : public UserData {
 public:
@@ -71,6 +70,9 @@ public:
     cairo_t *scaled_thumbnail_cr = nullptr;
 
     bool marked_to_close = false;
+
+    ScreenInformation *on_screen = nullptr;
+    int on_desktop = 0;
 
     WindowsData(App *app, xcb_window_t window);
 

@@ -75,7 +75,8 @@ set(
         xkbcommon-x11 # to handle translating key presses to actual text
         libconfig++ # to parse config files
         xcb-cursor # for setting the cursor
-        dbus-1
+        dbus-1 # for interacting with dbus
+        alsa # to be able to modify audio volume and mute state on alsa
 )
 
 foreach (LIB IN LISTS LIBS)

@@ -32,4 +32,6 @@ public:
 
 void open_volume_menu();
 
+void update_volume_menu();
+
 #endif// APP_VOLUME_MENU_H

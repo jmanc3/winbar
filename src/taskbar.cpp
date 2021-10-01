@@ -27,6 +27,7 @@
 #include "action_center_menu.h"
 #include "notifications.h"
 #include "simple_dbus.h"
+#include "audio.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -189,10 +190,12 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
 
     int val = 100;
     bool mute_state = false;
-    if (!audio_outputs.empty()) {
-        double scalar = ((double) audio_outputs[0]->volume.values[0]) / ((double) 65535);
-        val = (int) (scalar * 100);
-        mute_state = audio_outputs[0]->mute_state;
+    for (auto c: audio_clients) {
+        if (c->is_master_volume()) {
+            val = round(c->get_volume() * 100);
+            mute_state = c->is_muted();
+            break;
+        }
     }
 
     cairo_surface_t *surface = nullptr;
@@ -964,49 +967,40 @@ scrolled_volume(AppClient *client_entity,
                 Container *container,
                 int horizontal_scroll,
                 int vertical_scroll) {
-    if (!audio_connected) {
+    if (audio_backend_data->audio_backend == Audio_Backend::NONE)
         return;
-    }
-
-    audio_all_outputs();
-
-    if (audio_outputs.empty()) {
+    if (audio_clients.empty())
         return;
-    }
 
     if (client_by_name(app, "volume") == nullptr) {
         open_volume_menu();
     }
 
-    Audio *client = audio_outputs[0];
-
-    pa_cvolume copy = client->volume;
-    double val = client->volume.values[0];
-    val += 655.35 * vertical_scroll;
-    val -= 655.35 * horizontal_scroll;// we subtract to correct the direction
-
-    if (val < 0) {
-        val = 0;
-    } else if (val > 65535) {
-        val = 65535;
-    }
-    client->volume.values[0] = (int) val;
-
-    if (client->volume.values[0] < 0) {
-        client->volume.values[0] = 0;
-    } else if (client->volume.values[0] > 65535) {
-        client->volume.values[0] = 65535;
-    }
-    if (copy.values[0] != client->volume.values[0]) {
-        for (int i = 0; i < client->volume.channels; i++) {
-            copy.values[i] = client->volume.values[0];
+    Audio_Client *client = nullptr;
+    for (auto c: audio_clients) {
+        if (c->is_master_volume()) {
+            client = c;
+            break;
         }
-        if (client->mute_state) {
-            client->mute_state = !client->mute_state;
-            audio_set_output_mute(client->index, client->mute_state);
+    }
+    if (!client)
+        return;
+
+    double new_volume = client->get_volume() + (.05 * vertical_scroll) + (.05 * -horizontal_scroll);
+    if (new_volume < 0) {
+        new_volume = 0;
+    } else if (new_volume > 1) {
+        new_volume = 1;
+    }
+
+    if (new_volume != client->get_volume()) {
+        if (client->is_muted())
+            client->set_mute(false);
+
+        client->set_volume(new_volume);
+        if (client->is_master_volume()) {
+            update_volume_menu();
         }
-        audio_set_output_volume(client->index, copy);
-        update_taskbar_volume_icon();
     }
 }
 
@@ -2184,9 +2178,16 @@ create_taskbar(App *app) {
     settings.reserve_bottom = config->taskbar_height;
 
     ScreenInformation *primary_screen_info = nullptr;
-    for (auto s : screens)
+    for (auto s: screens) {
         if (s->is_primary) primary_screen_info = s;
-    assert(primary_screen_info != nullptr);
+    }
+    if (primary_screen_info == nullptr) {
+        if (screens.empty()) {
+            assert(primary_screen_info != nullptr);
+        } else {
+            primary_screen_info = screens[0];
+        }
+    }
 
     settings.x = 0;
     settings.y = primary_screen_info->height_in_pixels - config->taskbar_height;
@@ -2224,9 +2225,8 @@ create_taskbar(App *app) {
 
     load_pinned_icons();
 
-    if (audio_connected) {
-        audio_all_clients();
-        audio_all_outputs();
+    if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO) {
+        audio_update_list_of_clients();
     }
 
     return taskbar;
