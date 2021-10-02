@@ -59,6 +59,11 @@ public:
     int width = -1;
     int height = -1;
 
+    int gtk_left_margin = 0;
+    int gtk_right_margin = 0;
+    int gtk_top_margin = 0;
+    int gtk_bottom_margin = 0;
+
     // This is where screenshots are stored every so often (if we could guarantee a compositor, we wouldn't need this.
     cairo_surface_t *raw_thumbnail_surface = nullptr;
     cairo_t *raw_thumbnail_cr = nullptr;

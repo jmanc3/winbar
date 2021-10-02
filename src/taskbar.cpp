@@ -2042,6 +2042,37 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                 late_classes_update(app, client_by_name(app, "taskbar"), nullptr);
             } else if (e->atom == get_cached_atom(app, "_NET_WM_CLASS")) {
                 late_classes_update(app, client_by_name(app, "taskbar"), nullptr);
+            } else if (e->atom == get_cached_atom(app, "_GTK_FRAME_EXTENTS")) {
+                if (auto client = client_by_name(app, "taskbar")) {
+                    if (client->root) {
+                        if (auto icons = container_by_name("icons", client->root)) {
+                            for (auto icon: icons->children) {
+                                auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                                for (auto windows_data: data->windows_data_list) {
+                                    if (windows_data->id == e->window) {
+                                        auto cookie = xcb_get_property(app->connection, 0, e->window,
+                                                                       get_cached_atom(app, "_GTK_FRAME_EXTENTS"),
+                                                                       XCB_ATOM_CARDINAL, 0, 4);
+                                        auto reply = xcb_get_property_reply(app->connection, cookie, nullptr);
+
+                                        if (reply) {
+                                            int length = xcb_get_property_value_length(reply);
+                                            if (length != 0) {
+                                                auto gtkFrameExtents = static_cast<uint32_t *>(xcb_get_property_value(
+                                                        reply));
+                                                windows_data->gtk_left_margin = (int) gtkFrameExtents[0];
+                                                windows_data->gtk_right_margin = (int) gtkFrameExtents[1];
+                                                windows_data->gtk_top_margin = (int) gtkFrameExtents[2];
+                                                windows_data->gtk_bottom_margin = (int) gtkFrameExtents[3];
+                                            }
+                                            free(reply);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             } else if (e->atom == get_cached_atom(app, "_NET_WM_STATE")) {
                 xcb_generic_error_t *err = nullptr;
                 auto cookie = xcb_get_property(app->connection, 0, e->window, get_cached_atom(app, "_NET_WM_STATE"),
@@ -3046,6 +3077,22 @@ void update_pinned_items_icon() {
 WindowsData::WindowsData(App *app, xcb_window_t window) {
     id = window;
 
+    auto cookie = xcb_get_property(app->connection, 0, id, get_cached_atom(app, "_GTK_FRAME_EXTENTS"),
+                                   XCB_ATOM_CARDINAL, 0, 4);
+    auto reply = xcb_get_property_reply(app->connection, cookie, nullptr);
+
+    if (reply) {
+        int length = xcb_get_property_value_length(reply);
+        if (length != 0) {
+            auto gtkFrameExtents = static_cast<uint32_t *>(xcb_get_property_value(reply));
+            gtk_left_margin = (int) gtkFrameExtents[0];
+            gtk_right_margin = (int) gtkFrameExtents[1];
+            gtk_top_margin = (int) gtkFrameExtents[2];
+            gtk_bottom_margin = (int) gtkFrameExtents[3];
+        }
+        free(reply);
+    }
+
     const xcb_get_window_attributes_cookie_t &attributesCookie = xcb_get_window_attributes(
             app->connection, window);
     xcb_get_window_attributes_reply_t *attributes = xcb_get_window_attributes_reply(app->connection,
@@ -3097,9 +3144,18 @@ void WindowsData::take_screenshot() {
     if (!mapped)
         return;
 
-    cairo_set_source_surface(raw_thumbnail_cr, window_surface, 0, 0);
-
-    cairo_paint(raw_thumbnail_cr);
+    if (gtk_left_margin == 0 && gtk_right_margin == 0 && gtk_top_margin == 0 && gtk_bottom_margin == 0) {
+        cairo_set_source_surface(raw_thumbnail_cr, window_surface, 0, 0);
+        cairo_paint(raw_thumbnail_cr);
+    } else {
+        cairo_save(raw_thumbnail_cr);
+        cairo_set_source_surface(raw_thumbnail_cr, window_surface, 0, 0);
+        cairo_rectangle(raw_thumbnail_cr, gtk_left_margin, gtk_top_margin,
+                        width - (gtk_right_margin + gtk_left_margin), height - (gtk_bottom_margin + gtk_top_margin));
+        cairo_clip(raw_thumbnail_cr);
+        cairo_paint(raw_thumbnail_cr);
+        cairo_restore(raw_thumbnail_cr);
+    }
 
     cairo_surface_flush(window_surface);
     cairo_surface_mark_dirty(window_surface);
