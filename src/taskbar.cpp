@@ -961,6 +961,18 @@ update_minimize_icon_positions() {
     }
 }
 
+static bool volume_open_because_of_scroll = false;
+
+static void
+mouse_leaves_volume(AppClient *client_entity,
+                cairo_t *cr,
+                Container *container) {
+    if (volume_open_because_of_scroll && client_by_name(app, "volume")) {
+        client_close_threaded(app, client_by_name(app, "volume"));
+    }
+    volume_open_because_of_scroll = false;
+}
+
 static void
 scrolled_volume(AppClient *client_entity,
                 cairo_t *cr,
@@ -974,6 +986,7 @@ scrolled_volume(AppClient *client_entity,
 
     if (client_by_name(app, "volume") == nullptr) {
         open_volume_menu();
+        volume_open_because_of_scroll = true;
     }
 
     Audio_Client *client = nullptr;
@@ -1826,6 +1839,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_volume->when_paint = paint_volume;
     button_volume->when_clicked = clicked_volume;
     button_volume->when_scrolled = scrolled_volume;
+    button_volume->when_mouse_leaves_container = mouse_leaves_volume;
     button_volume->name = "volume";
     auto surfaces = new volume_surfaces;
     surfaces->none = accelerated_surface(app, client, 16, 16);
