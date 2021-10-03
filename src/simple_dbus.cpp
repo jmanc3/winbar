@@ -36,10 +36,13 @@ bool registered_object_path = false;
  *
  *************************************************/
 
+static double max_kde_brightness = 0;
 
 void remove_service(const std::string &service) {
     for (int i = 0; i < running_dbus_services.size(); i++) {
         if (running_dbus_services[i] == service) {
+            if (running_dbus_services[i] == "local.org_kde_powerdevil")
+                max_kde_brightness = 0;
             running_dbus_services.erase(running_dbus_services.begin() + i);
             return;
         }
@@ -47,6 +50,8 @@ void remove_service(const std::string &service) {
 }
 
 DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *message, void *userdata);
+
+static bool dbus_kde_max_brightness();
 
 static DBusHandlerResult signal_handler(DBusConnection *connection,
                                         DBusMessage *message, void *user_data) {
@@ -67,6 +72,8 @@ static DBusHandlerResult signal_handler(DBusConnection *connection,
 
         if (strcmp(old_owner, "") == 0) {
             running_dbus_services.emplace_back(name);
+            if (std::string(name) == "local.org_kde_powerdevil")
+                dbus_kde_max_brightness();
         } else if (strcmp(new_owner, "") == 0) {
             remove_service(name);
         }
@@ -140,6 +147,8 @@ static void dbus_reply_to_list_names_request(DBusPendingCall *call, void *data) 
     //
     for (char *name = *args; name; name = *++args) {
         running_dbus_services.emplace_back(name);
+        if (std::string(name) == "local.org_kde_powerdevil")
+            dbus_kde_max_brightness();
     }
 
     // Register some signals that we are interested in hearing about "NameOwnerChanged", "NameAcquired", "NameLost"
@@ -337,8 +346,6 @@ bool dbus_gnome_show_overview() {
     return true;
 }
 
-static double max_kde_brightness = 0;
-
 static void dbus_kde_max_brightness_response(DBusPendingCall *call, void *data) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -355,7 +362,7 @@ static void dbus_kde_max_brightness_response(DBusPendingCall *call, void *data) 
     }
 }
 
-bool dbus_kde_max_brightness() {
+static bool dbus_kde_max_brightness() {
     if (!dbus_connection) return false;
 
     DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil", "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
@@ -385,7 +392,7 @@ double dbus_get_kde_max_brightness() {
 }
 
 double dbus_get_kde_current_brightness() {
-    if (!dbus_connection) return false;
+    if (!dbus_connection) return 0;
 
     DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil", "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
                                                          "org.kde.Solid.PowerManagement.Actions.BrightnessControl",
@@ -750,8 +757,6 @@ void dbus_start() {
 
         dbus_poll_wakeup(nullptr, 0);
     }
-
-    dbus_kde_max_brightness();
 }
 
 void dbus_end() {
