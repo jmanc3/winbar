@@ -82,7 +82,7 @@ static void
 fill_root(Container *root);
 
 static void
-late_classes_update(App *app, AppClient *client, void *data);
+late_classes_update(App *app, AppClient *client, Timeout *, void *data);
 
 static void
 paint_background(AppClient *client, cairo_t *cr, Container *container) {
@@ -106,28 +106,31 @@ paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *con
     auto hovered_color = config->color_taskbar_button_hovered;
     auto pressed_color = config->color_taskbar_button_pressed;
 
+    auto e = getEasingFunction(easing_functions::EaseOutQuad);
+    double time = 100;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
             if (data->previous_state != 2) {
                 data->previous_state = 2;
-                client_create_animation(app, client, &data->color.r, 10, nullptr, pressed_color.r);
-                client_create_animation(app, client, &data->color.g, 10, nullptr, pressed_color.g);
-                client_create_animation(app, client, &data->color.b, 10, nullptr, pressed_color.b);
-                client_create_animation(app, client, &data->color.a, 10, nullptr, pressed_color.a);
+                client_create_animation(app, client, &data->color.r, time, e, pressed_color.r);
+                client_create_animation(app, client, &data->color.g, time, e, pressed_color.g);
+                client_create_animation(app, client, &data->color.b, time, e, pressed_color.b);
+                client_create_animation(app, client, &data->color.a, time, e, pressed_color.a);
             }
         } else if (data->previous_state != 1) {
             data->previous_state = 1;
-            client_create_animation(app, client, &data->color.r, 20, nullptr, hovered_color.r);
-            client_create_animation(app, client, &data->color.g, 20, nullptr, hovered_color.g);
-            client_create_animation(app, client, &data->color.b, 20, nullptr, hovered_color.b);
-            client_create_animation(app, client, &data->color.a, 20, nullptr, hovered_color.a);
+            client_create_animation(app, client, &data->color.r, time, e, hovered_color.r);
+            client_create_animation(app, client, &data->color.g, time, e, hovered_color.g);
+            client_create_animation(app, client, &data->color.b, time, e, hovered_color.b);
+            client_create_animation(app, client, &data->color.a, time, e, hovered_color.a);
         }
     } else if (data->previous_state != 0) {
         data->previous_state = 0;
-        client_create_animation(app, client, &data->color.r, 40, nullptr, default_color.r);
-        client_create_animation(app, client, &data->color.g, 40, nullptr, default_color.g);
-        client_create_animation(app, client, &data->color.b, 40, nullptr, default_color.b);
-        client_create_animation(app, client, &data->color.a, 40, nullptr, default_color.a);
+        e = getEasingFunction(easing_functions::EaseInQuad);
+        client_create_animation(app, client, &data->color.r, time, e, default_color.r);
+        client_create_animation(app, client, &data->color.g, time, e, default_color.g);
+        client_create_animation(app, client, &data->color.b, time, e, default_color.b);
+        client_create_animation(app, client, &data->color.a, time, e, default_color.a);
     }
 
     set_argb(cr, data->color);
@@ -568,10 +571,10 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
         return container->children[a]->z_index < container->children[b]->z_index;
     });
 
-    for (auto index : render_order) {
+    for (auto index: render_order) {
         paint_icon_background(client_entity, cr, container->children[index]);
     }
-    for (auto index : render_order) {
+    for (auto index: render_order) {
         paint_icon_surface(client_entity, cr, container->children[index]);
     }
 }
@@ -638,10 +641,13 @@ return_current_time_and_date() {
     return ss.str();
 }
 
-void update_time(App *app, AppClient *client, void *data) {
+void update_time(App *app, AppClient *client, Timeout *timeout, void *data) {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Time Thread");
 #endif
+    if (timeout)
+        timeout->keep_running = true;
+
     std::string date = return_current_time_and_date();
     if (date[0] == '0')
         date.erase(0, 1);
@@ -650,17 +656,15 @@ void update_time(App *app, AppClient *client, void *data) {
         client_layout(app, client);
         request_refresh(app, client);
     }
-
-    app_timeout_create(app, client, 1000, update_time, nullptr);
 }
 
 Container *get_pinned_icon_representing_window(xcb_window_t window) {
     if (auto c = client_by_name(app, "taskbar")) {
         if (auto icons = container_by_name("icons", c->root)) {
-            for (Container *container : icons->children) {
+            for (Container *container: icons->children) {
                 auto data = (LaunchableButton *) container->user_data;
 
-                for (auto windows_data : data->windows_data_list) {
+                for (auto windows_data: data->windows_data_list) {
                     if (windows_data->id == window) {
                         return container;
                     }
@@ -694,7 +698,7 @@ void active_window_changed(xcb_window_t new_active_window) {
             auto data = (LaunchableButton *) new_active_container->user_data;
             client_create_animation(app, c, &data->active_amount, 45, nullptr, 1);
 
-            for (auto w_d : data->windows_data_list) {
+            for (auto w_d: data->windows_data_list) {
                 if (w_d->id == new_active_window) {
                     if (w_d->mapped) {
                         w_d->take_screenshot();
@@ -710,7 +714,7 @@ static void
 finished_icon_animation() {
     AppClient *client = client_by_name(app, "taskbar");
     Container *icons = container_by_name("icons", client->root);
-    for (Container *child : icons->children) {
+    for (Container *child: icons->children) {
         auto *data = static_cast<LaunchableButton *>(child->user_data);
         if (data->animating) {
             if (data->target == child->real_bounds.x) {
@@ -774,7 +778,7 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    for (auto c : app->clients) {
+    for (auto c: app->clients) {
         if (c->name == "windows_selector") {
             client_close_threaded(app, c);
         }
@@ -814,7 +818,7 @@ pinned_icon_drag(AppClient *client_entity, cairo_t *cr, Container *container) {
     layout(client_entity, cr, copy_parent, copy_parent->real_bounds);
 
     std::vector<int> centers;
-    for (auto child : copy_parent->children) {
+    for (auto child: copy_parent->children) {
         centers.push_back(child->real_bounds.x + child->real_bounds.w / 2);
     }
     delete copy_parent;
@@ -942,13 +946,13 @@ update_minimize_icon_positions() {
         return;
     auto *bounds = client_entity->bounds;
 
-    for (auto icon : icons->children) {
+    for (auto icon: icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
 
         if (!data)
             continue;
 
-        for (auto window_data : data->windows_data_list) {
+        for (auto window_data: data->windows_data_list) {
             auto window = window_data->id;
             double value[] = {bounds->x + icon->real_bounds.x,
                               bounds->y + icon->real_bounds.y,
@@ -965,8 +969,8 @@ static bool volume_open_because_of_scroll = false;
 
 static void
 mouse_leaves_volume(AppClient *client_entity,
-                cairo_t *cr,
-                Container *container) {
+                    cairo_t *cr,
+                    Container *container) {
     if (volume_open_because_of_scroll && client_by_name(app, "volume")) {
         client_close_threaded(app, client_by_name(app, "volume"));
     }
@@ -1028,13 +1032,13 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
         if (data->windows_data_list.empty()) {
             launch_command(data->command_launched_by);
             app_timeout_stop(client->app, client, data->possibly_open_timeout_fd);
-            for (auto c : app->clients) {
+            for (auto c: app->clients) {
                 if (c->name == "windows_selector") {
                     client_close(app, c);
                 }
             }
         } else if (data->windows_data_list.size() > 1) {
-            for (auto c : app->clients) {
+            for (auto c: app->clients) {
                 if (c->name == "windows_selector") {
                     auto pii = (PinnedIconInfo *) c->root->user_data;
                     if (pii->data->type == ::OPEN_HOVERED && data == pii->data) {
@@ -1050,7 +1054,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
             app_timeout_stop(client->app, client, data->possibly_open_timeout_fd);
 
             xcb_window_t window = data->windows_data_list[0]->id;
-            for (auto c : app->clients) {
+            for (auto c: app->clients) {
                 if (c->name == "windows_selector") {
                     client_close(app, c);
                 }
@@ -1062,7 +1066,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                 if (active_container) {
                     LaunchableButton *button_data = (LaunchableButton *) active_container->user_data;
                     if (button_data) {
-                        for (auto window_data : button_data->windows_data_list) {
+                        for (auto window_data: button_data->windows_data_list) {
                             auto active_window = window_data->id;
                             if (active_window == window)
                                 is_active_window = true;
@@ -1091,7 +1095,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
         }
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
         app_timeout_stop(client->app, client, data->possibly_open_timeout_fd);
-        for (auto c : app->clients) {
+        for (auto c: app->clients) {
             if (c->name == "windows_selector") {
                 client_close(app, c);
             }
@@ -1176,7 +1180,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
 
         std::string count_text;
         int count = 0;
-        for (auto n : notifications) {
+        for (auto n: notifications) {
             if (n->sent_to_action_center) {
                 count++;
             }
@@ -1327,7 +1331,7 @@ static bool minimize_button_hide = true;
 static void
 clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
     if (dbus_connection) {
-        for (const auto &s : running_dbus_services) {
+        for (const auto &s: running_dbus_services) {
             if (s == "org.kde.kglobalaccel") {
                 // On KDE try to show the desktop
                 if (dbus_kde_show_desktop()) {
@@ -1358,7 +1362,7 @@ clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
         }
     } else {
         // Here we show them based on the order
-        for (auto window : minimize_button_windows_order) {
+        for (auto window: minimize_button_windows_order) {
             auto *c = client_by_window(client->app, window);
             if (c == nullptr) {
                 xcb_ewmh_request_change_active_window(&app->ewmh,
@@ -1654,7 +1658,7 @@ scrolled_workspace(AppClient *client_entity,
 static void
 clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
     if (dbus_connection) {
-        for (const auto &s : running_dbus_services) {
+        for (const auto &s: running_dbus_services) {
             if (s == "org.kde.kglobalaccel") {
                 // On KDE try to show the desktop grid
                 if (dbus_kde_show_desktop_grid()) {
@@ -1872,8 +1876,8 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_date->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_date->name = "date";
 
-    app_timeout_create(app, client, 0, update_time, nullptr);
-    app_timeout_create(app, client, 0, late_classes_update, nullptr);
+    app_timeout_create(app, client, 1000, update_time, nullptr);
+    app_timeout_create(app, client, 10000, late_classes_update, nullptr);
 
     button_action_center->when_paint = paint_action_center;
     auto action_center_data = new ActionCenterButtonData;
@@ -1931,7 +1935,7 @@ taskbar_on_screen_size_change(App *app, AppClient *client) {
                             primary_screen->y + primary_screen->height_in_pixels -
                             config->taskbar_height, primary_screen->width_in_pixels,
                             config->taskbar_height);
-    for (auto *c : app->clients) {
+    for (auto *c: app->clients) {
         if (c->popup) {
             client_close_threaded(app, c);
             if (c->window == app->grab_window) {
@@ -1948,9 +1952,9 @@ update_window_title_name(xcb_window_t window) {
     if (auto client = client_by_name(app, "taskbar")) {
         if (client->root) {
             if (auto icons = container_by_name("icons", client->root)) {
-                for (auto icon : icons->children) {
+                for (auto icon: icons->children) {
                     auto *data = static_cast<LaunchableButton *>(icon->user_data);
-                    for (auto windows_data : data->windows_data_list) {
+                    for (auto windows_data: data->windows_data_list) {
                         if (windows_data->id == window) {
                             const xcb_get_property_cookie_t &propertyCookie = xcb_ewmh_get_wm_name(
                                     &app->ewmh, window);
@@ -1997,9 +2001,9 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
             if (auto client = client_by_name(app, "taskbar")) {
                 if (client->root) {
                     if (auto icons = container_by_name("icons", client->root)) {
-                        for (auto icon : icons->children) {
+                        for (auto icon: icons->children) {
                             auto *data = static_cast<LaunchableButton *>(icon->user_data);
-                            for (auto windows_data : data->windows_data_list) {
+                            for (auto windows_data: data->windows_data_list) {
                                 if (windows_data->id == e->window) {
                                     // update the size of the surface
                                     if (windows_data->window_surface && (e->width != windows_data->width ||
@@ -2053,9 +2057,9 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                        e->atom == get_cached_atom(app, "_NET_WM_NAME")) {
                 update_window_title_name(e->window);
             } else if (e->atom == get_cached_atom(app, "WM_CLASS")) {
-                late_classes_update(app, client_by_name(app, "taskbar"), nullptr);
+                late_classes_update(app, client_by_name(app, "taskbar"), nullptr, nullptr);
             } else if (e->atom == get_cached_atom(app, "_NET_WM_CLASS")) {
-                late_classes_update(app, client_by_name(app, "taskbar"), nullptr);
+                late_classes_update(app, client_by_name(app, "taskbar"), nullptr, nullptr);
             } else if (e->atom == get_cached_atom(app, "_GTK_FRAME_EXTENTS")) {
                 if (auto client = client_by_name(app, "taskbar")) {
                     if (client->root) {
@@ -2103,9 +2107,9 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                 if (auto client = client_by_name(app, "taskbar")) {
                                     if (client->root) {
                                         if (auto icons = container_by_name("icons", client->root)) {
-                                            for (auto icon : icons->children) {
+                                            for (auto icon: icons->children) {
                                                 auto *data = static_cast<LaunchableButton *>(icon->user_data);
-                                                for (auto windows_data : data->windows_data_list) {
+                                                for (auto windows_data: data->windows_data_list) {
                                                     if (windows_data->id == e->window) {
                                                         client_create_animation(app, client,
                                                                                 &data->wants_attention_amount, 10000, 0,
@@ -2125,9 +2129,9 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                             if (auto client = client_by_name(app, "taskbar")) {
                                 if (client->root) {
                                     if (auto icons = container_by_name("icons", client->root)) {
-                                        for (auto icon : icons->children) {
+                                        for (auto icon: icons->children) {
                                             auto *data = static_cast<LaunchableButton *>(icon->user_data);
-                                            for (auto windows_data : data->windows_data_list) {
+                                            for (auto windows_data: data->windows_data_list) {
                                                 if (windows_data->id == e->window) {
                                                     client_create_animation(app, client, &data->wants_attention_amount,
                                                                             0, 0, 0);
@@ -2139,6 +2143,17 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                 }
                             }
                         }
+                    }
+                } else if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
+                    // TODO: error check
+                    auto r = xcb_get_property(app->connection, False, e->window,
+                                              get_cached_atom(app, "_NET_WM_DESKTOP"),
+                                              XCB_ATOM_CARDINAL, 0, 32);
+                    auto re = xcb_get_property_reply(app->connection, r, nullptr);
+                    if (re) {
+                        auto current_desktop = reinterpret_cast<uint32_t *>(xcb_get_property_value(re))[0];
+                        printf("window: %d, desktop %d\n", e->window, current_desktop);
+                        free(re);
                     }
                 }
                 if (err) {
@@ -2153,9 +2168,9 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
             if (auto client = client_by_name(app, "taskbar")) {
                 if (client->root) {
                     if (auto icons = container_by_name("icons", client->root)) {
-                        for (auto icon : icons->children) {
+                        for (auto icon: icons->children) {
                             auto *data = static_cast<LaunchableButton *>(icon->user_data);
-                            for (auto windows_data : data->windows_data_list) {
+                            for (auto windows_data: data->windows_data_list) {
                                 if (windows_data->id == e->window) {
                                     windows_data->mapped = true;
                                 }
@@ -2171,9 +2186,9 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
             if (auto client = client_by_name(app, "taskbar")) {
                 if (client->root) {
                     if (auto icons = container_by_name("icons", client->root)) {
-                        for (auto icon : icons->children) {
+                        for (auto icon: icons->children) {
                             auto *data = static_cast<LaunchableButton *>(icon->user_data);
-                            for (auto windows_data : data->windows_data_list) {
+                            for (auto windows_data: data->windows_data_list) {
                                 if (windows_data->id == e->window) {
                                     windows_data->mapped = false;
                                 }
@@ -2188,13 +2203,13 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
     return false;
 }
 
-void screenshot_active_window(App *app, AppClient *client, void *user_data) {
+void screenshot_active_window(App *app, AppClient *client, Timeout *, void *user_data) {
     if (auto client = client_by_name(app, "taskbar")) {
         if (client->root) {
             if (auto icons = container_by_name("icons", client->root)) {
-                for (auto icon : icons->children) {
+                for (auto icon: icons->children) {
                     auto *data = static_cast<LaunchableButton *>(icon->user_data);
-                    for (auto windows_data : data->windows_data_list) {
+                    for (auto windows_data: data->windows_data_list) {
                         if (windows_data->id == active_window) {
                             windows_data->take_screenshot();
                             return;
@@ -2377,7 +2392,7 @@ void add_window(App *app, xcb_window_t window) {
     // on gnome, the Extension app ends up adding the taskbar to the taskbar. I have no idea how it's doing that
     // but the fix for now is just going to be to ignore every client that is ours. Eventually when we make a settings
     // app, we will have to add an exception for that window.
-    for (auto c : app->clients) {
+    for (auto c: app->clients) {
         if (c->window == window) {
             return;
         }
@@ -2431,7 +2446,7 @@ void add_window(App *app, xcb_window_t window) {
         window_class_name = c3ic_fix_wm_class(window_class_name);
     }
 
-    for (auto icon : icons->children) {
+    for (auto icon: icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
         if (data->class_name == window_class_name) {
             const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
@@ -2699,16 +2714,16 @@ void stacking_order_changed(xcb_window_t *all_windows, int windows_count) {
     if (!icons)
         return;
 
-    for (auto icon : icons->children) {
+    for (auto icon: icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
-        for (auto window_data : data->windows_data_list) {
+        for (auto window_data: data->windows_data_list) {
             old_windows.emplace_back(window_data->id);
         }
     }
 
-    for (auto new_window : new_windows) {
+    for (auto new_window: new_windows) {
         bool found = false;
-        for (auto old_window : old_windows)
+        for (auto old_window: old_windows)
             if (old_window == new_window)
                 found = true;
         if (!found) {
@@ -2719,7 +2734,7 @@ void stacking_order_changed(xcb_window_t *all_windows, int windows_count) {
     for (int i = 0; i < old_windows.size(); i++) {
         xcb_window_t old_window = old_windows[i];
         bool found = false;
-        for (auto new_window : new_windows)
+        for (auto new_window: new_windows)
             if (old_window == new_window)
                 found = true;
         if (!found) {
@@ -2803,7 +2818,7 @@ void update_pinned_items_file() {
     update_minimize_icon_positions();
 
     int i = 0;
-    for (auto icon : icons->children) {
+    for (auto icon: icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
 
         if (!data)
@@ -2876,7 +2891,7 @@ load_pinned_icons() {
     if (itemFile.ParseError() != 0)
         return;
 
-    for (const std::string &section_title : itemFile.Sections()) {
+    for (const std::string &section_title: itemFile.Sections()) {
         auto *child = new Container();
         child->parent = icons;
         child->wanted_bounds.h = FILL_SPACE;
@@ -2929,10 +2944,12 @@ load_pinned_icons() {
 }
 
 static void
-late_classes_update(App *app, AppClient *client, void *data) {
+late_classes_update(App *app, AppClient *client, Timeout *timeout, void *data) {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Late WM_CLASS Thread");
 #endif
+    if (timeout)
+        timeout->keep_running = true;
     auto *root = client->root;
     if (!root)
         return;
@@ -2940,7 +2957,7 @@ late_classes_update(App *app, AppClient *client, void *data) {
     if (!icons)
         return;
 
-    for (auto icon : icons->children) {
+    for (auto icon: icons->children) {
         auto data = static_cast<LaunchableButton *>(icon->user_data);
 
         // since when windows don't have real classes on them we set their names to their class.
@@ -2962,8 +2979,6 @@ late_classes_update(App *app, AppClient *client, void *data) {
             }
         }
     }
-
-    app_timeout_create(app, client, 10000, late_classes_update, nullptr);
 }
 
 void update_taskbar_volume_icon() {
@@ -3041,7 +3056,7 @@ void register_popup(xcb_window_t window) {
 
         xcb_set_input_focus(
                 app->connection, XCB_INPUT_FOCUS_PARENT, popup_window_open, XCB_CURRENT_TIME);
-        for (auto *c : app->clients) {
+        for (auto *c: app->clients) {
             if (c->window != window) {
                 if (c->popup) {
                     client_close_threaded(app, c);
@@ -3055,7 +3070,7 @@ void update_pinned_items_icon() {
     if (auto client = client_by_name(app, "taskbar")) {
         if (client->root) {
             if (auto icons = container_by_name("icons", client->root)) {
-                for (auto icon : icons->children) {
+                for (auto icon: icons->children) {
                     auto *data = static_cast<LaunchableButton *>(icon->user_data);
                     if (data->surface) {
                         cairo_surface_destroy(data->surface);

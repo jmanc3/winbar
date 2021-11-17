@@ -30,7 +30,7 @@ struct LabelData : UserData {
     int size;
 };
 
-static void close_notification_timeout(App *app, AppClient *client, void *data) {
+static void close_notification_timeout(App *app, AppClient *client, Timeout *, void *data) {
     auto root_data = (NotificationWrapper *) client->root->user_data;
     notification_closed_signal(app, root_data->ni, NotificationReasonClosed::EXPIRED);
     client_close_threaded(app, client);
@@ -212,7 +212,7 @@ static void paint_send_to_action_center(AppClient *client, cairo_t *cr, Containe
                 return;
             }
             if (auto c = container_by_name("actions_container", client->root)) {
-                for (auto co : c->children) {
+                for (auto co: c->children) {
                     if (bounds_contains(co->real_bounds, client->mouse_current_x, client->mouse_current_y))
                         return;
                 }
@@ -280,7 +280,7 @@ void show_notification(App *app, NotificationInfo *ni) {
 
     client->when_closed = client_closed;
 
-    for (auto c : displaying_notifications) {
+    for (auto c: displaying_notifications) {
         client_set_position(app, c, c->bounds->x, c->bounds->y - notification_container->real_bounds.h - 12);
     }
 
@@ -306,7 +306,7 @@ void show_notification(App *app, NotificationInfo *ni) {
 }
 
 void close_notification(int id) {
-    for (auto c : displaying_notifications) {
+    for (auto c: displaying_notifications) {
         auto data = (NotificationWrapper *) c->root->user_data;
         if (data->ni->id == id) {
             notification_closed_signal(c->app, data->ni,
@@ -318,7 +318,7 @@ void close_notification(int id) {
 
 static bool root_pierced_handler(Container *container, int mouse_x, int mouse_y) {
     if (auto c = container_by_name("actions_container", container)) {
-        for (auto child : c->children) {
+        for (auto child: c->children) {
             if (bounds_contains(child->real_bounds, mouse_x, mouse_y)) {
                 return false;
             }
@@ -476,7 +476,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
         actions_container->wanted_pad = Bounds(16, 0, 16, 16);
         actions_container->name = "actions_container";
 
-        for (auto action : notification_info->actions) {
+        for (auto action: notification_info->actions) {
             auto action_container = actions_container->child(FILL_SPACE, FILL_SPACE);
             auto data = new NotificationActionWrapper;
             data->action = action;

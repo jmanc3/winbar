@@ -61,13 +61,13 @@ load_custom_items() {
     if (items_parsed.ParseError() != 0) {
         return;
     }
-    for (auto c : custom_items) {
+    for (auto c: custom_items) {
         delete c;
     }
     custom_items.clear();
     custom_items.shrink_to_fit();
 
-    for (auto section : items_parsed.Sections()) {
+    for (auto section: items_parsed.Sections()) {
         auto class_name = items_parsed.Get(section, "class_name", "");
         if (class_name.empty())
             continue;
@@ -204,7 +204,7 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
 
     switch (data->option_type) {
         case CLOSE: {
-            for (auto window_list : pinned_icon_data->windows_data_list) {
+            for (auto window_list: pinned_icon_data->windows_data_list) {
                 auto window = window_list->id;
                 xcb_ewmh_client_source_type_t source;
                 xcb_ewmh_request_close_window(
@@ -305,7 +305,7 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     root->when_paint = paint_root;
 
     std::vector<CustomItem *> custom_items_for_us;
-    for (auto *item : custom_items) {
+    for (auto *item: custom_items) {
         if (item->class_name == pinned_icon_data->class_name) {
             custom_items_for_us.push_back(item);
         }
@@ -544,7 +544,7 @@ void start_pinned_icon_right_click(Container *container) {
     client->root = root;
     client_entity = client;
 
-    for (auto *d : delayed) {
+    for (auto *d: delayed) {
         if (d->path.empty()) {
             if (pinned_icon_data->surface) {
                 *d->surface = accelerated_surface(app, client, d->size, d->size);

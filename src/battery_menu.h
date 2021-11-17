@@ -20,10 +20,10 @@ struct data_battery_surfaces : public IconButton {
     std::string capacity;
 
     ~data_battery_surfaces() {
-        for (auto surface : normal_surfaces) {
+        for (auto surface: normal_surfaces) {
             cairo_surface_destroy(surface);
         }
-        for (auto surface : charging_surfaces) {
+        for (auto surface: charging_surfaces) {
             cairo_surface_destroy(surface);
         }
     }

@@ -99,7 +99,7 @@ struct MouseDownInfo {
 };
 
 static void
-mouse_down_thread(App *app, AppClient *client, void *data) {
+mouse_down_thread(App *app, AppClient *client, Timeout *, void *data) {
     auto *mouse_info = (MouseDownInfo *) data;
 
     if (mouse_down_arrow_held.load() && valid_client(app, client) && app->running) {
@@ -980,7 +980,7 @@ clicked_textarea(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
-drag_timeout(App *app, AppClient *client, void *data) {
+drag_timeout(App *app, AppClient *client, Timeout *, void *data) {
     auto *container = (Container *) data;
 
     Container *content_area = container->parent;
@@ -1250,7 +1250,7 @@ make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings s
 
     scroll_amount = data->font_size * 3;
 
-    blink_loop(app, client, textarea);
+    blink_loop(app, client, nullptr, textarea);
 
     return textarea;
 }
@@ -1403,7 +1403,7 @@ public:
             return group::space;
         if (c == '\n')
             return group::newline;
-        for (auto token : tokens_list)
+        for (auto token: tokens_list)
             if (token == c)
                 return group::token;
         return group::normal;
@@ -1846,7 +1846,7 @@ blink_on(App *app, AppClient *client, void *textarea) {
 }
 
 void
-blink_loop(App *app, AppClient *client, void *textarea) {
+blink_loop(App *app, AppClient *client, Timeout *, void *textarea) {
     auto *container = (Container *) textarea;
     auto *data = (TextAreaData *) container->user_data;
 
@@ -1910,7 +1910,7 @@ void paint_transition_scaled(AppClient *client, cairo_t *cr, Container *containe
     cairo_translate(cr, translate_x, translate_y);
     cairo_scale(cr, scale_amount, scale_amount);
     cairo_set_source_surface(cr, surface, 0, 0);
-    cairo_pattern_set_filter (cairo_get_source (cr), CAIRO_FILTER_FAST);
+    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_FAST);
     cairo_paint(cr);
     cairo_restore(cr);
 }
@@ -2000,7 +2000,7 @@ void paint_transition_surface(AppClient *client, cairo_t *cr, Container *contain
     }
 }
 
-static void layout_and_repaint(App *app, AppClient *client, void *user_data) {
+static void layout_and_repaint(App *app, AppClient *client, Timeout *, void *user_data) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif

@@ -83,10 +83,10 @@ public:
     bool first_bounds_update = true;
 
     ~TextState() {
-        for (auto *a : redo_stack) {
+        for (auto *a: redo_stack) {
             delete a;
         }
-        for (auto *a : undo_stack) {
+        for (auto *a: undo_stack) {
             delete a;
         }
     }
@@ -143,7 +143,7 @@ textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string,
                          uint16_t mods, xkb_key_direction direction);
 
 void
-blink_loop(App *app, AppClient *client, void *textarea);
+blink_loop(App *app, AppClient *client, Timeout *, void *textarea);
 
 void
 blink_on(App *app, AppClient *client, void *textarea);

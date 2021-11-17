@@ -72,11 +72,13 @@ struct Handler;
 struct Timeout {
     int file_descriptor;
 
-    void (*function)(App *, AppClient *, void *user_data);
+    void (*function)(App *, AppClient *, Timeout *, void *user_data);
 
     AppClient *client = nullptr;
 
     void *user_data = nullptr;
+
+    bool keep_running = false;
 };
 
 struct PolledDescriptor {
@@ -239,11 +241,11 @@ void init_xkb(App *app, AppClient *client);
 void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard);
 
 bool app_timeout_replace(App *app, AppClient *client, int timeout_file_descriptor, float timeout_ms,
-                         void (*timeout_function)(App *, AppClient *, void *),
+                         void (*timeout_function)(App *, AppClient *, Timeout *, void *),
                          void *user_data);
 
 int
-app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout_function)(App *, AppClient *, void *),
+app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout_function)(App *, AppClient *, Timeout *, void *),
                    void *user_data);
 
 bool app_timeout_stop(App *app,

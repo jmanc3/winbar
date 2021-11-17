@@ -76,6 +76,38 @@ easeInOutQuart(double t) {
 }
 
 double
+easeInMiddle(double t) {
+    double distance_from_middle = .5 - t;
+    if (distance_from_middle < 0)
+        distance_from_middle = -distance_from_middle;
+
+
+    if (t < .5) {
+        t -= t * distance_from_middle;
+    }
+
+    return t;
+
+
+    // as distance_from_middle approaches 0, t is supposed to be repulsed from the value .5
+    //
+    double repulsion_amount = distance_from_middle;
+
+    if (t < .5) {
+        return t - repulsion_amount;
+    } else {
+        return t + repulsion_amount;
+    }
+
+    /*
+    if (t < 0.5) {
+        return 2 * t * t;
+    } else {
+        return t * (4 - 2 * t) - 1;
+    }*/
+}
+
+double
 easeInQuint(double t) {
     double t2 = t * t;
     return t * t2 * t2;
@@ -217,6 +249,7 @@ getEasingFunction(easing_functions function) {
         easingFunctions.insert(std::make_pair(EaseInQuart, easeInQuart));
         easingFunctions.insert(std::make_pair(EaseOutQuart, easeOutQuart));
         easingFunctions.insert(std::make_pair(EaseInOutQuart, easeInOutQuart));
+        easingFunctions.insert(std::make_pair(EaseInMiddle, easeInMiddle));
         easingFunctions.insert(std::make_pair(EaseInQuint, easeInQuint));
         easingFunctions.insert(std::make_pair(EaseOutQuint, easeOutQuint));
         easingFunctions.insert(std::make_pair(EaseInOutQuint, easeInOutQuint));

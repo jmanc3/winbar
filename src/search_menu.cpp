@@ -912,7 +912,7 @@ paint_content(AppClient *client, cairo_t *cr, Container *container) {
     cairo_save(cr);
     cairo_push_group(cr);
 
-    for (auto *c : container->children) {
+    for (auto *c: container->children) {
         if (overlaps(c->real_bounds, c->parent->parent->real_bounds)) {
             if (c->when_paint) {
                 c->when_paint(client, cr, c);
@@ -934,7 +934,7 @@ paint_content(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_hbox(AppClient *client, cairo_t *cr, Container *container) {
-    for (auto *c : container->children) {
+    for (auto *c: container->children) {
         if (c->when_paint) {
             c->when_paint(client, cr, c);
         }
@@ -987,7 +987,7 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, layout);
 
     if (auto *tab_group = container_by_name("tab_group", client->root)) {
-        for (auto *tab : tab_group->children) {
+        for (auto *tab: tab_group->children) {
             auto *tab_data = (TabData *) tab->user_data;
             if (tab_data->name == active_tab && tab_data->surface) {
                 dye_surface(tab_data->surface, config->color_search_empty_tab_content_icon);
@@ -1084,7 +1084,7 @@ void sort_and_add(std::vector<T> *sortables,
                   const std::vector<HistoricalNameUsed *> &history);
 
 static void
-clicked_tab_timeout(App *app, AppClient *client, void *user_data) {
+clicked_tab_timeout(App *app, AppClient *client, Timeout *, void *user_data) {
     auto *container = (Container *) user_data;
     auto *tab_data = (TabData *) container->user_data;
     active_tab = tab_data->name;
@@ -1094,7 +1094,7 @@ clicked_tab_timeout(App *app, AppClient *client, void *user_data) {
 
         auto *bottom = container_by_name("bottom", client->root);
         if (bottom) {
-            for (auto *c : bottom->children)
+            for (auto *c: bottom->children)
                 delete c;
             bottom->children.clear();
             bottom->children.shrink_to_fit();
@@ -1104,7 +1104,7 @@ clicked_tab_timeout(App *app, AppClient *client, void *user_data) {
                 } else if (active_tab == "Apps") {
                     // We create a copy because app_menu relies on the order
                     std::vector<Launcher *> launchers_copy;
-                    for (auto *l : launchers) {
+                    for (auto *l: launchers) {
                         launchers_copy.push_back(l);
                     }
                     sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, global->history_apps);
@@ -1173,7 +1173,7 @@ void sort_and_add(std::vector<T> *sortables,
         std::transform(
                 lowercase_text.begin(), lowercase_text.end(), lowercase_text.begin(), ::tolower);
 
-        for (auto *s : *sortables) {
+        for (auto *s: *sortables) {
             s->priority = determine_priority(s, text, lowercase_text, history);
             if (s->priority != 11) {
                 sorted.push_back(s);
@@ -1376,7 +1376,7 @@ when_key_event(AppClient *client,
 
                 auto *bottom = container_by_name("bottom", client->root);
                 if (bottom) {
-                    for (auto *c : bottom->children)
+                    for (auto *c: bottom->children)
                         delete c;
                     bottom->children.clear();
                     bottom->children.shrink_to_fit();
@@ -1386,7 +1386,7 @@ when_key_event(AppClient *client,
                         } else if (active_tab == "Apps") {
                             // We create a copy because app_menu relies on the order
                             std::vector<Launcher *> launchers_copy;
-                            for (auto *l : launchers) {
+                            for (auto *l: launchers) {
                                 launchers_copy.push_back(l);
                             }
                             sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, global->history_apps);
@@ -1418,7 +1418,7 @@ when_key_event(AppClient *client,
 
         auto *bottom = container_by_name("bottom", search_menu_client->root);
         if (bottom) {
-            for (auto *c : bottom->children)
+            for (auto *c: bottom->children)
                 delete c;
             bottom->children.clear();
             bottom->children.shrink_to_fit();
@@ -1428,7 +1428,7 @@ when_key_event(AppClient *client,
                 } else if (active_tab == "Apps") {
                     // We create a copy because app_menu relies on the order
                     std::vector<Launcher *> launchers_copy;
-                    for (auto *l : launchers) {
+                    for (auto *l: launchers) {
                         launchers_copy.push_back(l);
                     }
                     sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, global->history_apps);
@@ -1553,7 +1553,7 @@ write_historic_scripts() {
 
     std::ofstream myfile;
     myfile.open(scriptsPath);
-    for (HistoricalNameUsed *h : global->history_scripts) {
+    for (HistoricalNameUsed *h: global->history_scripts) {
         myfile << h->text + "\n";
     }
     myfile.close();
@@ -1593,7 +1593,7 @@ write_historic_apps() {
 
     std::ofstream myfile;
     myfile.open(scriptsPath);
-    for (HistoricalNameUsed *h : global->history_apps) {
+    for (HistoricalNameUsed *h: global->history_apps) {
         myfile << h->text + "\n";
     }
     myfile.close();
@@ -1646,7 +1646,7 @@ static std::mutex script_loaded;
 
 void load_scripts() {
     std::lock_guard m(script_loaded);
-    for (auto s : scripts) {
+    for (auto s: scripts) {
         delete s;
     }
     scripts.clear();
@@ -1689,7 +1689,7 @@ void load_scripts() {
                     if (!(FLAG('q'))) {
                         bool already_have_this_script = false;
                         std::string name = std::string(dp->d_name);
-                        for (auto *script : scripts) {
+                        for (auto *script: scripts) {
                             if (script->name == name) {
                                 already_have_this_script = true;
                                 break;

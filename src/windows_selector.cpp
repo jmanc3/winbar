@@ -29,7 +29,7 @@ fill_root(Container *root);
 
 static void when_closed(AppClient *client);
 
-static void on_open_timeout(App *app, AppClient *client, void *user_data) {
+static void on_open_timeout(App *app, AppClient *client, Timeout *, void *user_data) {
     auto container = (Container *) user_data;
     if (auto c = client_by_name(app, "taskbar")) {
         if (container_by_container(container, c->root)) {
@@ -40,7 +40,7 @@ static void on_open_timeout(App *app, AppClient *client, void *user_data) {
     }
 }
 
-static void on_close_timeout(App *app, AppClient *client, void *user_data) {
+static void on_close_timeout(App *app, AppClient *client, Timeout *, void *user_data) {
     if (auto c = client_by_name(app, "windows_selector")) {
         auto pii = (PinnedIconInfo *) c->root->user_data;
         pii->data->possibly_stop_timeout_fd = -1;
@@ -85,7 +85,7 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
                 // instantly close them
                 client_close(app, they);
                 // instantly open us
-                on_open_timeout(app, nullptr, container);
+                on_open_timeout(app, nullptr, nullptr, container);
             }
         } else {
             // start timeout
@@ -172,7 +172,7 @@ clicked_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
 static int get_width(LaunchableButton *data) {
     double total_width = 0;
 
-    for (auto w : data->windows_data_list) {
+    for (auto w: data->windows_data_list) {
         if (w->marked_to_close)
             continue;
 
@@ -453,7 +453,7 @@ fill_root(AppClient *client, Container *root) {
     root->when_mouse_leaves_container = when_leave;
 
     if (screen_has_transparency(app)) {
-        for (auto window_data : pii->data->windows_data_list) {
+        for (auto window_data: pii->data->windows_data_list) {
             window_data->last_rescale_timestamp = -1;
         }
     }

@@ -5,17 +5,293 @@
 #include "main.h"
 #include "taskbar.h"
 #include "utility.h"
+#include "wifi_backend.h"
+#include "components.h"
 
 #include <fstream>
 #include <iostream>
 #include <pango/pangocairo.h>
+#include <cmath>
 
-class cached_bounds : public UserData {
-public:
-    bool cached = false;
-    Bounds bounds;
-    Bounds cached_real_bounds;
+struct RootScanAnimationData : public UserData {
+    long start = get_current_time_in_ms();
+    bool running = false;
+    cairo_surface_t *wifi_surface = nullptr;
+
+    ~RootScanAnimationData() {
+        if (wifi_surface)
+            cairo_surface_destroy(wifi_surface);
+    }
 };
+
+struct WifiOptionData : public UserData {
+    ScanResult info;
+    bool clicked = false;
+};
+
+static double WIFI_OPTION_HEIGHT = 65;
+
+static void
+paint_option(AppClient *client, cairo_t *cr, Container *container) {
+    set_rect(cr, container->real_bounds);
+    auto data = (WifiOptionData *) container->user_data;
+    if (data->clicked) {
+        set_argb(cr, config->color_search_accent);
+    } else if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_wifi_pressed_button);
+        } else {
+            set_argb(cr, config->color_wifi_hovered_button);
+        }
+    } else {
+        set_argb(cr, config->color_wifi_default_button);
+    }
+    cairo_fill(cr);
+
+    PangoLayout *layout =
+            get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+    std::string message(data->info.network_name);
+    pango_layout_set_text(layout, message.data(), message.length());
+
+    set_argb(cr, config->color_volume_text);
+    cairo_move_to(cr,
+                  container->real_bounds.x + 48,
+                  container->real_bounds.y + 10);
+    pango_cairo_show_layout(cr, layout);
+
+    message = data->info.flags + ":" + data->info.mac;
+    pango_layout_set_text(layout, message.data(), message.length());
+
+    set_argb(cr, config->color_volume_text);
+    cairo_move_to(cr,
+                  container->real_bounds.x + 48,
+                  container->real_bounds.y + 29);
+    pango_cairo_show_layout(cr, layout);
+
+    auto root_data = (RootScanAnimationData *) client->root->user_data;
+    dye_surface(root_data->wifi_surface, config->color_taskbar_button_icons);
+    cairo_set_source_surface(
+            cr,
+            root_data->wifi_surface,
+            (int) (container->real_bounds.x + 48 / 2 - 24 / 2),
+            (int) (container->real_bounds.y + WIFI_OPTION_HEIGHT / 2 - 24 / 2));
+    cairo_paint(cr);
+}
+
+static void
+paint_debug(AppClient *client, cairo_t *cr, Container *container) {
+    set_rect(cr, container->real_bounds);
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, ArgbColor(1, 0, 0, 1));
+        } else {
+            set_argb(cr, ArgbColor(1, 0, 1, 1));
+        }
+    } else {
+        set_argb(cr, ArgbColor(1, 1, 0, 1));
+    }
+    cairo_fill(cr);
+}
+
+static void
+paint_clicked(AppClient *client, cairo_t *cr, Container *container) {
+    set_rect(cr, container->real_bounds);
+    set_argb(cr, config->color_search_accent);
+    cairo_fill(cr);
+}
+
+struct DataOfLabelButton : UserData {
+    ScanResult info;
+    std::string text;
+};
+
+static void
+paint_centered_label(AppClient *client, cairo_t *cr, Container *container) {
+    set_rect(cr, container->real_bounds);
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_wifi_pressed_button);
+        } else {
+            set_argb(cr, config->color_wifi_hovered_button);
+        }
+    } else {
+        set_argb(cr, config->color_wifi_default_button);
+    }
+    cairo_fill(cr);
+
+    auto data = (DataOfLabelButton *) container->user_data;
+
+    PangoLayout *layout =
+            get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+    std::string message(data->text);
+    pango_layout_set_text(layout, message.data(), message.length());
+    PangoRectangle ink;
+    PangoRectangle logical;
+    pango_layout_get_extents(layout, &ink, &logical);
+
+    set_argb(cr, config->color_volume_text);
+    cairo_move_to(cr,
+                  container->real_bounds.x + container->real_bounds.w / 2 - ((logical.width / PANGO_SCALE) / 2),
+                  container->real_bounds.y + container->real_bounds.h  / 2 - ((logical.height / PANGO_SCALE) / 2));
+    pango_cairo_show_layout(cr, layout);
+
+}
+
+static void
+clicked_forget(AppClient *client, cairo_t *cr, Container *container) {
+    auto data = (DataOfLabelButton *) container->user_data;
+    wifi_forget_network(data->info);
+
+
+    for (int i = 0; i < container->parent->children.size(); i++) {
+        int r_i = container->parent->children.size() - i - 1;
+        auto c = container->parent->children[r_i];
+        auto data = (WifiOptionData *) c->user_data;
+
+        if (data && data->clicked) {
+            data->clicked = false;
+            auto cd = container->parent->children[r_i + 1];
+            container->parent->children.erase(container->parent->children.begin() + r_i + 1);
+            container->parent->children.erase(container->parent->children.begin() + r_i);
+            delete cd;
+            delete container;
+        }
+    }
+
+
+    client_layout(app, client);
+    client_paint(app, client);
+}
+
+static void
+clicked_connect(AppClient *client, cairo_t *cr, Container *container) {
+
+}
+
+static void
+option_clicked(AppClient *client, cairo_t *cr, Container *container) {
+    // delete all currently opened (clicked) containers to start with
+    for (int i = 0; i < container->parent->children.size(); i++) {
+        int r_i = container->parent->children.size() - i - 1;
+        auto c = container->parent->children[r_i];
+        auto data = (WifiOptionData *) c->user_data;
+
+        if (data && data->clicked) {
+            if (c == container) {
+                return;
+            }
+            data->clicked = false;
+            auto cd = container->parent->children[r_i + 1];
+            container->parent->children.erase(container->parent->children.begin() + r_i + 1);
+            delete cd;
+        }
+    }
+
+    auto data = (WifiOptionData *) container->user_data;
+
+    if (!data->clicked) {
+        int container_index = 0;
+        for (int i = 0; i < container->parent->children.size(); i++) {
+            if (container->parent->children[i] == container)
+                container_index = i;
+        }
+
+        int option_height = 34;
+        int padding = 8;
+        Container *new_container;
+        if (data->info.saved_network) {
+            new_container = new Container(layout_type::hbox, FILL_SPACE, option_height + padding * 2);
+            new_container->spacing = padding;
+            new_container->wanted_pad = Bounds(padding, padding, padding, padding);
+            new_container->when_paint = paint_clicked;
+
+            Container *forget_button = new_container->child(FILL_SPACE, FILL_SPACE);
+            auto forget_data = new DataOfLabelButton;
+            forget_data->text = "Forget";
+            forget_data->info = data->info;
+            forget_button->user_data = forget_data;
+            forget_button->when_paint = paint_centered_label;
+            forget_button->when_clicked = clicked_forget;
+
+            Container *connect_disconnect_button = new_container->child(FILL_SPACE, FILL_SPACE);
+            auto connect_data = new DataOfLabelButton;
+            connect_data->text = "Connect";
+            connect_data->info = data->info;
+            connect_disconnect_button->user_data = connect_data;
+            connect_disconnect_button->when_paint = paint_centered_label;
+            connect_disconnect_button->when_clicked = clicked_connect;
+        } else {
+            new_container = new Container(layout_type::vbox, FILL_SPACE, option_height * 2 + padding * 3);
+            new_container->spacing = padding;
+            new_container->wanted_pad = Bounds(padding, padding, padding, padding);
+            new_container->when_paint = paint_clicked;
+
+            Container *security_dropbox = new_container->child(FILL_SPACE, FILL_SPACE);
+            security_dropbox->when_paint = paint_debug;
+            Container *password_field = new_container->child(FILL_SPACE, FILL_SPACE);
+            password_field->when_paint = paint_debug;
+        }
+        container->parent->children.insert(container->parent->children.begin() + container_index + 1, new_container);
+    }
+
+    data->clicked = !data->clicked;
+    if (auto c = container_by_name("content", client->root)) {
+//        c->wanted_bounds.h = true_height(c->parent) + true_height(c);
+    }
+
+    client_layout(app, client);
+    client_paint(app, client);
+}
+
+void scan_results(std::vector<ScanResult> &results) {
+    if (auto client = client_by_name(app, "wifi_menu")) {
+        auto root = client->root;
+
+        for (auto c: root->children)
+            delete c;
+        root->children.clear();
+
+        ScrollPaneSettings settings;
+        Container *scrollpane = make_scrollpane(root, settings);
+        Container *content = scrollpane->child(::vbox, FILL_SPACE, FILL_SPACE);
+        content->name = "content";
+        content->wanted_pad.y = 12;
+        content->wanted_pad.h = 12;
+
+        for (const auto &r: results) {
+            auto c = content->child(FILL_SPACE, WIFI_OPTION_HEIGHT);
+            auto wifi_option_data = new WifiOptionData;
+            c->when_paint = paint_option;
+            c->when_clicked = option_clicked;
+            wifi_option_data->info = r;
+            c->user_data = wifi_option_data;
+        }
+
+        if (!results.empty()) {
+            content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
+        } else {
+            content->wanted_bounds.h = 80;
+        }
+
+        client_layout(app, client);
+        client_paint(app, client);
+    }
+}
+
+void cached_scan_results(std::vector<ScanResult> &results) {
+    scan_results(results);
+}
+
+void uncached_scan_results(std::vector<ScanResult> &results) {
+    scan_results(results);
+    if (auto client = client_by_name(app, "wifi_menu")) {
+        client_unregister_animation(app, client);
+        auto data = (RootScanAnimationData *) client->root->user_data;
+        data->running = false;
+    }
+}
 
 void wifi_state(bool *up, bool *wired) {
     std::string status = "down";
@@ -34,183 +310,50 @@ void wifi_state(bool *up, bool *wired) {
     *wired = std::string::npos == config->interface.find("wlp");
 }
 
+double map(double x, double in_min, double in_max, double out_min, double out_max) {
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
     set_argb(cr, correct_opaqueness(client, config->color_wifi_background));
     cairo_fill(cr);
-}
 
-static void
-paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (wifi_surfaces *) container->user_data;
+    auto data = (RootScanAnimationData *) container->user_data;
 
-    if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_wifi_pressed_button);
-        } else {
-            set_argb(cr, config->color_wifi_hovered_button);
-        }
-    } else {
-        set_argb(cr, config->color_wifi_default_button);
-    }
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
+    if (data->running) {
+        auto current_time = get_current_time_in_ms();
+        auto elapsed_time = current_time - data->start;
+        long animation_length = 2000; // in milliseconds (1000 is 1 second)
+        double scalar = ((double) (elapsed_time % animation_length)) / ((double) animation_length);
 
-    bool up = false;
-    bool wired = false;
-    wifi_state(&up, &wired);
+        double r = 4;
+        int dots_count = 5;
+        double dot_delay = .1;
 
-    cairo_surface_t *surface = nullptr;
-    if (up) {
-        if (wired) {
-            surface = data->wired_up;
-        } else {
-            surface = data->wireless_up;
-        }
-    } else {
-        if (wired) {
-            surface = data->wired_down;
-        } else {
-            surface = data->wireless_down;
-        }
-    }
+        for (int i = 0; i < dots_count; i++) {
+            double low = dot_delay * i;
+            double high = dot_delay * i + dot_delay * dots_count;
 
-    if (surface) {
-        dye_surface(surface, config->color_wifi_icons);
-        cairo_set_source_surface(
-                cr,
-                surface,
-                (int) (container->real_bounds.x + 9),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 24 / 2));
-        cairo_paint(cr);
-    }
+            if (scalar >= low && scalar <= high) {
+                double fixed = map(scalar, low, high, 0, 1);
 
-    set_argb(cr, config->color_wifi_text_title);
+                if (fixed < .5) {
+                    fixed = getEasingFunction(easing_functions::EaseOutQuad)(fixed * 2) / 2;
+                } else {
+                    fixed = 1 - getEasingFunction(easing_functions::EaseOutQuad)((fixed * 2)) / 2;
+                }
 
-    std::string text = "Network";
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
-
-    pango_layout_set_text(layout, text.c_str(), text.length());
-
-    int width, height;
-    pango_layout_get_pixel_size(layout, &width, &height);
-    int text_x = (int) (container->real_bounds.x + 9 + 24 + 9);
-    int text_y =
-            (int) (container->real_bounds.y + container->real_bounds.h / 2 - ((height * 2) / 2));
-    cairo_move_to(cr, text_x, text_y);
-    pango_cairo_show_layout(cr, layout);
-
-    set_argb(cr, config->color_wifi_text_title_info);
-
-    if (up)
-        text = "Connected - Interface: " + config->interface;
-    else
-        text = "Disconnected - Interface: " + config->interface;
-    pango_layout_set_text(layout, text.c_str(), text.length());
-    cairo_move_to(cr, text_x, text_y + height);
-
-    pango_cairo_show_layout(cr, layout);
-}
-
-static void
-clicked_wifi(AppClient *client, cairo_t *cr, Container *container) {}
-
-static void
-paint_info(AppClient *client, cairo_t *cr, Container *container) {
-    std::string top_text = "Network & Internet Settings";
-    PangoLayout *top_layout =
-            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
-    pango_layout_set_text(top_layout, top_text.c_str(), top_text.length());
-    int top_width, top_height;
-    pango_layout_get_pixel_size(top_layout, &top_width, &top_height);
-
-    std::string bottom_text = "Change settings, such as making a connection metered";
-    PangoLayout *bottom_layout =
-            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
-    pango_layout_set_text(bottom_layout, bottom_text.c_str(), bottom_text.length());
-    int bottom_width, bottom_height;
-    pango_layout_get_pixel_size(bottom_layout, &bottom_width, &bottom_height);
-
-    int distance_from_bottom = 7;
-
-    set_argb(cr, config->color_wifi_text_settings_title_info);
-
-    int text_x = 13;
-    int text_y =
-            container->real_bounds.y + container->real_bounds.h - distance_from_bottom - bottom_height;
-    cairo_move_to(cr, text_x, text_y);
-    pango_cairo_show_layout(cr, bottom_layout);
-
-    if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        if (container->state.mouse_pressing)
-            set_argb(cr, config->color_wifi_text_settings_pressed_title);
-        else
-            set_argb(cr, config->color_wifi_text_settings_hovered_title);
-    } else {
-        set_argb(cr, config->color_wifi_text_settings_default_title);
-    }
-
-    cairo_move_to(cr, text_x, text_y - bottom_height - 5);
-    pango_cairo_show_layout(cr, top_layout);
-}
-
-static void
-clicked_info(AppClient *client, cairo_t *cr, Container *container) {
-    printf("Run provided wifi info command\n");
-}
-
-// The bounds of the container wifi_info is bigger than I want for when hovering the text should be
-// determined so this will make sure only when the text is hovered is the container hovered
-static bool
-pierced_wifi_info(Container *container, int mouse_x, int mouse_y) {
-    auto *data = (cached_bounds *) container->user_data;
-
-    if (data->cached) {
-        if (data->cached_real_bounds.x != container->real_bounds.x ||
-            data->cached_real_bounds.y != container->real_bounds.y ||
-            data->cached_real_bounds.w != container->real_bounds.w ||
-            data->cached_real_bounds.h != container->real_bounds.h) {
-            data->cached = false;
+                cairo_save(cr);
+                set_argb(cr, config->color_search_accent);
+                cairo_translate(cr, ((container->real_bounds.w + r * 2) * fixed) - r, r + (r / 2));
+                cairo_arc(cr, 0, 0, r, 0, 2 * M_PI);
+                cairo_fill(cr);
+                cairo_restore(cr);
+            }
         }
     }
-
-    if (!data->cached) {
-        if (auto client = client_by_name(app, "wifi_menu")) {
-            data->cached_real_bounds = container->real_bounds;
-            data->cached = true;
-            std::string top_text = "Network & Internet Settings";
-            PangoLayout *top_layout = get_cached_pango_font(
-                    client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
-            pango_layout_set_text(top_layout, top_text.c_str(), top_text.length());
-            int top_width, top_height;
-            pango_layout_get_pixel_size(top_layout, &top_width, &top_height);
-
-            std::string bottom_text = "Change settings, such as making a connection metered";
-            PangoLayout *bottom_layout = get_cached_pango_font(
-                    client->cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
-            pango_layout_set_text(bottom_layout, bottom_text.c_str(), bottom_text.length());
-            int bottom_width, bottom_height;
-            pango_layout_get_pixel_size(bottom_layout, &bottom_width, &bottom_height);
-
-            int distance_from_bottom = 7;
-
-            int text_x = 13;
-            int text_y = container->real_bounds.y + container->real_bounds.h -
-                         distance_from_bottom - bottom_height - top_height;
-
-            data->bounds.x = text_x;
-            data->bounds.y = text_y;
-            data->bounds.w = container->real_bounds.w;
-            data->bounds.h = bottom_height + top_height;
-        }
-    }
-
-    if (data->cached) {
-        return bounds_contains(data->bounds, mouse_x, mouse_y);
-    }
-    return bounds_contains(container->real_bounds, mouse_x, mouse_y);
 }
 
 static void
@@ -218,35 +361,14 @@ fill_root(AppClient *client) {
     Container *root = client->root;
     root->type = ::vbox;
     root->when_paint = paint_root;
-    root->wanted_pad.y = 12;
-    root->wanted_pad.h = 12;
-
-    Container *button_wifi = root->child(FILL_SPACE, FILL_SPACE);
-    button_wifi->when_paint = paint_wifi;
-    button_wifi->when_clicked = clicked_wifi;
-    auto wifi_data = new wifi_surfaces;
-    wifi_data->wired_up = accelerated_surface(app, client, 24, 24);
+    auto root_animation_data = new RootScanAnimationData;
+    root_animation_data->start = get_current_time_in_ms();
+    root_animation_data->running = true;
+    root_animation_data->wifi_surface = accelerated_surface(app, client, 24, 24);
     paint_surface_with_image(
-            wifi_data->wired_up, as_resource_path("wifi/24/wired_up.png"), 24, nullptr);
-    wifi_data->wired_down = accelerated_surface(app, client, 24, 24);
-    paint_surface_with_image(
-            wifi_data->wired_down, as_resource_path("wifi/24/wired_down.png"), 24, nullptr);
-    wifi_data->wireless_down = accelerated_surface(app, client, 24, 24);
-    paint_surface_with_image(
-            wifi_data->wireless_down, as_resource_path("wifi/24/wireless_down.png"), 24, nullptr);
-    wifi_data->wireless_up = accelerated_surface(app, client, 24, 24);
-    paint_surface_with_image(
-            wifi_data->wireless_up, as_resource_path("wifi/24/wireless_up.png"), 24, nullptr);
-    button_wifi->user_data = wifi_data;
-
-    auto *info = root->child(FILL_SPACE, 71);
-    info->when_paint = paint_info;
-    info->when_clicked = clicked_info;
-    info->handles_pierced = pierced_wifi_info;
-    info->user_data = new cached_bounds;
+            root_animation_data->wifi_surface, as_resource_path("wifi/24/wireless_up.png"), 24, nullptr);
+    root->user_data = root_animation_data;
 }
-
-static bool first_expose = true;
 
 static void
 grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
@@ -312,10 +434,8 @@ wifi_menu_event_handler(App *app, xcb_generic_event_t *event) {
 }
 
 void start_wifi_menu() {
-    first_expose = true;
-
     Settings settings;
-    settings.h = 12 * 2 + 55 + 71;// number based on fill_root
+    settings.h = 641;
     settings.w = 360;
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
@@ -336,4 +456,8 @@ void start_wifi_menu() {
 
     fill_root(client);
     client_show(app, client);
+    client_register_animation(app, client);
+
+    wifi_networks_and_cached_scan(cached_scan_results);
+    wifi_scan(uncached_scan_results);
 }

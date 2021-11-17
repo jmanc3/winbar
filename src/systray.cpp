@@ -65,7 +65,7 @@ paint_display(AppClient *client_entity, cairo_t *cr, Container *container) {
         layout_systray();
     }
 
-    for (auto icon : systray_icons) {
+    for (auto icon: systray_icons) {
         xcb_map_window(app->connection, icon->window);
     }
 
@@ -88,7 +88,7 @@ handle_docking(xcb_client_message_event_t *client_message) {
 #endif
     auto window_to_be_docked = client_message->data.data32[2];
 
-    for (auto icon : systray_icons) {
+    for (auto icon: systray_icons) {
         if (icon->window == window_to_be_docked) {
             return;
         }
@@ -157,7 +157,7 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
     xcb_window_t event_window = get_window(generic_event);
 
     bool window_is_systray_icon = false;
-    for (auto icon : systray_icons) {
+    for (auto icon: systray_icons) {
         if (icon->window == event_window) {
             window_is_systray_icon = true;
         }
@@ -354,7 +354,7 @@ when_systray_closed(AppClient *client) {
 
 static void
 unmap_child_windows(AppClient *client) {
-    for (auto icon : systray_icons) {
+    for (auto icon: systray_icons) {
         // If we don't remove it from the save set, it'll get mapped to the screen when our window
         // dies even though we want it to remain unmapped after we die
         xcb_change_save_set(app->connection, XCB_SET_MODE_DELETE, icon->window);
@@ -373,7 +373,7 @@ unmap_child_windows(AppClient *client) {
         xcb_flush(app->connection);
         xcb_aux_sync(app->connection);
     }
-    for (auto s : systray_icons) {
+    for (auto s: systray_icons) {
         delete s;
     }
     systray_icons.clear();
@@ -450,7 +450,7 @@ void open_systray() {
 
     app_create_custom_event_handler(app, display->window, display_event_handler);
 
-    for (auto icon : systray_icons) {
+    for (auto icon: systray_icons) {
         auto reparent_check =
                 xcb_reparent_window_checked(app->connection, icon->window, display->window, -512, -512);
         auto reparent_error = xcb_request_check(app->connection, reparent_check);
@@ -466,7 +466,7 @@ void open_systray() {
     layout_invalid = true;
 }
 
-void display_close_timeout(App *app, AppClient *, void *) {
+void display_close_timeout(App *app, AppClient *, Timeout *, void *) {
     if (close) {
         client_close_threaded(app, display);
     }

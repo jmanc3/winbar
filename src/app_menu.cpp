@@ -453,7 +453,7 @@ when_scrollbar_mouse_leaves(AppClient *client, cairo_t *cr, Container *container
 static int scrollbar_leave_fd = -1;
 
 static void
-scrollbar_leaves_timeout(App *app, AppClient *client, void *data) {
+scrollbar_leaves_timeout(App *app, AppClient *client, Timeout *, void *data) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -485,7 +485,7 @@ when_scrollbar_mouse_leaves_slow(AppClient *client, cairo_t *cr, Container *cont
 static int left_open_fd = -1;
 
 static void
-left_open_timeout(App *app, AppClient *client, void *data) {
+left_open_timeout(App *app, AppClient *client, Timeout *, void *data) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -834,7 +834,7 @@ fill_root(AppClient *client) {
     grid->alignment = ALIGN_CENTER;
 
     int pad = 4;
-    auto *g = grid->child(layout_type::vbox, 48 * 4 + (pad * 3), 48 * 8 + (pad  * 7));
+    auto *g = grid->child(layout_type::vbox, 48 * 4 + (pad * 3), 48 * 8 + (pad * 7));
     g->spacing = pad;
 
     ScrollPaneSettings settings;
@@ -1048,7 +1048,7 @@ paint_desktop_files() {
 #endif
     std::vector<Icon> icons;
     std::vector<std::string> names;
-    for (auto *launcher : launchers) {
+    for (auto *launcher: launchers) {
         launcher->icon = c3ic_fix_desktop_file_icon(launcher->name, launcher->wmclass, launcher->icon, launcher->icon);
         if (!launcher->icon.empty()) {
             if (launcher->icon[0] != '/') {
@@ -1061,7 +1061,7 @@ paint_desktop_files() {
     std::vector<IconExtension> strict_extensions = {IconExtension::SVG, IconExtension::PNG};
     c3ic_strict_load_multiple_icons(icons, names, strict_sizes, strict_scales, strict_extensions, true);
 
-    for (auto *launcher : launchers) {
+    for (auto *launcher: launchers) {
         launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16, 16);
         launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24, 24);
         launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32, 32);
@@ -1077,7 +1077,7 @@ paint_desktop_files() {
                 path32 = launcher->icon;
                 path64 = launcher->icon;
             } else {
-                for (const auto &icon : icons) {
+                for (const auto &icon: icons) {
                     if (!path16.empty() && !path24.empty() && !path32.empty() && !path64.empty()) {
                         break;
                     }
@@ -1205,7 +1205,7 @@ void load_all_desktop_files() {
     // We should look in "~/.icons"  then "/usr/local/share/icons/" then "/usr/share/icons"
     // If we didn't find it then we try to get the name of the .png and use that to look for icons
     // If its not a path, then we do the same search
-    for (auto *l : launchers) {
+    for (auto *l: launchers) {
         delete l;
     }
     launchers.clear();
@@ -1220,7 +1220,7 @@ void load_all_desktop_files() {
     time(&now);
 
     auto recently_added_threshold = 86400 * 2; // two days  in seconds
-    for (auto l : launchers) {
+    for (auto l: launchers) {
         double diff = difftime(now, l->time_modified);
         if (diff < recently_added_threshold) { // less than two days old
             l->app_menu_priority = 1;

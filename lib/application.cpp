@@ -305,10 +305,14 @@ get_visualtype(xcb_screen_t *s) {
 void xcb_poll_wakeup(App *app, int fd);
 
 void timeout_poll_wakeup(App *app, int fd) {
+    bool keep_running = false;
     for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
         Timeout *timeout = app->timeouts[timeout_index];
         if (timeout->file_descriptor == fd) {
-            timeout->function(app, timeout->client, timeout->user_data);
+            timeout->function(app, timeout->client, timeout, timeout->user_data);
+            if ((keep_running = timeout->keep_running))
+                break;
+
             app->timeouts.erase(app->timeouts.begin() + timeout_index);
             close(timeout->file_descriptor);
             delete timeout;
@@ -319,6 +323,9 @@ void timeout_poll_wakeup(App *app, int fd) {
     int BUFFER_SIZE = 400;
     char buffer[BUFFER_SIZE];
     read(fd, buffer, BUFFER_SIZE);
+
+    if (keep_running)
+        return;
 
     for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
         if (app->descriptors_being_polled[i].file_descriptor == fd) {
@@ -408,6 +415,18 @@ void set_cursor(App *app, xcb_screen_t *screen, AppClient *client, const std::st
         xcb_change_window_attributes(app->connection, client->window, XCB_CW_CURSOR,
                                      values);
     }
+}
+
+xcb_screen_t *get_screen_from_screen_info(ScreenInformation *screen_info, App *app) {
+    xcb_screen_iterator_t iter = xcb_setup_roots_iterator(xcb_get_setup(app->connection));
+
+    for (int count = 0; iter.rem; ++count, xcb_screen_next(&iter)) {
+        xcb_screen_t *screen = iter.data;
+        if (screen->root == screen_info->root_window) {
+            return screen;
+        }
+    }
+    return nullptr;
 }
 
 AppClient *
@@ -809,13 +828,16 @@ void request_refresh(App *app, AppClient *client) {
     delete event;
 }
 
-void client_animation_paint(App *app, AppClient *client, void *user_data);
+void client_animation_paint(App *app, AppClient *client, Timeout *, void *user_data);
 
 void client_register_animation(App *app, AppClient *client) {
     assert(app != nullptr && app->running);
     assert(client != nullptr);
     if (client->animations_running == 0) {
-        app_timeout_create(app, client, 0, client_animation_paint, nullptr);
+        float fps = client->fps;
+        if (fps != 0)
+            fps = 1000 / fps;
+        app_timeout_create(app, client, fps, client_animation_paint, nullptr);
     }
     client->animations_running++;
 }
@@ -1816,7 +1838,7 @@ bool app_timeout_stop(App *app,
 bool app_timeout_replace(App *app,
                          AppClient *client,
                          int timeout_file_descriptor, float timeout_ms,
-                         void (*timeout_function)(App *, AppClient *, void *),
+                         void (*timeout_function)(App *, AppClient *, Timeout *, void *),
                          void *user_data) {
     assert(app != nullptr && app->running);
     assert(timeout_function != nullptr);
@@ -1824,6 +1846,8 @@ bool app_timeout_replace(App *app,
         if (timeout->file_descriptor == timeout_file_descriptor) {
             struct itimerspec time = {0};
             // The division done below converts the timeout_ms into seconds and nanoseconds
+            time.it_interval.tv_sec = timeout_ms / 1000;
+            time.it_interval.tv_nsec = std::fmod(timeout_ms, 1000) * 1000000;
             time.it_value.tv_sec = timeout_ms / 1000;
             time.it_value.tv_nsec = std::fmod(timeout_ms, 1000) * 1000000;
 
@@ -1844,6 +1868,7 @@ bool app_timeout_replace(App *app,
             timeout->function = timeout_function;
             timeout->client = client;
             timeout->user_data = user_data;
+            timeout->keep_running = false;
 
             return true;
         }
@@ -1853,7 +1878,7 @@ bool app_timeout_replace(App *app,
 }
 
 int
-app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout_function)(App *, AppClient *, void *),
+app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout_function)(App *, AppClient *, Timeout *, void *),
                    void *user_data) {
     assert(app != nullptr);
     if (!app->running)
@@ -1873,10 +1898,13 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout
     timeout->client = client;
     timeout->file_descriptor = timeout_file_descriptor;
     timeout->user_data = user_data;
+    timeout->keep_running = false;
     app->timeouts.emplace_back(timeout);
 
     struct itimerspec time = {0};
     // The division done below converts the timeout_ms into seconds and nanoseconds
+    time.it_interval.tv_sec = timeout_ms / 1000;
+    time.it_interval.tv_nsec = std::fmod(timeout_ms, 1000) * 1000000;
     time.it_value.tv_sec = timeout_ms / 1000;
     time.it_value.tv_nsec = std::fmod(timeout_ms, 1000) * 1000000;
 
@@ -1955,7 +1983,7 @@ bool client_set_position_and_size(App *app, AppClient *client, int x, int y, int
     return reposition && resize;
 }
 
-void client_animation_paint(App *app, AppClient *client, void *user_data) {
+void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void *user_data) {
 #ifdef TRACY_ENABLE
     FrameMarkStart("Animation Paint");
 #endif
@@ -2017,14 +2045,7 @@ void client_animation_paint(App *app, AppClient *client, void *user_data) {
 #ifdef TRACY_ENABLE
         ZoneScopedN("request another frame");
 #endif
-        // TODO: this should take into account how long it took client_paint to finish
-        if (client->animations_running > 0) {
-            float fps = client->fps;
-            if (fps != 0) {
-                fps = 1000 / fps;
-            }
-            app_timeout_create(app, client, fps, client_animation_paint, nullptr);
-        }
+        timeout->keep_running = client->animations_running > 0;
     }
 
 #ifdef TRACY_ENABLE

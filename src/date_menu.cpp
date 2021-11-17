@@ -108,8 +108,8 @@ update_days(int month, int year) {
     int i = 0;
     if (auto *client = client_by_name(app, "date_menu")) {
         if (auto *dates_container = container_by_name("dates_container", client->root)) {
-            for (auto *row_container : dates_container->children) {
-                for (auto *date : row_container->children) {
+            for (auto *row_container: dates_container->children) {
+                for (auto *date: row_container->children) {
                     auto *data = (date_title *) date->user_data;
 
                     if (start_number < previous_month_day_count) {
@@ -418,7 +418,7 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     int pad = 2;
     int width = 2;
 
-    for (auto *ud : unique_day_text_state) {
+    for (auto *ud: unique_day_text_state) {
         if (ud->day == data->day && ud->month == data->month && ud->year == data->year &&
             !ud->state->text.empty()) {
             set_argb(cr, config->color_date_cal_border);
@@ -527,7 +527,7 @@ clicked_date(AppClient *client, cairo_t *cr, Container *container) {
     agenda_day = data->day;
 
     UniqueTextState *unique_day = nullptr;
-    for (auto *ud : unique_day_text_state) {
+    for (auto *ud: unique_day_text_state) {
         if (ud->day == agenda_day && ud->year == agenda_year && ud->month == agenda_month) {
             unique_day = ud;
         }
@@ -626,7 +626,7 @@ clicked_clear_text(AppClient *client, cairo_t *cr, Container *container) {
         delete data->state;
         data->state = new TextState;
 
-        for (auto ud : unique_day_text_state) {
+        for (auto ud: unique_day_text_state) {
             if (ud->day == agenda_day && ud->month == agenda_month && ud->year == agenda_year) {
                 ud->state = data->state;
             }
@@ -788,7 +788,7 @@ fill_root(AppClient *client) {
     textarea->parent->when_paint = paint_textarea_parent;
 
 
-    for (auto ud : unique_day_text_state) {
+    for (auto ud: unique_day_text_state) {
         if (ud->day == agenda_day && ud->month == agenda_month && ud->year == agenda_year) {
             delete data->state;
             data->state = ud->state;
@@ -856,7 +856,7 @@ write_agenda_to_disk(AppClient *client) {
         }
     }
 
-    for (auto *ds : unique_day_text_state) {
+    for (auto *ds: unique_day_text_state) {
         if (!ds->state->text.empty()) {
             std::ofstream myfile;
             myfile.open(calendarPath +
@@ -870,7 +870,7 @@ write_agenda_to_disk(AppClient *client) {
 
 static void
 read_agenda_from_disk(AppClient *client) {
-    for (auto *ds : unique_day_text_state) {
+    for (auto *ds: unique_day_text_state) {
         delete ds;
     }
     unique_day_text_state.clear();
@@ -951,7 +951,7 @@ read_agenda_from_disk(AppClient *client) {
                     strStream << inFile.rdbuf();
 
                     bool found = false;
-                    for (auto *ds : unique_day_text_state) {
+                    for (auto *ds: unique_day_text_state) {
                         if (ds->day == day && ds->month == month && ds->year == year) {
                             found = true;
                             delete ds->state;
@@ -1057,10 +1057,11 @@ date_menu_closed(AppClient *client) {
 
 static bool time_update_thread_updated = false;
 
-static void paint_date_menu(App *app, AppClient *client, void *data) {
+static void paint_date_menu(App *app, AppClient *client, Timeout *timeout, void *data) {
+    if (timeout)
+        timeout->keep_running = true;
     if (auto *client = client_by_name(app, "date_menu")) {
         client_paint(app, client);
-        app_timeout_create(app, client, 500, paint_date_menu, nullptr);
     }
 }
 

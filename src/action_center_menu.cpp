@@ -353,7 +353,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
         actions_container->name = "actions_container";
         actions_container->interactable = false;
 
-        for (auto action : notification_info->actions) {
+        for (auto action: notification_info->actions) {
             auto action_container = actions_container->child(FILL_SPACE, FILL_SPACE);
             auto data = new NotificationActionWrapper;
             data->action = action;
@@ -495,10 +495,10 @@ event_handler(App *app, xcb_generic_event_t *event) {
 }
 
 void start_action_center(App *app) {
-    for (auto n : notifications) {
+    for (auto n: notifications) {
         n->sent_to_action_center = false;
     }
-    for (auto c : displaying_notifications) {
+    for (auto c: displaying_notifications) {
         auto wrapper = (NotificationWrapper *) c->root->user_data;
         notification_closed_signal(c->app, wrapper->ni, NotificationReasonClosed::UNDEFINED_OR_RESERVED_REASON);
         client_close_threaded(app, c);

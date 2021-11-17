@@ -401,7 +401,7 @@ void start_battery_menu() {
     }
 
     Settings settings;
-    settings.w = 361;
+    settings.w = 360;
     settings.h = 164;
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;

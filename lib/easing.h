@@ -13,6 +13,7 @@ enum easing_functions {
     EaseInQuart,
     EaseOutQuart,
     EaseInOutQuart,
+    EaseInMiddle,
     EaseInQuint,
     EaseOutQuint,
     EaseInOutQuint,

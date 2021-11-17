@@ -11,7 +11,7 @@
 #include "config.h"
 #include "globals.h"
 #include "notifications.h"
-
+#include "wifi_backend.h"
 #include "simple_dbus.h"
 
 App *app;
@@ -41,17 +41,21 @@ int main() {
     audio_start(app);
 
     // We need to register as the systray
+#ifdef NDEBUG
     start_systray();
+#endif
 
     // Open our windows
     AppClient *taskbar = create_taskbar(app);
 
     // We only want to load the desktop files once at the start of the program
     //std::thread(load_desktop_files).detach();
+#ifdef NDEBUG
     load_all_desktop_files();
     load_scripts();// The scripts are reloaded every time the search_menu window closes
     load_historic_scripts();
     load_historic_apps();
+#endif
 
     client_show(app, taskbar);
     xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, taskbar->window, XCB_CURRENT_TIME);
@@ -59,6 +63,8 @@ int main() {
     on_meta_key_pressed = meta_pressed;
 
     dbus_start();
+
+    wifi_start(app);
 
     // Start our listening loop until the end of the program
     app_main(app);
@@ -70,7 +76,9 @@ int main() {
 
     audio_stop();
 
-    for (auto l : launchers) {
+    wifi_stop();
+
+    for (auto l: launchers) {
         delete l;
     }
     launchers.clear();

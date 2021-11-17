@@ -72,7 +72,7 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
             break;
         }
         case XCB_BUTTON_PRESS: {
-            for (auto handler : app->handlers) {
+            for (auto handler: app->handlers) {
                 if (handler->target_window == app->grab_window) {
                     auto *client = client_by_window(app, handler->target_window);
                     if (valid_client(app, client)) {
@@ -86,7 +86,7 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
             break;
         }
         case XCB_BUTTON_RELEASE: {
-            for (auto handler : app->handlers) {
+            for (auto handler: app->handlers) {
                 if (handler->target_window == app->grab_window) {
                     auto *client = client_by_window(app, handler->target_window);
                     if (valid_client(app, client)) {
@@ -100,7 +100,7 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
             break;
         }
         case XCB_MOTION_NOTIFY: {
-            for (auto handler : app->handlers) {
+            for (auto handler: app->handlers) {
                 if (handler->target_window == app->grab_window) {
                     auto *client = client_by_window(app, handler->target_window);
                     if (valid_client(app, client)) {

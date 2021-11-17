@@ -365,7 +365,8 @@ static void dbus_kde_max_brightness_response(DBusPendingCall *call, void *data) 
 static bool dbus_kde_max_brightness() {
     if (!dbus_connection) return false;
 
-    DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil", "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
+    DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil",
+                                                         "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
                                                          "org.kde.Solid.PowerManagement.Actions.BrightnessControl",
                                                          "brightnessMax");
     defer(dbus_message_unref(dbus_msg));
@@ -394,7 +395,8 @@ double dbus_get_kde_max_brightness() {
 double dbus_get_kde_current_brightness() {
     if (!dbus_connection) return 0;
 
-    DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil", "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
+    DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil",
+                                                         "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
                                                          "org.kde.Solid.PowerManagement.Actions.BrightnessControl",
                                                          "brightness");
     defer(dbus_message_unref(dbus_msg));
@@ -421,7 +423,8 @@ static void dbus_kde_set_brightness_response(DBusPendingCall *call, void *data) 
 bool dbus_kde_set_brightness(double percentage) {
     if (!dbus_connection) return false;
 
-    DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil", "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
+    DBusMessage *dbus_msg = dbus_message_new_method_call("local.org_kde_powerdevil",
+                                                         "/org/kde/Solid/PowerManagement/Actions/BrightnessControl",
                                                          "org.kde.Solid.PowerManagement.Actions.BrightnessControl",
                                                          "setBrightness");
     defer(dbus_message_unref(dbus_msg));
@@ -518,7 +521,7 @@ dbus_array_reply(DBusConnection *connection, DBusMessage *msg, std::vector<std::
     bool success = true;
     DBusMessageIter args;
     dbus_message_iter_init_append(reply, &args);
-    for (auto &i : array) {
+    for (auto &i: array) {
         if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &i))
             success = false;
     }
@@ -659,7 +662,7 @@ void notification_closed_signal(App *app, NotificationInfo *ni, NotificationReas
     dbus_connection_send(dbus_connection, dmsg, NULL);
 
     bool action_center_icon_needs_change = true;
-    for (auto n : notifications) {
+    for (auto n: notifications) {
         if (n->sent_to_action_center) {
             action_center_icon_needs_change = false;
         }
@@ -763,7 +766,7 @@ void dbus_end() {
     running_dbus_services.clear();
     running_dbus_services.shrink_to_fit();
 
-    for (auto n : notifications) {
+    for (auto n: notifications) {
         delete n;
     }
     notifications.clear();
