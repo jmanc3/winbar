@@ -64,7 +64,7 @@ static int determine_height_of_text(App *app, std::string text, PangoWeight weig
 
         pango_layout_set_width(layout, width * PANGO_SCALE);
         pango_layout_set_text(layout, text.c_str(), text.length());
-        pango_layout_set_wrap(layout, PANGO_WRAP_WORD);
+        pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
 
         PangoRectangle text_ink;
         PangoRectangle text_logical;
@@ -85,6 +85,7 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     PangoLayout *layout = get_cached_pango_font(
             client->cr, config->font, data->size, data->weight);
 
+    pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
     pango_layout_set_text(layout, data->text.c_str(), data->text.length());
     pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
