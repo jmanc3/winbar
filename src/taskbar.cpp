@@ -1101,6 +1101,14 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
             }
         }
         start_pinned_icon_right_click(container);
+    } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_2) {
+        launch_command(data->command_launched_by);
+        app_timeout_stop(client->app, client, data->possibly_open_timeout_fd);
+        for (auto c: app->clients) {
+            if (c->name == "windows_selector") {
+                client_close(app, c);
+            }
+        }
     }
 }
 
