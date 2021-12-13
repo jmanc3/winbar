@@ -60,9 +60,11 @@ static int determine_height_of_text(App *app, std::string text, PangoWeight weig
     if (auto c = client_by_name(app, "taskbar")) {
         PangoLayout *layout =
                 get_cached_pango_font(c->cr, config->font, size, weight);
+        auto initial_wrap = pango_layout_get_wrap(layout);
 
         pango_layout_set_width(layout, width * PANGO_SCALE);
         pango_layout_set_text(layout, text.c_str(), text.length());
+        pango_layout_set_wrap(layout, PANGO_WRAP_WORD);
 
         PangoRectangle text_ink;
         PangoRectangle text_logical;
@@ -71,6 +73,7 @@ static int determine_height_of_text(App *app, std::string text, PangoWeight weig
         height = text_logical.height / PANGO_SCALE;
 
         pango_layout_set_width(layout, -1);
+        pango_layout_set_wrap(layout, initial_wrap);
     }
 
     return height;
