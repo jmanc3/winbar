@@ -10,7 +10,7 @@
 double
 reserved_height(Container *box) {
     double space = 0;
-    for (auto child : box->children) {
+    for (auto child: box->children) {
         if (child->wanted_bounds.h == FILL_SPACE) {
             space += child->wanted_pad.y + child->wanted_pad.h;
         } else {
@@ -36,7 +36,7 @@ single_filler_height(Container *container) {
     double single_fill_size = 0;
     if (available_h > 0) {
         double filler_children_count = 0;
-        for (auto child : container->children) {
+        for (auto child: container->children) {
             if (child->wanted_bounds.h == FILL_SPACE) {
                 filler_children_count++;
             }
@@ -50,7 +50,7 @@ single_filler_height(Container *container) {
 
 static void
 modify_all(Container *container, double x_change, double y_change) {
-    for (auto child : container->children) {
+    for (auto child: container->children) {
         modify_all(child, x_change, y_change);
     }
 
@@ -62,7 +62,7 @@ void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bou
     double fill_h = single_filler_height(container);
 
     double offset = 0;
-    for (auto child : container->children) {
+    for (auto child: container->children) {
         if (child && child->exists) {
             double target_w = child->wanted_pad.x + child->wanted_pad.w;
             double target_h = child->wanted_pad.y + child->wanted_pad.h;
@@ -167,7 +167,7 @@ void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bou
 double
 reserved_width(Container *box) {
     double space = 0;
-    for (auto child : box->children) {
+    for (auto child: box->children) {
         if (child) {
             if (child->wanted_bounds.w == FILL_SPACE) {
                 space += child->wanted_pad.x + child->wanted_pad.w;
@@ -197,7 +197,7 @@ single_filler_width(Container *container) {
     double single_fill_size = 0;
     if (available_w > 0) {
         double filler_children_count = 0;
-        for (auto child : container->children) {
+        for (auto child: container->children) {
             if (child) {
                 if (child->wanted_bounds.w == FILL_SPACE) {
                     filler_children_count++;
@@ -215,7 +215,7 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
     double fill_w = single_filler_width(container);
 
     double offset = 0;
-    for (auto child : container->children) {
+    for (auto child: container->children) {
         if (child && child->exists) {
             double target_w = child->wanted_pad.x + child->wanted_pad.w;
             double target_h = child->wanted_pad.y + child->wanted_pad.h;
@@ -308,7 +308,7 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
     }
 
     if (container->alignment & ALIGN_CENTER) {
-        for (auto c : container->children) {
+        for (auto c: container->children) {
             if (c->wanted_bounds.h != FILL_SPACE) {
                 // Get height, divide by two, subtract that by parent y - h / 2
                 double full_height = c->real_bounds.h;
@@ -321,7 +321,7 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
 }
 
 void layout_stack(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
-    for (auto child : container->children) {
+    for (auto child: container->children) {
         layout(client, cr, child, bounds);
     }
 }
@@ -470,7 +470,7 @@ void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &
 
     // TODO: this only covers the first layer and not all of them
     // for sharp pixel boundaries
-    for (auto child : container->children) {
+    for (auto child: container->children) {
         if (child) {
             child->real_bounds.x = round(child->real_bounds.x);
             child->real_bounds.y = round(child->real_bounds.y);
@@ -501,7 +501,7 @@ container_by_name(std::string name, Container *root) {
         return root;;
     }
 
-    for (auto child : root->children) {
+    for (auto child: root->children) {
         auto possible = container_by_name(name, child);
         if (possible)
             return possible;
@@ -516,7 +516,7 @@ container_by_container(Container *target, Container *root) {
         return root;;
     }
 
-    for (auto child : root->children) {
+    for (auto child: root->children) {
         auto possible = container_by_container(target, child);
         if (possible)
             return possible;
@@ -594,7 +594,7 @@ Container::Container(const Container &c) {
     parent = c.parent;
     name = c.name;
 
-    for (auto child : c.children) {
+    for (auto child: c.children) {
         children.push_back(new Container(*child));
     }
 
@@ -625,7 +625,7 @@ Container::Container(const Container &c) {
 }
 
 Container::~Container() {
-    for (auto child : children) {
+    for (auto child: children) {
         delete child;
     }
     auto data = static_cast<UserData *>(user_data);

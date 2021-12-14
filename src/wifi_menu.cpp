@@ -134,7 +134,7 @@ paint_centered_label(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 - ((logical.width / PANGO_SCALE) / 2),
-                  container->real_bounds.y + container->real_bounds.h  / 2 - ((logical.height / PANGO_SCALE) / 2));
+                  container->real_bounds.y + container->real_bounds.h / 2 - ((logical.height / PANGO_SCALE) / 2));
     pango_cairo_show_layout(cr, layout);
 
 }

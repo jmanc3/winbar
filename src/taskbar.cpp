@@ -3051,7 +3051,8 @@ void register_popup(xcb_window_t window) {
     xcb_generic_error_t *error = xcb_request_check(app->connection, grab_cookie);
 
     if (error != NULL) {
-        printf("Could not grab button on root: %d, for window: %d, error_code: %d\n", app->screen->root, window, error->error_code);
+        printf("Could not grab button on root: %d, for window: %d, error_code: %d\n", app->screen->root, window,
+               error->error_code);
         client_close_threaded(app, client);
         xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
     } else {

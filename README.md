@@ -61,6 +61,6 @@ distribution to get that library.
 
 * There are four themes available default, light, dark, and dark-clear. Set your preferred in ~/.config/winbar/winbar.cfg
 
-* Winbar is tested against openbox but it should work with other EWMH compliant window managers.
+* Winbar is mainly tested against KDE, Openbox, and Gnome (in that order) but it should work with other EWMH compliant window managers.
 
 * Change the value of the interface variable in the config file so winbar can display correct network status information. (~/.config/winbar/winbar.cfg)

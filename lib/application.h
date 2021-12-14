@@ -249,7 +249,8 @@ bool app_timeout_replace(App *app, AppClient *client, int timeout_file_descripto
                          void *user_data);
 
 int
-app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout_function)(App *, AppClient *, Timeout *, void *),
+app_timeout_create(App *app, AppClient *client, float timeout_ms,
+                   void (*timeout_function)(App *, AppClient *, Timeout *, void *),
                    void *user_data);
 
 bool app_timeout_stop(App *app,

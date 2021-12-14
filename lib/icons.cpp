@@ -193,7 +193,7 @@ c3ic_cache_the_theme(const std::string &theme) {
         cache_file << '\n';
     }
 
-    for (const std::string &section_title : theme_index.Sections()) {
+    for (const std::string &section_title: theme_index.Sections()) {
         {
 #ifdef TRACY_ENABLE
             ZoneScopedN("Write size, scale, type, and title for section")
@@ -443,7 +443,7 @@ c3ic_strict_load_icons(std::vector<Icon *> &icons,
     // We don't want to recurse children backup themes, only top-level parent backup themes
     if (is_parent_theme && icons.empty()) {
         bool tried_loading_hicolor = false;
-        for (const auto &backup_theme : backup_themes) {
+        for (const auto &backup_theme: backup_themes) {
             // so we don't recurse hicolor twice in some instances
             if (backup_theme == "hicolor" && theme == "hicolor") {
                 tried_loading_hicolor = true;
@@ -514,7 +514,7 @@ c3ic_strict_find_icons(const std::string &theme,
     }
 
     // Sort by quality, size most important, followed by extension, followed by scale
-    for (auto *icon : icons) {
+    for (auto *icon: icons) {
         for (int i = 0; i < strict_sizes.size(); ++i) {
             if (strict_sizes[i] == icon->size) {
                 icon->size_index = i;
@@ -563,7 +563,7 @@ find_icon(const std::string &name, int size) {
 
 //    printf("%s\n", options[0]->path.c_str());
     std::string path = options[0]->path;
-    for (auto i : options)
+    for (auto i: options)
         delete i;
     options.clear();
     options.shrink_to_fit();
@@ -787,7 +787,7 @@ c3ic_strict_load_multiple_icons(std::vector<Icon> &icons,
             strcpy(buffer_icon_name, cached_theme + index_into_file);
             index_into_file += strlen(buffer_icon_name) + 1;
 
-            for (const auto &name : names) {
+            for (const auto &name: names) {
                 if (strcmp(buffer_icon_name, name.c_str()) == 0) {
                     auto size_matches = std::find(strict_sizes.begin(), strict_sizes.end(), size);
                     if (size_matches == strict_sizes.end())

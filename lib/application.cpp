@@ -724,7 +724,7 @@ void destroy_client(App *app, AppClient *client) {
 
 AppClient *
 client_by_name(App *app, const std::string &target_name) {
-    for (AppClient *possible_client : app->clients)
+    for (AppClient *possible_client: app->clients)
         if (target_name == possible_client->name)
             return possible_client;
 
@@ -733,7 +733,7 @@ client_by_name(App *app, const std::string &target_name) {
 
 AppClient *
 client_by_window(App *app, xcb_window_t target_window) {
-    for (AppClient *possible_client : app->clients)
+    for (AppClient *possible_client: app->clients)
         if (target_window == possible_client->window)
             return possible_client;
 
@@ -744,7 +744,7 @@ bool valid_client(App *app, AppClient *target_client) {
     if (target_client == nullptr)
         return false;
 
-    for (AppClient *client : app->clients)
+    for (AppClient *client: app->clients)
         if (target_client == client)
             return true;
 
@@ -966,7 +966,7 @@ void paint_container(App *app, AppClient *client, Container *container) {
         });
 
         if (container->clip_children) {
-            for (auto index : render_order) {
+            for (auto index: render_order) {
                 if (overlaps(container->children[index]->real_bounds, container->real_bounds)) {
                     if (container->clip) {
                         cairo_save(client->cr);
@@ -980,7 +980,7 @@ void paint_container(App *app, AppClient *client, Container *container) {
                 }
             }
         } else {
-            for (auto index : render_order) {
+            for (auto index: render_order) {
                 if (container->clip) {
                     cairo_save(client->cr);
                     set_rect(client->cr, container->real_bounds);
@@ -1037,7 +1037,7 @@ hovered_container(App *app, Container *root, int x, int y) {
     if (root == nullptr)
         return nullptr;
 
-    for (Container *child : root->children) {
+    for (Container *child: root->children) {
         if (child) {
             if (auto real = hovered_container(app, child, x, y)) {
                 return real;
@@ -1058,7 +1058,7 @@ hovered_container(App *app, Container *root, int x, int y) {
 static xcb_generic_event_t *event;
 
 void fill_list_with_concerned(std::vector<Container *> &containers, Container *parent) {
-    for (auto child : parent->children) {
+    for (auto child: parent->children) {
         fill_list_with_concerned(containers, child);
     }
 
@@ -1077,7 +1077,7 @@ concerned_containers(App *app, AppClient *client) {
 }
 
 void fill_list_with_pierced(std::vector<Container *> &containers, Container *parent, int x, int y) {
-    for (auto child : parent->children) {
+    for (auto child: parent->children) {
         if (child->interactable) {
             fill_list_with_pierced(containers, child, x, y);
         }
@@ -1106,7 +1106,7 @@ pierced_containers(App *app, AppClient *client, int x, int y) {
 }
 
 bool is_pierced(Container *c, std::vector<Container *> &pierced) {
-    for (auto container : pierced) {
+    for (auto container: pierced) {
         if (container == c) {
             return true;
         }
@@ -1247,12 +1247,12 @@ void handle_mouse_motion(App *app) {
 }
 
 void set_active(AppClient *client, const std::vector<Container *> &active_containers, Container *c, bool state) {
-    for (auto child : c->children) {
+    for (auto child: c->children) {
         set_active(client, active_containers, child, state);
     }
 
     bool will_be_activated = false;
-    for (auto active_container : active_containers) {
+    for (auto active_container: active_containers) {
         if (active_container == c) {
             will_be_activated = true;
         }
@@ -1490,7 +1490,7 @@ static bool is_control(char *buf) {
 void
 send_key_actual(App *app, AppClient *client, Container *container, bool is_string, xkb_keysym_t keysym, char string[64],
                 uint16_t mods, xkb_key_direction direction) {
-    for (auto c : container->children) {
+    for (auto c: container->children) {
         send_key_actual(app, client, c, is_string, keysym, string, mods, direction);
     }
     if (container->when_key_event) {
@@ -1630,7 +1630,7 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
             break;
         }
         default: {
-            for (auto *client : app->clients) {
+            for (auto *client: app->clients) {
                 if (client->keyboard) {
                     if (event->response_type == client->keyboard->first_xkb_event) {
                         process_xkb_event(event, client->keyboard);
@@ -1654,7 +1654,7 @@ void handle_xcb_event(App *app) {
     while ((event = xcb_poll_for_event(app->connection)) != nullptr) {
         if (auto window = get_window(event)) {
             bool event_consumed_by_custom_handler = false;
-            for (auto handler : app->handlers) {
+            for (auto handler: app->handlers) {
                 // If the handler's target window is INT_MAX that means it wants to see every event
                 if (handler->target_window == INT_MAX) {
                     if (handler->event_handler(app, event)) {
@@ -1679,7 +1679,7 @@ void handle_xcb_event(App *app) {
                 }
             }
         } else {
-            for (auto handler : app->handlers) {
+            for (auto handler: app->handlers) {
                 // If the handler's target window is INT_MAX that means it wants to see every event
                 if (handler->target_window == INT_MAX) {
                     if (handler->event_handler(app, event)) {
@@ -1736,7 +1736,7 @@ void app_main(App *app) {
         app->loop++;
 
         for (int event_index = 0; event_index < event_count; event_index++) {
-            for (auto polled : app->descriptors_being_polled) {
+            for (auto polled: app->descriptors_being_polled) {
                 if (events[event_index].data.fd == polled.file_descriptor) {
                     if (polled.function) {
                         polled.function(app, polled.file_descriptor);
@@ -1746,7 +1746,7 @@ void app_main(App *app) {
         }
 
         // TODO: we can't delete while we iterate.
-        for (AppClient *client : app->clients) {
+        for (AppClient *client: app->clients) {
             if (client->marked_to_close) {
                 client_close(app, client);
                 break;
@@ -1756,24 +1756,24 @@ void app_main(App *app) {
 }
 
 void app_clean(App *app) {
-    for (AppClient *client : app->clients) {
+    for (AppClient *client: app->clients) {
         client_close(app, client);
     }
 
-    for (auto c : app->clients) {
+    for (auto c: app->clients) {
         delete c;
     }
     app->clients.clear();
     app->clients.shrink_to_fit();
 
-    for (auto handler : app->handlers) {
+    for (auto handler: app->handlers) {
         delete handler;
     }
 
     cleanup_cached_fonts();
     cleanup_cached_atoms();
 
-    for (auto t : app->timeouts) {
+    for (auto t: app->timeouts) {
         close(t->file_descriptor);
         delete t;
     }
@@ -1798,7 +1798,7 @@ void client_create_animation(App *app,
                              double target,
                              void (*finished)(AppClient *client),
                              bool relayout) {
-    for (auto &animation : client->animations) {
+    for (auto &animation: client->animations) {
         if (animation.value == value) {
             animation.length = length;
             animation.easing = easing;
@@ -1875,7 +1875,7 @@ bool app_timeout_replace(App *app,
                          void *user_data) {
     assert(app != nullptr && app->running);
     assert(timeout_function != nullptr);
-    for (auto timeout : app->timeouts) {
+    for (auto timeout: app->timeouts) {
         if (timeout->file_descriptor == timeout_file_descriptor) {
             struct itimerspec time = {0};
             // The division done below converts the timeout_ms into seconds and nanoseconds
@@ -1912,7 +1912,8 @@ bool app_timeout_replace(App *app,
 }
 
 int
-app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout_function)(App *, AppClient *, Timeout *, void *),
+app_timeout_create(App *app, AppClient *client, float timeout_ms,
+                   void (*timeout_function)(App *, AppClient *, Timeout *, void *),
                    void *user_data) {
     assert(app != nullptr);
     if (!app->running)
@@ -2033,7 +2034,7 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
 
         bool wants_to_relayout = false;
 
-        for (auto &animation : client->animations) {
+        for (auto &animation: client->animations) {
             long elapsed_time = now - animation.start_time;
             double scalar = (double) elapsed_time / animation.length;
             animation.done = scalar >= 1;

@@ -25,7 +25,7 @@ check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(App *app,
     // FIGURE OUT WHICH SCREEN THE CLIENT BELONGS TO
     ScreenInformation *screen_client_overlaps_most = nullptr;
     double greatest_overlap_percentage = 0;
-    for (auto screen : screens) {
+    for (auto screen: screens) {
         auto overlap_amount = calculate_overlap_percentage(client->bounds->x, client->bounds->y,
                                                            client->bounds->w, client->bounds->h,
                                                            screen->x, screen->y,
@@ -87,13 +87,13 @@ check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(App *app,
 static bool listen_to_randr_and_client_configured_events(App *app, xcb_generic_event_t *event) {
     if (event->response_type == randr_query->first_event + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
         update_information_of_all_screens(app);
-        for (auto c : app->clients) {
+        for (auto c: app->clients) {
             check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, c, false);
         }
     }
     if (event->response_type == randr_query->first_event + XCB_RANDR_NOTIFY) {
         update_information_of_all_screens(app);
-        for (auto c : app->clients) {
+        for (auto c: app->clients) {
             check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, c, false);
         }
     }
@@ -129,7 +129,7 @@ void dpi_setup(App *app) {
     }
 
     update_information_of_all_screens(app);
-    for (auto c : app->clients) {
+    for (auto c: app->clients) {
         check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, c, false);
     }
     assert(!screens.empty());
@@ -346,7 +346,7 @@ static void update_information_of_all_screens(App *app) {
             free(crtc_cookie);
         }
 
-    for (auto screen : screens)
+    for (auto screen: screens)
         delete screen;
     screens.clear();
     screens.shrink_to_fit();

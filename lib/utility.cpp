@@ -205,7 +205,7 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    for (auto font : cached_fonts) {
+    for (auto font: cached_fonts) {
         if (font->name == name && font->size == pixel_height && font->weight == weight) {
             return font->layout;
         }
@@ -238,7 +238,7 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
 }
 
 void cleanup_cached_fonts() {
-    for (auto font : cached_fonts) {
+    for (auto font: cached_fonts) {
         delete font;
     }
     cached_fonts.clear();
@@ -324,7 +324,7 @@ get_cached_atom(App *app, std::string name) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    for (auto cached_atom : cached_atoms) {
+    for (auto cached_atom: cached_atoms) {
         if (cached_atom->name == name) {
             return cached_atom->atom;
         }
@@ -337,7 +337,7 @@ get_cached_atom(App *app, std::string name) {
 }
 
 void cleanup_cached_atoms() {
-    for (auto cached_atom : cached_atoms) {
+    for (auto cached_atom: cached_atoms) {
         delete cached_atom;
     }
     cached_atoms.clear();
