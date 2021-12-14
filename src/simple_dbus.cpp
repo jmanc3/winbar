@@ -37,12 +37,15 @@ bool registered_object_path = false;
  *************************************************/
 
 static double max_kde_brightness = 0;
+static bool gnome_brightness_running = false;
 
 void remove_service(const std::string &service) {
     for (int i = 0; i < running_dbus_services.size(); i++) {
         if (running_dbus_services[i] == service) {
             if (running_dbus_services[i] == "local.org_kde_powerdevil")
                 max_kde_brightness = 0;
+            if (running_dbus_services[i] == "org.gnome.SettingsDaemon.Power")
+                gnome_brightness_running = false;
             running_dbus_services.erase(running_dbus_services.begin() + i);
             return;
         }
@@ -74,6 +77,8 @@ static DBusHandlerResult signal_handler(DBusConnection *connection,
             running_dbus_services.emplace_back(name);
             if (std::string(name) == "local.org_kde_powerdevil")
                 dbus_kde_max_brightness();
+            if (std::string(name) == "org.gnome.SettingsDaemon.Power")
+                gnome_brightness_running = true;
         } else if (strcmp(new_owner, "") == 0) {
             remove_service(name);
         }
@@ -149,6 +154,8 @@ static void dbus_reply_to_list_names_request(DBusPendingCall *call, void *data) 
         running_dbus_services.emplace_back(name);
         if (std::string(name) == "local.org_kde_powerdevil")
             dbus_kde_max_brightness();
+        if (std::string(name) == "org.gnome.SettingsDaemon.Power")
+            gnome_brightness_running = true;
     }
 
     // Register some signals that we are interested in hearing about "NameOwnerChanged", "NameAcquired", "NameLost"
@@ -452,6 +459,94 @@ bool dbus_kde_set_brightness(double percentage) {
     return true;
 }
 
+bool dbus_gnome_running() {
+    return gnome_brightness_running;
+}
+
+double dbus_get_gnome_brightness() {
+    if (!dbus_connection) return 0;
+
+    DBusMessage *dbus_msg = dbus_message_new_method_call("org.gnome.SettingsDaemon.Power",
+                                                         "/org/gnome/SettingsDaemon/Power",
+                                                         "org.freedesktop.DBus.Properties",
+                                                         "Get");
+    defer(dbus_message_unref(dbus_msg));
+
+    const char *interface = "org.gnome.SettingsDaemon.Power.Screen";
+    const char *property = "Brightness";
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_STRING, &interface, DBUS_TYPE_STRING, &property,
+                                  DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_get_gnome_brightness\" couldn't append an arguments to the DBus message.");
+        return 0;
+    }
+    DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection, dbus_msg, 200, nullptr);
+    if (dbus_reply) {
+        defer(dbus_message_unref(dbus_reply));
+
+        DBusMessageIter iter;
+        DBusMessageIter sub;
+        int dbus_result;
+
+        dbus_message_iter_init(dbus_reply, &iter);
+        if (DBUS_TYPE_VARIANT != dbus_message_iter_get_arg_type(&iter)) {
+            fprintf(stderr, "Reply from \"dbus_get_gnome_brightness\" wasn't of type Variant.\n");
+            return 0;
+        }
+        dbus_message_iter_recurse(&iter, &sub);
+        if (DBUS_TYPE_INT32 != dbus_message_iter_get_arg_type(&sub)) {
+            fprintf(stderr, "Reply from \"dbus_get_gnome_brightness\" wasn't of type INT32.\n");
+            return 0;
+        }
+
+        dbus_message_iter_get_basic(&sub, &dbus_result);
+        return dbus_result;
+    }
+    return 0;
+}
+
+bool dbus_set_gnome_brightness(double p) {
+    if (!dbus_connection) return false;
+
+    DBusMessage *dbus_msg = dbus_message_new_method_call("org.gnome.SettingsDaemon.Power",
+                                                         "/org/gnome/SettingsDaemon/Power",
+                                                         "org.freedesktop.DBus.Properties",
+                                                         "Set");
+    defer(dbus_message_unref(dbus_msg));
+
+    const char *interface = "org.gnome.SettingsDaemon.Power.Screen";
+    const char *property = "Brightness";
+    const int percentage = (int) p;
+
+    DBusMessageIter iter, subIter;
+    dbus_message_iter_init_append(dbus_msg, &iter);
+
+    if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &interface)) {
+        fprintf(stderr, "dbus_set_gnome_brightness: Couldn't append interface string\n");
+        return false;
+    }
+    if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &property)) {
+        fprintf(stderr, "dbus_set_gnome_brightness: Couldn't append property string\n");
+        return false;
+    }
+    if (!dbus_message_iter_open_container(&iter, DBUS_TYPE_VARIANT, DBUS_TYPE_INT32_AS_STRING, &subIter)) {
+        fprintf(stderr, "dbus_set_gnome_brightness: Couldn't open variant container\n");
+        return false;
+    }
+    if (!dbus_message_iter_append_basic(&subIter, DBUS_TYPE_INT32, &percentage)) {
+        fprintf(stderr, "dbus_set_gnome_brightness: Couldn't append int32 to variant container\n");
+        return false;
+    }
+    if (!dbus_message_iter_close_container(&iter, &subIter)) {
+        fprintf(stderr, "dbus_set_gnome_brightness: Couldn't close variant container\n");
+        return false;
+    }
+
+    DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection, dbus_msg, 200, nullptr);
+    if (dbus_reply) {
+        dbus_message_unref(dbus_reply);
+    }
+    return true;
+}
 
 /*************************************************
  *

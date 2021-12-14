@@ -170,7 +170,9 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool real) {
     if (amount <= 0)
         amount = 1;
     if (real) {
-        if (dbus_get_kde_max_brightness() != 0) {
+        if (dbus_gnome_running()) {
+            dbus_set_gnome_brightness(amount);
+        } else if (dbus_get_kde_max_brightness() != 0) {
             dbus_kde_set_brightness(((double) amount) / 100.0);
         } else {
             backlight_set_brightness(amount);
@@ -423,7 +425,9 @@ void start_battery_menu() {
     fill_root(battery_entity->root);
 
     int brightness = backlight_get_brightness();
-    if (dbus_get_kde_max_brightness() != 0)
+    if (dbus_gnome_running()) {
+        brightness = dbus_get_gnome_brightness();
+    } else if (dbus_get_kde_max_brightness() != 0)
         brightness = (dbus_get_kde_current_brightness() / dbus_get_kde_max_brightness()) * 100;
     if (brightness == -1) {
         marker_position_scalar = 1;
