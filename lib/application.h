@@ -79,6 +79,8 @@ struct Timeout {
     void *user_data = nullptr;
 
     bool keep_running = false;
+
+    bool kill = false;
 };
 
 struct PolledDescriptor {
@@ -120,6 +122,8 @@ struct App {
     std::vector<PolledDescriptor> descriptors_being_polled;
 
     std::vector<Timeout *> timeouts;
+
+    int loop = 0;
 
     // TODO: move atoms into their own things
     xcb_atom_t protocols_atom = 0;

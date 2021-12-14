@@ -193,6 +193,12 @@ struct AppClient {
 
     long last_repaint_time;
 
+    // Variables to limit how often we handle motion notify events
+    float motion_events_per_second = 30;
+    int motion_event_x = 0;
+    int motion_event_y = 0;
+    int motion_event_timeout_fd = -1;
+
     std::vector<ClientAnimation> animations;
     int animations_running = 0;
     float fps = 144;

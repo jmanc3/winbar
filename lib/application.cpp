@@ -309,7 +309,17 @@ void timeout_poll_wakeup(App *app, int fd) {
     for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
         Timeout *timeout = app->timeouts[timeout_index];
         if (timeout->file_descriptor == fd) {
-            timeout->function(app, timeout->client, timeout, timeout->user_data);
+            if (timeout->kill) {
+                keep_running = false;
+                app->timeouts.erase(app->timeouts.begin() + timeout_index);
+                close(timeout->file_descriptor);
+                delete timeout;
+                break;
+            }
+
+            if (timeout->function) {
+                timeout->function(app, timeout->client, timeout, timeout->user_data);
+            }
             if ((keep_running = timeout->keep_running))
                 break;
 
@@ -1204,6 +1214,14 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
     }
 }
 
+void mouse_motion_timeout(App *app, AppClient *client, Timeout *timeout, void *user_data) {
+    if (valid_client(app, client)) {
+        client->motion_event_timeout_fd = -1;
+        handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
+        client_paint(app, client, true);
+    }
+}
+
 void handle_mouse_motion(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -1213,7 +1231,19 @@ void handle_mouse_motion(App *app) {
     if (!valid_client(app, client))
         return;
 
-    handle_mouse_motion(app, client, e->event_x, e->event_y);
+    client->motion_event_x = e->event_x;
+    client->motion_event_y = e->event_y;
+
+    // Throttle how many motion events we handle per frame
+    if (client->motion_event_timeout_fd == -1) {
+        float fps = client->motion_events_per_second;
+        if (fps != 0)
+            fps = 1000 / fps;
+        client->motion_event_timeout_fd = app_timeout_create(app, client, fps, mouse_motion_timeout, nullptr);
+
+        handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
+        client_paint(app, client, true);
+    }
 }
 
 void set_active(AppClient *client, const std::vector<Container *> &active_containers, Container *c, bool state) {
@@ -1408,7 +1438,11 @@ void handle_mouse_leave_notify(App *app) {
 
     client->mouse_current_x = -1;
     client->mouse_current_y = -1;
+    client->motion_event_x = -1;
+    client->motion_event_y = -1;
     std::vector<Container *> concerned = concerned_containers(app, client);
+
+    handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
 
     // pierced   are ALL the containers under the mouse
     // concerned are all the containers which have concerned state on
@@ -1544,7 +1578,7 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         }
         case XCB_MOTION_NOTIFY: {
             handle_mouse_motion(app);
-            break;
+            return;
         }
         case XCB_BUTTON_PRESS: {
             handle_mouse_button_press(app);
@@ -1699,6 +1733,7 @@ void app_main(App *app) {
     app->running = true;
     while (app->running) {
         int event_count = epoll_wait(app->epoll_fd, events, MAX_POLLING_EVENTS_AT_THE_SAME_TIME, -1);
+        app->loop++;
 
         for (int event_index = 0; event_index < event_count; event_index++) {
             for (auto polled : app->descriptors_being_polled) {
@@ -1826,9 +1861,7 @@ bool app_timeout_stop(App *app,
     for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
         Timeout *timeout = app->timeouts[timeout_index];
         if (timeout->file_descriptor == timeout_file_descriptor) {
-            app->timeouts.erase(app->timeouts.begin() + timeout_index);
-            close(timeout->file_descriptor);
-            delete timeout;
+            timeout->kill = true;
             return true;
         }
     }
@@ -1869,6 +1902,7 @@ bool app_timeout_replace(App *app,
             timeout->client = client;
             timeout->user_data = user_data;
             timeout->keep_running = false;
+            timeout->kill = false;
 
             return true;
         }
@@ -1899,6 +1933,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms, void (*timeout
     timeout->file_descriptor = timeout_file_descriptor;
     timeout->user_data = user_data;
     timeout->keep_running = false;
+    timeout->kill = false;
     app->timeouts.emplace_back(timeout);
 
     struct itimerspec time = {0};
