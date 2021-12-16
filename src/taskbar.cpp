@@ -38,6 +38,7 @@
 #include <pango/pangocairo.h>
 #include <xcb/xproto.h>
 #include <dpi.h>
+#include <sys/inotify.h>
 
 class WorkspaceButton : public HoverableButton {
 public:
@@ -778,6 +779,7 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    client_entity->motion_events_per_second = 0;
     for (auto c: app->clients) {
         if (c->name == "windows_selector") {
             client_close_threaded(app, c);
@@ -864,6 +866,8 @@ pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    client_entity->motion_events_per_second = 30;
+
     container->parent->should_layout_children = true;
     active_window_changed(backup_active_window);
     icons_align(client_entity, container->parent, false);
@@ -1526,19 +1530,37 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
-void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) {
-    Bounds start = container->real_bounds;
-    container->real_bounds.x += 1;
-    container->real_bounds.y += 1;
-    container->real_bounds.w -= 2;
-    container->real_bounds.h -= 2;
-    paint_hoverable_button_background(client_entity, cr, container);
-    container->real_bounds = start;
+void update_battery_animation_timeout(App *app, AppClient *client, Timeout *timeout, void *userdata) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    timeout->keep_running = true;
 
-    auto *data = static_cast<data_battery_surfaces *>(container->user_data);
-    assert(data);
-    assert(!data->normal_surfaces.empty());
-    assert(!data->charging_surfaces.empty());
+    auto *data = static_cast<data_battery_surfaces *>(userdata);
+
+    data->animating_capacity_index++;
+    if (data->animating_capacity_index > 9)
+        data->animating_capacity_index = data->capacity_index;
+
+    request_refresh(app, client);
+}
+
+void update_battery_status_timeout(App *app, AppClient *client, Timeout *timeout, void *userdata) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (timeout) {
+        timeout->keep_running = true;
+    }
+
+    auto data = (data_battery_surfaces *) userdata;
+    long current_time = get_current_time_in_ms();
+
+    int previous_animating_capacity = 0;
+    bool was_charging_on_previous_status_update = data->status == "Charging";
+    if (was_charging_on_previous_status_update) {
+        previous_animating_capacity = data->animating_capacity_index;
+    }
 
     std::string line;
     std::ifstream status("/sys/class/power_supply/BAT0/status");
@@ -1562,6 +1584,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     } else {
         data->capacity = "0";
     }
+    data->previous_status_update_ms = current_time;
 
     int capacity_index = std::floor(((double) (std::stoi(data->capacity))) / 10.0);
 
@@ -1570,11 +1593,38 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     if (capacity_index < 0)
         capacity_index = 0;
 
+    data->capacity_index = capacity_index;
+    if (was_charging_on_previous_status_update) {
+        data->animating_capacity_index = previous_animating_capacity;
+    } else {
+        data->animating_capacity_index = data->capacity_index;
+    }
+
+    request_refresh(app, client);
+}
+
+void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    Bounds start = container->real_bounds;
+    container->real_bounds.x += 1;
+    container->real_bounds.y += 1;
+    container->real_bounds.w -= 2;
+    container->real_bounds.h -= 2;
+    paint_hoverable_button_background(client_entity, cr, container);
+    container->real_bounds = start;
+
+    auto *data = static_cast<data_battery_surfaces *>(container->user_data);
+    assert(data);
+    assert(!data->normal_surfaces.empty());
+    assert(!data->charging_surfaces.empty());
+
     cairo_surface_t *surface;
     if (data->status == "Charging") {
-        surface = data->charging_surfaces[capacity_index];
+        surface = data->charging_surfaces[data->animating_capacity_index];
     } else {
-        surface = data->normal_surfaces[capacity_index];
+        surface = data->normal_surfaces[data->capacity_index];
     }
     if (surface) {
         dye_surface(surface, config->color_taskbar_button_icons);
@@ -1637,6 +1687,12 @@ make_battery_button(Container *parent, AppClient *client_entity) {
         if (getline(capacity, line)) {
             if (line != "UPS") {
                 parent->children.push_back(c);
+                app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data);
+                update_battery_status_timeout(app, client_entity, nullptr, data);
+
+                app_timeout_create(app, client_entity, 1200, update_battery_animation_timeout, data);
+            } else {
+                delete c;
             }
         }
         capacity.close();
@@ -1910,15 +1966,16 @@ fill_root(App *app, AppClient *client, Container *root) {
 static void
 load_pinned_icons();
 
+static int inotify_fd = -1;
+static int inotify_status_fd = -1;
+static int inotify_capacity_fd = -1;
+
 static void
 when_taskbar_closed(AppClient *client) {
-    while (app->clients.size() != 1) {
-        for (int i = 0; i < app->clients.size(); i++) {
-            if (app->clients[i] != client) {
-                client_close(app, app->clients[i]);
-            }
-        }
-    }
+    if (inotify_fd != -1) close(inotify_fd);
+    inotify_fd = -1;
+    inotify_status_fd = -1;
+    inotify_capacity_fd = -1;
 }
 
 static bool
@@ -2229,6 +2286,81 @@ void screenshot_active_window(App *app, AppClient *client, Timeout *, void *user
     }
 }
 
+void inotify_event_wakeup(App *app, int fd) {
+    /* Some systems cannot read integer variables if they are not
+              properly aligned. On other systems, incorrect alignment may
+              decrease performance. Hence, the buffer used for reading from
+              the inotify file descriptor should have the same alignment as
+              struct inotify_event. */
+
+    char buf[4096]
+            __attribute__ ((aligned(__alignof__(struct inotify_event))));
+    const struct inotify_event *event;
+    ssize_t len;
+
+    /* Loop while events can be read from inotify file descriptor. */
+
+    bool update = false;
+
+    for (;;) {
+
+        /* Read some events. */
+
+        len = read(fd, buf, sizeof(buf));
+        if (len == -1 && errno != EAGAIN) {
+            perror("read");
+            exit(EXIT_FAILURE);
+        }
+
+        /* If the nonblocking read() found no events to read, then
+           it returns -1 with errno set to EAGAIN. In that case,
+           we exit the loop. */
+
+        if (len <= 0)
+            break;
+
+        /* Loop over all events in the buffer. */
+
+        for (char *ptr = buf; ptr < buf + len;
+             ptr += sizeof(struct inotify_event) + event->len) {
+
+            event = (const struct inotify_event *) ptr;
+
+            /* Print event type. */
+
+            if (event->mask & IN_OPEN)
+                printf("IN_OPEN: ");
+            if (event->mask & IN_CLOSE_NOWRITE)
+                printf("IN_CLOSE_NOWRITE: ");
+            if (event->mask & IN_CLOSE_WRITE)
+                printf("IN_CLOSE_WRITE: ");
+            if (event->mask & IN_MODIFY)
+                printf("IN_CLOSE_WRITE: ");
+
+            /* Print the name of the watched directory. */
+
+            if (inotify_status_fd == event->wd) {
+                update = true;
+            } else if (inotify_capacity_fd == event->wd) {
+                update = true;
+            }
+            /* Print the name of the file. */
+
+            if (event->len)
+                printf("%s", event->name);
+
+            /* Print type of filesystem object. */
+
+            if (event->mask & IN_ISDIR)
+                printf(" [directory]\n");
+            else
+                printf(" [file]\n");
+        }
+    }
+
+//    update_battery(app);
+}
+
 AppClient *
 create_taskbar(App *app) {
 #ifdef TRACY_ENABLE
@@ -2297,6 +2429,14 @@ create_taskbar(App *app) {
         audio_update_list_of_clients();
     }
 
+    /*
+    inotify_fd = inotify_init1(IN_NONBLOCK);
+    if (inotify_fd != -1) {
+        inotify_status_fd = inotify_add_watch(inotify_fd, "/sys/class/power_supply/BAT0/status", IN_ALL_EVENTS);
+        inotify_capacity_fd = inotify_add_watch(inotify_fd, "/sys/class/power_supply/BAT0/capacity", IN_ALL_EVENTS);
+        poll_descriptor(app, inotify_fd, POLLIN, inotify_event_wakeup);
+    }
+    */
     return taskbar;
 }
 

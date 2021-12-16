@@ -1234,8 +1234,10 @@ void handle_mouse_motion(App *app) {
     client->motion_event_x = e->event_x;
     client->motion_event_y = e->event_y;
 
-    // Throttle how many motion events we handle per frame
-    if (client->motion_event_timeout_fd == -1) {
+    if (client->motion_events_per_second == 0) {
+        handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
+        client_paint(app, client, true);
+    } else if (client->motion_event_timeout_fd == -1) {
         float fps = client->motion_events_per_second;
         if (fps != 0)
             fps = 1000 / fps;
@@ -1436,10 +1438,10 @@ void handle_mouse_leave_notify(App *app) {
     if (!valid_client(app, client))
         return;
 
-    client->mouse_current_x = -1;
-    client->mouse_current_y = -1;
-    client->motion_event_x = -1;
-    client->motion_event_y = -1;
+    client->mouse_current_x = e->event_x;
+    client->mouse_current_y = e->event_y;
+    client->motion_event_x = e->event_x;
+    client->motion_event_y = e->event_y;
     std::vector<Container *> concerned = concerned_containers(app, client);
 
     handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
@@ -1753,6 +1755,10 @@ void app_main(App *app) {
             }
         }
     }
+
+    for (AppClient *client: app->clients) {
+        client_close(app, client);
+    }
 }
 
 void app_clean(App *app) {
@@ -1779,6 +1785,9 @@ void app_clean(App *app) {
     }
     app->timeouts.clear();
     app->timeouts.shrink_to_fit();
+
+    app->descriptors_being_polled.clear();
+    app->descriptors_being_polled.shrink_to_fit();
 
     close(app->epoll_fd);
 

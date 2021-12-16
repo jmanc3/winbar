@@ -18,6 +18,10 @@ struct data_battery_surfaces : public IconButton {
     std::vector<cairo_surface_t *> charging_surfaces;
     std::string status;
     std::string capacity;
+    int capacity_index = 0;
+    int animating_capacity_index = 0;
+    long previous_status_update_ms = -1;
+    int animating_fd = -1;
 
     ~data_battery_surfaces() {
         for (auto surface: normal_surfaces) {
