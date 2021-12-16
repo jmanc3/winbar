@@ -1719,6 +1719,14 @@ scrolled_workspace(AppClient *client_entity,
     desktops_change(app, current);
 }
 
+void gnome_stuck_mouse_state_fix(App *app, AppClient *client, Timeout *, void*) {
+    if (valid_client(app, client)) {
+        client->motion_event_x = -1;
+        client->motion_event_y = -1;
+        handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
+    }
+}
+
 static void
 clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
     if (dbus_connection) {
@@ -1731,6 +1739,7 @@ clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
             } else if (s == "org.gnome.Shell") {
                 // On Gnome try to show the overview screen
                 if (dbus_gnome_show_overview()) {
+                    app_timeout_create(app, client_entity, 100, gnome_stuck_mouse_state_fix, nullptr);
                     return;
                 }
             }
