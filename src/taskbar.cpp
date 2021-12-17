@@ -28,6 +28,7 @@
 #include "notifications.h"
 #include "simple_dbus.h"
 #include "audio.h"
+#include "defer.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -1353,6 +1354,46 @@ clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
         }
     }
 
+    // First we check if the window manager supports the _NET_SHOWING_DESKTOP atom
+    // If so, we get the value of _NET_SHOWING_DESKTOP, flip it, and then send that to the root window as a client message
+    auto request_cookie = xcb_ewmh_get_supported(&app->ewmh, app->screen_number);
+    xcb_ewmh_get_atoms_reply_t atoms_reply_data;
+    if (xcb_ewmh_get_supported_reply(&app->ewmh, request_cookie, &atoms_reply_data, nullptr)) {
+        defer(xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data));
+        bool state = false;
+        for (int i = 0; i < atoms_reply_data.atoms_len; i++) {
+            if (atoms_reply_data.atoms[i] == get_cached_atom(app, "_NET_SHOWING_DESKTOP")) {
+                request_cookie = xcb_ewmh_get_showing_desktop(&app->ewmh, app->screen_number);
+                unsigned int state;
+                xcb_ewmh_get_showing_desktop_reply(&app->ewmh, request_cookie, &state, nullptr);
+
+                state = state == 1 ? 0 : 1;
+
+                xcb_client_message_event_t event;
+                event.response_type = XCB_CLIENT_MESSAGE;
+                event.format = 32;
+                event.sequence = 0;
+                event.window = app->screen->root;
+                event.type = get_cached_atom(app, "_NET_SHOWING_DESKTOP");
+                event.data.data32[0] = state;
+                event.data.data32[1] = 0;
+                event.data.data32[2] = 0;
+                event.data.data32[3] = 0;
+                event.data.data32[4] = 0;
+
+                xcb_send_event(app->connection,
+                               1,
+                               app->screen->root,
+                               XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+                               reinterpret_cast<char *>(&event));
+                xcb_flush(app->connection);
+
+                return;
+            }
+        }
+    }
+
+    // If the window manager doesn't support the _NET_SHOWING_DESKTOP atom, then (as a last resort) we try to minimize manually
     if (minimize_button_hide) {
         // Here we hide the windows
         xcb_query_tree_cookie_t cookie;
