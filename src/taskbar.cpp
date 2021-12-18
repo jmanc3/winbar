@@ -2040,6 +2040,19 @@ taskbar_on_screen_size_change(App *app, AppClient *client) {
         if (s->is_primary) primary_screen = s;
     client->screen_information = primary_screen;
     if (!primary_screen) return;
+
+    xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
+
+    xcb_ewmh_wm_strut_partial_t wm_strut = {};
+
+    auto height = screen->height_in_pixels - primary_screen->height_in_pixels + client->bounds->h;
+    wm_strut.bottom = height;
+    wm_strut.bottom_start_x = primary_screen->x;
+    wm_strut.bottom_end_x = primary_screen->x + client->bounds->w;
+    xcb_ewmh_set_wm_strut_partial(&app->ewmh,
+                                  client->window,
+                                  wm_strut);
+
     client_set_position_and_size(app, client,
                                  primary_screen->x,
                                  primary_screen->y + primary_screen->height_in_pixels -
@@ -2050,6 +2063,7 @@ taskbar_on_screen_size_change(App *app, AppClient *client) {
                             primary_screen->y + primary_screen->height_in_pixels -
                             config->taskbar_height, primary_screen->width_in_pixels,
                             config->taskbar_height);
+    xcb_flush(app->connection);
     for (auto *c: app->clients) {
         if (c->popup) {
             client_close_threaded(app, c);

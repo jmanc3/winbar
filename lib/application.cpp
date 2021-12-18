@@ -644,12 +644,22 @@ client_new(App *app, Settings settings, const std::string &name) {
 
     // strut (a.k.a what part we want to reserve for ourselves)
     if (settings.reserve_side) {
-        xcb_void_cookie_t strut = xcb_ewmh_set_wm_strut(&app->ewmh,
-                                                        window,
-                                                        settings.reserve_left,
-                                                        settings.reserve_right,
-                                                        settings.reserve_top,
-                                                        settings.reserve_bottom);
+        xcb_ewmh_wm_strut_partial_t wm_strut = {};
+
+        auto height = screen->height_in_pixels - primary_screen_info->height_in_pixels + settings.reserve_bottom;
+        wm_strut.bottom = height;
+        wm_strut.bottom_start_x = primary_screen_info->x;
+        wm_strut.bottom_end_x = primary_screen_info->x + settings.w;
+        xcb_ewmh_set_wm_strut_partial(&app->ewmh,
+                                      window,
+                                      wm_strut);
+
+        xcb_ewmh_set_wm_strut(&app->ewmh,
+                              window,
+                              settings.reserve_left,
+                              settings.reserve_right,
+                              settings.reserve_top,
+                              settings.reserve_bottom);
     }
 
     // Set the WM_CLASS
@@ -1685,7 +1695,7 @@ void handle_xcb_event(App *app) {
                 // If the handler's target window is INT_MAX that means it wants to see every event
                 if (handler->target_window == INT_MAX) {
                     if (handler->event_handler(app, event)) {
-                        printf("here\n");
+
                     }
                 }
             }
