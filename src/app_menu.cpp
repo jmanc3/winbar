@@ -1166,8 +1166,9 @@ void load_desktop_files(std::string directory) {
             std::string wmclass = desktop_application.Get("Desktop Entry", "StartupWMClass", "");
             std::string exec = desktop_application.Get("Desktop Entry", "Exec", "");
             std::string icon = desktop_application.Get("Desktop Entry", "Icon", "");
+            std::string display = desktop_application.Get("Desktop Entry", "NoDisplay", "false");
 
-            if (exec.empty())// If we find no exec entry then there's nothing to run
+            if (exec.empty() || display == "True" || display == "true") // If we find no exec entry then there's nothing to run
                 continue;
 
             // Remove everything after the first space found in the exec line
@@ -1202,9 +1203,9 @@ void load_all_desktop_files() {
 #endif
 
     // If the "Icon=" contains "." it's a full path that we should try to load
-    // We should look in "~/.icons"  then "/usr/local/share/icons/" then "/usr/share/icons"
+    // We should look in "~/.icons"  then ~/.local/share/icons then "/usr/local/share/icons/" "/usr/share/icons"
     // If we didn't find it then we try to get the name of the .png and use that to look for icons
-    // If its not a path, then we do the same search
+    // If it's not a path, then we do the same search
     for (auto *l: launchers) {
         delete l;
     }

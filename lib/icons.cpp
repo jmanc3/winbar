@@ -240,9 +240,7 @@ c3ic_cache_the_theme(const std::string &theme) {
                     if (entry->d_type == DT_REG || entry->d_type == DT_LNK) {
                         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                             continue;
-                        if ((strstr(entry->d_name, "org.flameshot.Flameshot") != nullptr)) {
-                            int k = 0;
-                        }
+
                         std::optional<int> index;
                         if (index = ends_with(entry->d_name, ".svg")) {
                             cache_file << (unsigned char) IconExtension::SVG;
