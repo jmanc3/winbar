@@ -2439,8 +2439,8 @@ create_taskbar(App *app) {
         }
     }
 
-    settings.x = 0;
-    settings.y = primary_screen_info->height_in_pixels - config->taskbar_height;
+    settings.x = primary_screen_info->x;
+    settings.y = primary_screen_info->y + primary_screen_info->height_in_pixels - config->taskbar_height;
     settings.w = primary_screen_info->width_in_pixels;
     settings.h = config->taskbar_height;
     settings.sticky = true;
