@@ -1143,6 +1143,14 @@ static std::optional<int> ends_with(const char *str, const char *suffix) {
 }
 
 void load_desktop_files(std::string directory) {
+    std::string paths = std::string(getenv("XDG_CURRENT_DESKTOP"));
+    std::stringstream input(paths);
+    std::string parsed;
+    std::vector<std::string> current_desktop;
+    if (getline(input, parsed, ';')) {
+        current_desktop.push_back(parsed);
+    }
+
     DIR *dir;
     struct dirent *ent;
     if ((dir = opendir(directory.c_str())) != NULL) {
@@ -1166,10 +1174,39 @@ void load_desktop_files(std::string directory) {
             std::string wmclass = desktop_application.Get("Desktop Entry", "StartupWMClass", "");
             std::string exec = desktop_application.Get("Desktop Entry", "Exec", "");
             std::string icon = desktop_application.Get("Desktop Entry", "Icon", "");
-            std::string display = desktop_application.Get("Desktop Entry", "NoDisplay", "false");
+            std::string display = desktop_application.Get("Desktop Entry", "NoDisplay", "");
+            std::string not_show_in = desktop_application.Get("Desktop Entry", "NotShowIn", "");
+            std::string only_show_in = desktop_application.Get("Desktop Entry", "OnlyShowIn", "");
 
-            if (exec.empty() || display == "True" || display == "true") // If we find no exec entry then there's nothing to run
+            if (exec.empty() || display == "True" ||
+                display == "true") // If we find no exec entry then there's nothing to run
                 continue;
+
+            if (!current_desktop.empty()) {
+                if (!only_show_in.empty()) {
+                    std::stringstream only_input(only_show_in);
+                    bool found = false;
+                    if (getline(only_input, parsed, ';')) {
+                        for (const auto &s: current_desktop) {
+                            if (s == parsed)
+                                found = true;
+                        }
+                    }
+                    if (!found)
+                        continue;
+                } else if (!not_show_in.empty()) {
+                    std::stringstream not_input(not_show_in);
+                    bool found = false;
+                    if (getline(not_input, parsed, ';')) {
+                        for (const auto &s: current_desktop) {
+                            if (s == parsed)
+                                found = true;
+                        }
+                    }
+                    if (found)
+                        continue;
+                }
+            }
 
             // Remove everything after the first space found in the exec line
             int white_space_position;
