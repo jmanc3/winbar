@@ -64,7 +64,7 @@ std::string strip_html(const std::string &text) {
     return t;
 }
 
-static int determine_height_of_text(App *app, std::string text, PangoWeight weight, int size, int width) {
+int determine_height_of_text(App *app, std::string text, PangoWeight weight, int size, int width) {
     if (text.empty())
         return 0;
 

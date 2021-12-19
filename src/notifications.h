@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <dbus/dbus.h>
+#include <pango/pango-font.h>
 
 struct NotificationAction {
     std::string id;
@@ -53,6 +54,8 @@ void show_notification(App *app, NotificationInfo *ni);
 void close_notification(int id);
 
 std::string strip_html(const std::string &text);
+
+int determine_height_of_text(App *app, std::string text, PangoWeight weight, int size, int width);
 
 
 #endif //WINBAR_NOTIFICATIONS_H

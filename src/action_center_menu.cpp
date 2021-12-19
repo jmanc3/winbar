@@ -69,31 +69,6 @@ static void paint_notification_root(AppClient *client, cairo_t *cr, Container *c
     cairo_fill(cr);
 }
 
-static int determine_height_of_text(App *app, std::string text, PangoWeight weight, int size, int width) {
-    if (text.empty())
-        return 0;
-
-    int height = size;
-
-    if (auto c = client_by_name(app, "taskbar")) {
-        PangoLayout *layout =
-                get_cached_pango_font(c->cr, config->font, size, weight);
-
-        pango_layout_set_width(layout, width * PANGO_SCALE);
-        pango_layout_set_text(layout, text.c_str(), text.length());
-
-        PangoRectangle text_ink;
-        PangoRectangle text_logical;
-        pango_layout_get_extents(layout, &text_ink, &text_logical);
-
-        height = text_logical.height / PANGO_SCALE;
-
-        pango_layout_set_width(layout, -1);
-    }
-
-    return height;
-}
-
 static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LabelData *) container->user_data;
 

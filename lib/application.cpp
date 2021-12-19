@@ -1945,6 +1945,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
 
     bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup);
     if (!success) { // error with poll_descriptor
+        close(timeout_file_descriptor);
         return -1;
     }
     auto timeout = new Timeout;
