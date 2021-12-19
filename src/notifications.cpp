@@ -51,6 +51,19 @@ static void clicked_root(AppClient *client, cairo_t *cr, Container *container) {
     client_close_threaded(client->app, client);
 }
 
+std::string strip_html(const std::string &text) {
+    std::string t = text;
+    while (t.find("<") != std::string::npos) {
+        auto startpos = t.find("<");
+        auto endpos = t.find(">") + 1;
+
+        if (endpos != std::string::npos) {
+            t.erase(startpos, endpos - startpos);
+        }
+    }
+    return t;
+}
+
 static int determine_height_of_text(App *app, std::string text, PangoWeight weight, int size, int width) {
     if (text.empty())
         return 0;
@@ -62,8 +75,16 @@ static int determine_height_of_text(App *app, std::string text, PangoWeight weig
                 get_cached_pango_font(c->cr, config->font, size, weight);
         auto initial_wrap = pango_layout_get_wrap(layout);
 
+        pango_layout_set_attributes(layout, nullptr);
+        PangoAttrList *attrs = nullptr;
+        pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
+        if (attrs) {
+            pango_layout_set_attributes(layout, attrs);
+        }
+
         pango_layout_set_width(layout, width * PANGO_SCALE);
-        pango_layout_set_text(layout, text.c_str(), text.length());
+        const std::string &stripped = strip_html(text);
+        pango_layout_set_text(layout, stripped.data(), stripped.length());
         pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
 
         PangoRectangle text_ink;
@@ -85,10 +106,19 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     PangoLayout *layout = get_cached_pango_font(
             client->cr, config->font, data->size, data->weight);
 
+    pango_layout_set_attributes(layout, nullptr);
+    PangoAttrList *attrs = nullptr;
+    pango_parse_markup(data->text.data(), data->text.length(), 0, &attrs, NULL, NULL, NULL);
+    if (attrs) {
+        pango_layout_set_attributes(layout, attrs);
+    }
+
+    const std::string &stripped = strip_html(data->text);
+
+    pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
+    pango_layout_set_text(layout, stripped.data(), stripped.length());
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
-    pango_layout_set_text(layout, data->text.c_str(), data->text.length());
-    pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
 
     set_argb(cr, config->color_notification_content_text);
     cairo_move_to(cr,

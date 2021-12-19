@@ -100,9 +100,19 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     PangoLayout *layout = get_cached_pango_font(
             client->cr, config->font, data->size, data->weight);
 
-    pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
-    pango_layout_set_text(layout, data->text.c_str(), data->text.length());
+    pango_layout_set_attributes(layout, nullptr);
+    PangoAttrList *attrs = nullptr;
+    pango_parse_markup(data->text.data(), data->text.length(), 0, &attrs, NULL, NULL, NULL);
+    if (attrs) {
+        pango_layout_set_attributes(layout, attrs);
+    }
+
+    const std::string &stripped = strip_html(data->text);
+
     pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
+    pango_layout_set_text(layout, stripped.data(), stripped.length());
+    pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
+    pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
 
     set_argb(cr, config->color_action_center_notification_content_text);
     cairo_move_to(cr,

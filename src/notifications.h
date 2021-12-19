@@ -52,5 +52,7 @@ void show_notification(App *app, NotificationInfo *ni);
 
 void close_notification(int id);
 
+std::string strip_html(const std::string &text);
+
 
 #endif //WINBAR_NOTIFICATIONS_H
