@@ -1343,17 +1343,6 @@ static bool minimize_button_hide = true;
 
 static void
 clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
-    if (dbus_connection) {
-        for (const auto &s: running_dbus_services) {
-            if (s == "org.kde.kglobalaccel") {
-                // On KDE try to show the desktop
-                if (dbus_kde_show_desktop()) {
-                    return;
-                }
-            }
-        }
-    }
-
     // First we check if the window manager supports the _NET_SHOWING_DESKTOP atom
     // If so, we get the value of _NET_SHOWING_DESKTOP, flip it, and then send that to the root window as a client message
     auto request_cookie = xcb_ewmh_get_supported(&app->ewmh, app->screen_number);
@@ -1389,6 +1378,17 @@ clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
                 xcb_flush(app->connection);
 
                 return;
+            }
+        }
+    }
+
+    if (dbus_connection) {
+        for (const auto &s: running_dbus_services) {
+            if (s == "org.kde.kglobalaccel") {
+                // On KDE try to show the desktop
+                if (dbus_kde_show_desktop()) {
+                    return;
+                }
             }
         }
     }
