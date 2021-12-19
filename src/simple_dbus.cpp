@@ -637,7 +637,7 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
 
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.freedesktop.Notifications", "GetCapabilities")) {
-        std::vector<std::string> strings = {"actions", "body"};
+        std::vector<std::string> strings = {"actions", "body", "persistence", "body-markup"};
 
         if (dbus_array_reply(connection, message, strings))
             return DBUS_HANDLER_RESULT_HANDLED;
