@@ -108,6 +108,8 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
 
     PangoLayout *layout = get_cached_pango_font(
             client->cr, config->font, data->size, data->weight);
+    auto initial_wrap = pango_layout_get_wrap(layout);
+    auto initial_ellipse = pango_layout_get_ellipsize(layout);
 
     pango_layout_set_attributes(layout, nullptr);
     PangoAttrList *attrs = nullptr;
@@ -122,6 +124,7 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, stripped.data(), stripped.length());
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
+    pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
 
     set_argb(cr, config->color_notification_content_text);
     cairo_move_to(cr,
@@ -130,6 +133,8 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, layout);
 
     pango_layout_set_width(layout, -1);
+    pango_layout_set_wrap(layout, initial_wrap);
+    pango_layout_set_ellipsize(layout, initial_ellipse);
 }
 
 static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
