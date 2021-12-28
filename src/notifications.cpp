@@ -74,6 +74,7 @@ int determine_height_of_text(App *app, std::string text, PangoWeight weight, int
         PangoLayout *layout =
                 get_cached_pango_font(c->cr, config->font, size, weight);
         auto initial_wrap = pango_layout_get_wrap(layout);
+        auto initial_ellipse = pango_layout_get_ellipsize(layout);
 
         pango_layout_set_attributes(layout, nullptr);
         PangoAttrList *attrs = nullptr;
@@ -86,6 +87,7 @@ int determine_height_of_text(App *app, std::string text, PangoWeight weight, int
         const std::string &stripped = strip_html(text);
         pango_layout_set_text(layout, stripped.data(), stripped.length());
         pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
+        pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
 
         PangoRectangle text_ink;
         PangoRectangle text_logical;
@@ -95,6 +97,7 @@ int determine_height_of_text(App *app, std::string text, PangoWeight weight, int
 
         pango_layout_set_width(layout, -1);
         pango_layout_set_wrap(layout, initial_wrap);
+        pango_layout_set_ellipsize(layout, initial_ellipse);
     }
 
     return height;
