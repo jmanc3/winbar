@@ -317,6 +317,9 @@ struct Container {
     // If we should call when_clicked if this container was dragged
     bool when_drag_end_is_click = true;
 
+    // How many pixels does a container need to be moved before dragging starts
+    int minimum_x_distance_to_move_before_drag_begins = 0;
+
     // If the container should receive events through a single container above it
     // (children)
     bool receive_events_even_if_obstructed_by_one = false;

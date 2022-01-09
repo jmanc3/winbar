@@ -1165,10 +1165,13 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
                     c->when_drag(client, client->cr, c);
                 }
             } else if (c->state.mouse_pressing) {
-                // handle when_drag_start
-                c->state.mouse_dragging = true;
-                if (c->when_drag_start) {
-                    c->when_drag_start(client, client->cr, c);
+                auto move_distance = abs(client->mouse_initial_x - client->mouse_current_x);
+                if (move_distance >= c->minimum_x_distance_to_move_before_drag_begins) {
+                    // handle when_drag_start
+                    c->state.mouse_dragging = true;
+                    if (c->when_drag_start) {
+                        c->when_drag_start(client, client->cr, c);
+                    }
                 }
             }
         } else if (in_pierced) {
