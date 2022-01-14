@@ -1143,7 +1143,9 @@ static std::optional<int> ends_with(const char *str, const char *suffix) {
 }
 
 void load_desktop_files(std::string directory) {
-    std::string paths = std::string(getenv("XDG_CURRENT_DESKTOP"));
+    auto c = getenv("XDG_CURRENT_DESKTOP");
+    std::string paths;
+    if (c) paths = std::string(c);
     std::stringstream input(paths);
     std::string parsed;
     std::vector<std::string> current_desktop;
