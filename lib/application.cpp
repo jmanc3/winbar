@@ -312,6 +312,7 @@ void timeout_poll_wakeup(App *app, int fd) {
             if (timeout->kill) {
                 keep_running = false;
                 app->timeouts.erase(app->timeouts.begin() + timeout_index);
+                epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor, NULL);
                 close(timeout->file_descriptor);
                 delete timeout;
                 break;
@@ -324,6 +325,7 @@ void timeout_poll_wakeup(App *app, int fd) {
                 break;
 
             app->timeouts.erase(app->timeouts.begin() + timeout_index);
+            epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor, NULL);
             close(timeout->file_descriptor);
             delete timeout;
             break;
@@ -900,6 +902,7 @@ void client_close(App *app, AppClient *client) {
                                        [client](Timeout *timeout) {
                                            auto *timeout_client = (AppClient *) timeout->client;
                                            if (timeout_client == client) {
+                                               epoll_ctl(client->app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor, NULL);
                                                close(timeout->file_descriptor);
                                                delete timeout;
                                            }
@@ -1793,6 +1796,7 @@ void app_clean(App *app) {
     cleanup_cached_atoms();
 
     for (auto t: app->timeouts) {
+        epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, t->file_descriptor, NULL);
         close(t->file_descriptor);
         delete t;
     }
@@ -1948,6 +1952,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
 
     bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup);
     if (!success) { // error with poll_descriptor
+        epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout_file_descriptor, NULL);
         close(timeout_file_descriptor);
         return -1;
     }

@@ -868,6 +868,7 @@ launch_item(AppClient *client, Container *item) {
     client_close_threaded(app, client);
     xcb_flush(app->connection);
     app->grab_window = -1;
+    set_textarea_inactive();
 }
 
 static void

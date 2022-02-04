@@ -975,7 +975,7 @@ fill_root(AppClient *client) {
 
 static void
 app_menu_closed(AppClient *client) {
-//    set_textarea_inactive();
+    set_textarea_inactive();
 }
 
 static void

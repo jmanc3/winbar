@@ -139,30 +139,29 @@ paint_centered_label(AppClient *client, cairo_t *cr, Container *container) {
 
 }
 
-static void
-clicked_forget(AppClient *client, cairo_t *cr, Container *container) {
-    auto data = (DataOfLabelButton *) container->user_data;
-    wifi_forget_network(data->info);
+static void delete_container(App *app, AppClient *client, Timeout *timeout, void *user_data) {
+    auto forget_button_container = (Container *) user_data;
+    auto wifi_option_container = forget_button_container->parent;
+    auto options_container = wifi_option_container->parent;
 
-
-    for (int i = 0; i < container->parent->children.size(); i++) {
-        int r_i = container->parent->children.size() - i - 1;
-        auto c = container->parent->children[r_i];
-        auto data = (WifiOptionData *) c->user_data;
-
-        if (data && data->clicked) {
-            data->clicked = false;
-            auto cd = container->parent->children[r_i + 1];
-            container->parent->children.erase(container->parent->children.begin() + r_i + 1);
-            container->parent->children.erase(container->parent->children.begin() + r_i);
-            delete cd;
-            delete container;
+    for (int i = 0; i < options_container->children.size(); i++) {
+        if (options_container->children[i] == wifi_option_container) {
+            options_container->children.erase(options_container->children.begin() + i);
+            delete wifi_option_container;
+            break;
         }
     }
 
-
     client_layout(app, client);
     client_paint(app, client);
+}
+
+static void
+clicked_forget(AppClient *client, cairo_t *cr, Container *container) {
+    auto data = (DataOfLabelButton *) container->user_data;
+//    wifi_forget_network(data->info);
+
+    app_timeout_create(app, client, 0, delete_container, container);
 }
 
 static void
@@ -203,6 +202,7 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
         Container *new_container;
         if (data->info.saved_network) {
             new_container = new Container(layout_type::hbox, FILL_SPACE, option_height + padding * 2);
+            new_container->parent = container->parent;
             new_container->spacing = padding;
             new_container->wanted_pad = Bounds(padding, padding, padding, padding);
             new_container->when_paint = paint_clicked;
@@ -224,6 +224,7 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
             connect_disconnect_button->when_clicked = clicked_connect;
         } else {
             new_container = new Container(layout_type::vbox, FILL_SPACE, option_height * 2 + padding * 3);
+            new_container->parent = container->parent;
             new_container->spacing = padding;
             new_container->wanted_pad = Bounds(padding, padding, padding, padding);
             new_container->when_paint = paint_clicked;
@@ -262,6 +263,7 @@ void scan_results(std::vector<ScanResult> &results) {
 
         for (const auto &r: results) {
             auto c = content->child(FILL_SPACE, WIFI_OPTION_HEIGHT);
+            c->name = r.network_name;
             auto wifi_option_data = new WifiOptionData;
             c->when_paint = paint_option;
             c->when_clicked = option_clicked;
