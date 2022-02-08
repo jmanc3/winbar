@@ -112,7 +112,7 @@ public:
 
     selector_type type = selector_type::CLOSED;
     Timeout *possibly_open_timeout = nullptr;
-    Timeout *possibly_stop_timeout_fd = nullptr;
+    Timeout *possibly_stop_timeout = nullptr;
 
     // For icon lerping to correct position
     bool animating = false;

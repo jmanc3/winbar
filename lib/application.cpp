@@ -902,7 +902,8 @@ void client_close(App *app, AppClient *client) {
                                        [client](Timeout *timeout) {
                                            auto *timeout_client = (AppClient *) timeout->client;
                                            if (timeout_client == client) {
-                                               epoll_ctl(client->app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor, NULL);
+                                               epoll_ctl(client->app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor,
+                                                         NULL);
                                                close(timeout->file_descriptor);
                                                delete timeout;
                                            }

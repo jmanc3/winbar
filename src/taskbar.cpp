@@ -1037,6 +1037,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
         if (data->windows_data_list.empty()) {
             launch_command(data->command_launched_by);
             app_timeout_stop(client->app, client, data->possibly_open_timeout);
+            data->possibly_open_timeout = nullptr;
             for (auto c: app->clients) {
                 if (c->name == "windows_selector") {
                     client_close(app, c);
@@ -1057,6 +1058,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
         } else {
             // TODO: choose window if there are more then one
             app_timeout_stop(client->app, client, data->possibly_open_timeout);
+            data->possibly_open_timeout = nullptr;
 
             xcb_window_t window = data->windows_data_list[0]->id;
             for (auto c: app->clients) {
@@ -1100,6 +1102,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
         }
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
         app_timeout_stop(client->app, client, data->possibly_open_timeout);
+        data->possibly_open_timeout = nullptr;
         for (auto c: app->clients) {
             if (c->name == "windows_selector") {
                 client_close(app, c);
@@ -1109,6 +1112,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_2) {
         launch_command(data->command_launched_by);
         app_timeout_stop(client->app, client, data->possibly_open_timeout);
+        data->possibly_open_timeout = nullptr;
         for (auto c: app->clients) {
             if (c->name == "windows_selector") {
                 client_close(app, c);

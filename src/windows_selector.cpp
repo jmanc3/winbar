@@ -43,7 +43,7 @@ static void on_open_timeout(App *app, AppClient *client, Timeout *, void *user_d
 static void on_close_timeout(App *app, AppClient *client, Timeout *, void *user_data) {
     if (auto c = client_by_name(app, "windows_selector")) {
         auto pii = (PinnedIconInfo *) c->root->user_data;
-        pii->data->possibly_stop_timeout_fd = nullptr;
+        pii->data->possibly_stop_timeout = nullptr;
         pii->data->type = ::CLOSED;
         client_close_threaded(app, c);
     }
@@ -70,9 +70,9 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
     }
 
     // cancel any possibly_stop
-    if (data->possibly_stop_timeout_fd != nullptr) {
-        app_timeout_stop(app, nullptr, data->possibly_stop_timeout_fd);
-        data->possibly_stop_timeout_fd = nullptr;
+    if (data->possibly_stop_timeout != nullptr) {
+        app_timeout_stop(app, nullptr, data->possibly_stop_timeout);
+        data->possibly_stop_timeout = nullptr;
     }
 
     if (they && they_are_us) { // we are already open, we don't need to reopen
@@ -128,8 +128,8 @@ void possibly_close(App *app, Container *container, LaunchableButton *data) {
     }
 
     if (we_are == selector_type::OPEN_HOVERED) {
-        if (data->possibly_stop_timeout_fd == nullptr) {
-            data->possibly_stop_timeout_fd = app_timeout_create(app, nullptr, 300, on_close_timeout, container, false);
+        if (data->possibly_stop_timeout == nullptr) {
+            data->possibly_stop_timeout = app_timeout_create(app, nullptr, 300, on_close_timeout, container, false);
         }
     }
 }
@@ -591,9 +591,9 @@ windows_selector_event_handler(App *app, xcb_generic_event_t *event) {
 static void when_closed(AppClient *client) {
     auto pii = (PinnedIconInfo *) client->root->user_data;
     pii->data->type = selector_type::CLOSED;
-    app_timeout_stop(client->app, client, pii->data->possibly_stop_timeout_fd);
+    app_timeout_stop(client->app, client, pii->data->possibly_stop_timeout);
     app_timeout_stop(client->app, client, pii->data->possibly_open_timeout);
-    pii->data->possibly_stop_timeout_fd = nullptr;
+    pii->data->possibly_stop_timeout = nullptr;
     pii->data->possibly_open_timeout = nullptr;
     if (auto c = client_by_name(app, "taskbar")) {
         request_refresh(app, c);
@@ -612,7 +612,7 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     pii->data = data;
     pii->data->type = selector_state;
     pii->data->possibly_open_timeout = nullptr;
-    pii->data->possibly_stop_timeout_fd = nullptr;
+    pii->data->possibly_stop_timeout = nullptr;
 
     int width = get_width(pii->data);
     Settings settings;
