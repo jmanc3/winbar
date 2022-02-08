@@ -450,7 +450,7 @@ when_scrollbar_mouse_leaves(AppClient *client, cairo_t *cr, Container *container
     client_create_animation(client->app, client, &scrollbar_visible, 100, 0, 0);
 }
 
-static int scrollbar_leave_fd = -1;
+static Timeout *scrollbar_leave_fd = nullptr;
 
 static void
 scrollbar_leaves_timeout(App *app, AppClient *client, Timeout *, void *data) {
@@ -467,7 +467,7 @@ scrollbar_leaves_timeout(App *app, AppClient *client, Timeout *, void *data) {
     } else {
         scrollbar_openess = 0;
     }
-    scrollbar_leave_fd = -1;
+    scrollbar_leave_fd = nullptr;
 }
 
 static void
@@ -475,14 +475,14 @@ when_scrollbar_mouse_leaves_slow(AppClient *client, cairo_t *cr, Container *cont
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (scrollbar_leave_fd == -1) {
-        scrollbar_leave_fd = app_timeout_create(app, client, 3000, scrollbar_leaves_timeout, container);
+    if (scrollbar_leave_fd == nullptr) {
+        scrollbar_leave_fd = app_timeout_create(app, client, 3000, scrollbar_leaves_timeout, container, false);
     } else {
         app_timeout_replace(app, client, scrollbar_leave_fd, 3000, scrollbar_leaves_timeout, container);
     }
 }
 
-static int left_open_fd = -1;
+static Timeout *left_open_fd = nullptr;
 
 static void
 left_open_timeout(App *app, AppClient *client, Timeout *, void *data) {
@@ -495,7 +495,7 @@ left_open_timeout(App *app, AppClient *client, Timeout *, void *data) {
         client_create_animation(
                 app, client, &container->wanted_bounds.w, 100, nullptr, 256, true);
     }
-    left_open_fd = -1;
+    left_open_fd = nullptr;
 }
 
 static void
@@ -503,8 +503,8 @@ left_open(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (left_open_fd == -1) {
-        left_open_fd = app_timeout_create(client->app, client, 160, left_open_timeout, container);
+    if (left_open_fd == nullptr) {
+        left_open_fd = app_timeout_create(client->app, client, 160, left_open_timeout, container, false);
     } else {
         app_timeout_replace(client->app, client, left_open_fd, 160, left_open_timeout, container);
     }

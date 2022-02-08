@@ -859,7 +859,7 @@ void client_register_animation(App *app, AppClient *client) {
         float fps = client->fps;
         if (fps != 0)
             fps = 1000 / fps;
-        app_timeout_create(app, client, fps, client_animation_paint, nullptr);
+        app_timeout_create(app, client, fps, client_animation_paint, nullptr, false);
     }
     client->animations_running++;
 }
@@ -1232,7 +1232,7 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
 
 void mouse_motion_timeout(App *app, AppClient *client, Timeout *timeout, void *user_data) {
     if (valid_client(app, client)) {
-        client->motion_event_timeout_fd = -1;
+        client->motion_event_timeout = nullptr;
         handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
         client_paint(app, client, true);
     }
@@ -1250,14 +1250,16 @@ void handle_mouse_motion(App *app) {
     client->motion_event_x = e->event_x;
     client->motion_event_y = e->event_y;
 
+    // TODO: the reason animations hang in the taskbar is because motion_event_timeout is at some point not reset to -1
+
     if (client->motion_events_per_second == 0) {
         handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
         client_paint(app, client, true);
-    } else if (client->motion_event_timeout_fd == -1) {
+    } else if (client->motion_event_timeout == nullptr) {
         float fps = client->motion_events_per_second;
         if (fps != 0)
             fps = 1000 / fps;
-        client->motion_event_timeout_fd = app_timeout_create(app, client, fps, mouse_motion_timeout, nullptr);
+        client->motion_event_timeout = app_timeout_create(app, client, fps, mouse_motion_timeout, nullptr, true);
 
         handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
         client_paint(app, client, true);
@@ -1882,79 +1884,72 @@ void client_create_animation(App *app,
 
 bool app_timeout_stop(App *app,
                       AppClient *client,
-                      int timeout_file_descriptor) {
+                      Timeout *timeout) {
+    if (timeout == nullptr)
+        return false;
     assert(app != nullptr && app->running);
-    for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
-        Timeout *timeout = app->timeouts[timeout_index];
-        if (timeout->file_descriptor == timeout_file_descriptor) {
-            timeout->kill = true;
-            return true;
-        }
-    }
-    return false;
+    timeout->kill = true;
+    return true;
 }
 
-bool app_timeout_replace(App *app,
-                         AppClient *client,
-                         int timeout_file_descriptor, float timeout_ms,
-                         void (*timeout_function)(App *, AppClient *, Timeout *, void *),
-                         void *user_data) {
+Timeout *app_timeout_replace(App *app,
+                             AppClient *client,
+                             Timeout *timeout, float timeout_ms,
+                             void (*timeout_function)(App *, AppClient *, Timeout *, void *),
+                             void *user_data) {
+    if (timeout == nullptr) {
+        return nullptr;
+    }
     assert(app != nullptr && app->running);
     assert(timeout_function != nullptr);
-    for (auto timeout: app->timeouts) {
-        if (timeout->file_descriptor == timeout_file_descriptor) {
-            struct itimerspec time = {0};
-            // The division done below converts the timeout_ms into seconds and nanoseconds
-            time.it_interval.tv_sec = timeout_ms / 1000;
-            time.it_interval.tv_nsec = std::fmod(timeout_ms, 1000) * 1000000;
-            time.it_value.tv_sec = timeout_ms / 1000;
-            time.it_value.tv_nsec = std::fmod(timeout_ms, 1000) * 1000000;
+    struct itimerspec time = {0};
+    // The division done below converts the timeout_ms into seconds and nanoseconds
+    time.it_interval.tv_sec = timeout_ms / 1000;
+    time.it_interval.tv_nsec = std::fmod(timeout_ms, 1000) * 1000000;
+    time.it_value.tv_sec = timeout_ms / 1000;
+    time.it_value.tv_nsec = std::fmod(timeout_ms, 1000) * 1000000;
 
-            // If the caller of this function passed in a zero,
-            // they probably expected the function to execute as soon as possible,
-            // but based on documentation, the timer will never go off if it_value.tv_sec and it_value.tv_nsec
-            // are both set to zero.
-            // To have the function behave more like what the caller probably expected,
-            // we do what we do below and give the timer the smallest possible increment.
-            if (timeout_ms == 0) {
-                time.it_value.tv_nsec = 1;
-            }
-
-            if (timerfd_settime(timeout_file_descriptor, 0, &time, nullptr) != 0) {
-                return false;
-            }
-
-            timeout->function = timeout_function;
-            timeout->client = client;
-            timeout->user_data = user_data;
-            timeout->keep_running = false;
-            timeout->kill = false;
-
-            return true;
-        }
+    // If the caller of this function passed in a zero,
+    // they probably expected the function to execute as soon as possible,
+    // but based on documentation, the timer will never go off if it_value.tv_sec and it_value.tv_nsec
+    // are both set to zero.
+    // To have the function behave more like what the caller probably expected,
+    // we do what we do below and give the timer the smallest possible increment.
+    if (timeout_ms == 0) {
+        time.it_value.tv_nsec = 1;
     }
 
-    return false;
+    if (timerfd_settime(timeout->file_descriptor, 0, &time, nullptr) != 0) {
+        return nullptr;
+    }
+
+    timeout->function = timeout_function;
+    timeout->client = client;
+    timeout->user_data = user_data;
+    timeout->keep_running = false;
+    timeout->kill = false;
+
+    return timeout;
 }
 
-int
+Timeout *
 app_timeout_create(App *app, AppClient *client, float timeout_ms,
-                   void (*timeout_function)(App *, AppClient *, Timeout *, void *),
-                   void *user_data) {
+                   void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data,
+                   bool is_mouse_motion) {
     assert(app != nullptr);
     if (!app->running)
-        return -1;
+        return nullptr;
     assert(timeout_function != nullptr);
     int timeout_file_descriptor = timerfd_create(CLOCK_REALTIME, 0);
     if (timeout_file_descriptor == -1) { // error with timerfd_create
-        return -1;
+        return nullptr;
     }
 
     bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup);
     if (!success) { // error with poll_descriptor
         epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout_file_descriptor, NULL);
         close(timeout_file_descriptor);
-        return -1;
+        return nullptr;
     }
     auto timeout = new Timeout;
     timeout->function = timeout_function;
@@ -1963,6 +1958,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
     timeout->user_data = user_data;
     timeout->keep_running = false;
     timeout->kill = false;
+    timeout->is_mouse_motion = is_mouse_motion;
     app->timeouts.emplace_back(timeout);
 
     struct itimerspec time = {0};
@@ -1984,10 +1980,10 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
 
     int settime_success = timerfd_settime(timeout_file_descriptor, 0, &time, nullptr);
     if (settime_success != 0) { // error with timerfd_settime
-        return -1;
+        return nullptr;
     }
 
-    return timeout_file_descriptor;
+    return timeout;
 }
 
 void app_create_custom_event_handler(App *app, xcb_window_t window,

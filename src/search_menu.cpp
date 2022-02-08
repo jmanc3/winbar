@@ -1121,7 +1121,7 @@ static void
 clicked_tab(AppClient *client, cairo_t *cr, Container *container) {
     // This has to happen in another thread because on_key_press modifies the containers
     // and this function is called while iterating through them.
-    app_timeout_create(app, client, 0, clicked_tab_timeout, container);
+    app_timeout_create(app, client, 0, clicked_tab_timeout, container, false);
 }
 
 static void

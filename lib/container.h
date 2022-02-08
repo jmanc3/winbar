@@ -158,6 +158,8 @@ struct ScreenInformation {
 
 struct AppClient;
 
+struct Timeout;
+
 struct ClientAnimation {
     double start_value{};
     double *value = nullptr;
@@ -197,7 +199,7 @@ struct AppClient {
     float motion_events_per_second = 30;
     int motion_event_x = 0;
     int motion_event_y = 0;
-    int motion_event_timeout_fd = -1;
+    Timeout *motion_event_timeout = nullptr;
 
     std::vector<ClientAnimation> animations;
     int animations_running = 0;

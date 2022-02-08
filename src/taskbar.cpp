@@ -1036,7 +1036,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
         if (data->windows_data_list.empty()) {
             launch_command(data->command_launched_by);
-            app_timeout_stop(client->app, client, data->possibly_open_timeout_fd);
+            app_timeout_stop(client->app, client, data->possibly_open_timeout);
             for (auto c: app->clients) {
                 if (c->name == "windows_selector") {
                     client_close(app, c);
@@ -1056,7 +1056,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
             start_windows_selector(container, selector_type::OPEN_CLICKED);
         } else {
             // TODO: choose window if there are more then one
-            app_timeout_stop(client->app, client, data->possibly_open_timeout_fd);
+            app_timeout_stop(client->app, client, data->possibly_open_timeout);
 
             xcb_window_t window = data->windows_data_list[0]->id;
             for (auto c: app->clients) {
@@ -1099,7 +1099,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
             }
         }
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
-        app_timeout_stop(client->app, client, data->possibly_open_timeout_fd);
+        app_timeout_stop(client->app, client, data->possibly_open_timeout);
         for (auto c: app->clients) {
             if (c->name == "windows_selector") {
                 client_close(app, c);
@@ -1108,7 +1108,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
         start_pinned_icon_right_click(container);
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_2) {
         launch_command(data->command_launched_by);
-        app_timeout_stop(client->app, client, data->possibly_open_timeout_fd);
+        app_timeout_stop(client->app, client, data->possibly_open_timeout);
         for (auto c: app->clients) {
             if (c->name == "windows_selector") {
                 client_close(app, c);
@@ -1728,10 +1728,10 @@ make_battery_button(Container *parent, AppClient *client_entity) {
         if (getline(capacity, line)) {
             if (line != "UPS") {
                 parent->children.push_back(c);
-                app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data);
+                app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data, false);
                 update_battery_status_timeout(app, client_entity, nullptr, data);
 
-                app_timeout_create(app, client_entity, 1200, update_battery_animation_timeout, data);
+                app_timeout_create(app, client_entity, 1200, update_battery_animation_timeout, data, false);
             } else {
                 delete c;
             }
@@ -1780,7 +1780,7 @@ clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
             } else if (s == "org.gnome.Shell") {
                 // On Gnome try to show the overview screen
                 if (dbus_gnome_show_overview()) {
-                    app_timeout_create(app, client_entity, 100, gnome_stuck_mouse_state_fix, nullptr);
+                    app_timeout_create(app, client_entity, 100, gnome_stuck_mouse_state_fix, nullptr, false);
                     return;
                 }
             }
@@ -1990,8 +1990,8 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_date->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_date->name = "date";
 
-    app_timeout_create(app, client, 1000, update_time, nullptr);
-    app_timeout_create(app, client, 10000, late_classes_update, nullptr);
+    app_timeout_create(app, client, 1000, update_time, nullptr, false);
+    app_timeout_create(app, client, 10000, late_classes_update, nullptr, false);
 
     button_action_center->when_paint = paint_action_center;
     auto action_center_data = new ActionCenterButtonData;
@@ -2481,7 +2481,7 @@ create_taskbar(App *app) {
 
     app_create_custom_event_handler(app, taskbar->window, taskbar_event_handler);
     app_create_custom_event_handler(app, INT_MAX, window_event_handler);
-    app_timeout_create(app, taskbar, 500, screenshot_active_window, nullptr);
+    app_timeout_create(app, taskbar, 500, screenshot_active_window, nullptr, false);
 
     // Lay it out
     fill_root(app, taskbar, taskbar->root);

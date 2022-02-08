@@ -41,21 +41,21 @@ int main() {
     audio_start(app);
 
     // We need to register as the systray
-#ifdef NDEBUG
+//#ifdef NDEBUG
     start_systray();
-#endif
+//#endif
 
     // Open our windows
     AppClient *taskbar = create_taskbar(app);
 
     // We only want to load the desktop files once at the start of the program
     //std::thread(load_desktop_files).detach();
-#ifdef NDEBUG
+//#ifdef NDEBUG
     load_all_desktop_files();
     load_scripts();// The scripts are reloaded every time the search_menu window closes
     load_historic_scripts();
     load_historic_apps();
-#endif
+//#endif
 
     client_show(app, taskbar);
     xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, taskbar->window, XCB_CURRENT_TIME);

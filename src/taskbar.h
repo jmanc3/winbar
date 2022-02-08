@@ -111,8 +111,8 @@ public:
     double wants_attention_amount = 0;
 
     selector_type type = selector_type::CLOSED;
-    int possibly_open_timeout_fd = -1;
-    int possibly_stop_timeout_fd = -1;
+    Timeout *possibly_open_timeout = nullptr;
+    Timeout *possibly_stop_timeout_fd = nullptr;
 
     // For icon lerping to correct position
     bool animating = false;

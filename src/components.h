@@ -68,7 +68,7 @@ public:
     std::string text;
     std::string prompt;
 
-    int cursor_blink_fd = -1;
+    Timeout *cursor_blink = nullptr;
     int cursor = 0;
     bool cursor_on = true;
     long last_time_key_press = 0;

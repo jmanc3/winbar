@@ -81,6 +81,8 @@ struct Timeout {
     bool keep_running = false;
 
     bool kill = false;
+
+    bool is_mouse_motion = false;
 };
 
 struct PolledDescriptor {
@@ -244,18 +246,18 @@ void init_xkb(App *app, AppClient *client);
 
 void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard);
 
-bool app_timeout_replace(App *app, AppClient *client, int timeout_file_descriptor, float timeout_ms,
-                         void (*timeout_function)(App *, AppClient *, Timeout *, void *),
-                         void *user_data);
+Timeout *app_timeout_replace(App *app, AppClient *client, Timeout *timeout, float timeout_ms,
+                             void (*timeout_function)(App *, AppClient *, Timeout *, void *),
+                             void *user_data);
 
-int
+Timeout *
 app_timeout_create(App *app, AppClient *client, float timeout_ms,
-                   void (*timeout_function)(App *, AppClient *, Timeout *, void *),
-                   void *user_data);
+                   void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data,
+                   bool is_mouse_motion);
 
 bool app_timeout_stop(App *app,
                       AppClient *client,
-                      int timeout_file_descriptor);
+                      Timeout *timeout);
 
 void app_create_custom_event_handler(App *app, xcb_window_t window,
                                      bool (*custom_handler)(App *app, xcb_generic_event_t *event));

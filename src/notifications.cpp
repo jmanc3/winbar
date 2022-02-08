@@ -224,7 +224,7 @@ static void clicked_action(AppClient *client, cairo_t *cr, Container *container)
     auto action_wrapper = (NotificationActionWrapper *) container->user_data;
     notification_action_invoked_signal(client->app, client_wrapper->ni, action_wrapper->action);
 
-    app_timeout_create(client->app, client, 300, close_notification_timeout, nullptr);
+    app_timeout_create(client->app, client, 300, close_notification_timeout, nullptr, false);
 //    notification_closed_signal(client->app, client_wrapper->ni, NotificationReasonClosed::DISMISSED_BY_USER);
 //    client_close_threaded(client->app, client);
 }
@@ -341,9 +341,9 @@ void show_notification(App *app, NotificationInfo *ni) {
             timeout = 5000;
         }
 
-        app_timeout_create(app, client, timeout, close_notification_timeout, nullptr);
+        app_timeout_create(app, client, timeout, close_notification_timeout, nullptr, false);
     } else {
-        app_timeout_create(app, client, ni->expire_timeout_in_milliseconds, close_notification_timeout, nullptr);
+        app_timeout_create(app, client, ni->expire_timeout_in_milliseconds, close_notification_timeout, nullptr, false);
     }
 }
 
