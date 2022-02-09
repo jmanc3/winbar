@@ -516,8 +516,8 @@ void start_action_center(App *app) {
     settings.force_position = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
-    settings.slide_data[1] = 3;
-    settings.slide_data[2] = 160;
+    settings.slide_data[1] = 2;
+    settings.slide_data[2] = 120;
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
 
