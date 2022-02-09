@@ -8,6 +8,10 @@
 #include <utility.h>
 #include <defer.h>
 
+#ifdef TRACY_ENABLE
+#include "../tracy/Tracy.hpp"
+#endif
+
 static std::vector<xcb_window_t> systray_icon_windows;
 static bool layout_invalid = true;
 
