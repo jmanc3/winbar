@@ -3278,11 +3278,7 @@ void register_popup(xcb_window_t window) {
         for (auto *c: app->clients) {
             if (c->window != window) {
                 if (c->popup) {
-                    if (c->name == "systray") {
-                        xcb_unmap_window(app->connection, c->window);
-                    } else {
-                        client_close_threaded(app, c);
-                    }
+                    client_close_threaded(app, c);
                 }
             }
         }
