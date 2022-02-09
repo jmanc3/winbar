@@ -2444,6 +2444,12 @@ create_taskbar(App *app) {
     settings.skip_taskbar = true;
     settings.reserve_side = true;
     settings.reserve_bottom = config->taskbar_height;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
 
     ScreenInformation *primary_screen_info = nullptr;
     for (auto s: screens) {

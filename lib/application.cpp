@@ -664,6 +664,18 @@ client_new(App *app, Settings settings, const std::string &name) {
                               settings.reserve_bottom);
     }
 
+    if (settings.slide) {
+        xcb_atom_t atom = get_cached_atom(app, "_KDE_SLIDE");
+        xcb_change_property(app->connection,
+                            XCB_PROP_MODE_REPLACE,
+                            window,
+                            atom,
+                            atom,
+                            32,
+                            5,
+                            &settings.slide_data);
+    }
+
     // Set the WM_CLASS
     auto set_wm_class_cookie = xcb_icccm_set_wm_class_checked(app->connection, window,
                                                               name.length(), name.c_str());

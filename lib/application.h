@@ -41,6 +41,15 @@ struct Settings {
     uint32_t reserve_top = 0;
     uint32_t reserve_bottom = 0;
 
+    bool slide = false;
+    // From: https://github.com/droidian/kwin/blob/15736367f6f533b075094e8ab384ee3b948f4cb9/effects/slidingpopups/slidingpopups.cpp
+    // [1] Offset amount of pixels which are left empty at the beginning of the animation, and which return at the end
+    // [2] Where the window comes from: 0 = Left, 1 = Top, 2 = Right, 3 = Bottom
+    // [3] Animation-in duration in milliseconds
+    // [4] Animation-out duration in milliseconds
+    // [5] Start fading window after duration in milliseconds
+    int slide_data[5] = {-1, 3, 160, 100, 80};
+
     bool skip_taskbar = false;
     bool no_input_focus = false;
     bool dock = false;

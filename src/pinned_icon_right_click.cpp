@@ -536,6 +536,12 @@ void start_pinned_icon_right_click(Container *container) {
     settings.force_position = true;
     settings.skip_taskbar = true;
     settings.popup = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 100;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 50;
 
     AppClient *client = client_new(app, settings, "right_click_menu");
     client->grab_event_handler = grab_event_handler;

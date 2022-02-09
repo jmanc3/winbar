@@ -304,6 +304,12 @@ void show_notification(App *app, NotificationInfo *ni) {
     settings.sticky = true;
     settings.skip_taskbar = true;
     settings.keep_above = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 2;
+    settings.slide_data[2] = 180;
+    settings.slide_data[3] = 180;
+    settings.slide_data[4] = 170;
 
     auto client = client_new(app, settings, "winbar_notification_" + std::to_string(ni->id));
     xcb_atom_t atom = get_cached_atom(app, "_NET_WM_WINDOW_TYPE_NOTIFICATION");

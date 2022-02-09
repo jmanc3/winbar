@@ -391,6 +391,12 @@ void open_systray() {
     settings.no_input_focus = false;
     settings.popup = true;
     settings.background = argb_to_color(config->color_systray_background);
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
 
     display = client_new(app, settings, "display");
     display->grab_event_handler = grab_event_handler;

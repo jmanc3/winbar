@@ -1084,6 +1084,12 @@ void start_date_menu() {
     settings.force_position = true;
     settings.sticky = true;
     settings.popup = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
 
     AppClient *client = client_new(app, settings, "date_menu");
     client->grab_event_handler = grab_event_handler;
