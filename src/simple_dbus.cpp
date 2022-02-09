@@ -910,3 +910,60 @@ void dbus_end() {
     dbus_connection_unref(dbus_connection);
     dbus_connection = nullptr;
 }
+
+/*************************************************
+ *
+ * Implementation of StatusNotifierItem https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/
+ *
+ *************************************************/
+
+static const char *status_notifier_watcher_introspection_xml =
+        "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\" \"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
+        "<node>\n"
+        "  <interface name=\"org.kde.StatusNotifierWatcher\">\n"
+        "\n"
+        "    <!-- methods -->\n"
+        "    <method name=\"RegisterStatusNotifierItem\">\n"
+        "       <arg name=\"service\" type=\"s\" direction=\"in\"/>\n"
+        "    </method>\n"
+        "\n"
+        "    <method name=\"RegisterStatusNotifierHost\">\n"
+        "       <arg name=\"service\" type=\"s\" direction=\"in\"/>\n"
+        "    </method>\n"
+        "\n"
+        "\n"
+        "    <!-- properties -->\n"
+        "\n"
+        "    <property name=\"RegisteredStatusNotifierItems\" type=\"as\" access=\"read\">\n"
+        "       <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QStringList\"/>\n"
+        "    </property>\n"
+        "\n"
+        "    <property name=\"IsStatusNotifierHostRegistered\" type=\"b\" access=\"read\"/>\n"
+        "\n"
+        "    <property name=\"ProtocolVersion\" type=\"i\" access=\"read\"/>\n"
+        "\n"
+        "\n"
+        "    <!-- signals -->\n"
+        "\n"
+        "    <signal name=\"StatusNotifierItemRegistered\">\n"
+        "        <arg type=\"s\"/>\n"
+        "    </signal>\n"
+        "\n"
+        "    <signal name=\"StatusNotifierItemUnregistered\">\n"
+        "        <arg type=\"s\"/>\n"
+        "    </signal>\n"
+        "\n"
+        "    <signal name=\"StatusNotifierHostRegistered\">\n"
+        "    </signal>\n"
+        "\n"
+        "    <signal name=\"StatusNotifierHostUnregistered\">\n"
+        "    </signal>\n"
+        "  </interface>\n"
+        "  <interface name=\"org.freedesktop.DBus.Introspectable\">"
+        "      <method name=\"Introspect\">"
+        "          <arg direction=\"out\" name=\"xml_data\"    type=\"s\"/>"
+        "      </method>"
+        "  </interface>"
+        "</node>";
+
+

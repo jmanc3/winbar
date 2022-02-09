@@ -42,7 +42,7 @@ int main() {
 
     // We need to register as the systray
 //#ifdef NDEBUG
-    start_systray();
+    register_as_systray();
 //#endif
 
     // Open our windows

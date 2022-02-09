@@ -1981,6 +1981,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
 
     int settime_success = timerfd_settime(timeout_file_descriptor, 0, &time, nullptr);
     if (settime_success != 0) { // error with timerfd_settime
+        delete timeout;
         return nullptr;
     }
 

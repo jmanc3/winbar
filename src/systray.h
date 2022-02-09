@@ -8,7 +8,7 @@
 #include <vector>
 #include <xcb/xproto.h>
 
-void start_systray();
+void register_as_systray();
 
 void open_systray();
 
