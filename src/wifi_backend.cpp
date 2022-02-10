@@ -54,10 +54,11 @@ void wifi_wpa_has_message(App *app, int fd) {
 }
 
 bool wifi_wpa_start(App *app) {
-    wifi_data->wpa_message_sender = wpa_ctrl_open(get_default_wifi_interface().data());
+    std::string wpa_supplicant_path = "/var/run/wpa_supplicant/" + get_default_wifi_interface();
+    wifi_data->wpa_message_sender = wpa_ctrl_open(wpa_supplicant_path.data());
     if (!wifi_data->wpa_message_sender)
         return false;
-    wifi_data->wpa_message_listener = wpa_ctrl_open(get_default_wifi_interface().data());
+    wifi_data->wpa_message_listener = wpa_ctrl_open(wpa_supplicant_path.data());
     if (!wifi_data->wpa_message_listener)
         return false;
     if (wpa_ctrl_attach(wifi_data->wpa_message_listener) != 0)
