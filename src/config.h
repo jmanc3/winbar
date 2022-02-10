@@ -24,8 +24,6 @@ struct Config {
 
     bool date_single_line = false;
 
-    std::string interface = "wlp7s0";
-
     ArgbColor color_taskbar_background = ArgbColor("#dd101010");
     ArgbColor color_taskbar_button_icons = ArgbColor("#ffffffff");
     ArgbColor color_taskbar_button_default = ArgbColor("#00ffffff");

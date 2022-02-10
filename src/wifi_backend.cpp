@@ -6,6 +6,7 @@
 
 #include <wpa_ctrl.h>
 #include <sstream>
+#include <utility.h>
 
 struct WifiData {
     int type = 0; // 0 will be nothing, 1 wpa_supplicant, 2 NetworkManager eventually
@@ -52,12 +53,11 @@ void wifi_wpa_has_message(App *app, int fd) {
     }
 }
 
-// TODO: wlp7s0 is hardcoded we need to check the folder instead
 bool wifi_wpa_start(App *app) {
-    wifi_data->wpa_message_sender = wpa_ctrl_open("/var/run/wpa_supplicant/wlp7s0");
+    wifi_data->wpa_message_sender = wpa_ctrl_open(get_default_wifi_interface().data());
     if (!wifi_data->wpa_message_sender)
         return false;
-    wifi_data->wpa_message_listener = wpa_ctrl_open("/var/run/wpa_supplicant/wlp7s0");
+    wifi_data->wpa_message_listener = wpa_ctrl_open(get_default_wifi_interface().data());
     if (!wifi_data->wpa_message_listener)
         return false;
     if (wpa_ctrl_attach(wifi_data->wpa_message_listener) != 0)
@@ -240,4 +240,103 @@ void wifi_forget_network(ScanResult scanResult) {
                          buf, &len, NULL) != 0) {
         return;
     }
+}
+
+std::string exec(const char *cmd) {
+    std::array<char, 6000> buffer{};
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
+}
+
+static std::string get_default_wifi_interface() {
+    static long previous_cache_time = 0; // only set to 0 the first time this function is called because of: "static"
+    static std::string cached_interface;
+
+    long current_time = get_current_time_in_ms();
+    if (current_time - previous_cache_time > 1000 * 60 * 5) { // Re-cache Wifi interface every five minutes
+        previous_cache_time = current_time;
+
+        { // Try to use legacy "route" to find default interface
+            std::vector<std::string> lines;
+
+            std::string response = exec("route");
+            auto response_stream = std::stringstream{response};
+            for (std::string line; std::getline(response_stream, line, '\n');)
+                lines.push_back(line);
+
+            if (!lines.empty()) {
+                int header_line = 0;
+                for (int i = 0; i < lines.size(); i++) {
+                    if (lines[i].rfind("Destination", 0) == 0) {
+                        header_line = i;
+                        break;
+                    }
+                }
+
+                std::string buf;
+                auto header = lines[header_line];
+                auto header_stream = std::stringstream{header};
+                std::vector<std::string> header_order;
+                while (header_stream >> buf)
+                    header_order.push_back(buf);
+
+                for (int i = (header_line + 1); i < lines.size(); i++) {
+                    auto line = lines[i];
+                    auto line_stream = std::stringstream{line};
+                    int x = 0;
+                    bool default_line_found = false;
+
+                    while (line_stream >> buf) {
+                        if (header_order[x] == "Destination") {
+                            if (buf == "default")
+                                default_line_found = true;
+                        } else if (header_order[x] == "Iface") {
+                            if (default_line_found) {
+                                cached_interface = buf;
+                                return cached_interface;
+                            }
+                        }
+                        x++;
+                    }
+                }
+            }
+        }
+
+        { // Try to use "ip" to find default interface
+            std::vector<std::string> lines;
+
+            std::string response = exec("ip route");
+            auto response_stream = std::stringstream{response};
+            for (std::string line; std::getline(response_stream, line, '\n');)
+                lines.push_back(line);
+
+            std::string buf;
+            if (!lines.empty()) {
+                for (const auto &line: lines) {
+                    auto line_stream = std::stringstream{line};
+                    int x = 0;
+                    bool default_line_found = false;
+
+                    while (line_stream >> buf) {
+                        if (x == 0 && buf == "default")
+                            default_line_found = true;
+                        if (x == 4 && default_line_found) {
+                            cached_interface = buf;
+                            return cached_interface;
+                        }
+                        x++;
+                    }
+                }
+            }
+        }
+    }
+
+    return cached_interface;
 }

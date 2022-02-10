@@ -59,8 +59,6 @@ void config_load() {
 
     success = cfg.lookupValue("date_single_line", config->date_single_line);
 
-    success = cfg.lookupValue("interface", config->interface);
-
     std::string active_theme_name;
     success = cfg.lookupValue("active_theme_name", active_theme_name);
 

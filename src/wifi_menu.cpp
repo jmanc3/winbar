@@ -297,7 +297,7 @@ void uncached_scan_results(std::vector<ScanResult> &results) {
 
 void wifi_state(bool *up, bool *wired) {
     std::string status = "down";
-    std::ifstream status_file("/sys/class/net/" + std::string(config->interface) + "/operstate");
+    std::ifstream status_file("/sys/class/net/" + get_default_wifi_interface() + "/operstate");
     if (status_file.is_open()) {
         std::string line;
         if (getline(status_file, line)) {
@@ -309,7 +309,7 @@ void wifi_state(bool *up, bool *wired) {
     *up = status == "up";
 
     // Wireless interfaces are prefixed with wlp
-    *wired = std::string::npos == config->interface.find("wlp");
+    *wired = std::string::npos == get_default_wifi_interface().find("wlp");
 }
 
 double map(double x, double in_min, double in_max, double out_min, double out_max) {
