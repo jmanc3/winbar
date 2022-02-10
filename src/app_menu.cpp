@@ -1146,6 +1146,17 @@ static std::optional<int> ends_with(const char *str, const char *suffix) {
     return lenstr - lensuffix;
 }
 
+void eraseAllSubStr(std::string &mainStr, const std::string &toErase) {
+    size_t pos = std::string::npos;
+    while ((pos = mainStr.find(toErase)) != std::string::npos) {
+        mainStr.erase(pos, toErase.length());
+    }
+}
+
+void eraseSubStrings(std::string &mainStr, const std::vector<std::string> &strList) {
+    std::for_each(strList.begin(), strList.end(), std::bind(eraseAllSubStr, std::ref(mainStr), std::placeholders::_1));
+}
+
 void load_desktop_files(std::string directory) {
     auto c = getenv("XDG_CURRENT_DESKTOP");
     std::string paths;
@@ -1214,11 +1225,9 @@ void load_desktop_files(std::string directory) {
                 }
             }
 
-            // Remove everything after the first space found in the exec line
-            int white_space_position;
-            if (std::string::npos != (white_space_position = exec.find(" "))) {
-                exec.erase(white_space_position);
-            }
+            // Remove all field codes
+            // https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
+            eraseSubStrings(exec, {"%f", "%F", "%u", "%U", "%d", "%D", "%n", "%N", "%i", "%c", "%k", "%v", "%m"});
 
             if (name.empty())// If no name was set, just give it the exec name
                 name = exec;
@@ -1259,6 +1268,10 @@ void load_all_desktop_files() {
     std::string local_desktop_files = getenv("HOME");
     local_desktop_files += "/.local/share/applications/";
     load_desktop_files(local_desktop_files);
+    load_desktop_files("/var/lib/flatpak/exports/share/applications/");
+    std::string local_flatpak_files = getenv("HOME");
+    local_flatpak_files += "/.local/share/flatpak/exports/share/applications/";
+    load_desktop_files(local_flatpak_files);
 
     time_t now;
     time(&now);
