@@ -127,9 +127,7 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
 void meta_pressed() {
     // printf("open or close search app lister and set main_text_area active\n");
     std::lock_guard lock(app->clients_mutex);
-    AppClient *client = client_by_name(app, "app_menu");
-    bool already_open = client != nullptr;
-    if (already_open) {
+    if (auto client = client_by_name(app, "app_menu")) {
         client_close(app, client);
         set_textarea_inactive();
     } else {

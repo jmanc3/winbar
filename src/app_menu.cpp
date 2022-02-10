@@ -660,13 +660,17 @@ when_key_event(AppClient *client,
 
     if (is_string) {
         client_close(app, app_menu_client);
-        xcb_flush(app->connection);
         app->grab_window = -1;
+        xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->grab_window, XCB_MOD_MASK_ANY);
+        xcb_flush(app->connection);
         xcb_aux_sync(app->connection);
+
+        set_textarea_active();
         start_search_menu();
         if (auto *c = client_by_name(app, "search_menu")) {
             send_key_actual(app, c, c->root, is_string, keysym, string, mods, direction);
         }
+        set_textarea_active();
     } else if (keysym == XKB_KEY_Escape) {
         client_close(app, app_menu_client);
         xcb_flush(app->connection);
@@ -1297,6 +1301,8 @@ void load_all_desktop_files() {
 }
 
 void start_app_menu() {
+    scrollbar_openess = 0;
+    scrollbar_visible = 0;
     if (auto *c = client_by_name(app, "search_menu")) {
         client_close(app, c);
     }
@@ -1330,6 +1336,9 @@ void start_app_menu() {
     settings.slide_data[4] = 80;
 
     AppClient *client = client_new(app, settings, "app_menu");
+    xcb_set_input_focus(app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
+    xcb_flush(app->connection);
+    xcb_aux_sync(app->connection);
     client->grab_event_handler = grab_event_handler;
     client->when_closed = app_menu_closed;
     app_create_custom_event_handler(app, client->window, app_menu_event_handler);

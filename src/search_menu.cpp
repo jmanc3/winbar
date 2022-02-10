@@ -1630,14 +1630,11 @@ void start_search_menu() {
         settings.y = taskbar->bounds->y - settings.h;
     }
     settings.popup = true;
-    settings.slide = true;
-    settings.slide_data[0] = -1;
-    settings.slide_data[1] = 3;
-    settings.slide_data[2] = 160;
-    settings.slide_data[3] = 100;
-    settings.slide_data[4] = 80;
 
     AppClient *client = client_new(app, settings, "search_menu");
+    xcb_set_input_focus(app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
+    xcb_flush(app->connection);
+    xcb_aux_sync(app->connection);
     client->grab_event_handler = grab_event_handler;
     client->when_closed = search_menu_when_closed;
     fill_root(client);
