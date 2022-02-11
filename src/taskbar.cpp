@@ -998,30 +998,24 @@ scrolled_volume(AppClient *client_entity,
         volume_open_because_of_scroll = true;
     }
 
-    Audio_Client *client = nullptr;
     for (auto c: audio_clients) {
         if (c->is_master_volume()) {
-            client = c;
-            break;
-        }
-    }
-    if (!client)
-        return;
+            double new_volume = c->get_volume() + (.05 * vertical_scroll) + (.05 * -horizontal_scroll);
+            if (new_volume < 0) {
+                new_volume = 0;
+            } else if (new_volume > 1) {
+                new_volume = 1;
+            }
 
-    double new_volume = client->get_volume() + (.05 * vertical_scroll) + (.05 * -horizontal_scroll);
-    if (new_volume < 0) {
-        new_volume = 0;
-    } else if (new_volume > 1) {
-        new_volume = 1;
-    }
+            if (new_volume != c->get_volume()) {
+                if (c->is_muted())
+                    c->set_mute(false);
 
-    if (new_volume != client->get_volume()) {
-        if (client->is_muted())
-            client->set_mute(false);
-
-        client->set_volume(new_volume);
-        if (client->is_master_volume()) {
-            update_volume_menu();
+                c->set_volume(new_volume);
+                if (c->is_master_volume()) {
+                    update_volume_menu();
+                }
+            }
         }
     }
 }
