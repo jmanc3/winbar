@@ -41,6 +41,10 @@ void config_load() {
     if (!success)
         return;
 
+    config->found_config = true;
+
+    success = cfg.lookupValue("version", config->config_version);
+
     success = cfg.lookupValue("taskbar_height", config->taskbar_height);
 
     success = cfg.lookupValue("starting_tab_index", config->starting_tab_index);

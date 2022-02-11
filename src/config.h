@@ -6,6 +6,10 @@
 #include <vector>
 
 struct Config {
+    bool found_config = false;
+
+    int config_version = 0;
+
     int taskbar_height = 40;
 
     int starting_tab_index = 0;
