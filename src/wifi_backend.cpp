@@ -261,7 +261,10 @@ std::string get_default_wifi_interface() {
     static std::string cached_interface;
 
     long current_time = get_current_time_in_ms();
-    if (current_time - previous_cache_time > 1000 * 60 * 5) { // Re-cache Wifi interface every five minutes
+    int cache_timeout = 1000 * 60 * 5;
+    if (current_time - program_start_time < 1000 * 60)
+        cache_timeout = 2000;
+    if (current_time - previous_cache_time > cache_timeout) { // Re-cache Wifi interface every five minutes
         previous_cache_time = current_time;
 
         { // Try to use legacy "route" to find default interface

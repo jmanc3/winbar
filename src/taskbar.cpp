@@ -2495,6 +2495,7 @@ create_taskbar(App *app) {
 
     // Lay it out
     fill_root(app, taskbar, taskbar->root);
+    update_time(app, taskbar, nullptr, nullptr);
     update_active_window();
 
     load_pinned_icons();
