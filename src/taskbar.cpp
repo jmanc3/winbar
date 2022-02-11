@@ -729,7 +729,7 @@ finished_icon_animation() {
 
 static void
 icons_align(AppClient *client_entity, Container *icon_container, bool all_except_dragged) {
-    update_pinned_items_file();
+    update_pinned_items_file(false);
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1732,10 +1732,10 @@ make_battery_button(Container *parent, AppClient *client_entity) {
         if (getline(capacity, line)) {
             if (line != "UPS") {
                 parent->children.push_back(c);
-                app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data, false);
+                app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data);
                 update_battery_status_timeout(app, client_entity, nullptr, data);
 
-                app_timeout_create(app, client_entity, 1200, update_battery_animation_timeout, data, false);
+                app_timeout_create(app, client_entity, 1200, update_battery_animation_timeout, data);
             } else {
                 delete c;
             }
@@ -1784,7 +1784,7 @@ clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
             } else if (s == "org.gnome.Shell") {
                 // On Gnome try to show the overview screen
                 if (dbus_gnome_show_overview()) {
-                    app_timeout_create(app, client_entity, 100, gnome_stuck_mouse_state_fix, nullptr, false);
+                    app_timeout_create(app, client_entity, 100, gnome_stuck_mouse_state_fix, nullptr);
                     return;
                 }
             }
@@ -1994,8 +1994,8 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_date->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_date->name = "date";
 
-    app_timeout_create(app, client, 1000, update_time, nullptr, false);
-    app_timeout_create(app, client, 10000, late_classes_update, nullptr, false);
+    app_timeout_create(app, client, 1000, update_time, nullptr);
+    app_timeout_create(app, client, 10000, late_classes_update, nullptr);
 
     button_action_center->when_paint = paint_action_center;
     auto action_center_data = new ActionCenterButtonData;
@@ -2023,6 +2023,7 @@ load_pinned_icons();
 static int inotify_fd = -1;
 static int inotify_status_fd = -1;
 static int inotify_capacity_fd = -1;
+static Timeout *pinned_timeout = nullptr;
 
 static void
 when_taskbar_closed(AppClient *client) {
@@ -2030,6 +2031,8 @@ when_taskbar_closed(AppClient *client) {
     inotify_fd = -1;
     inotify_status_fd = -1;
     inotify_capacity_fd = -1;
+    update_pinned_items_file(true);
+    pinned_timeout = nullptr;
 }
 
 static bool
@@ -2491,7 +2494,7 @@ create_taskbar(App *app) {
 
     app_create_custom_event_handler(app, taskbar->window, taskbar_event_handler);
     app_create_custom_event_handler(app, INT_MAX, window_event_handler);
-    app_timeout_create(app, taskbar, 500, screenshot_active_window, nullptr, false);
+    app_timeout_create(app, taskbar, 500, screenshot_active_window, nullptr);
 
     // Lay it out
     fill_root(app, taskbar, taskbar->root);
@@ -2829,7 +2832,7 @@ void add_window(App *app, xcb_window_t window) {
     }
 
     update_minimize_icon_positions();
-    update_pinned_items_file();
+    update_pinned_items_file(false);
 
     client_layout(app, client);
     request_refresh(app, client);
@@ -2912,7 +2915,7 @@ void remove_window(App *app, xcb_window_t window) {
     //        }
     //    }
 
-    update_pinned_items_file();
+    update_pinned_items_file(false);
     icons_align(entity, icons, false);
     request_refresh(app, entity);
 }
@@ -2992,7 +2995,7 @@ void remove_non_pinned_icons() {
                                          }),
                           icons->children.end());
 
-    update_pinned_items_file();
+    update_pinned_items_file(false);
     icons_align(client_entity, icons, false);
 }
 
@@ -3000,10 +3003,8 @@ void remove_non_pinned_icons() {
 #include <sys/stat.h>
 #include <xcb/xcb_aux.h>
 
-/**
- * Save the pinned items to a file on disk so we can load them on the next session
- */
-void update_pinned_items_file() {
+void update_pinned_items_timeout(App *app, AppClient *client, Timeout *timeout, void *user_data) {
+    pinned_timeout = nullptr;
     const char *home = getenv("HOME");
     std::string itemsPath(home);
     itemsPath += "/.config/";
@@ -3025,8 +3026,10 @@ void update_pinned_items_file() {
     }
 
     itemsPath += "items.ini";
+    std::string itemsPathTemp = itemsPath;
+    itemsPathTemp += ".temp";
 
-    std::ofstream itemsFile(itemsPath);
+    std::ofstream itemsFile(itemsPathTemp);
 
     if (!itemsFile.is_open())
         return;
@@ -3076,6 +3079,23 @@ void update_pinned_items_file() {
     }
 
     itemsFile.close();
+
+    rename(itemsPathTemp.data(), itemsPath.data());
+}
+
+/**
+ * Save the pinned items to a file on disk so we can load them on the next session
+ */
+void update_pinned_items_file(bool force_update) {
+    if (auto client = client_by_name(app, "taskbar")) {
+        if (force_update) {
+            update_pinned_items_timeout(app, client, nullptr, nullptr);
+        } else if (pinned_timeout == nullptr) {
+            pinned_timeout = app_timeout_create(app, client, 1000, update_pinned_items_timeout, nullptr);
+        } else {
+            app_timeout_replace(app, client, pinned_timeout, 1000, update_pinned_items_timeout, nullptr);
+        }
+    }
 }
 
 static void

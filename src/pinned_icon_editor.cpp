@@ -243,7 +243,7 @@ static void clicked_save_and_quit(AppClient *client, cairo_t *cr, Container *con
     pinned_icon_data->class_name = wm_field_data->state->text;
     pinned_icon_data->icon_name = icon_field_data->state->text;
     client_close_threaded(client->app, client);
-    update_pinned_items_file();
+    update_pinned_items_file(false);
 
     update_pinned_items_icon();
 }

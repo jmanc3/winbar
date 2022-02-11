@@ -257,6 +257,7 @@ std::string exec(const char *cmd) {
 }
 
 std::string get_default_wifi_interface() {
+    static long program_start_time = get_current_time_in_ms();
     static long previous_cache_time = 0; // only set to 0 the first time this function is called because of: "static"
     static std::string cached_interface;
 

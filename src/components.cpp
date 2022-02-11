@@ -128,9 +128,9 @@ mouse_down_thread(App *app, AppClient *client, Timeout *, void *data) {
                                         target->scroll_v_real,
                                         true);
 
-            app_timeout_create(app, client, scroll_anim_time * 3, mouse_down_thread, mouse_info, false);
+            app_timeout_create(app, client, scroll_anim_time * 3, mouse_down_thread, mouse_info);
         } else {
-            app_timeout_create(app, client, scroll_anim_time, mouse_down_thread, mouse_info, false);
+            app_timeout_create(app, client, scroll_anim_time, mouse_down_thread, mouse_info);
         }
     } else {
         delete mouse_info;
@@ -168,7 +168,7 @@ mouse_down_arrow_up(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = new MouseDownInfo;
     data->container = container;
     data->vertical_change = scroll_amount;
-    app_timeout_create(client->app, client, 400, mouse_down_thread, data, false);
+    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
 }
 
 static void
@@ -202,7 +202,7 @@ mouse_down_arrow_bottom(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = new MouseDownInfo;
     data->container = container;
     data->vertical_change = -scroll_amount;
-    app_timeout_create(client->app, client, 400, mouse_down_thread, data, false);
+    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
 }
 
 static void
@@ -236,7 +236,7 @@ mouse_down_arrow_left(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = new MouseDownInfo;
     data->container = container;
     data->horizontal_change = scroll_amount;
-    app_timeout_create(client->app, client, 400, mouse_down_thread, data, false);
+    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
 }
 
 static void
@@ -270,7 +270,7 @@ mouse_down_arrow_right(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = new MouseDownInfo;
     data->container = container;
     data->horizontal_change = -scroll_amount;
-    app_timeout_create(client->app, client, 400, mouse_down_thread, data, false);
+    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
 }
 
 static void
@@ -1058,7 +1058,7 @@ drag_timeout(App *app, AppClient *client, Timeout *, void *data) {
                                     content_area->scroll_v_real,
                                     true);
 
-        app_timeout_create(client->app, client, scroll_anim_time, drag_timeout, container, false);
+        app_timeout_create(client->app, client, scroll_anim_time, drag_timeout, container);
     } else {
         request_refresh(app, client);
     }
@@ -1090,7 +1090,7 @@ drag_start_textarea(AppClient *client, cairo_t *cr, Container *container) {
             pango_layout_xy_to_index(layout, x * PANGO_SCALE, y * PANGO_SCALE, &index, &trailing);
 
     dragging = true;
-    app_timeout_create(client->app, client, 0, drag_timeout, container, false);
+    app_timeout_create(client->app, client, 0, drag_timeout, container);
     blink_on(client->app, client, container);
 
     auto cookie = xcb_xkb_get_state(client->app->connection, client->keyboard->device_id);
@@ -1836,8 +1836,7 @@ blink_on(App *app, AppClient *client, void *textarea) {
     auto *data = (TextAreaData *) container->user_data;
 
     if (data->state->cursor_blink == nullptr) {
-        data->state->cursor_blink = app_timeout_create(app, client, CURSOR_BLINK_ON_TIME, blink_loop, textarea,
-                                                       false);
+        data->state->cursor_blink = app_timeout_create(app, client, CURSOR_BLINK_ON_TIME, blink_loop, textarea);
     } else {
         app_timeout_replace(app, client, data->state->cursor_blink,
                             CURSOR_BLINK_ON_TIME, blink_loop, textarea);
@@ -1853,7 +1852,7 @@ blink_loop(App *app, AppClient *client, Timeout *, void *textarea) {
 
     float cursor_blink_time = data->state->cursor_on ? CURSOR_BLINK_OFF_TIME : CURSOR_BLINK_ON_TIME;
 
-    data->state->cursor_blink = app_timeout_create(app, client, cursor_blink_time, blink_loop, textarea, false);
+    data->state->cursor_blink = app_timeout_create(app, client, cursor_blink_time, blink_loop, textarea);
 
     data->state->cursor_on = !data->state->cursor_on;
     request_refresh(app, client);
@@ -2038,7 +2037,7 @@ void paint_transition(AppClient *client, cairo_t *cr, Container *container) {
                              data->replacement_anim);
 
     if (data->transition_scalar >= 1) {
-        app_timeout_create(client->app, client, 0, layout_and_repaint, container, false);
+        app_timeout_create(client->app, client, 0, layout_and_repaint, container);
     }
 }
 

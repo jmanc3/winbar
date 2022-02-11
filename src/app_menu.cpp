@@ -476,7 +476,7 @@ when_scrollbar_mouse_leaves_slow(AppClient *client, cairo_t *cr, Container *cont
     ZoneScoped;
 #endif
     if (scrollbar_leave_fd == nullptr) {
-        scrollbar_leave_fd = app_timeout_create(app, client, 3000, scrollbar_leaves_timeout, container, false);
+        scrollbar_leave_fd = app_timeout_create(app, client, 3000, scrollbar_leaves_timeout, container);
     } else {
         app_timeout_replace(app, client, scrollbar_leave_fd, 3000, scrollbar_leaves_timeout, container);
     }
@@ -504,7 +504,7 @@ left_open(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     if (left_open_fd == nullptr) {
-        left_open_fd = app_timeout_create(client->app, client, 160, left_open_timeout, container, false);
+        left_open_fd = app_timeout_create(client->app, client, 160, left_open_timeout, container);
     } else {
         app_timeout_replace(client->app, client, left_open_fd, 160, left_open_timeout, container);
     }

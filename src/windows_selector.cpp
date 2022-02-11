@@ -90,8 +90,7 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
         } else {
             // start timeout
             if (data->possibly_open_timeout == nullptr) {
-                data->possibly_open_timeout = app_timeout_create(app, nullptr, 300, on_open_timeout, container,
-                                                                 false);
+                data->possibly_open_timeout = app_timeout_create(app, nullptr, 300, on_open_timeout, container);
             }
         }
     }
@@ -129,7 +128,7 @@ void possibly_close(App *app, Container *container, LaunchableButton *data) {
 
     if (we_are == selector_type::OPEN_HOVERED) {
         if (data->possibly_stop_timeout == nullptr) {
-            data->possibly_stop_timeout = app_timeout_create(app, nullptr, 300, on_close_timeout, container, false);
+            data->possibly_stop_timeout = app_timeout_create(app, nullptr, 300, on_close_timeout, container);
         }
     }
 }

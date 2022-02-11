@@ -421,5 +421,5 @@ display_close() {
 #endif
     app->grab_window = 0;
     xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
-    app_timeout_create(app, nullptr, 100, display_close_timeout, nullptr, false);
+    app_timeout_create(app, nullptr, 100, display_close_timeout, nullptr);
 }

@@ -249,7 +249,7 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
                 cairo_surface_write_to_png(pinned_icon_data->surface, itemPath.c_str());
             }
 
-            update_pinned_items_file();
+            update_pinned_items_file(false);
 
             if (config->open_pinned_icon_editor == "ALWAYS") {
                 start_pinned_icon_editor(pinned_icon_container);

@@ -151,7 +151,7 @@ void active_window_changed(xcb_window_t new_active_window);
 
 void remove_non_pinned_icons();
 
-void update_pinned_items_file();
+void update_pinned_items_file(bool force_update);
 
 void update_pinned_items_icon();
 

@@ -90,8 +90,6 @@ struct Timeout {
     bool keep_running = false;
 
     bool kill = false;
-
-    bool is_mouse_motion = false;
 };
 
 struct PolledDescriptor {
@@ -261,8 +259,7 @@ Timeout *app_timeout_replace(App *app, AppClient *client, Timeout *timeout, floa
 
 Timeout *
 app_timeout_create(App *app, AppClient *client, float timeout_ms,
-                   void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data,
-                   bool is_mouse_motion);
+                   void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data);
 
 bool app_timeout_stop(App *app,
                       AppClient *client,

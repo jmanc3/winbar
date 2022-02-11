@@ -1100,7 +1100,7 @@ void start_date_menu() {
 
     if (!time_update_thread_updated) {
         time_update_thread_updated = true;
-        app_timeout_create(app, client, 500, paint_date_menu, nullptr, false);
+        app_timeout_create(app, client, 500, paint_date_menu, nullptr);
     }
 
     read_agenda_from_disk(client);

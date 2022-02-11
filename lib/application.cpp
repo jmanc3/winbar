@@ -871,7 +871,7 @@ void client_register_animation(App *app, AppClient *client) {
         float fps = client->fps;
         if (fps != 0)
             fps = 1000 / fps;
-        app_timeout_create(app, client, fps, client_animation_paint, nullptr, false);
+        app_timeout_create(app, client, fps, client_animation_paint, nullptr);
     }
     client->animations_running++;
 }
@@ -1272,7 +1272,7 @@ void handle_mouse_motion(App *app) {
         float fps = client->motion_events_per_second;
         if (fps != 0)
             fps = 1000 / fps;
-        client->motion_event_timeout = app_timeout_create(app, client, fps, mouse_motion_timeout, nullptr, true);
+        client->motion_event_timeout = app_timeout_create(app, client, fps, mouse_motion_timeout, nullptr);
 
         handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
         client_paint(app, client, true);
@@ -1947,8 +1947,7 @@ Timeout *app_timeout_replace(App *app,
 
 Timeout *
 app_timeout_create(App *app, AppClient *client, float timeout_ms,
-                   void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data,
-                   bool is_mouse_motion) {
+                   void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data) {
     assert(app != nullptr);
     if (!app->running)
         return nullptr;
@@ -1971,7 +1970,6 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
     timeout->user_data = user_data;
     timeout->keep_running = false;
     timeout->kill = false;
-    timeout->is_mouse_motion = is_mouse_motion;
     app->timeouts.emplace_back(timeout);
 
     struct itimerspec time = {0};
