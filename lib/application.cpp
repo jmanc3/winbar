@@ -1680,9 +1680,6 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
 
 void handle_xcb_event(App *app) {
     assert(app != nullptr && app->running);
-    // TODO: this is literally only here because the meta watcher is another thread and needs to be able to sync back up
-    //  we should try to get rid of this mutex
-    std::lock_guard lock(app->clients_mutex);
 
     while ((event = xcb_poll_for_event(app->connection)) != nullptr) {
         if (auto window = get_window(event)) {

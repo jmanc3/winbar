@@ -107,10 +107,6 @@ struct App {
 
     Bounds bounds;// these are the bounds of the entire screen
 
-    // TODO: each client_entity should have its own mutex rather than locking all
-    // clients
-    std::mutex clients_mutex;
-
     std::vector<AppClient *> clients;
 
     std::vector<Handler *> handlers;
@@ -158,22 +154,6 @@ void init_client(AppClient *client);
 void destroy_client(AppClient *client);
 
 bool valid_client(App *app, AppClient *target_client);
-
-/**
- * If you're calling any of the functions below after calling app_main (from
- * another thread for instance) make sure to get a lock on the clients_mutex to
- * stay thread safe like so:
- *
- *     std::lock_guard g(app->clients_mutex);
- * or:
- *
- *     std::unique_lock g(app->clients_mutex);
- *
- * Also, you are free to call these functions from callbacks set on containers
- * by you except from when_paint callbacks. You're asking for trouble if you try
- * to do anything but paint from there.
- *
- */
 
 void handle_xcb_event(App *app, std::vector<xcb_window_t> *windows);
 

@@ -124,15 +124,17 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
     return false;
 }
 
-void meta_pressed() {
-    // printf("open or close search app lister and set main_text_area active\n");
-    std::lock_guard lock(app->clients_mutex);
+void meta_timeout(App *app, AppClient *, Timeout *, void *user_data) {
     if (auto client = client_by_name(app, "app_menu")) {
         client_close(app, client);
         set_textarea_inactive();
     } else {
         start_app_menu();
     }
+}
+
+void meta_pressed() {
+    app_timeout_create(app, nullptr, 0, meta_timeout, nullptr);
 }
 
 std::thread *t = nullptr;

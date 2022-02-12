@@ -278,31 +278,31 @@ void on_sink_input_info_list_response(pa_context *c,
     audio_clients.push_back(audio_client);
 }
 
+void change_in_audio(App *, AppClient *, Timeout *, void *) {
+    pa_threaded_mainloop_lock(audio_backend_data->mainloop);
+    pa_operation *pa_op = pa_context_get_sink_input_info_list(
+            audio_backend_data->context, on_sink_input_info_list_response, NULL);
+    if (!pa_op) return;
+    while (pa_operation_get_state(pa_op) == PA_OPERATION_RUNNING)
+        pa_threaded_mainloop_wait(audio_backend_data->mainloop);
+    pa_operation_unref(pa_op);
+    pa_threaded_mainloop_unlock(audio_backend_data->mainloop);
+
+    pa_op = nullptr;
+    pa_threaded_mainloop_lock(audio_backend_data->mainloop);
+    pa_op = pa_context_get_sink_info_list(audio_backend_data->context, on_output_list_response, NULL);
+    if (!pa_op) return;
+    while (pa_operation_get_state(pa_op) == PA_OPERATION_RUNNING)
+        pa_threaded_mainloop_wait(audio_backend_data->mainloop);
+    pa_operation_unref(pa_op);
+    pa_threaded_mainloop_unlock(audio_backend_data->mainloop);
+
+    if (audio_backend_data->callback)
+        audio_backend_data->callback();
+}
+
 void subscribe_cb(pa_context *c, pa_subscription_event_type_t t, uint32_t index, void *userdata) {
-    std::thread thread([userdata]() -> void {
-        pa_threaded_mainloop_lock(audio_backend_data->mainloop);
-
-        pa_operation *pa_op = pa_context_get_sink_input_info_list(
-                audio_backend_data->context, on_sink_input_info_list_response, NULL);
-        assert(pa_op);
-        while (pa_operation_get_state(pa_op) == PA_OPERATION_RUNNING)
-            pa_threaded_mainloop_wait(audio_backend_data->mainloop);
-        pa_operation_unref(pa_op);
-
-        pa_op = pa_context_get_sink_info_list(audio_backend_data->context, on_output_list_response, NULL);
-        assert(pa_op);
-        while (pa_operation_get_state(pa_op) == PA_OPERATION_RUNNING)
-            pa_threaded_mainloop_wait(audio_backend_data->mainloop);
-        pa_operation_unref(pa_op);
-
-        pa_threaded_mainloop_unlock(audio_backend_data->mainloop);
-
-        std::lock_guard lock(((App *) userdata)->clients_mutex);
-        if (audio_backend_data->callback) {
-            audio_backend_data->callback();
-        }
-    });
-    thread.detach();
+    app_timeout_create(((App *) userdata), nullptr, 0, change_in_audio, nullptr);
 }
 
 void audio_subscribe_to_changes(App *app) {
