@@ -254,7 +254,12 @@ static void update_icon(AppClient *client) {
 #endif
     if (auto icon = container_by_name("icon", client->root)) {
         auto icon_data = (IconButton *) icon->user_data;
-        std::string icon_path = find_icon(icon_field_data->state->text, 64);
+
+        std::vector<IconTarget> targets;
+        targets.emplace_back(IconTarget(icon_field_data->state->text));
+        search_icons(targets);
+        pick_best(targets, 64);
+        std::string icon_path = targets[0].best_full_path;
         if (!icon_path.empty()) {
             if (icon_data->surface) {
                 cairo_surface_destroy(icon_data->surface);
@@ -349,7 +354,11 @@ void fill_root(AppClient *client) {
         Container *icon = centered->child(64, 64);
         icon->name = "icon";
         auto icon_data = new IconButton;
-        std::string icon_path = find_icon(pinned_icon_data->icon_name, 64);
+        std::vector<IconTarget> targets;
+        targets.emplace_back(IconTarget(pinned_icon_data->icon_name));
+        search_icons(targets);
+        pick_best(targets, 64);
+        std::string icon_path = targets[0].best_full_path;
         if (!icon_path.empty()) {
             load_icon_full_path(app, client, &icon_data->surface, icon_path, 64);
             icon_search_state = new Label("Found a match for: '" + pinned_icon_data->icon_name + "'");

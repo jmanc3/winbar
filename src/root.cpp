@@ -124,17 +124,15 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
     return false;
 }
 
-void meta_timeout(App *app, AppClient *, Timeout *, void *user_data) {
+void meta_pressed() {
+    std::lock_guard lock(app->thread_mutex);
+
     if (auto client = client_by_name(app, "app_menu")) {
         client_close(app, client);
         set_textarea_inactive();
     } else {
         start_app_menu();
     }
-}
-
-void meta_pressed() {
-    app_timeout_create(app, nullptr, 0, meta_timeout, nullptr);
 }
 
 std::thread *t = nullptr;

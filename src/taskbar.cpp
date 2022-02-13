@@ -1758,7 +1758,7 @@ scrolled_workspace(AppClient *client_entity,
     desktops_change(app, current);
 }
 
-void gnome_stuck_mouse_state_fix(App *app, AppClient *client, Timeout *, void*) {
+void gnome_stuck_mouse_state_fix(App *app, AppClient *client, Timeout *, void *) {
     if (valid_client(app, client)) {
         client->motion_event_x = -1;
         client->motion_event_y = -1;
@@ -2746,7 +2746,11 @@ void add_window(App *app, xcb_window_t window) {
         icon_name = get_icon_name(window);
     }
     if (!icon_name.empty()) {
-        path = find_icon(icon_name, 24);
+        std::vector<IconTarget> targets;
+        targets.emplace_back(IconTarget(icon_name));
+        search_icons(targets);
+        pick_best(targets, 24);
+        path = targets[0].best_full_path;
         data->icon_name = icon_name;
     }
     if (path.empty()) {
@@ -2757,12 +2761,20 @@ void add_window(App *app, xcb_window_t window) {
         xcb_icccm_get_text_property_reply_t props;
         if (xcb_icccm_get_text_property_reply(app->connection, c, &props, nullptr)) {
             data->icon_name = std::string(props.name, props.name_len);
-            path = find_icon(data->icon_name, 24);
+            std::vector<IconTarget> targets;
+            targets.emplace_back(IconTarget(data->icon_name));
+            search_icons(targets);
+            pick_best(targets, 24);
+            path = targets[0].best_full_path;
             xcb_icccm_get_text_property_reply_wipe(&props);
         }
     }
     if (path.empty()) {
-        path = find_icon(window_class_name, 24);
+        std::vector<IconTarget> targets;
+        targets.emplace_back(IconTarget(window_class_name));
+        search_icons(targets);
+        pick_best(targets, 24);
+        path = targets[0].best_full_path;
         data->icon_name = window_class_name;
     }
 
@@ -3129,6 +3141,34 @@ load_pinned_icons() {
     if (itemFile.ParseError() != 0)
         return;
 
+    std::vector<IconTarget> targets;
+    int i = 0;
+    for (const std::string &section_title: itemFile.Sections()) {
+        auto user_icon_name = itemFile.Get(section_title, "user_icon_name", "");
+        auto icon_name = itemFile.Get(section_title, "icon_name", "");
+        auto class_name = itemFile.Get(section_title, "class_name", "");
+
+        if (!user_icon_name.empty()) {
+            int *mem_i = new int;
+            *mem_i = i;
+            targets.emplace_back(IconTarget(user_icon_name, mem_i));
+        }
+        if (!icon_name.empty()) {
+            int *mem_i = new int;
+            *mem_i = i;
+            targets.emplace_back(IconTarget(icon_name, mem_i));
+        }
+        if (!class_name.empty()) {
+            int *mem_i = new int;
+            *mem_i = i;
+            targets.emplace_back(IconTarget(class_name, mem_i));
+        }
+        i++;
+    }
+    search_icons(targets);
+    pick_best(targets, 24);
+
+    i = 0;
     for (const std::string &section_title: itemFile.Sections()) {
         auto *child = new Container();
         child->parent = icons;
@@ -3145,9 +3185,9 @@ load_pinned_icons() {
         child->when_drag = pinned_icon_drag;
 
         auto *data = new LaunchableButton;
-        data->class_name = itemFile.Get(section_title, "class_name", "NONE");
-        data->icon_name = itemFile.Get(section_title, "icon_name", "NONE");
-        data->user_icon_name = itemFile.Get(section_title, "user_icon_name", "NONE");
+        data->class_name = itemFile.Get(section_title, "class_name", "");
+        data->icon_name = itemFile.Get(section_title, "icon_name", "");
+        data->user_icon_name = itemFile.Get(section_title, "user_icon_name", "");
         data->pinned = true;
         auto command = itemFile.Get(section_title, "command", "NONE");
         if (command != "NONE") {
@@ -3155,13 +3195,14 @@ load_pinned_icons() {
             data->command_launched_by = command;
         }
 
-        data->icon_name = c3ic_fix_wm_class(data->icon_name);
         std::string path;
-        if (data->user_icon_name.empty()) {
-            path = find_icon(data->icon_name, 24);
-        } else {
-            path = find_icon(data->user_icon_name, 24);
+        for (int x = 0; x < targets.size(); x++) {
+            if (*((int *) targets[x].user_data) == i) {
+                path = targets[x].best_full_path;
+                break;
+            }
         }
+
         if (!path.empty()) {
             load_icon_full_path(app, client_entity, &data->surface, path, 24);
         } else {
@@ -3179,7 +3220,12 @@ load_pinned_icons() {
         child->user_data = data;
 
         icons->children.push_back(child);
+
+        i++;
     }
+
+    for (int x = 0; x < targets.size(); x++)
+        delete ((int *) targets[x].user_data);
 }
 
 static void
@@ -3318,11 +3364,17 @@ void update_pinned_items_icon() {
                     }
 
                     std::string path;
+                    std::vector<IconTarget> targets;
+                    targets.emplace_back(IconTarget(data->icon_name));
+                    targets.emplace_back(IconTarget(data->class_name));
+                    search_icons(targets);
+                    pick_best(targets, 24);
+                    path = targets[0].best_full_path;
                     if (!data->icon_name.empty()) {
-                        path = find_icon(data->icon_name, 24);
+                        path = targets[0].best_full_path;
                     }
                     if (path.empty()) {
-                        path = find_icon(data->class_name, 24);
+                        path = targets[1].best_full_path;
                     }
                     if (!path.empty()) {
                         load_icon_full_path(app, client, &data->surface, path, 24);

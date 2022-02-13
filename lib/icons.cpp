@@ -1,9 +1,23 @@
+//
+// Created by jmanc3 on 2/10/22.
+//
 
 #include "icons.h"
+#include "utility.h"
 #include "INIReader.h"
-#include <cmath>
-#include <optional>
+
+#include <string>
+#include <vector>
+#include <sstream>
 #include <sys/stat.h>
+#include <fstream>
+#include <dirent.h>
+#include <cstring>
+#include <optional>
+#include <filesystem>
+#include <fcntl.h>
+#include <zconf.h>
+#include <sys/mman.h>
 
 #ifdef TRACY_ENABLE
 
@@ -11,37 +25,417 @@
 
 #endif
 
-// cache file specification
-//
-// line 1:
-// zero terminated strings of backup theme names
-//
-// rest of lines:
-// [4] bytes representing the Size: integer
-// [1] byte representing the Scale:
-// [1] byte Type:
-// zero terminated string of Context
-// zero terminated string of directory name
-//    then icon entries until the end of the line
-//    an icon entry is
-//    [1] byte representing the extension of the image
-//    zero terminated string representing the name of the image
+struct IconData {
+    std::string theme;
 
-void
-c3ic_generate_sizes(int target_size,
-                    std::vector<int> &target_sizes) {
+    std::string name;
+
+    std::string full_path;
+
+    uint32_t size = 0; // 0 == unknown, 1 == scalable
+
+    uint32_t extension = 0; // 0 == unknown, 1 == png, 2 == svg, 3 == xpm
+
+    uint32_t scale = 1; // 1 == default
+
+    // Used for sorting
+    int size_index = 10;
+    bool is_part_of_current_theme = false;
+};
+
+static std::vector<std::string> icon_search_paths;
+
+static uint32_t cache_version = 1;
+static uint32_t cache_flags = 0;
+
+char *icon_cache_data = nullptr;
+long icon_cache_data_length = 0;
+
+void icon_directory_timeout(App *, AppClient *, Timeout *, void *);
+
+void check_icon_cache();
+
+void load_icons(App *app) {
 #ifdef TRACY_ENABLE
-    ZoneScoped
+    ZoneScoped;
 #endif
+    icon_search_paths.clear();
 
+    // Setup search paths for icons
+    //
+    const char *h = getenv("HOME");
+    std::string home;
+    if (h) home = std::string(h);
+    icon_search_paths.emplace_back("/usr/share/icons");
+    icon_search_paths.emplace_back("/usr/local/share/icons");
+    icon_search_paths.emplace_back(home + "/.icons");
+    icon_search_paths.emplace_back(home + "/.local/share/icons");
+    icon_search_paths.emplace_back("/var/lib/flatpak/exports/share/icons");
+    icon_search_paths.emplace_back(home + "/.local/share/flatpak/exports/share/icons");
+    const char *d = getenv("XDG_DATA_DIRS");
+    std::string dirs;
+    if (d) dirs = std::string(d);
+    if (!dirs.empty()) {
+        auto header_stream = std::stringstream{dirs};
+        for (std::string dir; std::getline(header_stream, dir, ':');) {
+            bool already_going_to_search = false;
+            for (const auto &search_path: icon_search_paths) {
+                if (dir == search_path) {
+                    already_going_to_search = true;
+                    break;
+                }
+            }
+            if (!already_going_to_search)
+                icon_search_paths.emplace_back(dir);
+        }
+    }
+    icon_search_paths.emplace_back("/usr/share/pixmaps");
+
+    app_timeout_create(app, nullptr, 50000, icon_directory_timeout, nullptr);
+
+    check_icon_cache();
+}
+
+// TODO: there has to be a better way to do this
+long load_file_into_memory(char const *path, char **buf) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    FILE *fp;
+    size_t fsz;
+    long off_end;
+    int rc;
+    fp = fopen(path, "rb");
+    if (nullptr == fp)
+        return -1L;
+    rc = fseek(fp, 0L, SEEK_END);
+    if (0 != rc)
+        return -1L;
+    if (0 > (off_end = ftell(fp)))
+        return -1L;
+    fsz = (size_t) off_end;
+    *buf = static_cast<char *>(malloc(fsz));
+    if (nullptr == *buf)
+        return -1L;
+    rewind(fp);
+    if (fsz != fread(*buf, 1, fsz, fp)) {
+        free(*buf);
+        return -1L;
+    }
+    if (EOF == fclose(fp)) {
+        free(*buf);
+        return -1L;
+    }
+    return (long) fsz;
+}
+
+void update_icon_cache() {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (icon_cache_data != nullptr) {
+        free(icon_cache_data);
+        icon_cache_data = nullptr;
+        icon_cache_data_length = 0;
+    }
+
+    const char *home_directory = getenv("HOME");
+    std::string icon_cache_path(home_directory);
+    icon_cache_path += "/.cache/winbar_icon_cache/icon.cache";
+
+    std::string icon_cache_temp_path(home_directory);
+    icon_cache_temp_path += "/.cache";
+    std::ofstream cache_file;
+    {
+        if (mkdir(icon_cache_temp_path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+            if (errno != EEXIST)
+                return;
+        icon_cache_temp_path += "/winbar_icon_cache";
+        if (mkdir(icon_cache_temp_path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+            if (errno != EEXIST)
+                return;
+        icon_cache_temp_path += "/icon.cache.tmp";
+
+        cache_file.open(icon_cache_temp_path);
+        if (!cache_file.is_open())
+            return;
+    }
+
+    const std::filesystem::directory_options options = (
+            std::filesystem::directory_options::follow_directory_symlink
+    );
+
+    cache_file << std::to_string(cache_version) << '\0' << '\n';
+    cache_file << std::to_string(cache_flags) << '\0' << '\n';
+    bool first = true;
+
+    struct stat st{};
+    for (auto search_path: icon_search_paths) {
+        // Check if the search path exists
+        if (stat(search_path.c_str(), &st) != 0)
+            continue;
+
+        int parent_directories_to_skip = 0;
+        for (auto c: search_path)
+            if (c == '/')
+                parent_directories_to_skip++;
+        parent_directories_to_skip++;
+
+        int previous_depth = -1;
+        std::string data_full_path;
+        std::string data_theme;
+        int data_size = 0;
+        int data_scale = 1;
+
+        for (auto i = std::filesystem::recursive_directory_iterator(search_path,
+                                                                    std::filesystem::directory_options(options));
+             i != std::filesystem::recursive_directory_iterator();
+             ++i) {
+            int depth = i.depth();
+            auto path = i->path();
+
+            if (previous_depth != depth) {
+                previous_depth = depth;
+                data_full_path.clear();
+                data_theme.clear();
+                data_size = 0;
+                data_scale = 1;
+
+                auto p = path;
+                if (is_regular_file(p)) {
+                    if (exists(p.parent_path())) {
+                        p = p.parent_path();
+                    }
+                }
+
+                data_full_path = p.string();
+
+                int skip_variable = 0;
+                for (const auto &item: p) {
+                    if (skip_variable++ < parent_directories_to_skip)
+                        continue; // We don't need to check the parent paths which are part of the search path
+
+                    if ((skip_variable == parent_directories_to_skip + 1) && data_theme.empty()) {
+                        data_theme = item.string();
+                    }
+
+                    // Update data if there is something to update
+                    std::regex single_digit("[0-9]*");
+                    std::smatch match;
+                    const std::string &const_name = item;
+                    if (std::regex_match(const_name, match, single_digit)) {
+                        if (std::all_of(const_name.begin(), const_name.end(), ::isdigit)) {
+                            int size = std::stoi(match[0].str());
+                            if (size % 2 == 0)
+                                data_size = size;
+                        }
+                    }
+                    std::regex scale_regex("@[0-9]*");
+                    if (std::regex_search(const_name.begin(), const_name.end(), match, scale_regex)) {
+                        auto sc = match[0].str();
+                        if (!sc.empty()) {
+                            sc.erase(0, 1);
+
+                            if (!sc.empty() && std::all_of(sc.begin(), sc.end(), ::isdigit)) {
+                                data_scale = std::stoi(sc);
+                            }
+                        }
+                    }
+                    std::regex digit_x_digit("[0-9]*(?=(x|X)[0-9]*)");
+                    if (std::regex_search(const_name.begin(), const_name.end(), match, digit_x_digit)) {
+                        auto si = match[0].str();
+                        if (!si.empty()) {
+                            if (!si.empty() && std::all_of(si.begin(), si.end(), ::isdigit)) {
+                                int size = std::stoi(si);
+                                if (size % 2 == 0)
+                                    data_size = size;
+                            }
+                        }
+                    }
+                }
+
+                if (!first)
+                    cache_file << '\n';
+                first = false;
+
+                cache_file << data_full_path << '\0';
+                cache_file << std::to_string(data_size) << '\0';
+                cache_file << std::to_string(data_scale) << '\0';
+                if (data_theme.empty()) {
+                    cache_file << '\0';
+                } else {
+                    cache_file << data_theme << '\0';
+                }
+            }
+            if (is_regular_file(path)) {
+                cache_file << path.filename().string() << '\0';
+            }
+        }
+    }
+    cache_file.close();
+    rename(icon_cache_temp_path.data(), icon_cache_path.data());
+}
+
+static long last_time_cached_checked = -1;
+
+void check_icon_cache() {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (icon_cache_data != nullptr) {
+        if (get_current_time_in_ms() - last_time_cached_checked < 5000) {
+            // If it hasn't been five seconds since last time checked
+            return;
+        }
+    }
+
+    // Check if cache file exists and that it is up-to date, and refresh cache, if it is not.
+    const char *home_directory = getenv("HOME");
+    std::string icon_cache_path(home_directory);
+    icon_cache_path += "/.cache/winbar_icon_cache/icon.cache";
+
+    struct stat cache_stat{};
+    if (stat(icon_cache_path.c_str(), &cache_stat) == 0) { // exists
+        bool cache_version_on_disk_acceptable = true;
+        FILE *fp;
+        char buf[1024];
+        if ((fp = fopen(icon_cache_path.data(), "rb"))) {
+            fread(buf, 1, 10, fp);
+            std::string version = std::string(buf, strlen(buf));
+            if (!version.empty()) {
+                auto cache_version_on_disk = std::stoi(version);
+                if (cache_version_on_disk != cache_version) {
+                    cache_version_on_disk_acceptable = false;
+                }
+            }
+            fclose(fp);
+        }
+
+        if (!cache_version_on_disk_acceptable) {
+            if (icon_cache_data != nullptr) {
+                free(icon_cache_data);
+                icon_cache_data_length = 0;
+            }
+            update_icon_cache();
+            icon_cache_data_length = load_file_into_memory(icon_cache_path.data(), &icon_cache_data);
+        } else {
+            if (icon_cache_data == nullptr) {
+                icon_cache_data_length = load_file_into_memory(icon_cache_path.data(), &icon_cache_data);
+            }
+        }
+    } else {
+        // If no cache file exists, we are forced to do it on the main thread (a.k.a. the first launch will be slow)
+        update_icon_cache();
+        icon_cache_data_length = load_file_into_memory(icon_cache_path.data(), &icon_cache_data);
+    }
+
+    last_time_cached_checked = get_current_time_in_ms();
+}
+
+void search_icons(std::vector<IconTarget> &targets) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    check_icon_cache();
+    if (!icon_cache_data)
+        return;
+
+    // Go through cache and match name, return index in results
+    unsigned long index_into_file = 0;
+#define NOT_DONE index_into_file < icon_cache_data_length
+
+    // Skip first two lines
+    while (NOT_DONE && icon_cache_data[index_into_file++] != '\n'); // Version
+    while (NOT_DONE && icon_cache_data[index_into_file++] != '\n'); // Flags
+
+    char buffer[NAME_MAX];
+    while (NOT_DONE) {
+        unsigned long line_index = index_into_file;
+
+        // Copy icon name to buffer
+        strcpy(buffer, icon_cache_data + index_into_file);
+        long len = strlen(buffer);
+        index_into_file += len + 1;
+        std::string pre_path = std::string(buffer, len);
+
+        strcpy(buffer, icon_cache_data + index_into_file);
+        len = strlen(buffer);
+        index_into_file += len + 1;
+        std::string size = std::string(buffer, len);
+
+        strcpy(buffer, icon_cache_data + index_into_file);
+        len = strlen(buffer);
+        index_into_file += len + 1;
+        std::string scale = std::string(buffer, len);
+
+        strcpy(buffer, icon_cache_data + index_into_file);
+        len = strlen(buffer);
+        index_into_file += len + 1;
+        std::string theme = std::string(buffer, len);
+
+        while (NOT_DONE && icon_cache_data[index_into_file] != '\n') {
+            strcpy(buffer, icon_cache_data + index_into_file);
+            len = strlen(buffer);
+            std::string name_without_extension = std::string(buffer, len - 4);
+            int extension = 0;
+
+            if (strncmp(buffer + len - 4, ".svg", 4) == 0) {
+                extension = 2;
+            } else if (strncmp(buffer + len - 4, ".png", 4) == 0) {
+                extension = 1;
+            } else if (strncmp(buffer + len - 4, ".xpm", 4) == 0) {
+                extension = 3;
+            }
+
+            for (int i = 0; i < targets.size(); i++) {
+                if (strcmp(name_without_extension.data(), targets[i].name.data()) == 0) {
+                    targets[i].indexes_of_results.emplace_back(
+                            pre_path,
+                            std::stoi(size),
+                            std::stoi(scale),
+                            theme,
+                            std::string(buffer, len),
+                            extension
+                    );
+                }
+            }
+
+            index_into_file += len + 1;
+        }
+
+        // Skip until the next icon option
+        while (NOT_DONE && icon_cache_data[index_into_file++] != '\n');
+    }
+}
+
+static std::string get_current_theme_name() {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    std::string gtk_settings_file_path(getenv("HOME"));
+    gtk_settings_file_path += "/.config/gtk-3.0/settings.ini";
+
+    INIReader gtk_settings(gtk_settings_file_path);
+    if (gtk_settings.ParseError() != 0)
+        return "hicolor";
+
+    return gtk_settings.Get("Settings", "gtk-icon-theme-name", "hicolor");
+}
+
+static void c3ic_generate_sizes(int target_size, std::vector<int> &target_sizes) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     target_sizes.push_back(8);
     target_sizes.push_back(12);
     target_sizes.push_back(16);
     target_sizes.push_back(18);
     target_sizes.push_back(24);
     target_sizes.push_back(32);
+    target_sizes.push_back(42);
     target_sizes.push_back(48);
     target_sizes.push_back(64);
+    target_sizes.push_back(84);
     target_sizes.push_back(96);
     target_sizes.push_back(128);
     target_sizes.push_back(256);
@@ -66,506 +460,128 @@ c3ic_generate_sizes(int target_size,
     });
 }
 
-std::string
-get_current_theme_name() {
+void pick_best(std::vector<IconTarget> &targets, int target_size) {
 #ifdef TRACY_ENABLE
-    ZoneScoped
+    ZoneScoped;
 #endif
+    auto current_theme = get_current_theme_name();
+    std::vector<int> strict_sizes;
+    c3ic_generate_sizes(target_size, strict_sizes);
+    for (int ss = 0; ss < targets.size(); ss++) {
+        if (!targets[ss].name.empty() && targets[ss].name[0] == '/') {
+            // If the target is just a full path, then just return the full path
+            targets[ss].best_full_path = targets[ss].name;
+        } else {
+            std::vector<IconData *> possible_icons;
+            for (const auto &index: targets[ss].indexes_of_results) {
+                auto data = new IconData;
+                data->full_path = index.pre_path + "/" + index.name;
+                data->extension = index.extension;
+                data->theme = index.theme;
+                if (data->theme == current_theme) {
+                    data->is_part_of_current_theme = true;
+                }
+                data->size = index.size;
+                for (int i = 0; i < strict_sizes.size(); i++)
+                    if (strict_sizes[i] == data->size)
+                        data->size_index = i;
+                data->scale = index.scale;
+                possible_icons.push_back(data);
+            }
 
-    std::string gtk_settings_file_path(getenv("HOME"));
-    gtk_settings_file_path += "/.config/gtk-3.0/settings.ini";
+            // Sort vector based on quality and size, and current theme
+            // Set best_full_path equal to best top option
+            std::sort(possible_icons.begin(), possible_icons.end(),
+                      [current_theme](IconData *lhs, IconData *rhs) {
+                          if (lhs->is_part_of_current_theme == rhs->is_part_of_current_theme) {
+                              if (lhs->size_index == rhs->size_index) {
+                                  if (lhs->extension == rhs->extension) {
+                                      return lhs->scale < rhs->scale;
+                                  } else {
+                                      return lhs->extension < rhs->extension;
+                                  }
+                              } else {
+                                  return lhs->size_index < rhs->size_index;
+                              }
+                          }
+                          return lhs->is_part_of_current_theme > rhs->is_part_of_current_theme;
+                      });
 
-    INIReader gtk_settings(gtk_settings_file_path);
-    if (gtk_settings.ParseError() != 0) {
-        // hicolor is a theme that is always supposed to be installed
-        // so if we aren't able to find a gtk set theme we return hicolor
-        return "hicolor";
+            if (!possible_icons.empty())
+                targets[ss].best_full_path = possible_icons[0]->full_path;
+
+            for (auto p: possible_icons)
+                delete p;
+            possible_icons.clear();
+            possible_icons.shrink_to_fit();
+        }
     }
-
-    return gtk_settings.Get("Settings", "gtk-icon-theme-name", "hicolor");
 }
 
-std::vector<Icon *>
-c3ic_strict_find_icons(const std::string &name,
-                       const std::vector<int> &strict_sizes,
-                       const std::vector<int> &strict_scales,
-                       const std::vector<IconExtension> &strict_extensions) {
-    std::string theme = get_current_theme_name();
-    return c3ic_strict_find_icons(theme, name, strict_sizes, strict_scales, strict_extensions);
-}
-
-#include <filesystem>
-#include <fcntl.h>
-#include <zconf.h>
-#include <sys/mman.h>
-#include <fstream>
-#include <dirent.h>
-
-namespace fs = std::filesystem;
-
-static std::optional<int> ends_with(const char *str, const char *suffix) {
-    if (!str || !suffix)
-        return {};
-    size_t lenstr = strlen(str);
-    size_t lensuffix = strlen(suffix);
-    if (lensuffix > lenstr)
-        return {};
-    bool b = strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
-    if (!b) {
-        return {};
-    }
-    return lenstr - lensuffix;
-}
-
-//
-//   TODO: we should write to a temporary cache file and then move it once we
-//    finish so we don't get corrupted files when interrupted
-//
-bool
-c3ic_cache_the_theme(const std::string &theme) {
+void icon_directory_timeout(App *, AppClient *, Timeout *timeout, void *) {
+    std::thread t([]() -> void {
 #ifdef TRACY_ENABLE
-    ZoneScoped
-#endif
-
-    //
-    // Find and parse index.theme ini file
-    //
-    std::string theme_index_path("/usr/share/icons/");
-    theme_index_path += theme + "/index.theme";
-    INIReader theme_index(theme_index_path);
-
-    if (theme_index.ParseError() != 0) {
-//        printf("\"index.theme\" file was not in the root directory of the icon theme: %s\n", theme.c_str());
-        return false;
-    }
-
-    //
-    // Make the cache file that we are going to write to
-    //
-    std::ofstream cache_file;
-    {
-#ifdef TRACY_ENABLE
-        ZoneScopedN("Create and open cache file")
+        ZoneScopedN("icon directory timeout");
 #endif
         const char *home_directory = getenv("HOME");
         std::string icon_cache_path(home_directory);
-        icon_cache_path += "/.cache";
+        icon_cache_path += "/.cache/winbar_icon_cache/icon.cache";
 
-        if (mkdir(icon_cache_path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
-            if (errno != EEXIST) {
-//                printf("Couldn't mkdir %s\n", icon_cache_path.c_str());
-                return false;
-            }
-        }
-        icon_cache_path += "/c3_icon_cache";
-        if (mkdir(icon_cache_path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
-            if (errno != EEXIST) {
-//                printf("Couldn't mkdir %s\n", icon_cache_path.c_str());
-                return false;
-            }
-        }
+        struct stat cache_stat{};
+        if (stat(icon_cache_path.c_str(), &cache_stat) == 0) { // exists
+            bool found_newer_folder_than_cache_file = false;
 
-        icon_cache_path += "/" + theme + ".cache";
-
-        cache_file.open(icon_cache_path);
-        if (!cache_file.is_open()) {
-//            printf("Tried and failed at create icon_cache file: %s\n", icon_cache_path.c_str());
-            return false;
-        }
-    }
-
-    //
-    // Write the cache
-    //
-    // read 'cache file specification' found at the top of this file
-    //
-    {
-#ifdef TRACY_ENABLE
-        ZoneScopedN("Write backup themes to cache file")
-#endif
-        std::string backup_themes = theme_index.Get("Icon Theme", "Inherits", "hicolor");
-        std::stringstream ss(backup_themes);
-        while (ss.good()) {
-            std::string substr;
-            getline(ss, substr, ',');
-            cache_file << substr << '\0';
-        }
-        cache_file << '\n';
-    }
-
-    for (const std::string &section_title: theme_index.Sections()) {
-        {
-#ifdef TRACY_ENABLE
-            ZoneScopedN("Write size, scale, type, and title for section")
-#endif
-            unsigned int size = (unsigned int) theme_index.GetInteger(section_title, "Size", 0);
-            if (size == 0) continue;
-            unsigned char scale = (unsigned char) theme_index.GetInteger(section_title, "Scale", 1);
-            std::string type_string = theme_index.Get(section_title, "Type", "Fixed");
-            unsigned char type = type_string == "Fixed" ? (unsigned char) IconType::FIXED :
-                                 type_string == "Scalable" ? (unsigned char) IconType::SCALABLE :
-                                 (unsigned char) IconType::THRESHOLD;
-            std::string context = theme_index.Get(section_title, "Context", "Unknown");
-            cache_file.write(reinterpret_cast<const char *>(&size), sizeof(size));
-            cache_file << scale;
-            cache_file << type;
-            cache_file << context << '\0';
-            cache_file << section_title << '\0';
-        }
-
-        {
-#ifdef TRACY_ENABLE
-            ZoneScopedN("Write the file extension and name")
-#endif
-            std::string section_directory("/usr/share/icons/");
-            section_directory += theme + "/";
-            section_directory += section_title;
-
-            DIR *dir;
-            struct dirent *entry;
-            {
-#ifdef TRACY_ENABLE
-                ZoneScopedN("Open directory")
-#endif
-                if (!(dir = opendir(section_directory.c_str()))) {
-                    cache_file << '\n';
+            const std::filesystem::directory_options options = (
+                    std::filesystem::directory_options::follow_directory_symlink
+            );
+            struct stat search_stat{};
+            for (const auto &search_path: icon_search_paths) {
+                // Check if the search path exists
+                if (stat(search_path.c_str(), &search_stat) != 0)
                     continue;
+
+                if (search_stat.st_mtim.tv_sec > cache_stat.st_mtim.tv_sec) {
+                    found_newer_folder_than_cache_file = true;
+                    break;
                 }
-            }
-            while ((entry = readdir(dir)) != NULL) {
-                {
-#ifdef TRACY_ENABLE
-                    ZoneScopedN("Entry Start")
-#endif
-                    if (entry->d_type == DT_REG || entry->d_type == DT_LNK) {
-                        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+
+                for (auto i = std::filesystem::recursive_directory_iterator(search_path,
+                                                                            std::filesystem::directory_options(
+                                                                                    options));
+                     i != std::filesystem::recursive_directory_iterator();
+                     ++i) {
+                    if (i.depth() == 0 && i->is_directory() && i->exists()) {
+                        if (stat(i->path().string().data(), &search_stat) != 0)
                             continue;
 
-                        std::optional<int> index;
-                        if (index = ends_with(entry->d_name, ".svg")) {
-                            cache_file << (unsigned char) IconExtension::SVG;
-                        } else if (index = ends_with(entry->d_name, ".png")) {
-                            cache_file << (unsigned char) IconExtension::PNG;
-                        } else if (index = ends_with(entry->d_name, ".xpm")) {
-                            cache_file << (unsigned char) IconExtension::XPM;
-                        }
-                        if (index) {
-                            cache_file.write(entry->d_name, index.value());
-                            cache_file << '\0';
+                        if (search_stat.st_mtim.tv_sec > cache_stat.st_mtim.tv_sec) {
+                            found_newer_folder_than_cache_file = true;
+                            break;
                         }
                     }
                 }
+                if (found_newer_folder_than_cache_file)
+                    break;
             }
-            closedir(dir);
-            cache_file << '\n';
+
+            if (found_newer_folder_than_cache_file)
+                update_icon_cache();
         }
-    }
-
-    cache_file.close();
-
-    return true;
-}
-
-std::optional<std::tuple<int, int, char *>>
-c3i3_load_theme(const std::string &theme) {
-#ifdef TRACY_ENABLE
-    ZoneScoped
-#endif
-
-    const char *home_directory = getenv("HOME");
-    std::string icon_cache_path(home_directory);
-    icon_cache_path += "/.cache/c3_icon_cache/" + theme + ".cache";
-
-    struct stat buffer{};
-    int cache_exists = stat(icon_cache_path.c_str(), &buffer) == 0;
-
-    if (cache_exists) {
-        struct stat theme_buffer{};
-        int theme_exists = stat(std::string("/usr/share/icons/" + theme).c_str(), &theme_buffer) == 0;
-        if (theme_exists) {
-            // if the theme is newer than the cache, regenerate cache
-            if (theme_buffer.st_mtim.tv_sec > buffer.st_mtim.tv_sec) {
-                if (!(cache_exists = c3ic_cache_the_theme(theme))) {
-                    return {};
-                }
-            }
-        } else {
-            // if cache exists but theme doesn't, delete the cache file and return
-            remove(icon_cache_path.c_str());
-            return {};
-        }
-    } else {
-        // if cache doesn't exists, attempt to create it
-        if (!(cache_exists = c3ic_cache_the_theme(theme))) {
-            return {};
-        }
-    }
-
-    // Attempt to mmap the file
-    int file_descriptor = open(icon_cache_path.c_str(), O_RDWR, S_IRUSR | S_IWUSR);
-    struct stat sb;
-    if (fstat(file_descriptor, &sb) == -1) {
-//        printf("Couldn't get file size: %s\n", icon_cache_path.c_str());
-        close(file_descriptor);
-        return {};
-    }
-
-    char *cached_theme_data = (char *) mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, file_descriptor, 0);
-    if (!cached_theme_data) {
-//        printf("Couldn't mmap file.\n");
-        close(file_descriptor);
-        return {};
-    }
-
-    return std::tuple<int, int, char *>(file_descriptor, sb.st_size, cached_theme_data);
-}
-
-void
-c3ic_strict_load_icons(std::vector<Icon *> &icons,
-                       const std::string &theme,
-                       const std::string &name,
-                       const std::vector<int> &strict_sizes,
-                       const std::vector<int> &strict_scales,
-                       const std::vector<IconExtension> &strict_extensions,
-                       const bool is_parent_theme) {
-#ifdef TRACY_ENABLE
-    ZoneScoped
-#endif
-
-    int file_descriptor;
-    char *cached_theme;
-    int cached_theme_size;
-    if (auto data = c3i3_load_theme(theme)) {
-        std::tie(file_descriptor, cached_theme_size, cached_theme) = data.value();
-    } else {
-//        printf("Couldn't create/open cache for theme: %s\n", theme.c_str());
-        return;
-    }
-
-    // try to mmap the cache and then parse and add matching icons
-    //
-    // read 'cache file specification' found at the top of this file
-
-    std::vector<std::string> backup_themes;
-
-    char temp_backup_theme_buffer[1024 * 6];
-    unsigned long index_into_file = 0;
-#define NOT_DONE index_into_file < cached_theme_size
-    while (NOT_DONE) {
-        if (cached_theme[index_into_file] == '\n') {
-            index_into_file++;
-            break;
-        }
-        strcpy(temp_backup_theme_buffer, cached_theme + index_into_file);
-        index_into_file += strlen(temp_backup_theme_buffer) + 1;
-        if (is_parent_theme) {
-            backup_themes.emplace_back(temp_backup_theme_buffer);
-        }
-    }
-
-    const char *c_name = name.c_str();
-
-    unsigned int size;
-    unsigned int scale;
-    IconType type;
-    char buffer_context[1024 * 6];
-    char buffer_directory[1024 * 6];
-    char buffer_icon_name[1024 * 6];
-
-    while (NOT_DONE) {
-        size = *(unsigned int *) (cached_theme + index_into_file);
-        index_into_file += 4;
-        scale = (unsigned int) cached_theme[index_into_file++];
-        type = (IconType) cached_theme[index_into_file++];
-
-        strcpy(buffer_context, cached_theme + index_into_file);
-        index_into_file += strlen(buffer_context) + 1;
-
-        strcpy(buffer_directory, cached_theme + index_into_file);
-        index_into_file += strlen(buffer_directory) + 1;
-
-        while (NOT_DONE && cached_theme[index_into_file] != '\n') {
-            IconExtension extension = (IconExtension) cached_theme[index_into_file++];
-
-            strcpy(buffer_icon_name, cached_theme + index_into_file);
-            index_into_file += strlen(buffer_icon_name) + 1;
-
-            if (strcmp(buffer_icon_name, c_name) == 0) {
-                auto size_matches = std::find(strict_sizes.begin(), strict_sizes.end(), size);
-                if (size_matches == strict_sizes.end())
-                    continue; // SKIP THIS ICON, DOESN'T MEET REQUIREMENTS
-                auto extension_matches = std::find(strict_extensions.begin(), strict_extensions.end(), extension);
-                if (extension_matches == strict_extensions.end())
-                    continue; // SKIP THIS ICON, DOESN'T MEET REQUIREMENTS
-                auto scale_matches = std::find(strict_scales.begin(), strict_scales.end(), scale);
-                if (scale_matches == strict_scales.end())
-                    continue; // SKIP THIS ICON, DOESN'T MEET REQUIREMENTS
-
-                auto icon = new Icon();
-                icon->size = size;
-                icon->scale = scale;
-                icon->theme = theme;
-                std::string file_extension_string;
-                switch (extension) {
-                    case SVG: {
-                        file_extension_string = ".svg";
-                        break;
-                    }
-                    case PNG: {
-                        file_extension_string = ".png";
-                        break;
-                    }
-                    case XPM: {
-                        file_extension_string = ".xpm";
-                        break;
-                    }
-                }
-                icon->path += "/usr/share/icons/";
-                icon->path += theme;
-                icon->path += "/";
-                icon->path += buffer_directory;
-                icon->path += "/";
-                icon->path += buffer_icon_name + file_extension_string;
-                icon->extension = extension;
-                icons.emplace_back(icon);
-//                printf("Context: %s, Size: %d, Scale: %d, Type: %d, Directory: %s, Icon Name: %s, Extension %d\n",
-//                       buffer_context, size, scale, type, buffer_directory, buffer_icon_name, extension);
-            }
-        }
-        index_into_file++;
-    }
-
-    munmap(cached_theme, cached_theme_size);
-    close(file_descriptor);
-
-    // We don't want to recurse children backup themes, only top-level parent backup themes
-    if (is_parent_theme && icons.empty()) {
-        bool tried_loading_hicolor = false;
-        for (const auto &backup_theme: backup_themes) {
-            // so we don't recurse hicolor twice in some instances
-            if (backup_theme == "hicolor" && theme == "hicolor") {
-                tried_loading_hicolor = true;
-                c3ic_strict_load_icons(icons, "Papirus", name, strict_sizes, strict_scales, strict_extensions, false);
-                continue;
-            }
-            if (theme == "hicolor") {
-                tried_loading_hicolor = true;
-                if (theme != "Papirus") {
-                    c3ic_strict_load_icons(icons, "Papirus", name, strict_sizes, strict_scales, strict_extensions,
-                                           false);
-                }
-            }
-            c3ic_strict_load_icons(icons, backup_theme, name, strict_sizes, strict_scales, strict_extensions, false);
-        }
-        if (!tried_loading_hicolor) {
-            c3ic_strict_load_icons(icons, "Papirus", name, strict_sizes, strict_scales, strict_extensions, false);
-            c3ic_strict_load_icons(icons, "hicolor", name, strict_sizes, strict_scales, strict_extensions, false);
-        }
-    }
-}
-
-std::vector<Icon *>
-c3ic_strict_find_icons(const std::string &theme,
-                       const std::string &name,
-                       const std::vector<int> &strict_sizes,
-                       const std::vector<int> &strict_scales,
-                       const std::vector<IconExtension> &strict_extensions) {
-#ifdef TRACY_ENABLE
-    ZoneScoped
-#endif
-    std::vector<Icon *> icons;
-
-    c3ic_strict_load_icons(icons, theme, name, strict_sizes, strict_scales, strict_extensions, true);
-
-    if (icons.empty()) {
-        // If we got here, it means we already searched through the currently active gtk theme and
-        // at the very least the hicolor theme which is supposed to always exists according to spec
-        //
-        // therefore:
-        //
-        // !!!!!!!!!!NUCLEAR OPTION!!!!!!!!!!
-        // SEARCH EVERY THEME!!! WAHAHAHAHAHAHA. YOU WILL NOT DETER ME
-        // MISCONFIGURED *.DESKTOP FILES,
-        // AND WRONGLY SET WM_CLASS NAMES.
-        // I WILL PREVAIL.
-        //
-        // Also, it's not that nuclear. It takes less than 1 millisecond to search through the entirety of Papirus
-        // and everything is cached so we aren't hitting the hard-drive/ssd hard at all.
-        //
-        std::string icons_directory("/usr/share/icons/");
-        DIR *dir;
-        struct dirent *entry;
-        if ((dir = opendir(icons_directory.c_str()))) {
-            while ((entry = readdir(dir)) != NULL) {
-                if (entry->d_type == DT_DIR) {
-                    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-                        continue;
-                    std::string nuclear_theme_name = std::string(entry->d_name);
-                    if (nuclear_theme_name != theme && nuclear_theme_name != "hicolor" &&
-                        nuclear_theme_name != "Papirus") {
-                        c3ic_strict_load_icons(icons, nuclear_theme_name, name, strict_sizes, strict_scales,
-                                               strict_extensions, false);
-                    }
-                }
-            }
-        }
-    }
-
-    // Sort by quality, size most important, followed by extension, followed by scale
-    for (auto *icon: icons) {
-        for (int i = 0; i < strict_sizes.size(); ++i) {
-            if (strict_sizes[i] == icon->size) {
-                icon->size_index = i;
-                break;
-            }
-        }
-        for (int i = 0; i < strict_scales.size(); ++i) {
-            if (strict_scales[i] == icon->scale) {
-                icon->scale_index = i;
-                break;
-            }
-        }
-        for (int i = 0; i < strict_extensions.size(); ++i) {
-            if (strict_extensions[i] == icon->extension) {
-                icon->extention_index = i;
-                break;
-            }
-        }
-    }
-
-    std::sort(icons.begin(), icons.end(), [](const Icon *a, const Icon *b) {
-        int weight_a = a->extention_index * 30 + a->size_index * 20 + a->scale_index * 10;
-        int weight_b = b->extention_index * 30 + b->size_index * 20 + b->scale_index * 10;
-
-        return weight_a < weight_b;
     });
-
-//    if (name == "st") {
-//        int k = 0;
-//    }
-
-    return icons;
+    t.detach();
 }
 
-std::string
-find_icon(const std::string &name, int size) {
-    std::vector<int> strict_sizes;
-    c3ic_generate_sizes(size, strict_sizes);
-    std::vector<int> strict_scales = {1, 2};
-    std::vector<IconExtension> strict_extensions = {IconExtension::SVG, IconExtension::PNG};
-    std::vector<Icon *> options = c3ic_strict_find_icons(name, strict_sizes, strict_scales, strict_extensions);
-
-    if (options.empty()) {
-        return "";
-    }
-
-//    printf("%s\n", options[0]->path.c_str());
-    std::string path = options[0]->path;
-    for (auto i: options)
-        delete i;
-    options.clear();
-    options.shrink_to_fit();
-    return path;
+void unload_icons() {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (icon_cache_data)
+        free(icon_cache_data);
+    icon_cache_data = nullptr;
+    icon_cache_data_length = 0;
+    icon_search_paths.clear();
+    icon_search_paths.shrink_to_fit();
+    icon_search_paths = std::vector<std::string>();
 }
 
 std::string
@@ -573,6 +589,9 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
                            const std::string &given_wm_class,
                            const std::string &given_path,
                            const std::string &given_icon) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     // mmap tofix.csv file
     const char *home_directory = getenv("HOME");
     std::string to_fix_path(home_directory);
@@ -715,162 +734,4 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
 std::string
 c3ic_fix_wm_class(const std::string &given_wm_class) {
     return c3ic_fix_desktop_file_icon(given_wm_class, given_wm_class, given_wm_class, given_wm_class);
-}
-
-void
-c3ic_strict_load_multiple_icons(std::vector<Icon> &icons,
-                                const std::string &theme,
-                                std::vector<std::string> &names,
-                                const std::vector<int> &strict_sizes,
-                                const std::vector<int> &strict_scales,
-                                const std::vector<IconExtension> &strict_extensions,
-                                const bool is_parent_theme) {
-#ifdef TRACY_ENABLE
-    ZoneScoped
-#endif
-
-    int file_descriptor;
-    char *cached_theme;
-    int cached_theme_size;
-    if (auto data = c3i3_load_theme(theme)) {
-        std::tie(file_descriptor, cached_theme_size, cached_theme) = data.value();
-    } else {
-//        printf("Couldn't create/open cache for theme: %s\n", theme.c_str());
-        return;
-    }
-
-    // try to mmap the cache and then parse and add matching icons
-    //
-    // read 'cache file specification' found at the top of this file
-
-    std::vector<std::string> backup_themes;
-
-    char temp_backup_theme_buffer[1024 * 6];
-    unsigned long index_into_file = 0;
-#define NOT_DONE index_into_file < cached_theme_size
-    while (NOT_DONE) {
-        if (cached_theme[index_into_file] == '\n') {
-            index_into_file++;
-            break;
-        }
-        strcpy(temp_backup_theme_buffer, cached_theme + index_into_file);
-        index_into_file += strlen(temp_backup_theme_buffer) + 1;
-        if (is_parent_theme) {
-            backup_themes.emplace_back(temp_backup_theme_buffer);
-        }
-    }
-
-    unsigned int size;
-    unsigned int scale;
-    IconType type;
-    char buffer_context[1024 * 6];
-    char buffer_directory[1024 * 6];
-    char buffer_icon_name[1024 * 6];
-
-    while (NOT_DONE) {
-        size = *(unsigned int *) (cached_theme + index_into_file);
-        index_into_file += 4;
-        scale = (unsigned int) cached_theme[index_into_file++];
-        type = (IconType) cached_theme[index_into_file++];
-
-        strcpy(buffer_context, cached_theme + index_into_file);
-        index_into_file += strlen(buffer_context) + 1;
-
-        strcpy(buffer_directory, cached_theme + index_into_file);
-        index_into_file += strlen(buffer_directory) + 1;
-
-        while (NOT_DONE && cached_theme[index_into_file] != '\n') {
-            IconExtension extension = (IconExtension) cached_theme[index_into_file++];
-
-            strcpy(buffer_icon_name, cached_theme + index_into_file);
-            index_into_file += strlen(buffer_icon_name) + 1;
-
-            for (const auto &name: names) {
-                if (strcmp(buffer_icon_name, name.c_str()) == 0) {
-                    auto size_matches = std::find(strict_sizes.begin(), strict_sizes.end(), size);
-                    if (size_matches == strict_sizes.end())
-                        continue; // SKIP THIS ICON, DOESN'T MEET REQUIREMENTS
-                    auto extension_matches = std::find(strict_extensions.begin(), strict_extensions.end(), extension);
-                    if (extension_matches == strict_extensions.end())
-                        continue; // SKIP THIS ICON, DOESN'T MEET REQUIREMENTS
-                    auto scale_matches = std::find(strict_scales.begin(), strict_scales.end(), scale);
-                    if (scale_matches == strict_scales.end())
-                        continue; // SKIP THIS ICON, DOESN'T MEET REQUIREMENTS
-
-                    Icon icon;
-                    icon.size = size;
-                    icon.scale = scale;
-                    icon.theme = theme;
-                    icon.name = name;
-                    std::string file_extension_string;
-                    switch (extension) {
-                        case SVG: {
-                            file_extension_string = ".svg";
-                            break;
-                        }
-                        case PNG: {
-                            file_extension_string = ".png";
-                            break;
-                        }
-                        case XPM: {
-                            file_extension_string = ".xpm";
-                            break;
-                        }
-                    }
-                    icon.path += "/usr/share/icons/";
-                    icon.path += theme;
-                    icon.path += "/";
-                    icon.path += buffer_directory;
-                    icon.path += "/";
-                    icon.path += buffer_icon_name + file_extension_string;
-                    icon.extension = extension;
-                    icons.emplace_back(icon);
-//                printf("Context: %s, Size: %d, Scale: %d, Type: %d, Directory: %s, Icon Name: %s, Extension %d\n",
-//                       buffer_context, size, scale, type, buffer_directory, buffer_icon_name, extension);
-                }
-            }
-        }
-        index_into_file++;
-    }
-
-    munmap(cached_theme, cached_theme_size);
-    close(file_descriptor);
-}
-
-void
-c3ic_strict_load_multiple_icons(std::vector<Icon> &icons,
-                                std::vector<std::string> &names,
-                                const std::vector<int> &strict_sizes,
-                                const std::vector<int> &strict_scales,
-                                const std::vector<IconExtension> &strict_extensions,
-                                const bool is_parent_theme) {
-    std::string theme = get_current_theme_name();
-
-    c3ic_strict_load_multiple_icons(icons, theme, names, strict_sizes, strict_scales,
-                                    strict_extensions, false);
-
-    if (theme != "Papirus") {
-        c3ic_strict_load_multiple_icons(icons, "Papirus", names, strict_sizes, strict_scales,
-                                        strict_extensions, false);
-    }
-
-    c3ic_strict_load_multiple_icons(icons, "hicolor", names, strict_sizes, strict_scales,
-                                    strict_extensions, false);
-
-    std::string icons_directory("/usr/share/icons/");
-    DIR *dir;
-    struct dirent *entry;
-    if ((dir = opendir(icons_directory.c_str()))) {
-        while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_type == DT_DIR) {
-                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-                    continue;
-                std::string nuclear_theme_name = std::string(entry->d_name);
-                if (nuclear_theme_name != theme && nuclear_theme_name != "hicolor" && nuclear_theme_name != "Papirus") {
-                    c3ic_strict_load_multiple_icons(icons, nuclear_theme_name, names, strict_sizes, strict_scales,
-                                                    strict_extensions, false);
-                }
-            }
-        }
-    }
 }

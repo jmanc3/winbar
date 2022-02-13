@@ -411,10 +411,15 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
         title_text.clear();
     }
 
-    notification_info->icon_path = find_icon(notification_info->app_icon, 48);
+    std::vector<IconTarget> targets;
+    targets.emplace_back(IconTarget(notification_info->app_icon));
+    targets.emplace_back(IconTarget(subtitle_text));
+    search_icons(targets);
+    pick_best(targets, 48);
+    notification_info->icon_path = targets[0].best_full_path;
     if (notification_info->icon_path.empty()) {
         if (!subtitle_text.empty()) {
-            notification_info->icon_path = find_icon(subtitle_text, 48);
+            notification_info->icon_path = targets[1].best_full_path;
         }
     }
 

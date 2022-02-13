@@ -1050,86 +1050,107 @@ paint_desktop_files() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    std::vector<Icon> icons;
-    std::vector<std::string> names;
+    std::vector<IconTarget> targets;
     for (auto *launcher: launchers) {
         launcher->icon = c3ic_fix_desktop_file_icon(launcher->name, launcher->wmclass, launcher->icon, launcher->icon);
         if (!launcher->icon.empty()) {
-            if (launcher->icon[0] != '/') {
-                names.emplace_back(launcher->icon);
-            }
+            targets.emplace_back(IconTarget(launcher->icon, launcher));
         }
     }
-    std::vector<int> strict_sizes = {16, 24, 32, 64};
-    std::vector<int> strict_scales = {1, 2};
-    std::vector<IconExtension> strict_extensions = {IconExtension::SVG, IconExtension::PNG};
-    c3ic_strict_load_multiple_icons(icons, names, strict_sizes, strict_scales, strict_extensions, true);
 
-    for (auto *launcher: launchers) {
-        launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16, 16);
-        launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24, 24);
-        launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32, 32);
-        launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64, 64);
-        std::string path16;
-        std::string path24;
-        std::string path32;
-        std::string path64;
-        if (!launcher->icon.empty()) {
-            if (launcher->icon[0] == '/') {
-                path16 = launcher->icon;
-                path24 = launcher->icon;
-                path32 = launcher->icon;
-                path64 = launcher->icon;
-            } else {
-                for (const auto &icon: icons) {
-                    if (!path16.empty() && !path24.empty() && !path32.empty() && !path64.empty()) {
-                        break;
-                    }
-                    if (icon.name == launcher->icon) {
-                        if (icon.size == 16 && path16.empty()) {
-                            path16 = icon.path;
+    search_icons(targets);
+    pick_best(targets, 32);
+
+    for (const auto &t: targets) {
+        if (t.user_data) {
+            auto launcher = (Launcher *) t.user_data;
+            launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16, 16);
+            launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24, 24);
+            launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32, 32);
+            launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64, 64);
+
+            std::string path16;
+            std::string path24;
+            std::string path32;
+            std::string path64;
+
+            if (!launcher->icon.empty()) {
+                if (launcher->icon[0] == '/') {
+                    path16 = launcher->icon;
+                    path24 = launcher->icon;
+                    path32 = launcher->icon;
+                    path64 = launcher->icon;
+                } else {
+                    for (const auto &icon: t.indexes_of_results) {
+                        if (!path16.empty() && !path24.empty() && !path32.empty() && !path64.empty())
+                            break;
+                        if ((icon.size == 16) && path16.empty()) {
+                            path16 = icon.pre_path + "/" + icon.name;
                         } else if (icon.size == 24 && path24.empty()) {
-                            path24 = icon.path;
+                            path24 = icon.pre_path + "/" + icon.name;
                         } else if (icon.size == 32 && path32.empty()) {
-                            path32 = icon.path;
+                            path32 = icon.pre_path + "/" + icon.name;
                         } else if (icon.size == 64 && path64.empty()) {
-                            path64 = icon.path;
+                            path64 = icon.pre_path + "/" + icon.name;
                         }
+                    }
+                    for (const auto &icon: t.indexes_of_results) {
+                        if (icon.extension == 2) {
+                            if (path16.empty())
+                                path16 = icon.pre_path + "/" + icon.name;
+                            if (path24.empty())
+                                path24 = icon.pre_path + "/" + icon.name;
+                            if (path32.empty())
+                                path32 = icon.pre_path + "/" + icon.name;
+                            if (path64.empty())
+                                path64 = icon.pre_path + "/" + icon.name;
+                            break;
+                        }
+                    }
+                    for (const auto &icon: t.indexes_of_results) {
+                        if (!path16.empty() && !path24.empty() && !path32.empty() && !path64.empty())
+                            break;
+                        if (path16.empty())
+                            path16 = icon.pre_path + "/" + icon.name;
+                        if (path24.empty())
+                            path24 = icon.pre_path + "/" + icon.name;
+                        if (path32.empty())
+                            path32 = icon.pre_path + "/" + icon.name;
+                        if (path64.empty())
+                            path64 = icon.pre_path + "/" + icon.name;
                     }
                 }
             }
-        }
 
-        if (!path16.empty() && !launcher->icon.empty()) {
-            paint_surface_with_image(launcher->icon_16, path16, 16, nullptr);
-        } else {
-            paint_surface_with_image(
-                    launcher->icon_16, as_resource_path("unknown-16.svg"), 16, nullptr);
-        }
+            if (!path16.empty() && !launcher->icon.empty()) {
+                paint_surface_with_image(launcher->icon_16, path16, 16, nullptr);
+            } else {
+                paint_surface_with_image(
+                        launcher->icon_16, as_resource_path("unknown-16.svg"), 16, nullptr);
+            }
 
-        if (!path24.empty() && !launcher->icon.empty()) {
-            paint_surface_with_image(launcher->icon_24, path24, 24, nullptr);
-        } else {
-            paint_surface_with_image(
-                    launcher->icon_24, as_resource_path("unknown-24.svg"), 24, nullptr);
-        }
+            if (!path24.empty() && !launcher->icon.empty()) {
+                paint_surface_with_image(launcher->icon_24, path24, 24, nullptr);
+            } else {
+                paint_surface_with_image(
+                        launcher->icon_24, as_resource_path("unknown-24.svg"), 24, nullptr);
+            }
 
-        if (!path32.empty() && !launcher->icon.empty()) {
-            paint_surface_with_image(launcher->icon_32, path32, 32, nullptr);
-        } else {
-            paint_surface_with_image(
-                    launcher->icon_32, as_resource_path("unknown-32.svg"), 32, nullptr);
-        }
+            if (!path32.empty() && !launcher->icon.empty()) {
+                paint_surface_with_image(launcher->icon_32, path32, 32, nullptr);
+            } else {
+                paint_surface_with_image(
+                        launcher->icon_32, as_resource_path("unknown-32.svg"), 32, nullptr);
+            }
 
-        if (!path32.empty() && !launcher->icon.empty()) {
-            paint_surface_with_image(launcher->icon_64, path64, 64, nullptr);
-        } else {
-            paint_surface_with_image(
-                    launcher->icon_64, as_resource_path("unknown-64.svg"), 64, nullptr);
+            if (!path32.empty() && !launcher->icon.empty()) {
+                paint_surface_with_image(launcher->icon_64, path64, 64, nullptr);
+            } else {
+                paint_surface_with_image(
+                        launcher->icon_64, as_resource_path("unknown-64.svg"), 64, nullptr);
+            }
         }
     }
-    icons.clear();
-    icons.shrink_to_fit();
 }
 
 static std::optional<int> ends_with(const char *str, const char *suffix) {

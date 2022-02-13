@@ -1681,6 +1681,8 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
 void handle_xcb_event(App *app) {
     assert(app != nullptr && app->running);
 
+    std::lock_guard lock(app->thread_mutex);
+
     while ((event = xcb_poll_for_event(app->connection)) != nullptr) {
         if (auto window = get_window(event)) {
             bool event_consumed_by_custom_handler = false;
@@ -1729,25 +1731,6 @@ void xcb_poll_wakeup(App *app, int fd) {
     handle_xcb_event(app);
     xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
     xcb_flush(app->connection);
-}
-
-#include <ctime>
-
-// call this function to start a nanosecond-resolution timer
-struct timespec
-timer_start() {
-    struct timespec start_time;
-    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start_time);
-    return start_time;
-}
-
-// call this function to end a timer, returning nanoseconds elapsed as a long
-long timer_end(struct timespec start_time) {
-    struct timespec end_time;
-    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end_time);
-    long diffInNanos =
-            (end_time.tv_sec - start_time.tv_sec) * (long) 1e9 + (end_time.tv_nsec - start_time.tv_nsec);
-    return diffInNanos;
 }
 
 void app_main(App *app) {

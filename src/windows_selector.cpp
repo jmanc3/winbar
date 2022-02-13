@@ -637,9 +637,14 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     client->root->user_data = pii;
     if (pii->data->surface) {
         std::string path;
-        path = find_icon(pii->data->icon_name, 16);
+        std::vector<IconTarget> targets;
+        targets.emplace_back(IconTarget(pii->data->icon_name));
+        targets.emplace_back(IconTarget(c3ic_fix_wm_class(pii->data->class_name)));
+        search_icons(targets);
+        pick_best(targets, 16);
+        path = targets[0].best_full_path;
         if (path.empty()) {
-            path = find_icon(c3ic_fix_wm_class(pii->data->class_name), 16);
+            path = targets[1].best_full_path;
         }
         if (path.empty()) {
             pii->icon_surface = accelerated_surface(app, client, 16, 16);

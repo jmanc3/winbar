@@ -109,6 +109,8 @@ struct App {
 
     std::vector<AppClient *> clients;
 
+    std::mutex thread_mutex;
+
     std::vector<Handler *> handlers;
 
     xcb_window_t grab_window;

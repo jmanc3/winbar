@@ -1,37 +1,51 @@
-/* date = October 18th 2020 9:15 am */
+//
+// Created by jmanc3 on 2/10/22.
+//
 
-#ifndef ICONS_H
-#define ICONS_H
+#ifndef WINBAR_ICONS_H
+#define WINBAR_ICONS_H
 
-#include <string>
+#include "application.h"
+
+#include <utility>
 #include <vector>
+#include <string>
 
-enum IconExtension {
-    SVG,
-    PNG,
-    XPM
-};
+// Load icons into memory
+void load_icons(App *app);
 
-enum IconType {
-    FIXED,
-    SCALABLE,
-    THRESHOLD,
-};
+// Remove all icons from memory
+void unload_icons();
 
-class Icon {
-public:
-    // Used for sorting, don't worry about these
-    int size_index;
-    int scale_index;
-    int extention_index;
-
-    int size;
-    int scale;
-    IconExtension extension;
+struct IndexResult {
+    std::string pre_path;
+    int size = 0;
+    int scale = 1;
     std::string theme;
     std::string name;
-    std::string path;
+    int extension = 0;
+
+    IndexResult(std::string prePath, int size, int scale, std::string theme, std::string name, int extension)
+            : pre_path(std::move(prePath)), size(size), scale(scale), theme(std::move(theme)), name(std::move(name)),
+              extension(extension) {}
 };
+
+struct IconTarget {
+    std::string name;
+    std::vector<IndexResult> indexes_of_results;
+
+    std::string best_full_path;
+
+    void *user_data = nullptr;
+
+    IconTarget(std::string name) : name(std::move(name)) {}
+
+    IconTarget(std::string name, void *user_data) : name(std::move(name)), user_data(user_data) {}
+};
+
+void search_icons(std::vector<IconTarget> &targets);
+
+void pick_best(std::vector<IconTarget> &targets, int size);
 
 std::string
 c3ic_fix_desktop_file_icon(const std::string &given_name,
@@ -42,45 +56,4 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
 std::string
 c3ic_fix_wm_class(const std::string &given_wm_class);
 
-void
-c3ic_generate_sizes(int target_size,
-                    std::vector<int> &target_sizes);
-
-std::string
-find_icon(const std::string &name, int size);
-
-std::vector<Icon *>
-c3ic_strict_find_icons(const std::string &name,
-                       const std::vector<int> &strict_sizes,
-                       const std::vector<int> &strict_scales,
-                       const std::vector<IconExtension> &strict_extensions);
-
-std::vector<Icon *>
-c3ic_strict_find_icons(const std::string &theme,
-                       const std::string &name,
-                       const std::vector<int> &strict_sizes,
-                       const std::vector<int> &strict_scales,
-                       const std::vector<IconExtension> &strict_extensions);
-
-std::string
-get_current_theme_name();
-
-
-void
-c3ic_strict_load_multiple_icons(std::vector<Icon> &icons,
-                                std::vector<std::string> &names,
-                                const std::vector<int> &strict_sizes,
-                                const std::vector<int> &strict_scales,
-                                const std::vector<IconExtension> &strict_extensions,
-                                const bool is_parent_theme);
-
-void
-c3ic_strict_load_multiple_icons(std::vector<Icon> &icons,
-                                const std::string &theme,
-                                std::vector<std::string> &names,
-                                const std::vector<int> &strict_sizes,
-                                const std::vector<int> &strict_scales,
-                                const std::vector<IconExtension> &strict_extensions,
-                                const bool is_parent_theme);
-
-#endif //ICONS_H
+#endif //WINBAR_ICONS_H
