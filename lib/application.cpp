@@ -1681,7 +1681,10 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
 }
 
 void handle_xcb_event(App *app) {
-    assert(app != nullptr && app->running);
+    if (app == nullptr)
+        return;
+    if (!app->running)
+        return;
 
     std::lock_guard lock(app->thread_mutex);
 

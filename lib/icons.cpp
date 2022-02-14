@@ -5,6 +5,7 @@
 #include "icons.h"
 #include "utility.h"
 #include "INIReader.h"
+#include "../src/config.h"
 
 #include <string>
 #include <vector>
@@ -18,6 +19,7 @@
 #include <fcntl.h>
 #include <zconf.h>
 #include <sys/mman.h>
+#include <pango/pangocairo.h>
 
 #ifdef TRACY_ENABLE
 
@@ -278,6 +280,52 @@ void update_icon_cache() {
 
 static long last_time_cached_checked = -1;
 
+static std::string first_message;
+static std::string second_message;
+static std::string third_message;
+
+void paint_warning(AppClient *client, cairo_t *cr, Container *container) {
+    set_rect(cr, container->real_bounds);
+    set_argb(cr, correct_opaqueness(client, config->color_volume_background));
+    cairo_fill(cr);
+
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 14, PangoWeight::PANGO_WEIGHT_BOLD);
+    int width;
+    int height;
+    pango_layout_set_text(layout, first_message.data(), first_message.size());
+    pango_layout_get_pixel_size(layout, &width, &height);
+
+    set_argb(cr, config->color_volume_text);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  10);
+    pango_cairo_show_layout(cr, layout);
+
+
+    layout = get_cached_pango_font(cr, config->font, 12, PangoWeight::PANGO_WEIGHT_NORMAL);
+    int second_height;
+    pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
+    pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
+    pango_layout_set_text(layout, second_message.data(), second_message.size());
+    pango_layout_get_pixel_size(layout, &width, &second_height);
+
+    set_argb(cr, config->color_volume_text);
+    cairo_move_to(cr,
+                  10,
+                  10 + height + 10);
+    pango_cairo_show_layout(cr, layout);
+
+    pango_layout_set_text(layout, third_message.data(), third_message.size());
+    pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
+    pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
+
+    set_argb(cr, config->color_volume_text);
+    cairo_move_to(cr,
+                  10,
+                  10 + height + 10 + second_height + 5);
+    pango_cairo_show_layout(cr, layout);
+}
+
 void check_icon_cache() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -316,8 +364,30 @@ void check_icon_cache() {
                 free(icon_cache_data);
                 icon_cache_data_length = 0;
             }
-            update_icon_cache();
-            icon_cache_data_length = load_file_into_memory(icon_cache_path.data(), &icon_cache_data);
+            std::thread t([icon_cache_path]() -> void {
+                update_icon_cache();
+                icon_cache_data_length = load_file_into_memory(icon_cache_path.data(), &icon_cache_data);
+            });
+            App *temp_app = app_new();
+            std::thread t2([&temp_app]() -> void {
+                Settings settings;
+                settings.w = 400;
+                settings.h = 200;
+                auto c = client_new(temp_app, settings, "winbar_temp_warning");
+                c->root->when_paint = paint_warning;
+                first_message = "Icon cache version file out of date";
+                second_message = "We are re-caching all icons, so this may take a while. Subsequent launches won't do this, so they'll be faster.";
+                third_message = "We'll start WinBar when we are done!";
+                client_show(temp_app, c);
+                app_main(temp_app);
+                app_clean(temp_app);
+            });
+            if (t.joinable())
+                t.join();
+            if (t2.joinable()) {
+                temp_app->running = false;
+                t2.join();
+            }
         } else {
             if (icon_cache_data == nullptr) {
                 icon_cache_data_length = load_file_into_memory(icon_cache_path.data(), &icon_cache_data);
@@ -325,8 +395,30 @@ void check_icon_cache() {
         }
     } else {
         // If no cache file exists, we are forced to do it on the main thread (a.k.a. the first launch will be slow)
-        update_icon_cache();
-        icon_cache_data_length = load_file_into_memory(icon_cache_path.data(), &icon_cache_data);
+        std::thread t([icon_cache_path]() -> void {
+            update_icon_cache();
+            icon_cache_data_length = load_file_into_memory(icon_cache_path.data(), &icon_cache_data);
+        });
+        App *temp_app = app_new();
+        std::thread t2([&temp_app]() -> void {
+            Settings settings;
+            settings.w = 400;
+            settings.h = 200;
+            auto c = client_new(temp_app, settings, "winbar_temp_warning");
+            c->root->when_paint = paint_warning;
+            first_message = "First time launching WinBar";
+            second_message = "We are caching all icons so this may take a while. Subsequent launches will be faster.";
+            third_message = "We'll start WinBar when we are done!";
+            client_show(temp_app, c);
+            app_main(temp_app);
+            app_clean(temp_app);
+        });
+        if (t.joinable())
+            t.join();
+        if (t2.joinable()) {
+            temp_app->running = false;
+            t2.join();
+        }
     }
 
     last_time_cached_checked = get_current_time_in_ms();
