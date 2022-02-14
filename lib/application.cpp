@@ -305,6 +305,8 @@ get_visualtype(xcb_screen_t *s) {
 void xcb_poll_wakeup(App *app, int fd);
 
 void timeout_poll_wakeup(App *app, int fd) {
+    std::lock_guard lock(app->thread_mutex);
+
     bool keep_running = false;
     for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
         Timeout *timeout = app->timeouts[timeout_index];

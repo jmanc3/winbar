@@ -2005,7 +2005,11 @@ static void layout_and_repaint(App *app, AppClient *client, Timeout *, void *use
     ZoneScoped;
 #endif
     auto *container = (Container *) user_data;
+    if (!container)
+        return;
     auto data = (TransitionData *) container->user_data;
+    if (!data)
+        return;
     container->children.clear();
     container->children.shrink_to_fit();
     container->children.push_back(data->second);
