@@ -164,7 +164,8 @@ void update_icon_cache() {
     }
 
     const std::filesystem::directory_options options = (
-            std::filesystem::directory_options::follow_directory_symlink
+            std::filesystem::directory_options::follow_directory_symlink |
+            std::filesystem::directory_options::skip_permission_denied
     );
 
     cache_file << std::to_string(cache_version) << '\0' << '\n';
