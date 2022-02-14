@@ -23,6 +23,8 @@ struct ScanResult {
 
 void wifi_start(App *app);
 
+bool wifi_running();
+
 void wifi_scan(void (*function_called_when_results_are_returned)(std::vector<ScanResult> &results));
 
 void wifi_scan_cached(void (*function_called_when_results_are_returned)(std::vector<ScanResult> &results));

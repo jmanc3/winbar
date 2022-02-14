@@ -29,6 +29,6 @@ void load_historic_apps();
 
 void load_historic_scripts();
 
-bool script_exists(const std::string& name);
+bool script_exists(const std::string &name);
 
 #endif// APP_SEARCH_MENU_H

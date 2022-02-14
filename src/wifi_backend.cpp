@@ -29,6 +29,8 @@ std::string_view trim(std::string_view s) {
 static void wifi_wpa_parse_scan_results();
 
 void wifi_wpa_has_message(App *app, int fd) {
+    if (wifi_data->type != 1)
+        return;
     char buf[1000];
     size_t len = 1000;
 
@@ -77,7 +79,19 @@ void wifi_start(App *app) {
     }
 }
 
+bool wifi_running() {
+    if (wifi_data)
+        return wifi_data->type != 0;
+    return false;
+}
+
 void wifi_scan(void (*function_called_when_results_are_returned)(std::vector<ScanResult> &)) {
+    if (wifi_data->type != 1) {
+        std::vector<ScanResult> results;
+        if (!function_called_when_results_are_returned)
+            return;
+        function_called_when_results_are_returned(results);
+    }
     char buf[10];
     size_t len = 10;
     if (wpa_ctrl_request(wifi_data->wpa_message_listener, "SCAN", 4,
@@ -88,11 +102,19 @@ void wifi_scan(void (*function_called_when_results_are_returned)(std::vector<Sca
 }
 
 void wifi_scan_cached(void (*function_called_when_results_are_returned)(std::vector<ScanResult> &)) {
+    if (wifi_data->type != 1) {
+        std::vector<ScanResult> results;
+        if (!function_called_when_results_are_returned)
+            return;
+        function_called_when_results_are_returned(results);
+    }
     wifi_data->function_called_when_results_are_returned = function_called_when_results_are_returned;
     wifi_wpa_parse_scan_results();
 }
 
 void get_scan_results(std::vector<ScanResult> *results) {
+    if (wifi_data->type != 1)
+        return;
     std::vector<std::string> lines;
 
     char buf[10000];
@@ -151,6 +173,8 @@ void get_scan_results(std::vector<ScanResult> *results) {
 }
 
 void get_network_list(std::vector<ScanResult> *results) {
+    if (wifi_data->type != 1)
+        return;
     std::vector<std::string> lines;
 
     char buf[10000];
@@ -211,9 +235,8 @@ void wifi_wpa_parse_scan_results() {
 
 void wifi_networks_and_cached_scan(void (*function_called_when_results_are_returned)(std::vector<ScanResult> &)) {
     std::vector<ScanResult> results;
-    if (!function_called_when_results_are_returned) {
+    if (!function_called_when_results_are_returned)
         return;
-    }
 
     get_network_list(&results);
 
@@ -234,6 +257,8 @@ void wifi_stop() {
 }
 
 void wifi_forget_network(ScanResult scanResult) {
+    if (wifi_data->type != 1)
+        return;
     char buf[10000];
     size_t len = 10000;
     std::string message = "REMOVE_NETWORK " + std::to_string(scanResult.network_index);

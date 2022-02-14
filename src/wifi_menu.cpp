@@ -316,6 +316,8 @@ double map(double x, double in_min, double in_max, double out_min, double out_ma
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
+static std::string root_message;
+
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
@@ -355,6 +357,29 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
                 cairo_restore(cr);
             }
         }
+    }
+
+    if (!root_message.empty()) {
+        PangoLayout *layout =
+                get_cached_pango_font(cr, config->font, 12, PangoWeight::PANGO_WEIGHT_BOLD);
+
+        pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
+        pango_layout_set_width(layout, (container->real_bounds.w - 40) * PANGO_SCALE);
+        pango_layout_set_text(layout, root_message.data(), root_message.length());
+
+        PangoRectangle ink;
+        PangoRectangle logical;
+        pango_layout_get_extents(layout, &ink, &logical);
+
+        set_argb(cr, config->color_wifi_text_title);
+        cairo_move_to(cr,
+                      container->real_bounds.x + ((container->real_bounds.w - 40) / 2) -
+                      (ink.width / PANGO_SCALE / 2) + 20,
+                      container->real_bounds.y + ((container->real_bounds.h) / 2) -
+                      (ink.height / PANGO_SCALE / 2));
+        pango_cairo_show_layout(cr, layout);
+
+        pango_layout_set_width(layout, -1);
     }
 }
 
@@ -463,9 +488,17 @@ void start_wifi_menu() {
     app_create_custom_event_handler(app, client->window, wifi_menu_event_handler);
 
     fill_root(client);
-    client_show(app, client);
-    client_register_animation(app, client);
 
-    wifi_networks_and_cached_scan(cached_scan_results);
-    wifi_scan(uncached_scan_results);
+    if (wifi_running()) {
+        root_message = "";
+        client_register_animation(app, client);
+        wifi_networks_and_cached_scan(cached_scan_results);
+        wifi_scan(uncached_scan_results);
+    } else {
+        root_message = "WIFI menu is not fully implemented yet";
+        auto data = (RootScanAnimationData *) client->root->user_data;
+        data->running = false;
+    }
+
+    client_show(app, client);
 }

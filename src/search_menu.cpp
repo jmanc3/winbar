@@ -1727,7 +1727,7 @@ void load_scripts() {
     }
 }
 
-bool script_exists(const std::string& name) {
+bool script_exists(const std::string &name) {
     for (auto s: scripts)
         if (s->name == name)
             return true;
