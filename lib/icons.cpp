@@ -89,7 +89,8 @@ void load_icons(App *app) {
                 }
             }
             if (!already_going_to_search)
-                icon_search_paths.emplace_back(dir);
+                if (dir.find("icons") != std::string::npos)
+                    icon_search_paths.emplace_back(dir);
         }
     }
     icon_search_paths.emplace_back("/usr/share/pixmaps");
@@ -638,7 +639,8 @@ void icon_directory_timeout(App *, AppClient *, Timeout *timeout, void *) {
             bool found_newer_folder_than_cache_file = false;
 
             const std::filesystem::directory_options options = (
-                    std::filesystem::directory_options::follow_directory_symlink
+                    std::filesystem::directory_options::follow_directory_symlink |
+                    std::filesystem::directory_options::skip_permission_denied
             );
             struct stat search_stat{};
             for (const auto &search_path: icon_search_paths) {
