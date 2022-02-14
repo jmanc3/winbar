@@ -103,6 +103,7 @@ struct DBusConnection;
 struct App {
     xcb_ewmh_connection_t ewmh;
 
+    std::mutex running_mutex;
     bool running = true;
 
     Bounds bounds;// these are the bounds of the entire screen

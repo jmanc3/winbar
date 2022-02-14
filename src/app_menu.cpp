@@ -602,7 +602,7 @@ clicked_open_folder_button(AppClient *client, cairo_t *cr, Container *container)
     app->grab_window = -1;
 
     std::vector<std::string> commands = {"xdg-open", "thunar", "dolphin", "Thunar", "dolphin"};
-    for (const auto& c: commands) {
+    for (const auto &c: commands) {
         if (script_exists(c)) {
             std::string path = home + "/" + data->text;
             std::string small(data->text);
@@ -627,7 +627,7 @@ clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) 
 #endif
     std::string home = getenv("HOME");
     std::vector<std::string> commands = {"xdg-open", "thunar", "dolphin", "Thunar", "Dolphin"};
-    for (const auto& c: commands) {
+    for (const auto &c: commands) {
         if (script_exists(c)) {
             launch_command(std::string(c + " " + home));
             break;
@@ -644,6 +644,7 @@ clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    std::lock_guard(app->running_mutex);
     client->app->running = false;
     restart = true;
 }
@@ -694,6 +695,7 @@ clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    std::lock_guard(app->running_mutex);
     client->app->running = false;
 }
 
@@ -1059,6 +1061,8 @@ paint_desktop_files() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    std::lock_guard(app->running_mutex); // No one is allowed to stop Winbar until this function finishes
+
     std::vector<IconTarget> targets;
     for (auto *launcher: launchers) {
         launcher->icon = c3ic_fix_desktop_file_icon(launcher->name, launcher->wmclass, launcher->icon, launcher->icon);
@@ -1284,10 +1288,6 @@ void load_all_desktop_files() {
     ZoneScoped;
 #endif
 
-    // If the "Icon=" contains "." it's a full path that we should try to load
-    // We should look in "~/.icons"  then ~/.local/share/icons then "/usr/local/share/icons/" "/usr/share/icons"
-    // If we didn't find it then we try to get the name of the .png and use that to look for icons
-    // If it's not a path, then we do the same search
     for (auto *l: launchers) {
         delete l;
     }

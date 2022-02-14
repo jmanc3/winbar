@@ -940,6 +940,7 @@ void client_close(App *app, AppClient *client) {
     destroy_client(app, client);
 
     if (app->clients.empty()) {
+        std::lock_guard(app->running_mutex);
         app->running = false;
     }
 
