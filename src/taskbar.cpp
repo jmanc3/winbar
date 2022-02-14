@@ -692,7 +692,8 @@ void active_window_changed(xcb_window_t new_active_window) {
     if (auto c = client_by_name(app, "taskbar")) {
         if (active_container) {
             auto data = (LaunchableButton *) active_container->user_data;
-            client_create_animation(app, c, &data->active_amount, 45, nullptr, 0);
+            if (data)
+                client_create_animation(app, c, &data->active_amount, 45, nullptr, 0);
         }
 
         active_container = new_active_container;

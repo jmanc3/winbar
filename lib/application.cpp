@@ -248,7 +248,7 @@ bool poll_descriptor(App *app, int file_descriptor, int events, void function(Ap
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    assert(app != nullptr);
+    if (!app || !app->running) return false;
 
     PolledDescriptor polled = {file_descriptor, function};
     app->descriptors_being_polled.push_back(polled);
@@ -867,8 +867,8 @@ void request_refresh(App *app, AppClient *client) {
 void client_animation_paint(App *app, AppClient *client, Timeout *, void *user_data);
 
 void client_register_animation(App *app, AppClient *client) {
-    assert(app != nullptr && app->running);
-    assert(client != nullptr);
+    if (app == nullptr || !app->running)
+        return;
     if (client->animations_running == 0) {
         float fps = client->fps;
         if (fps != 0)
@@ -879,8 +879,8 @@ void client_register_animation(App *app, AppClient *client) {
 }
 
 void client_unregister_animation(App *app, AppClient *client) {
-    assert(app != nullptr && app->running);
-    assert(client != nullptr);
+    if (app == nullptr || !app->running)
+        return;
     client->animations_running--;
     // TODO: why can this even occur in the first place
     assert(client->animations_running >= 0);
@@ -940,7 +940,7 @@ void client_close(App *app, AppClient *client) {
     destroy_client(app, client);
 
     if (app->clients.empty()) {
-        std::lock_guard(app->running_mutex);
+        std::lock_guard m(app->running_mutex);
         app->running = false;
     }
 
@@ -1886,7 +1886,7 @@ bool app_timeout_stop(App *app,
                       Timeout *timeout) {
     if (timeout == nullptr)
         return false;
-    assert(app != nullptr && app->running);
+    if (app == nullptr || !app->running) return false;
     timeout->kill = true;
     return true;
 }
@@ -1899,8 +1899,7 @@ Timeout *app_timeout_replace(App *app,
     if (timeout == nullptr) {
         return nullptr;
     }
-    assert(app != nullptr && app->running);
-    assert(timeout_function != nullptr);
+    if (app == nullptr || !app->running || !timeout_function) return nullptr;
     struct itimerspec time = {0};
     // The division done below converts the timeout_ms into seconds and nanoseconds
     time.it_interval.tv_sec = timeout_ms / 1000;
@@ -1934,10 +1933,7 @@ Timeout *app_timeout_replace(App *app,
 Timeout *
 app_timeout_create(App *app, AppClient *client, float timeout_ms,
                    void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data) {
-    assert(app != nullptr);
-    if (!app->running)
-        return nullptr;
-    assert(timeout_function != nullptr);
+    if (app == nullptr || !app->running || !timeout_function) return nullptr;
     int timeout_file_descriptor = timerfd_create(CLOCK_REALTIME, 0);
     if (timeout_file_descriptor == -1) { // error with timerfd_create
         return nullptr;
@@ -2011,8 +2007,7 @@ void app_remove_custom_event_handler(App *app, xcb_window_t window,
 }
 
 bool client_set_position(App *app, AppClient *client, int x, int y) {
-    assert(app != nullptr && app->running);
-    assert(client != nullptr);
+    if (!app || !app->running || !client) return false;
     uint32_t mask = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y;
     uint32_t values[] = {
             (uint32_t) x,
@@ -2024,8 +2019,7 @@ bool client_set_position(App *app, AppClient *client, int x, int y) {
 }
 
 bool client_set_size(App *app, AppClient *client, int w, int h) {
-    assert(app != nullptr && app->running);
-    assert(client != nullptr);
+    if (!app || !app->running || !client) return false;
     uint32_t mask = XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
     uint32_t values[] = {
             (uint32_t) w,
@@ -2045,8 +2039,7 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
 #ifdef TRACY_ENABLE
     FrameMarkStart("Animation Paint");
 #endif
-    assert(app != nullptr);
-    assert(client != nullptr);
+    if (!app || !app->running) return;
 
     {
 #ifdef TRACY_ENABLE

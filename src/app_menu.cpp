@@ -644,7 +644,7 @@ clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    std::lock_guard(app->running_mutex);
+    std::lock_guard m(app->running_mutex);
     client->app->running = false;
     restart = true;
 }
@@ -695,7 +695,7 @@ clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    std::lock_guard(app->running_mutex);
+    std::lock_guard m(app->running_mutex);
     client->app->running = false;
 }
 
@@ -1061,7 +1061,7 @@ paint_desktop_files() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    std::lock_guard(app->running_mutex); // No one is allowed to stop Winbar until this function finishes
+    std::lock_guard m(app->running_mutex); // No one is allowed to stop Winbar until this function finishes
 
     std::vector<IconTarget> targets;
     for (auto *launcher: launchers) {
