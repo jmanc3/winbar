@@ -601,17 +601,21 @@ clicked_open_folder_button(AppClient *client, cairo_t *cr, Container *container)
     xcb_flush(app->connection);
     app->grab_window = -1;
 
-    if (!config->file_manager.empty()) {
-        std::string path = home + "/" + data->text;
-        std::string small(data->text);
-        if (small.size() > 0) {
-            small[0] = std::tolower(small[0]);
-        }
-        std::string min_path = home + "/" + small;
-        if (DirectoryExists(path.c_str())) {
-            launch_command(config->file_manager + " " + path);
-        } else if (DirectoryExists(min_path.c_str())) {
-            launch_command(config->file_manager + " " + min_path);
+    std::vector<std::string> commands = {"xdg-open", "thunar", "dolphin", "Thunar", "dolphin"};
+    for (const auto& c: commands) {
+        if (script_exists(c)) {
+            std::string path = home + "/" + data->text;
+            std::string small(data->text);
+            if (small.size() > 0)
+                small[0] = std::tolower(small[0]);
+            std::string min_path = home;
+            min_path.append("/").append(small);
+            if (DirectoryExists(path.c_str())) {
+                launch_command(std::string(c + " " + path));
+            } else if (DirectoryExists(min_path.c_str())) {
+                launch_command(std::string(c + " " + min_path));
+            }
+            break;
         }
     }
 }
@@ -621,8 +625,13 @@ clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) 
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (!config->file_manager.empty()) {
-        launch_command(config->file_manager);
+    std::string home = getenv("HOME");
+    std::vector<std::string> commands = {"xdg-open", "thunar", "dolphin", "Thunar", "Dolphin"};
+    for (const auto& c: commands) {
+        if (script_exists(c)) {
+            launch_command(std::string(c + " " + home));
+            break;
+        }
     }
     set_textarea_inactive();
     client_close_threaded(client->app, client);

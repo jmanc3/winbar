@@ -24,8 +24,6 @@ struct Config {
     std::string battery_command;
     std::string systray_command;
 
-    std::string file_manager = "thunar";
-
     bool date_single_line = false;
 
     ArgbColor color_taskbar_background = ArgbColor("#dd101010");

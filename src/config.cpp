@@ -59,8 +59,6 @@ void config_load() {
     success = cfg.lookupValue("battery_command", config->battery_command);
     success = cfg.lookupValue("systray_command", config->systray_command);
 
-    success = cfg.lookupValue("file_manager", config->file_manager);
-
     success = cfg.lookupValue("date_single_line", config->date_single_line);
 
     std::string active_theme_name;
