@@ -2,7 +2,7 @@
 
 A familiar X11 panel/dock to ease new linux users transition
 
-https://raw.githubusercontent.com/jmanc3/winbar-demo/main/demo.mp4
+![Demo](https://raw.githubusercontent.com/jmanc3/winbar-demo/main/demo.mp4)
 
 ## Packages required for building
 
