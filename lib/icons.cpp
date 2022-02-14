@@ -20,6 +20,7 @@
 #include <zconf.h>
 #include <sys/mman.h>
 #include <pango/pangocairo.h>
+#include <math.h>
 
 #ifdef TRACY_ENABLE
 
@@ -350,7 +351,7 @@ void check_icon_cache() {
         char buf[1024];
         if ((fp = fopen(icon_cache_path.data(), "rb"))) {
             fread(buf, 1, 10, fp);
-            std::string version = std::string(buf, strlen(buf));
+            std::string version = std::string(buf, std::max(strlen(buf), (unsigned long) 0));
             if (!version.empty()) {
                 auto cache_version_on_disk = std::stoi(version);
                 if (cache_version_on_disk != cache_version) {
@@ -378,7 +379,7 @@ void check_icon_cache() {
                 c->root->when_paint = paint_warning;
                 first_message = "Icon cache version file out of date";
                 second_message = "We are re-caching all icons, so this may take a while. Subsequent launches won't do this, so they'll be faster.";
-                third_message = "We'll start WinBar when we are done!";
+                third_message = "We'll start WinBar when we are done! (Feel free to close this window)";
                 client_show(temp_app, c);
                 app_main(temp_app);
                 app_clean(temp_app);
@@ -409,7 +410,7 @@ void check_icon_cache() {
             c->root->when_paint = paint_warning;
             first_message = "First time launching WinBar";
             second_message = "We are caching all icons so this may take a while. Subsequent launches will be faster.";
-            third_message = "We'll start WinBar when we are done!";
+            third_message = "We'll start WinBar when we are done! (Feel free to close this window)";
             client_show(temp_app, c);
             app_main(temp_app);
             app_clean(temp_app);
@@ -423,6 +424,17 @@ void check_icon_cache() {
     }
 
     last_time_cached_checked = get_current_time_in_ms();
+}
+
+int has_extension(const char *szFileName, const char *szExt) {
+    int i = 0;
+    if ('\0' != *szFileName) {
+        for (i = strlen(szFileName) - 1; i > 0; --i) {
+            if ('.' == szFileName[i])
+                break;
+        }
+    }
+    return (0 == strcmp(szFileName + i, szExt));
 }
 
 void search_icons(std::vector<IconTarget> &targets) {
@@ -449,47 +461,48 @@ void search_icons(std::vector<IconTarget> &targets) {
         strcpy(buffer, icon_cache_data + index_into_file);
         long len = strlen(buffer);
         index_into_file += len + 1;
-        std::string pre_path = std::string(buffer, len);
+        std::string pre_path = std::string(buffer, std::max(len, (long) 0));
 
         strcpy(buffer, icon_cache_data + index_into_file);
         len = strlen(buffer);
         index_into_file += len + 1;
-        std::string size = std::string(buffer, len);
+        std::string size = std::string(buffer, std::max(len, (long) 0));
 
         strcpy(buffer, icon_cache_data + index_into_file);
         len = strlen(buffer);
         index_into_file += len + 1;
-        std::string scale = std::string(buffer, len);
+        std::string scale = std::string(buffer, std::max(len, (long) 0));
 
         strcpy(buffer, icon_cache_data + index_into_file);
         len = strlen(buffer);
         index_into_file += len + 1;
-        std::string theme = std::string(buffer, len);
+        std::string theme = std::string(buffer, std::max(len, (long) 0));
 
         while (NOT_DONE && icon_cache_data[index_into_file] != '\n') {
             strcpy(buffer, icon_cache_data + index_into_file);
             len = strlen(buffer);
-            std::string name_without_extension = std::string(buffer, len - 4);
-            int extension = 0;
+            std::string name_without_extension = std::string(buffer, std::max(len - 4, (long) 0));
+            if (!name_without_extension.empty()) {
+                int extension = 0;
+                if (strncmp(buffer + len - 4, ".svg", 4) == 0) {
+                    extension = 2;
+                } else if (strncmp(buffer + len - 4, ".png", 4) == 0) {
+                    extension = 1;
+                } else if (strncmp(buffer + len - 4, ".xpm", 4) == 0) {
+                    extension = 3;
+                }
 
-            if (strncmp(buffer + len - 4, ".svg", 4) == 0) {
-                extension = 2;
-            } else if (strncmp(buffer + len - 4, ".png", 4) == 0) {
-                extension = 1;
-            } else if (strncmp(buffer + len - 4, ".xpm", 4) == 0) {
-                extension = 3;
-            }
-
-            for (int i = 0; i < targets.size(); i++) {
-                if (strcmp(name_without_extension.data(), targets[i].name.data()) == 0) {
-                    targets[i].indexes_of_results.emplace_back(
-                            pre_path,
-                            std::stoi(size),
-                            std::stoi(scale),
-                            theme,
-                            std::string(buffer, len),
-                            extension
-                    );
+                for (int i = 0; i < targets.size(); i++) {
+                    if (strcmp(name_without_extension.data(), targets[i].name.data()) == 0) {
+                        targets[i].indexes_of_results.emplace_back(
+                                pre_path,
+                                std::stoi(size),
+                                std::stoi(scale),
+                                theme,
+                                std::string(buffer, len),
+                                extension
+                        );
+                    }
                 }
             }
 
