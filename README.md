@@ -1,7 +1,8 @@
 # Winbar
 
 A familiar X11 panel/dock to ease new linux users transition
-![Screenshots of the taskbar and some menus](screenshots/1.png)
+
+https://raw.githubusercontent.com/jmanc3/winbar-demo/main/demo.mp4
 
 ## Packages required for building
 
@@ -52,15 +53,3 @@ sudo ./install.sh
 
 If compilation fails, it should tell you what headers are missing and you can look up what you need to install for your
 distribution to get that library.
-
-## Recommendations
-
-* It's recommended you set Papirus as your systems icon theme (you can use something like lxappearance to do that)
-
-* The default font set in ~/.config/winbar/winbar.cfg is "Segoe UI" so either have that on your system or set it to something else
-
-* There are four themes available default, light, dark, and dark-clear. Set your preferred in ~/.config/winbar/winbar.cfg
-
-* Winbar is mainly tested against KDE, Openbox, and Gnome (in that order) but it should work with other EWMH compliant window managers.
-
-* Change the value of the interface variable in the config file so winbar can display correct network status information. (~/.config/winbar/winbar.cfg)
