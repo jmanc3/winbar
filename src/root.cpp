@@ -124,14 +124,18 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
     return false;
 }
 
-void meta_pressed() {
-    std::lock_guard lock(app->thread_mutex);
+void meta_pressed(int num) {
+    if (num == 0) {
+        std::lock_guard lock(app->thread_mutex);
 
-    if (auto client = client_by_name(app, "app_menu")) {
-        client_close(app, client);
-        set_textarea_inactive();
+        if (auto client = client_by_name(app, "app_menu")) {
+            client_close(app, client);
+            set_textarea_inactive();
+        } else {
+            start_app_menu();
+        }
     } else {
-        start_app_menu();
+        taskbar_launch_index(num - 10);
     }
 }
 

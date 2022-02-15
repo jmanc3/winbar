@@ -7,6 +7,6 @@
 
 void watch_meta_key();
 
-extern void (*on_meta_key_pressed)();
+extern void (*on_meta_key_pressed)(int num);
 
 #endif// APP_BIND_META_H

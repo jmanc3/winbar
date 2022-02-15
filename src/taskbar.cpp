@@ -3498,3 +3498,19 @@ void WindowsData::rescale(double scale_w, double scale_h) {
     cairo_paint(scaled_thumbnail_cr);
     cairo_restore(scaled_thumbnail_cr);
 }
+
+void taskbar_launch_index(int index) {
+    if (auto c = client_by_name(app, "taskbar")) {
+        if (auto icons = container_by_name("icons", c->root)) {
+            for (int i = 0; i < icons->children.size(); i++) {
+                if (i == index) {
+                    auto container = icons->children[i];
+                    auto data = (LaunchableButton *) container->user_data;
+                    if (!data->command_launched_by.empty())
+                        launch_command(data->command_launched_by);
+                    break;
+                }
+            }
+        }
+    }
+}

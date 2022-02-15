@@ -106,10 +106,11 @@ void watch_meta_key() {
     xcb_disconnect(ctrl_disp);
 }
 
-void (*on_meta_key_pressed)();
+void (*on_meta_key_pressed)(int num);
 
 static int keys_down_count = 0;
 static bool clean = true;
+static bool num = true;
 
 size_t
 event_callback(xcb_record_enable_context_reply_t *reply, uint8_t *data_) {
@@ -121,15 +122,20 @@ event_callback(xcb_record_enable_context_reply_t *reply, uint8_t *data_) {
 
     switch (event_type) {
         case XCB_KEY_PRESS: {
+            if (clean && (keycode >= 10 && keycode <= 19)) {
+                num = true;
+                on_meta_key_pressed(keycode);
+                break;
+            }
+            num = false;
             clean = keycode == 133;
             break;
         }
         case XCB_KEY_RELEASE: {
             bool is_meta = keycode == 133;
-            if (is_meta && clean) {
-                if (on_meta_key_pressed) {
-                    on_meta_key_pressed();
-                }
+            if (is_meta && clean && !num) {
+                if (on_meta_key_pressed)
+                    on_meta_key_pressed(0);
                 clean = false;
             }
             break;

@@ -166,4 +166,6 @@ void set_textarea_inactive();
 
 void register_popup(xcb_window_t window);
 
+void taskbar_launch_index(int index);
+
 #endif// TASKBAR_H

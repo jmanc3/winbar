@@ -11,6 +11,6 @@ void update_stacking_order();
 
 void update_active_window();
 
-void meta_pressed();
+void meta_pressed(int num);
 
 #endif// ROOT_H
