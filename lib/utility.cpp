@@ -373,29 +373,32 @@ void launch_command(std::string command) {
 #endif
     if (command.empty())
         return;
-    signal(SIGCHLD, sighandler);
-    pid_t pid = fork();
-    if (pid < 0) {
-        fprintf(stderr, "winbar: Could not fork\n");
-    } else if (pid == 0) {
-        setsid();
+    std::thread t([command]()->void {
+        signal(SIGCHLD, sighandler);
+        pid_t pid = fork();
+        if (pid < 0) {
+            fprintf(stderr, "winbar: Could not fork\n");
+        } else if (pid == 0) {
+            setsid();
 
-        char *dir = getenv("HOME");
-        if (dir) {
-            int ret = chdir(dir);
-            if (ret != 0) {
-                fprintf(stderr, "winbar: failed to chdir to %s\n", dir);
+            char *dir = getenv("HOME");
+            if (dir) {
+                int ret = chdir(dir);
+                if (ret != 0) {
+                    fprintf(stderr, "winbar: failed to chdir to %s\n", dir);
+                }
             }
+
+            close_all_fds();
+            reset_signals();
+
+            execlp("sh", "sh", "-c", command.c_str(), NULL);
+            fprintf(stderr, "winbar: Failed to execute %s\n", command.c_str());
+
+            _exit(1);
         }
-
-        close_all_fds();
-        reset_signals();
-
-        execlp("sh", "sh", "-c", command.c_str(), NULL);
-        fprintf(stderr, "winbar: Failed to execute %s\n", command.c_str());
-
-        _exit(1);
-    }
+    });
+    t.detach();
 }
 
 // amount: 0 to 100
