@@ -2,7 +2,7 @@
 
 A familiar X11 panel/dock to ease new linux users transition
 
-https://user-images.githubusercontent.com/25911177/153828376-99d9a562-83a3-4f00-86a2-136329f43edc.mp4
+https://user-images.githubusercontent.com/25911177/154002452-446eb086-9453-480a-bb70-4703b500946b.mp4
 
 ## Packages required for building
 
