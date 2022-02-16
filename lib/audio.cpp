@@ -6,6 +6,12 @@
 #include "application.h"
 #include "volume_mapping.h"
 
+#ifdef TRACY_ENABLE
+
+#include "../tracy/Tracy.hpp"
+
+#endif
+
 AudioBackendData *audio_backend_data = new AudioBackendData;
 std::vector<Audio_Client *> audio_clients;
 
@@ -189,6 +195,12 @@ static bool try_establishing_connection_with_pulseaudio(App *app);
 // Don't get discouraged if you are trying to use this file for your project.
 // Only like six lines in this file use [App]. If you have an epoll at the heart of your project, it should be simple plugging that in here instead.
 void audio_start(App *app) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (audio_backend_data->audio_backend != Audio_Backend::NONE)
+        return;
+
     if (try_establishing_connection_with_pulseaudio(app)) {
         audio_backend_data->audio_backend = Audio_Backend::PULSEAUDIO;
     } else if (try_establishing_connection_with_alsa(app)) {

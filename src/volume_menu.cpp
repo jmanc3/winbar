@@ -319,9 +319,32 @@ drag_whenever(AppClient *client_entity, cairo_t *cr, Container *container) {
     drag(client_entity, cr, container, false);
 }
 
+void restart_volume_timeout(App *, AppClient *, Timeout *, void *) {
+    if (auto client = client_by_name(app, "volume")) {
+        client_close(app, client);
+        open_volume_menu();
+    }
+}
+
+static void
+retry_audio_connection(AppClient *client_entity, cairo_t *cr, Container *container) {
+    connected_message = "Retrying...";
+    client_paint(app, client_entity);
+    audio_start(app);
+    if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
+        connected_message = "Still failed. (You can try again, or maybe you have something set up wrong)";
+    } else {
+        connected_message = "Success";
+        app_timeout_create(app, nullptr, 0, restart_volume_timeout, nullptr);
+    }
+}
+
 void fill_root(Container *root) {
     root->when_paint = paint_root;
     root->type = vbox;
+
+    if (audio_backend_data->audio_backend == Audio_Backend::NONE)
+        root->when_clicked = retry_audio_connection;
 
     for (int i = 0; i < audio_clients.size(); i++) {
         auto vbox_container = new Container();
@@ -575,9 +598,12 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 void open_volume_menu() {
+    audio_start(app);
     if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
-        connected_message = "Failed to establish connection with an audio server (PulseAudio, Alsa)";
-    } else if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO) {
+        connected_message = "Failed to establish connection with an audio server [PulseAudio, Alsa]. (Click anywhere on this."
+                            "window to retry)";
+    } else if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO ||
+               audio_backend_data->audio_backend == Audio_Backend::ALSA) {
         audio_update_list_of_clients();
 
         if (audio_clients.empty()) {
