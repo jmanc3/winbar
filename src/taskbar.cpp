@@ -686,6 +686,16 @@ void active_window_changed(xcb_window_t new_active_window) {
     active_window = new_active_window;
 
     auto *new_active_container = get_pinned_icon_representing_window(new_active_window);
+    if (new_active_container) {
+        if (auto data = (LaunchableButton *) new_active_container->user_data) {
+            for (int i = 0; i < data->windows_data_list.size(); i++) {
+                if (data->windows_data_list[i]->id == active_window) {
+                    std::swap(data->windows_data_list[0], data->windows_data_list[i]);
+                    break;
+                }
+            }
+        }
+    }
     if (new_active_container == active_container)
         return;
 
@@ -3507,8 +3517,20 @@ void taskbar_launch_index(int index) {
                 if (i == index) {
                     auto container = icons->children[i];
                     auto data = (LaunchableButton *) container->user_data;
-                    if (!data->command_launched_by.empty())
-                        launch_command(data->command_launched_by);
+                    if (data) {
+                        if (data->windows_data_list.empty()) {
+                            if (!data->command_launched_by.empty())
+                                launch_command(data->command_launched_by);
+                        } else {
+                            xcb_ewmh_request_change_active_window(&app->ewmh,
+                                                                  app->screen_number,
+                                                                  data->windows_data_list[0]->id,
+                                                                  XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                                                  XCB_CURRENT_TIME,
+                                                                  XCB_NONE);
+                            xcb_flush(app->connection);
+                        }
+                    }
                     break;
                 }
             }
