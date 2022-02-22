@@ -515,7 +515,7 @@ void start_action_center(App *app) {
             settings.h = primary_screen->height_in_pixels - config->taskbar_height;
         }
     }
-    settings.popup = true;
+    settings.override_redirect = true;
     settings.skip_taskbar = true;
     settings.decorations = false;
     settings.force_position = true;
@@ -526,19 +526,24 @@ void start_action_center(App *app) {
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
 
-    auto client = client_new(app, settings, "action_center");
-    fill_root(client, client->root);
-    client->grab_event_handler = grab_event_handler;
-    app_create_custom_event_handler(app, client->window, event_handler);
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        PopupSettings popup_settings;
+        popup_settings.name = "action_center";
+        auto client = taskbar->create_popup(popup_settings, settings);
 
-    client_show(app, client);
+        fill_root(client, client->root);
+        client->grab_event_handler = grab_event_handler;
+        app_create_custom_event_handler(app, client->window, event_handler);
 
-    if (auto c = client_by_name(app, "taskbar")) {
-        if (auto co = container_by_name("action", c->root)) {
-            auto data = (ActionCenterButtonData *) co->user_data;
-            data->some_unseen = false;
-            client_create_animation(app, c, &data->slide_anim, 220, nullptr, 0);
-            request_refresh(app, c);
+        client_show(app, client);
+
+        if (auto c = client_by_name(app, "taskbar")) {
+            if (auto co = container_by_name("action", c->root)) {
+                auto data = (ActionCenterButtonData *) co->user_data;
+                data->some_unseen = false;
+                client_create_animation(app, c, &data->slide_anim, 220, nullptr, 0);
+                request_refresh(app, c);
+            }
         }
     }
 }

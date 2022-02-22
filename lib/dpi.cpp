@@ -104,7 +104,7 @@ static bool listen_to_randr_and_client_configured_events(App *app, xcb_generic_e
                     auto *e = (xcb_configure_notify_event_t *) event;
                     if (e->width == client->bounds->w && e->height == client->bounds->h) {
                         // PASS CONFIGURE EVENT TO THE CLIENT SO IT CAN UPDATE IT'S INTERNAL DATA
-                        handle_xcb_event(app, client->window, event);
+                        handle_xcb_event(app, client->window, event, false);
 
                         check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, client, true);
                         return true;

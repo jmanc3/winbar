@@ -631,53 +631,58 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     settings.force_position = true;
     settings.decorations = false;
     settings.skip_taskbar = true;
-    settings.popup = true;
+    settings.override_redirect = true;
 
-    auto client = client_new(app, settings, "windows_selector");
-    client->root->user_data = pii;
-    if (pii->data->surface) {
-        std::string path;
-        std::vector<IconTarget> targets;
-        targets.emplace_back(IconTarget(pii->data->icon_name));
-        targets.emplace_back(IconTarget(c3ic_fix_wm_class(pii->data->class_name)));
-        search_icons(targets);
-        pick_best(targets, 16);
-        path = targets[0].best_full_path;
-        if (path.empty()) {
-            path = targets[1].best_full_path;
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        PopupSettings popup_settings;
+        popup_settings.name = "windows_selector";
+        auto client = taskbar->create_popup(popup_settings, settings);
+
+        client->root->user_data = pii;
+        if (pii->data->surface) {
+            std::string path;
+            std::vector<IconTarget> targets;
+            targets.emplace_back(IconTarget(pii->data->icon_name));
+            targets.emplace_back(IconTarget(c3ic_fix_wm_class(pii->data->class_name)));
+            search_icons(targets);
+            pick_best(targets, 16);
+            path = targets[0].best_full_path;
+            if (path.empty()) {
+                path = targets[1].best_full_path;
+            }
+            if (path.empty()) {
+                pii->icon_surface = accelerated_surface(app, client, 16, 16);
+                cairo_t *cr = cairo_create(pii->icon_surface);
+
+                double starting_w = cairo_image_surface_get_width(pii->data->surface);
+                double target_w = 16;
+                double sx = target_w / starting_w;
+
+                cairo_scale(cr, sx, sx);
+                cairo_set_source_surface(cr, pii->data->surface, 0, 0);
+                cairo_paint(cr);
+
+                cairo_destroy(cr);
+            } else {
+                load_icon_full_path(app, client, &pii->icon_surface, path, 16);
+            }
         }
-        if (path.empty()) {
-            pii->icon_surface = accelerated_surface(app, client, 16, 16);
-            cairo_t *cr = cairo_create(pii->icon_surface);
 
-            double starting_w = cairo_image_surface_get_width(pii->data->surface);
-            double target_w = 16;
-            double sx = target_w / starting_w;
 
-            cairo_scale(cr, sx, sx);
-            cairo_set_source_surface(cr, pii->data->surface, 0, 0);
-            cairo_paint(cr);
+        client->fps = 30;
+        client->grab_event_handler = grab_event_handler;
+        client->when_closed = when_closed;
+        client_register_animation(app, client);
 
-            cairo_destroy(cr);
-        } else {
-            load_icon_full_path(app, client, &pii->icon_surface, path, 16);
+        app_create_custom_event_handler(app, client->window, windows_selector_event_handler);
+
+        fill_root(client, client->root);
+
+        client_show(app, client);
+
+        if (auto c = client_by_name(app, "taskbar")) {
+            request_refresh(app, c);
         }
-    }
-
-
-    client->fps = 30;
-    client->grab_event_handler = grab_event_handler;
-    client->when_closed = when_closed;
-    client_register_animation(app, client);
-
-    app_create_custom_event_handler(app, client->window, windows_selector_event_handler);
-
-    fill_root(client, client->root);
-
-    client_show(app, client);
-
-    if (auto c = client_by_name(app, "taskbar")) {
-        request_refresh(app, c);
     }
 }
 

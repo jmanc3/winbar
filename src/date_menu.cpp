@@ -1083,7 +1083,7 @@ void start_date_menu() {
     settings.decorations = false;
     settings.force_position = true;
     settings.sticky = true;
-    settings.popup = true;
+    settings.override_redirect = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
     settings.slide_data[1] = 3;
@@ -1091,21 +1091,25 @@ void start_date_menu() {
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
 
-    AppClient *client = client_new(app, settings, "date_menu");
-    client->grab_event_handler = grab_event_handler;
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        PopupSettings popup_settings;
+        popup_settings.name = "date_menu";
+        auto client = taskbar->create_popup(popup_settings, settings);
+        client->grab_event_handler = grab_event_handler;
 
-    client->when_closed = date_menu_closed;
+        client->when_closed = date_menu_closed;
 
-    app_create_custom_event_handler(app, client->window, date_menu_event_handler);
+        app_create_custom_event_handler(app, client->window, date_menu_event_handler);
 
-    if (!time_update_thread_updated) {
-        time_update_thread_updated = true;
-        app_timeout_create(app, client, 500, paint_date_menu, nullptr);
+        if (!time_update_thread_updated) {
+            time_update_thread_updated = true;
+            app_timeout_create(app, client, 500, paint_date_menu, nullptr);
+        }
+
+        read_agenda_from_disk(client);
+
+        fill_root(client);
+
+        client_show(app, client);
     }
-
-    read_agenda_from_disk(client);
-
-    fill_root(client);
-
-    client_show(app, client);
 }

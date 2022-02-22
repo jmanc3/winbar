@@ -1629,18 +1629,23 @@ void start_search_menu() {
         settings.x = width + taskbar->bounds->x;
         settings.y = taskbar->bounds->y - settings.h;
     }
-    settings.popup = true;
+    settings.override_redirect = true;
 
-    AppClient *client = client_new(app, settings, "search_menu");
-    xcb_set_input_focus(app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
-    xcb_flush(app->connection);
-    xcb_aux_sync(app->connection);
-    client->grab_event_handler = grab_event_handler;
-    client->when_closed = search_menu_when_closed;
-    fill_root(client);
-    app_create_custom_event_handler(app, client->window, search_menu_event_handler);
-    client_show(app, client);
-    set_textarea_active();
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        PopupSettings popup_settings;
+        popup_settings.name = "search_menu";
+        auto client = taskbar->create_popup(popup_settings, settings);
+
+        client->grab_event_handler = grab_event_handler;
+        client->when_closed = search_menu_when_closed;
+        fill_root(client);
+        app_create_custom_event_handler(app, client->window, search_menu_event_handler);
+        client_show(app, client);
+        set_textarea_active();
+        xcb_set_input_focus(app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+    }
 }
 
 #include <dirent.h>

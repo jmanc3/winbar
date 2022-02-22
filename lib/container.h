@@ -34,6 +34,8 @@ struct Bounds {
     Bounds(double x, double y, double w, double h);
 
     Bounds(const Bounds &b);
+
+    bool non_zero();
 };
 
 enum layout_type {
@@ -156,7 +158,17 @@ struct ScreenInformation {
     }
 };
 
+struct PopupSettings {
+    bool is_popup = false;
+    bool transparent_mouse_grab = true;
+    bool takes_input_focus = false;
+    bool ignore_scroll = false;
+    std::string name;
+};
+
 struct AppClient;
+
+struct Settings;
 
 struct Timeout;
 
@@ -225,8 +237,6 @@ struct AppClient {
         return screen_information->dpi_scale;
     }
 
-    bool popup = false;
-
     bool window_supports_transparency;
     cairo_t *cr = nullptr;
     xcb_colormap_t colormap;
@@ -242,6 +252,14 @@ struct AppClient {
     void (*grab_event_handler)(AppClient *client, xcb_generic_event_t *event) = nullptr;
 
     bool keeps_app_running = true;
+
+    PopupSettings popup_info;
+
+    AppClient *child_popup = nullptr;
+
+    bool wants_popup_events = false;
+
+    AppClient *create_popup(PopupSettings popup_settings, Settings client_settings);
 };
 
 struct Container {

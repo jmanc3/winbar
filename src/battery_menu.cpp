@@ -414,7 +414,7 @@ void start_battery_menu() {
     settings.force_position = true;
     settings.decorations = false;
     settings.skip_taskbar = true;
-    settings.popup = true;
+    settings.override_redirect = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
     settings.slide_data[1] = 3;
@@ -422,24 +422,28 @@ void start_battery_menu() {
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
 
-    battery_entity = client_new(app, settings, "battery_menu");
-    battery_entity->grab_event_handler = grab_event_handler;
-    battery_entity->popup = true;
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+//        battery_entity = client_new(app, settings, "battery_menu");
+        PopupSettings popup_settings;
+        popup_settings.name = "battery_menu";
+        battery_entity = taskbar->create_popup(popup_settings, settings);
+        battery_entity->grab_event_handler = grab_event_handler;
 
-    app_create_custom_event_handler(app, battery_entity->window, battery_menu_event_handler);
+        app_create_custom_event_handler(app, battery_entity->window, battery_menu_event_handler);
 
-    fill_root(battery_entity->root);
+        fill_root(battery_entity->root);
 
-    int brightness = backlight_get_brightness();
-    if (dbus_gnome_running()) {
-        brightness = dbus_get_gnome_brightness();
-    } else if (dbus_get_kde_max_brightness() != 0)
-        brightness = (dbus_get_kde_current_brightness() / dbus_get_kde_max_brightness()) * 100;
-    if (brightness == -1) {
-        marker_position_scalar = 1;
-    } else {
-        marker_position_scalar = (brightness) / 100.0;
+        int brightness = backlight_get_brightness();
+        if (dbus_gnome_running()) {
+            brightness = dbus_get_gnome_brightness();
+        } else if (dbus_get_kde_max_brightness() != 0)
+            brightness = (dbus_get_kde_current_brightness() / dbus_get_kde_max_brightness()) * 100;
+        if (brightness == -1) {
+            marker_position_scalar = 1;
+        } else {
+            marker_position_scalar = (brightness) / 100.0;
+        }
+
+        client_show(app, battery_entity);
     }
-
-    client_show(app, battery_entity);
 }

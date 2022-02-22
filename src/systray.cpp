@@ -389,24 +389,29 @@ void open_systray() {
     settings.x = -settings.w * 2;
     settings.y = -settings.h * 2;
     settings.no_input_focus = false;
-    settings.popup = true;
+    settings.override_redirect = true;
     settings.background = argb_to_color(config->color_systray_background);
 
-    display = client_new(app, settings, "display");
-    display->grab_event_handler = grab_event_handler;
-    display->root->when_paint = paint_display;
-    display->when_closed = on_display_closed;
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        PopupSettings popup_settings;
+        popup_settings.name = "display";
+        display = taskbar->create_popup(popup_settings, settings);
 
-    app_create_custom_event_handler(app, display->window, display_event_handler);
+        display->grab_event_handler = grab_event_handler;
+        display->root->when_paint = paint_display;
+        display->when_closed = on_display_closed;
 
-    for (auto icon: systray_icons)
-        xcb_reparent_window(app->connection, icon->window, display->window, -512, -512);
+        app_create_custom_event_handler(app, display->window, display_event_handler);
 
-    client_show(app, display);
+        for (auto icon: systray_icons)
+            xcb_reparent_window(app->connection, icon->window, display->window, -512, -512);
 
-    layout_systray();
+        client_show(app, display);
 
-    layout_invalid = true;
+        layout_systray();
+
+        layout_invalid = true;
+    }
 }
 
 void display_close_timeout(App *app, AppClient *, Timeout *, void *) {

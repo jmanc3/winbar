@@ -1370,7 +1370,7 @@ void start_app_menu() {
     }
     settings.skip_taskbar = true;
     settings.decorations = false;
-    settings.popup = true;
+    settings.override_redirect = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
     settings.slide_data[1] = 3;
@@ -1378,14 +1378,19 @@ void start_app_menu() {
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
 
-    AppClient *client = client_new(app, settings, "app_menu");
-    xcb_set_input_focus(app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
-    xcb_flush(app->connection);
-    xcb_aux_sync(app->connection);
-    client->grab_event_handler = grab_event_handler;
-    client->when_closed = app_menu_closed;
-    app_create_custom_event_handler(app, client->window, app_menu_event_handler);
-    fill_root(client);
-    client_show(app, client);
-    set_textarea_active();
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        PopupSettings popup_settings;
+        popup_settings.name = "app_menu";
+        auto client = taskbar->create_popup(popup_settings, settings);
+
+        client->grab_event_handler = grab_event_handler;
+        client->when_closed = app_menu_closed;
+        app_create_custom_event_handler(app, client->window, app_menu_event_handler);
+        fill_root(client);
+        client_show(app, client);
+        set_textarea_active();
+        xcb_set_input_focus(app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+    }
 }

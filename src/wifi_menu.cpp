@@ -474,7 +474,7 @@ void start_wifi_menu() {
     settings.decorations = false;
     settings.force_position = true;
     settings.sticky = true;
-    settings.popup = true;
+    settings.override_redirect = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
     settings.slide_data[1] = 3;
@@ -482,23 +482,28 @@ void start_wifi_menu() {
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
 
-    AppClient *client = client_new(app, settings, "wifi_menu");
-    client->grab_event_handler = grab_event_handler;
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        PopupSettings popup_settings;
+        popup_settings.name = "wifi_menu";
+        auto client = taskbar->create_popup(popup_settings, settings);
 
-    app_create_custom_event_handler(app, client->window, wifi_menu_event_handler);
+        client->grab_event_handler = grab_event_handler;
 
-    fill_root(client);
+        app_create_custom_event_handler(app, client->window, wifi_menu_event_handler);
 
-    if (wifi_running()) {
-        root_message = "";
-        client_register_animation(app, client);
-        wifi_networks_and_cached_scan(cached_scan_results);
-        wifi_scan(uncached_scan_results);
-    } else {
-        root_message = "WIFI menu is not fully implemented yet";
-        auto data = (RootScanAnimationData *) client->root->user_data;
-        data->running = false;
+        fill_root(client);
+
+        if (wifi_running()) {
+            root_message = "";
+            client_register_animation(app, client);
+            wifi_networks_and_cached_scan(cached_scan_results);
+            wifi_scan(uncached_scan_results);
+        } else {
+            root_message = "WIFI menu is not fully implemented yet";
+            auto data = (RootScanAnimationData *) client->root->user_data;
+            data->running = false;
+        }
+
+        client_show(app, client);
     }
-
-    client_show(app, client);
 }

@@ -55,7 +55,7 @@ struct Settings {
     bool dock = false;
     bool sticky = false;
     bool window_transparent = true;
-    bool popup = false;
+    bool override_redirect = false;
     bool keep_above = false;
 
     Settings() { reserve_side = false; }
@@ -142,6 +142,8 @@ struct App {
 
     cairo_device_t *device = nullptr;
 
+    AppClient *popup_client = nullptr;
+
     App();
 };
 
@@ -160,7 +162,7 @@ bool valid_client(App *app, AppClient *target_client);
 
 void handle_xcb_event(App *app, std::vector<xcb_window_t> *windows);
 
-void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event);
+void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event, bool change_event_source);
 
 AppClient *
 client_new(App *app, Settings settings, const std::string &name);

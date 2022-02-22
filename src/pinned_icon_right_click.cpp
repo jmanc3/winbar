@@ -542,7 +542,7 @@ void start_pinned_icon_right_click(Container *container) {
     settings.decorations = false;
     settings.force_position = true;
     settings.skip_taskbar = true;
-    settings.popup = true;
+    settings.override_redirect = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
     settings.slide_data[1] = 3;
@@ -550,39 +550,44 @@ void start_pinned_icon_right_click(Container *container) {
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 50;
 
-    AppClient *client = client_new(app, settings, "right_click_menu");
-    client->grab_event_handler = grab_event_handler;
-    client->when_closed = when_pinned_icon_right_click_menu_closed;
-    delete client->root;
-    client->root = root;
-    client_entity = client;
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        PopupSettings popup_settings;
+        popup_settings.name = "right_click_menu";
+        auto client = taskbar->create_popup(popup_settings, settings);
 
-    for (auto *d: delayed) {
-        if (d->path.empty()) {
-            if (pinned_icon_data->surface) {
+        client->grab_event_handler = grab_event_handler;
+        client->when_closed = when_pinned_icon_right_click_menu_closed;
+        delete client->root;
+        client->root = root;
+        client_entity = client;
+
+        for (auto *d: delayed) {
+            if (d->path.empty()) {
+                if (pinned_icon_data->surface) {
+                    *d->surface = accelerated_surface(app, client, d->size, d->size);
+                    cairo_t *cr = cairo_create(*d->surface);
+
+                    double starting_w = cairo_image_surface_get_width(pinned_icon_data->surface);
+                    double target_w = 16;
+                    double sx = target_w / starting_w;
+
+                    cairo_scale(cr, sx, sx);
+                    cairo_set_source_surface(cr, pinned_icon_data->surface, 0, 0);
+                    cairo_paint(cr);
+
+                    cairo_destroy(cr);
+                }
+            } else {
                 *d->surface = accelerated_surface(app, client, d->size, d->size);
-                cairo_t *cr = cairo_create(*d->surface);
-
-                double starting_w = cairo_image_surface_get_width(pinned_icon_data->surface);
-                double target_w = 16;
-                double sx = target_w / starting_w;
-
-                cairo_scale(cr, sx, sx);
-                cairo_set_source_surface(cr, pinned_icon_data->surface, 0, 0);
-                cairo_paint(cr);
-
-                cairo_destroy(cr);
+                paint_surface_with_image(*d->surface, d->path, d->size, nullptr);
             }
-        } else {
-            *d->surface = accelerated_surface(app, client, d->size, d->size);
-            paint_surface_with_image(*d->surface, d->path, d->size, nullptr);
+            delete d;
         }
-        delete d;
+        delayed.clear();
+        delayed.shrink_to_fit();
+
+        app_create_custom_event_handler(app, client->window, icon_menu_event_handler);
+
+        client_show(app, client);
     }
-    delayed.clear();
-    delayed.shrink_to_fit();
-
-    app_create_custom_event_handler(app, client->window, icon_menu_event_handler);
-
-    client_show(app, client);
 }

@@ -300,7 +300,7 @@ void show_notification(App *app, NotificationInfo *ni) {
         settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w - 12;
         settings.y = taskbar->bounds->y - settings.h - 12;
     }
-    settings.popup = true;
+    settings.override_redirect = true;
     settings.sticky = true;
     settings.skip_taskbar = true;
     settings.keep_above = true;

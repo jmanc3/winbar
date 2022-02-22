@@ -2066,7 +2066,7 @@ taskbar_on_screen_size_change(App *app, AppClient *client) {
                             config->taskbar_height, primary_screen->width_in_pixels,
                             config->taskbar_height);
     xcb_flush(app->connection);
-    for (auto *c: app->clients) {
+/*    for (auto *c: app->clients) {
         if (c->popup) {
             client_close_threaded(app, c);
             if (c->window == app->grab_window) {
@@ -2075,7 +2075,7 @@ taskbar_on_screen_size_change(App *app, AppClient *client) {
                 xcb_flush(app->connection);
             }
         }
-    }
+    }*/
 }
 
 static void
@@ -3305,7 +3305,8 @@ void set_textarea_inactive() {
 }
 
 void register_popup(xcb_window_t window) {
-    // Close every other popup
+    return;
+    // Close every other override_redirect
     xcb_aux_sync(app->connection);
 
     auto *client = client_by_window(app, window);
@@ -3316,11 +3317,11 @@ void register_popup(xcb_window_t window) {
     // TODO why don't we grab the pointer instead?
     xcb_void_cookie_t grab_cookie =
             xcb_grab_button_checked(app->connection,
-                                    False,
+                                    true,
                                     app->screen->root,
                                     XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
                                     XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_POINTER_MOTION_HINT,
-                                    XCB_GRAB_MODE_SYNC,
+                                    XCB_GRAB_MODE_ASYNC,
                                     XCB_GRAB_MODE_ASYNC,
                                     XCB_NONE,
                                     XCB_NONE,
@@ -3343,13 +3344,13 @@ void register_popup(xcb_window_t window) {
 
         xcb_set_input_focus(
                 app->connection, XCB_INPUT_FOCUS_PARENT, popup_window_open, XCB_CURRENT_TIME);
-        for (auto *c: app->clients) {
+/*        for (auto *c: app->clients) {
             if (c->window != window) {
                 if (c->popup) {
                     client_close_threaded(app, c);
                 }
             }
-        }
+        }*/
     }
 }
 

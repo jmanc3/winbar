@@ -490,7 +490,7 @@ client_new(App *app, Settings settings, const std::string &name) {
             // XCB_CW_BORDER_PIXEL
             settings.background,
             // XCB_CW_OVERRIDE_REDIRECT
-            settings.popup,
+            settings.override_redirect,
             // XCB_CW_EVENT_MASK
             XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS |
             XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_POINTER_MOTION |
@@ -693,7 +693,7 @@ client_new(App *app, Settings settings, const std::string &name) {
     client->name = name;
 
     client->window = window;
-    client->popup = settings.popup;
+//    client->override_redirect = settings.override_redirect;
 
     client->root->wanted_bounds.w = FILL_SPACE;
     client->root->wanted_bounds.h = FILL_SPACE;
@@ -897,10 +897,9 @@ void client_close(App *app, AppClient *client) {
         client->when_closed(client);
     }
 
-    if (client->popup) {
+    if (client->popup_info.is_popup) {
         xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
         xcb_flush(app->connection);
-        app->grab_window = -1;
     }
 
     // TODO: this will crash if there is more than one handler per window I think
@@ -1570,7 +1569,7 @@ send_key(App *app, AppClient *client, Container *container) {
     }
 }
 
-void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event) {
+void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event, bool change_event_source) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1613,14 +1612,61 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
             break;
         }
         case XCB_MOTION_NOTIFY: {
+            auto *e = (xcb_motion_notify_event_t *) event;
+            if (auto client = client_by_window(app, window_number)) {
+                if (change_event_source) {
+                    e->event = window_number;
+                    e->event_x -= client->bounds->x;
+                    e->event_y -= client->bounds->y;
+                }
+
+                if (client->popup_info.is_popup) {
+                    if (client->popup_info.transparent_mouse_grab) {
+                        xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
+                        xcb_flush(app->connection);
+                    }
+                }
+            }
+
             handle_mouse_motion(app);
             return;
         }
         case XCB_BUTTON_PRESS: {
+            auto *e = (xcb_button_press_event_t *) event;
+            if (auto client = client_by_window(app, window_number)) {
+                if (change_event_source) {
+                    if (!bounds_contains(*client->bounds, e->event_x, e->event_y)) {
+                        if (client->popup_info.ignore_scroll) {
+                            if (!(e->detail >= 4 && e->detail <= 7)) {
+                                client_close_threaded(app, client);
+                            }
+                        } else {
+                            client_close_threaded(app, client);
+                        }
+                    }
+                    if (client->popup_info.is_popup) {
+                        if (client->popup_info.transparent_mouse_grab) {
+                            xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
+                            xcb_flush(app->connection);
+                        }
+                    }
+                    e->event = window_number;
+                    e->event_x -= client->bounds->x;
+                    e->event_y -= client->bounds->y;
+                }
+            }
             handle_mouse_button_press(app);
             break;
         }
         case XCB_BUTTON_RELEASE: {
+            auto *e = (xcb_button_release_event_t *) event;
+            if (auto client = client_by_window(app, window_number)) {
+                if (change_event_source) {
+                    e->event = window_number;
+                    e->event_x -= client->bounds->x;
+                    e->event_y -= client->bounds->y;
+                }
+            }
             bool was_scroll_event = handle_mouse_button_release(app);
             if (was_scroll_event) {
                 return;
@@ -1632,7 +1678,13 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
             if (e->mode != 0) {
                 return;
             }
-
+            if (auto client = client_by_window(app, window_number)) {
+                if (change_event_source) {
+                    e->event = window_number;
+                    e->event_x -= client->bounds->x;
+                    e->event_y -= client->bounds->y;
+                }
+            }
             handle_mouse_leave_notify(app);
             break;
         }
@@ -1640,6 +1692,13 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
             auto *e = (xcb_enter_notify_event_t *) event;
             if (e->mode != 0) {
                 return;
+            }
+            if (auto client = client_by_window(app, window_number)) {
+                if (change_event_source) {
+                    e->event = window_number;
+                    e->event_x -= client->bounds->x;
+                    e->event_y -= client->bounds->y;
+                }
             }
 
             handle_mouse_enter_notify(app);
@@ -1649,6 +1708,12 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
             auto client = client_by_window(app, window_number);
             if (!valid_client(app, client))
                 return;
+            auto *e = (xcb_key_press_event_t *) event;
+            if (change_event_source) {
+                e->event = window_number;
+                e->event_x -= client->bounds->x;
+                e->event_y -= client->bounds->y;
+            }
 
             send_key(app, client, client->root);
             break;
@@ -1661,6 +1726,8 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
             auto client = client_by_window(app, window_number);
             if (!valid_client(app, client))
                 return;
+            auto *e = (xcb_key_release_event_t *) event;
+            e->event = window_number;
 
             send_key(app, client, client->root);
             break;
@@ -1711,8 +1778,13 @@ void handle_xcb_event(App *app) {
 
             } else {
                 if (auto client = client_by_window(app, window)) {
-                    handle_xcb_event(app, client->window, event);
-                } else {
+                    handle_xcb_event(app, client->window, event, false);
+                } else if (window == app->screen->root) {
+                    for (auto c: app->clients) {
+                        if (c->wants_popup_events) {
+                            handle_xcb_event(app, c->window, event, true);
+                        }
+                    }
                     // An event from a window for which is not a client
                 }
             }
@@ -1732,11 +1804,23 @@ void handle_xcb_event(App *app) {
 }
 
 void xcb_poll_wakeup(App *app, int fd) {
-    xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
-    xcb_flush(app->connection);
+//    bool replay = false;
+//    for (auto c: app->clients) {
+//        if (c->child_popup) {
+//            if (c->child_popup->popup_info.transparent_mouse_grab) {
+//                replay = true;
+//            }
+//        }
+//    }
+//    if (replay) {
+//        xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
+//        xcb_flush(app->connection);
+//    }
     handle_xcb_event(app);
-    xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
-    xcb_flush(app->connection);
+//    if (replay) {
+//        xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
+//        xcb_flush(app->connection);
+//    }
 }
 
 void app_main(App *app) {

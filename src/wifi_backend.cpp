@@ -8,6 +8,7 @@
 #include <wpa_ctrl.h>
 #include <sstream>
 #include <utility.h>
+#include <sys/wait.h>
 
 struct WifiData {
     int type = 0; // 0 will be nothing, 1 wpa_supplicant, 2 NetworkManager eventually

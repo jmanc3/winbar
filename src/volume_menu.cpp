@@ -642,7 +642,7 @@ void open_volume_menu() {
         settings.y = taskbar->bounds->y - settings.h;
     }
     settings.force_position = true;
-    settings.popup = true;
+    settings.override_redirect = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
     settings.slide_data[1] = 3;
@@ -650,46 +650,52 @@ void open_volume_menu() {
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
 
-    client_entity = client_new(app, settings, "volume");
-    client_entity->grab_event_handler = grab_event_handler;
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        PopupSettings popup_settings;
+        popup_settings.name = "volume";
+        popup_settings.ignore_scroll = true;
+        client_entity = taskbar->create_popup(popup_settings, settings);
 
-    app_create_custom_event_handler(app, client_entity->window, volume_menu_event_handler);
+        client_entity->grab_event_handler = grab_event_handler;
 
-    Container *root = client_entity->root;
-    ScrollPaneSettings s;
-    s.right_width = 12;
-    s.right_arrow_height = 12;
-    Container *scrollpane = make_scrollpane(root, s);
-    scrollpane->when_scrolled = nullptr;
-    Container *content = scrollpane->child(::vbox, FILL_SPACE, FILL_SPACE);
+        app_create_custom_event_handler(app, client_entity->window, volume_menu_event_handler);
 
-    Container *right_thumb_container = scrollpane->parent->children[0]->children[1];
-    right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
-    right_thumb_container->when_paint = paint_right_thumb;
+        Container *root = client_entity->root;
+        ScrollPaneSettings s;
+        s.right_width = 12;
+        s.right_arrow_height = 12;
+        Container *scrollpane = make_scrollpane(root, s);
+        scrollpane->when_scrolled = nullptr;
+        Container *content = scrollpane->child(::vbox, FILL_SPACE, FILL_SPACE);
 
-    Container *top_arrow = scrollpane->parent->children[0]->children[0];
-    top_arrow->when_paint = paint_arrow;
-    auto *top_data = new IconButton;
-    top_data->surface = accelerated_surface(app, client_entity, 12, 12);
-    paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12, nullptr);
+        Container *right_thumb_container = scrollpane->parent->children[0]->children[1];
+        right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
+        right_thumb_container->when_paint = paint_right_thumb;
 
-    top_arrow->user_data = top_data;
-    Container *bottom_arrow = scrollpane->parent->children[0]->children[2];
-    bottom_arrow->when_paint = paint_arrow;
-    auto *bottom_data = new IconButton;
-    bottom_data->surface = accelerated_surface(app, client_entity, 12, 12);
-    paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12, nullptr);
+        Container *top_arrow = scrollpane->parent->children[0]->children[0];
+        top_arrow->when_paint = paint_arrow;
+        auto *top_data = new IconButton;
+        top_data->surface = accelerated_surface(app, client_entity, 12, 12);
+        paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12, nullptr);
 
-    bottom_arrow->user_data = bottom_data;
+        top_arrow->user_data = top_data;
+        Container *bottom_arrow = scrollpane->parent->children[0]->children[2];
+        bottom_arrow->when_paint = paint_arrow;
+        auto *bottom_data = new IconButton;
+        bottom_data->surface = accelerated_surface(app, client_entity, 12, 12);
+        paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12, nullptr);
 
-    fill_root(content);
-    if (audio_backend_data->audio_backend != Audio_Backend::NONE) {
-        content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
-    } else {
-        content->wanted_bounds.h = 80;
+        bottom_arrow->user_data = bottom_data;
+
+        fill_root(content);
+        if (audio_backend_data->audio_backend != Audio_Backend::NONE) {
+            content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
+        } else {
+            content->wanted_bounds.h = 80;
+        }
+
+        client_show(app, client_entity);
     }
-
-    client_show(app, client_entity);
 }
 
 void update_volume_menu() {
