@@ -1362,7 +1362,7 @@ void start_app_menu() {
     settings.force_position = true;
     settings.w = 320;
     settings.h = 641;
-    settings.x = 0;
+    settings.x = app->bounds.x;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
         settings.x = taskbar->bounds->x;

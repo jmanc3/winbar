@@ -217,7 +217,7 @@ struct AppClient {
     int animations_running = 0;
     float fps = 144;
 
-    bool automatically_resize_on_dpi_change = true;
+    bool automatically_resize_on_dpi_change = false;
 
     // called after dpi_scale_factor and screen_information have been updated
     void (*on_dpi_change)(App *, AppClient *) = nullptr;
