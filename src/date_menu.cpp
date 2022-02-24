@@ -813,8 +813,6 @@ fill_root(AppClient *client) {
     agenda->user_data = agenda_data;
 }
 
-static bool first_expose = true;
-
 static void
 write_agenda_to_disk(AppClient *client) {
     const char *home = getenv("HOME");
@@ -979,78 +977,6 @@ read_agenda_from_disk(AppClient *client) {
 }
 
 static void
-grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-
-            if (auto *textarea = container_by_name("main_text_area", client->root)) {
-                if (!bounds_contains(textarea->real_bounds, e->event_x, e->event_y)) {
-                    textarea->parent->active = false;
-                }
-            }
-
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-
-                if (auto c = client_by_name(client->app, "taskbar")) {
-                    if (auto co = container_by_name("date", c->root)) {
-                        if (co->state.mouse_hovering) {
-                            auto data = (IconButton *) co->user_data;
-                            data->invalid_button_down = true;
-                            data->timestamp = get_current_time_in_ms();
-                        }
-                    }
-                }
-            }
-            break;
-        }
-    }
-}
-
-static bool
-date_menu_event_handler(App *app, xcb_generic_event_t *event) {
-    // For detecting if we pressed outside the window
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_MAP_NOTIFY: {
-            auto *e = (xcb_map_notify_event_t *) (event);
-            register_popup(e->window);
-            xcb_set_input_focus(app->connection, XCB_NONE, e->window, XCB_CURRENT_TIME);
-            xcb_flush(app->connection);
-            break;
-        }
-        case XCB_FOCUS_OUT: {
-            auto *e = (xcb_focus_out_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (valid_client(app, client)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-            }
-        }
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (!valid_client(app, client)) {
-                break;
-            }
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-    }
-
-    return false;
-}
-
-static void
 date_menu_closed(AppClient *client) {
     write_agenda_to_disk(client);
 }
@@ -1095,11 +1021,7 @@ void start_date_menu() {
         PopupSettings popup_settings;
         popup_settings.name = "date_menu";
         auto client = taskbar->create_popup(popup_settings, settings);
-        client->grab_event_handler = grab_event_handler;
-
         client->when_closed = date_menu_closed;
-
-        app_create_custom_event_handler(app, client->window, date_menu_event_handler);
 
         if (!time_update_thread_updated) {
             time_update_thread_updated = true;

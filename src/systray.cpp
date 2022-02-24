@@ -165,72 +165,6 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
     return true;
 }
 
-static void
-grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            if (!bounds_contains(*display->bounds, e->root_x, e->root_y)) {
-                app->grab_window = -1;
-                set_textarea_inactive();
-                display_close();
-
-                if (auto c = client_by_name(client->app, "taskbar")) {
-                    if (auto co = container_by_name("systray", c->root)) {
-                        if (co->state.mouse_hovering) {
-                            auto data = (IconButton *) co->user_data;
-                            data->invalid_button_down = true;
-                            data->timestamp = get_current_time_in_ms();
-                        }
-                    }
-                }
-            }
-            break;
-        }
-    }
-}
-
-static bool
-display_event_handler(App *app, xcb_generic_event_t *event) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_CLIENT_MESSAGE: {
-            auto *e = (xcb_client_message_event_t *) event;
-            auto client = client_by_window(app, e->window);
-            if (!valid_client(app, client))
-                break;
-
-            if (e->data.data32[0] == app->delete_window_atom) {
-                display_close();
-            }
-            break;
-        }
-        case XCB_MAP_NOTIFY: {
-            register_popup(display->window);
-            break;
-        }
-        case XCB_FOCUS_OUT: {
-            display_close();
-            break;
-        }
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            if (!valid_client(app, display))
-                break;
-            if (!bounds_contains(*display->bounds, e->root_x, e->root_y)) {
-                display_close();
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-    }
-    return false;
-}
-
 static int
 closest_square_root_above(int target) {
     int i = 0;
@@ -352,7 +286,6 @@ void register_as_systray() {
     systray_icons.clear();
     systray_icons.shrink_to_fit();
 
-    app_create_custom_event_handler(app, systray->window, systray_event_handler);
     app_create_custom_event_handler(app, INT_MAX, icon_event_handler);
 
     xcb_client_message_event_t ev;
@@ -397,11 +330,8 @@ void open_systray() {
         popup_settings.name = "display";
         display = taskbar->create_popup(popup_settings, settings);
 
-        display->grab_event_handler = grab_event_handler;
         display->root->when_paint = paint_display;
         display->when_closed = on_display_closed;
-
-        app_create_custom_event_handler(app, display->window, display_event_handler);
 
         for (auto icon: systray_icons)
             xcb_reparent_window(app->connection, icon->window, display->window, -512, -512);

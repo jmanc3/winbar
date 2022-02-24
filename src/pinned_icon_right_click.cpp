@@ -457,62 +457,6 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     return root;
 }
 
-static bool first_expose = false;
-
-static void
-grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-    }
-}
-
-static bool
-icon_menu_event_handler(App *app, xcb_generic_event_t *event) {
-    // For detecting if we pressed outside the window
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_MAP_NOTIFY: {
-            auto *e = (xcb_map_notify_event_t *) (event);
-            register_popup(e->window);
-            pinned_icon_data->type = selector_type::OPEN_CLICKED;
-            break;
-        }
-        case XCB_FOCUS_OUT: {
-            auto *e = (xcb_focus_out_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (valid_client(app, client)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-            }
-        }
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (!valid_client(app, client)) {
-                break;
-            }
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-    }
-
-    return false;
-}
-
 static void when_pinned_icon_right_click_menu_closed(AppClient *client) {
     pinned_icon_data->type = selector_type::CLOSED;
 }
@@ -555,7 +499,6 @@ void start_pinned_icon_right_click(Container *container) {
         popup_settings.name = "right_click_menu";
         auto client = taskbar->create_popup(popup_settings, settings);
 
-        client->grab_event_handler = grab_event_handler;
         client->when_closed = when_pinned_icon_right_click_menu_closed;
         delete client->root;
         client->root = root;
@@ -585,9 +528,6 @@ void start_pinned_icon_right_click(Container *container) {
         }
         delayed.clear();
         delayed.shrink_to_fit();
-
-        app_create_custom_event_handler(app, client->window, icon_menu_event_handler);
-
         client_show(app, client);
     }
 }

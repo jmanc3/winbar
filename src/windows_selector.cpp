@@ -524,69 +524,6 @@ fill_root(AppClient *client, Container *root) {
     }
 }
 
-static bool first_expose = true;
-
-static void
-grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-    }
-}
-
-static bool
-windows_selector_event_handler(App *app, xcb_generic_event_t *event) {
-    // For detecting if we pressed outside the window
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_MAP_NOTIFY: {
-            auto *e = (xcb_map_notify_event_t *) (event);
-            if (auto c = client_by_window(app, e->window)) {
-                if (c->name == "windows_selector") {
-                    auto pii = (PinnedIconInfo *) c->root->user_data;
-                    if (pii->data->type == ::OPEN_CLICKED) {
-                        register_popup(e->window);
-                    }
-                }
-            }
-
-            break;
-        }
-        case XCB_FOCUS_OUT: {
-            auto *e = (xcb_focus_out_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (valid_client(app, client)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-            }
-        }
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (!valid_client(app, client)) {
-                break;
-            }
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-    }
-
-    return false;
-}
-
 static void when_closed(AppClient *client) {
     auto pii = (PinnedIconInfo *) client->root->user_data;
     pii->data->type = selector_type::CLOSED;
@@ -604,7 +541,6 @@ void start_windows_selector(Container *container, selector_type selector_state) 
         client_close(app, c);
         xcb_flush(app->connection);
     }
-    first_expose = true;
     auto data = (LaunchableButton *) container->user_data;
     auto pii = new PinnedIconInfo;
     pii->data_container = container;
@@ -636,6 +572,7 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "windows_selector";
+        popup_settings.takes_input_focus = false;
         auto client = taskbar->create_popup(popup_settings, settings);
 
         client->root->user_data = pii;
@@ -670,12 +607,8 @@ void start_windows_selector(Container *container, selector_type selector_state) 
 
 
         client->fps = 30;
-        client->grab_event_handler = grab_event_handler;
         client->when_closed = when_closed;
         client_register_animation(app, client);
-
-        app_create_custom_event_handler(app, client->window, windows_selector_event_handler);
-
         fill_root(client, client->root);
 
         client_show(app, client);

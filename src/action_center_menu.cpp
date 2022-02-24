@@ -425,32 +425,6 @@ static void fill_root(AppClient *client, Container *root) {
     content->wanted_bounds.h = true_height(content) + true_height(content->parent);
 }
 
-static void
-grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-
-                if (auto c = client_by_name(client->app, "taskbar")) {
-                    if (auto co = container_by_name("action", c->root)) {
-                        if (co->state.mouse_hovering) {
-                            auto data = (ActionCenterButtonData *) co->user_data;
-                            data->invalid_button_down = true;
-                            data->timestamp = get_current_time_in_ms();
-                        }
-                    }
-                }
-            }
-            break;
-        }
-    }
-}
-
 static bool
 event_handler(App *app, xcb_generic_event_t *event) {
     // For detecting if we pressed outside the window
@@ -532,9 +506,6 @@ void start_action_center(App *app) {
         auto client = taskbar->create_popup(popup_settings, settings);
 
         fill_root(client, client->root);
-        client->grab_event_handler = grab_event_handler;
-        app_create_custom_event_handler(app, client->window, event_handler);
-
         client_show(app, client);
 
         if (auto c = client_by_name(app, "taskbar")) {

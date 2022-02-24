@@ -1719,7 +1719,49 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
             break;
         }
 
+        case XCB_MAP_NOTIFY: {
+            if (auto client = client_by_window(app, window_number)) {
+                if (client->popup_info.is_popup) {
+                    // TODO why don't we grab the pointer instead?
+                    xcb_void_cookie_t grab_cookie =
+                            xcb_grab_button_checked(app->connection,
+                                                    client->popup_info.transparent_mouse_grab,
+                                                    app->screen->root,
+                                                    XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
+                                                    XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_POINTER_MOTION_HINT,
+                                                    client->popup_info.transparent_mouse_grab ? XCB_GRAB_MODE_SYNC
+                                                                                              : XCB_GRAB_MODE_ASYNC,
+                                                    XCB_GRAB_MODE_ASYNC,
+                                                    XCB_NONE,
+                                                    XCB_NONE,
+                                                    XCB_BUTTON_INDEX_ANY,
+                                                    XCB_MOD_MASK_ANY);
+                    xcb_generic_error_t *error = xcb_request_check(app->connection, grab_cookie);
+                    if (error != NULL) {
+                        printf("Could not grab button on root: %d, for window: %d, error_code: %d\n", app->screen->root,
+                               client->window,
+                               error->error_code);
+                        client_close_threaded(app, client);
+                        xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
+                    } else {
+                        if (client->popup_info.takes_input_focus)
+                            xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, client->window,
+                                                XCB_CURRENT_TIME);
+                    }
+                }
+                xcb_flush(app->connection);
+            }
+            break;
+        }
+
         case XCB_FOCUS_OUT: {
+            if (auto client = client_by_window(app, window_number)) {
+                if (client->popup_info.is_popup) {
+                    if (client->popup_info.close_on_focus_out) {
+                        client_close_threaded(app, client);
+                    }
+                }
+            }
             break;
         }
         case XCB_KEY_RELEASE: {
@@ -1804,23 +1846,7 @@ void handle_xcb_event(App *app) {
 }
 
 void xcb_poll_wakeup(App *app, int fd) {
-//    bool replay = false;
-//    for (auto c: app->clients) {
-//        if (c->child_popup) {
-//            if (c->child_popup->popup_info.transparent_mouse_grab) {
-//                replay = true;
-//            }
-//        }
-//    }
-//    if (replay) {
-//        xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
-//        xcb_flush(app->connection);
-//    }
     handle_xcb_event(app);
-//    if (replay) {
-//        xcb_allow_events(app->connection, XCB_ALLOW_REPLAY_POINTER, XCB_CURRENT_TIME);
-//        xcb_flush(app->connection);
-//    }
 }
 
 void app_main(App *app) {

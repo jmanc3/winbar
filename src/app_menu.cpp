@@ -990,70 +990,7 @@ fill_root(AppClient *client) {
 
 static void
 app_menu_closed(AppClient *client) {
-//    set_textarea_inactive();
-}
-
-static void
-grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-
-                if (auto c = client_by_name(client->app, "taskbar")) {
-                    if (auto co = container_by_name("super", c->root)) {
-                        if (co->state.mouse_hovering) {
-                            auto data = (IconButton *) co->user_data;
-                            data->invalid_button_down = true;
-                            data->timestamp = get_current_time_in_ms();
-                        }
-                    }
-                }
-            }
-            break;
-        }
-    }
-}
-
-static bool
-app_menu_event_handler(App *app, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (!valid_client(app, client)) {
-                break;
-            }
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-        case XCB_MAP_NOTIFY: {
-            auto *e = (xcb_map_notify_event_t *) (event);
-            register_popup(e->window);
-            break;
-        }
-        case XCB_FOCUS_OUT: {
-            auto *e = (xcb_focus_out_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (valid_client(app, client)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-        }
-    }
-
-    return false;
+    set_textarea_inactive();
 }
 
 static void
@@ -1383,9 +1320,8 @@ void start_app_menu() {
         popup_settings.name = "app_menu";
         auto client = taskbar->create_popup(popup_settings, settings);
 
-        client->grab_event_handler = grab_event_handler;
         client->when_closed = app_menu_closed;
-        app_create_custom_event_handler(app, client->window, app_menu_event_handler);
+
         fill_root(client);
         client_show(app, client);
         set_textarea_active();

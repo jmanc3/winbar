@@ -239,7 +239,7 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
 
     data->clicked = !data->clicked;
     if (auto c = container_by_name("content", client->root)) {
-//        c->wanted_bounds.h = true_height(c->parent) + true_height(c);
+        //        c->wanted_bounds.h = true_height(c->parent) + true_height(c);
     }
 
     client_layout(app, client);
@@ -397,69 +397,6 @@ fill_root(AppClient *client) {
     root->user_data = root_animation_data;
 }
 
-static void
-grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-
-                if (auto c = client_by_name(client->app, "taskbar")) {
-                    if (auto co = container_by_name("wifi", c->root)) {
-                        if (co->state.mouse_hovering) {
-                            auto data = (IconButton *) co->user_data;
-                            data->invalid_button_down = true;
-                            data->timestamp = get_current_time_in_ms();
-                        }
-                    }
-                }
-            }
-            break;
-        }
-    }
-}
-
-static bool
-wifi_menu_event_handler(App *app, xcb_generic_event_t *event) {
-    // For detecting if we pressed outside the window
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_MAP_NOTIFY: {
-            auto *e = (xcb_map_notify_event_t *) (event);
-            register_popup(e->window);
-            break;
-        }
-        case XCB_FOCUS_OUT: {
-            auto *e = (xcb_focus_out_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (valid_client(app, client)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-            }
-        }
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (!valid_client(app, client)) {
-                break;
-            }
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-    }
-
-    return false;
-}
-
 void start_wifi_menu() {
     Settings settings;
     settings.h = 641;
@@ -486,11 +423,6 @@ void start_wifi_menu() {
         PopupSettings popup_settings;
         popup_settings.name = "wifi_menu";
         auto client = taskbar->create_popup(popup_settings, settings);
-
-        client->grab_event_handler = grab_event_handler;
-
-        app_create_custom_event_handler(app, client->window, wifi_menu_event_handler);
-
         fill_root(client);
 
         if (wifi_running()) {

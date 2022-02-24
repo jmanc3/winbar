@@ -161,8 +161,10 @@ struct ScreenInformation {
 struct PopupSettings {
     bool is_popup = false;
     bool transparent_mouse_grab = true;
-    bool takes_input_focus = false;
+    bool takes_input_focus = true;
     bool ignore_scroll = false;
+    bool close_on_focus_out = true;
+    int close_delay_in_ms = 0;
     std::string name;
 };
 
@@ -248,8 +250,6 @@ struct AppClient {
     ClientKeyboard *keyboard;
 
     void (*when_closed)(AppClient *client) = nullptr;
-
-    void (*grab_event_handler)(AppClient *client, xcb_generic_event_t *event) = nullptr;
 
     bool keeps_app_running = true;
 

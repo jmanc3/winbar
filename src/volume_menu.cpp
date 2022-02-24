@@ -425,75 +425,6 @@ void fill_root(Container *root) {
     }
 }
 
-static bool first_expose = true;
-
-static void
-grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            // Ignore scroll button presses
-            if (e->detail >= 4 && e->detail <= 7) {
-                break;
-            }
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-
-                if (auto c = client_by_name(client->app, "taskbar")) {
-                    if (auto co = container_by_name("volume", c->root)) {
-                        if (co->state.mouse_hovering) {
-                            auto data = (IconButton *) co->user_data;
-                            data->invalid_button_down = true;
-                            data->timestamp = get_current_time_in_ms();
-                        }
-                    }
-                }
-            }
-            break;
-        }
-    }
-}
-
-static bool
-volume_menu_event_handler(App *app, xcb_generic_event_t *event) {
-    // For detecting if we pressed outside the window
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_MAP_NOTIFY: {
-            auto *e = (xcb_map_notify_event_t *) (event);
-            register_popup(e->window);
-            break;
-        }
-        case XCB_FOCUS_OUT: {
-            auto *e = (xcb_focus_out_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (valid_client(app, client)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-            }
-        }
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (!valid_client(app, client)) {
-                break;
-            }
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-    }
-
-    return false;
-}
-
 void updates() {
     if (valid_client(app, client_entity)) {
         request_refresh(app, client_entity);
@@ -615,8 +546,6 @@ void open_volume_menu() {
         audio_state_change_callback(updates);
     }
 
-    first_expose = true;
-
     Settings settings;
     settings.decorations = false;
     settings.skip_taskbar = true;
@@ -655,10 +584,6 @@ void open_volume_menu() {
         popup_settings.name = "volume";
         popup_settings.ignore_scroll = true;
         client_entity = taskbar->create_popup(popup_settings, settings);
-
-        client_entity->grab_event_handler = grab_event_handler;
-
-        app_create_custom_event_handler(app, client_entity->window, volume_menu_event_handler);
 
         Container *root = client_entity->root;
         ScrollPaneSettings s;

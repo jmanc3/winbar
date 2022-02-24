@@ -658,36 +658,8 @@ AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client
         this->child_popup = popup_client;
         // TODO: is this the correct order (Why is teh comment on the function so useless!)
         xcb_icccm_set_wm_transient_for(app->connection, this->window, popup_client->window);
-
-        // TODO why don't we grab the pointer instead?
-        xcb_void_cookie_t grab_cookie =
-                xcb_grab_button_checked(app->connection,
-                                        popup_settings.transparent_mouse_grab,
-                                        app->screen->root,
-                                        XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
-                                        XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_POINTER_MOTION_HINT,
-                                        popup_settings.transparent_mouse_grab ? XCB_GRAB_MODE_SYNC
-                                                                              : XCB_GRAB_MODE_ASYNC,
-                                        XCB_GRAB_MODE_ASYNC,
-                                        XCB_NONE,
-                                        XCB_NONE,
-                                        XCB_BUTTON_INDEX_ANY,
-                                        XCB_MOD_MASK_ANY);
-        xcb_generic_error_t *error = xcb_request_check(app->connection, grab_cookie);
-        if (error != NULL) {
-            printf("Could not grab button on root: %d, for window: %d, error_code: %d\n", app->screen->root,
-                   popup_client->window,
-                   error->error_code);
-            client_close_threaded(app, popup_client);
-            xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
-        } else {
-            if (popup_settings.takes_input_focus)
-                xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, popup_client->window, XCB_CURRENT_TIME);
-            popup_client->wants_popup_events = true;
-            popup_client->popup_info = popup_settings;
-            popup_client->popup_info.is_popup = true;
-        }
-
+        popup_client->wants_popup_events = true;
+        popup_client->popup_info.is_popup = true;
         app->popup_client = popup_client;
     }
     xcb_flush(app->connection);

@@ -69,87 +69,6 @@ public:
     ~TabData() { cairo_surface_destroy(surface); }
 };
 
-static bool first_expose = true;
-
-static void
-grab_event_handler(AppClient *client, xcb_generic_event_t *event) {
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            if (!valid_client(app, client)) {
-                break;
-            }
-            Bounds search_bar = app->bounds;
-            if (auto *taskbar = client_by_name(app, "taskbar")) {
-                if (auto *container = container_by_name("field_search", taskbar->root)) {
-                    search_bar = container->real_bounds;
-                    search_bar.x += taskbar->bounds->x;
-                    search_bar.y += taskbar->bounds->y;
-                }
-            }
-
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y) &&
-                !bounds_contains(search_bar, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-    }
-}
-
-static bool
-search_menu_event_handler(App *app, xcb_generic_event_t *event) {
-
-    // For detecting if we pressed outside the window
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_MAP_NOTIFY: {
-            auto *e = (xcb_map_notify_event_t *) (event);
-            register_popup(e->window);
-            break;
-        }
-        case XCB_FOCUS_OUT: {
-            auto *e = (xcb_focus_out_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (valid_client(app, client)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (!valid_client(app, client)) {
-                break;
-            }
-            Bounds search_bar = app->bounds;
-            if (auto *taskbar = client_by_name(app, "taskbar")) {
-                if (auto *container = container_by_name("field_search", taskbar->root)) {
-                    search_bar = container->real_bounds;
-                    search_bar.x += taskbar->bounds->x;
-                    search_bar.y += taskbar->bounds->y;
-                }
-            }
-
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y) &&
-                !bounds_contains(search_bar, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-                set_textarea_inactive();
-            }
-            break;
-        }
-    }
-
-    return false;
-}
-
 static void
 paint_top(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, correct_opaqueness(client, config->color_search_tab_bar_background));
@@ -1614,7 +1533,6 @@ search_menu_when_closed(AppClient *client) {
 }
 
 void start_search_menu() {
-    first_expose = true;
     Settings settings;
     settings.decorations = false;
     settings.skip_taskbar = true;
@@ -1636,10 +1554,8 @@ void start_search_menu() {
         popup_settings.name = "search_menu";
         auto client = taskbar->create_popup(popup_settings, settings);
 
-        client->grab_event_handler = grab_event_handler;
         client->when_closed = search_menu_when_closed;
         fill_root(client);
-        app_create_custom_event_handler(app, client->window, search_menu_event_handler);
         client_show(app, client);
         set_textarea_active();
         xcb_set_input_focus(app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
