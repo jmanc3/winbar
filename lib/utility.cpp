@@ -344,61 +344,29 @@ void cleanup_cached_atoms() {
     cached_atoms.shrink_to_fit();
 }
 
-void close_all_fds() {
-    long maxfd = sysconf(_SC_OPEN_MAX);
-    for (int fd = 3; fd < maxfd; fd++) {
-        close(fd);
-    }
-}
-
-void reset_signals() {
-    for (int sig = 1; sig < 32; sig++) {
-        signal(sig, SIG_DFL);
-    }
-    sigset_t signal_set;
-    sigemptyset(&signal_set);
-    sigprocmask(SIG_SETMASK, &signal_set, NULL);
-}
-
-void sighandler(int signo) {
-    if (signo == SIGCHLD) {
-        int status;
-        (void) wait(&status);
-    }
-}
-
 void launch_command(std::string command) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     if (command.empty())
         return;
-    std::thread t([command]()->void {
-        signal(SIGCHLD, sighandler);
-        pid_t pid = fork();
-        if (pid < 0) {
-            fprintf(stderr, "winbar: Could not fork\n");
-        } else if (pid == 0) {
-            setsid();
-
-            char *dir = getenv("HOME");
-            if (dir) {
-                int ret = chdir(dir);
-                if (ret != 0) {
-                    fprintf(stderr, "winbar: failed to chdir to %s\n", dir);
-                }
+    pid_t pid = fork();
+    if (pid < 0) {
+        fprintf(stderr, "winbar: Could not fork\n");
+    } else if (pid == 0) {
+        char *dir = getenv("HOME");
+        if (dir) {
+            int ret = chdir(dir);
+            if (ret != 0) {
+                fprintf(stderr, "winbar: failed to chdir to %s\n", dir);
             }
-
-            close_all_fds();
-            reset_signals();
-
-            execlp("sh", "sh", "-c", command.c_str(), NULL);
-            fprintf(stderr, "winbar: Failed to execute %s\n", command.c_str());
-
-            _exit(1);
         }
-    });
-    t.detach();
+
+        execlp("sh", "sh", "-c", command.c_str(), NULL);
+        fprintf(stderr, "winbar: Failed to execute %s\n", command.c_str());
+
+        _exit(1);
+    }
 }
 
 // amount: 0 to 100
