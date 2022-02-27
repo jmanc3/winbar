@@ -353,7 +353,10 @@ void launch_command(std::string command) {
     pid_t pid = fork();
     if (pid < 0) {
         fprintf(stderr, "winbar: Could not fork\n");
-    } else if (pid == 0) {
+        return;
+    }
+
+    if (pid == 0) {
         char *dir = getenv("HOME");
         if (dir) {
             int ret = chdir(dir);
@@ -366,6 +369,8 @@ void launch_command(std::string command) {
         fprintf(stderr, "winbar: Failed to execute %s\n", command.c_str());
 
         _exit(1);
+    } else {
+        signal(SIGCHLD, SIG_IGN); // https://www.geeksforgeeks.org/zombie-processes-prevention/
     }
 }
 
