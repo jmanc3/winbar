@@ -1318,6 +1318,7 @@ void start_app_menu() {
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "app_menu";
+        popup_settings.takes_input_focus = true;
         auto client = taskbar->create_popup(popup_settings, settings);
 
         client->when_closed = app_menu_closed;

@@ -161,7 +161,7 @@ struct ScreenInformation {
 struct PopupSettings {
     bool is_popup = false;
     bool transparent_mouse_grab = true;
-    bool takes_input_focus = true;
+    bool takes_input_focus = false;
     bool ignore_scroll = false;
     bool close_on_focus_out = true;
     int close_delay_in_ms = 0;

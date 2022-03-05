@@ -1552,6 +1552,7 @@ void start_search_menu() {
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "search_menu";
+        popup_settings.takes_input_focus = true;
         auto client = taskbar->create_popup(popup_settings, settings);
 
         client->when_closed = search_menu_when_closed;
