@@ -12,7 +12,7 @@ public:
     Container *data_container = nullptr;
     LaunchableButton *data = nullptr;
     cairo_surface_t *icon_surface = nullptr;
-
+    
     ~PinnedIconInfo();
 };
 

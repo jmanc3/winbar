@@ -32,35 +32,35 @@ enum class Audio_Backend {
 class Audio_Client {
 public:
     explicit Audio_Client(Audio_Backend backend);
-
+    
     std::string title;
     std::string subtitle;
-
+    
     double get_volume();
-
+    
     void set_volume(double value); // Shouldn't be expected to un-mute
-
+    
     bool is_muted();
-
+    
     void set_mute(bool state);
-
+    
     bool is_master_volume() const { return is_master; }
-
+    
     int unique_id() const {
         if (type == Audio_Backend::PULSEAUDIO)
             return pulseaudio_index + (pulseaudio_index * (is_master * 100));
         return alsa_index + (pulseaudio_index * (is_master * 100));
     }
-
+    
     /// Type
     Audio_Backend type = Audio_Backend::PULSEAUDIO;
     bool is_master = false;
-
+    
     /// Data for use by PulseAudio
     int pulseaudio_index;
     int pulseaudio_mute_state;
     pa_cvolume pulseaudio_volume;
-
+    
     /// Data for use by Alsa
     double alsa_volume = 0;
     bool alsa_mute_state = false;
@@ -72,9 +72,9 @@ extern std::vector<Audio_Client *> audio_clients;
 class AudioBackendData {
 public:
     Audio_Backend audio_backend = Audio_Backend::NONE;
-
+    
     void (*callback)();
-
+    
     snd_mixer_t *alsa_handle = nullptr;
     snd_mixer_elem_t *master_volume = nullptr;
     snd_mixer_selem_id_t *master_sid = nullptr;
@@ -82,13 +82,13 @@ public:
     snd_mixer_selem_id_t *headphone_sid = nullptr;
     snd_mixer_elem_t *speaker_volume = nullptr;
     snd_mixer_selem_id_t *speaker_sid = nullptr;
-
+    
     pa_threaded_mainloop *mainloop = nullptr;
     pa_mainloop_api *api = nullptr;
     pa_context *context = nullptr;
-
+    
     bool shutting_down = false;
-
+    
     ~AudioBackendData() {
         shutting_down = true;
         if (audio_backend == Audio_Backend::ALSA) {

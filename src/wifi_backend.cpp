@@ -12,10 +12,10 @@
 
 struct WifiData {
     int type = 0; // 0 will be nothing, 1 wpa_supplicant, 2 NetworkManager eventually
-
+    
     wpa_ctrl *wpa_message_sender = nullptr;
     wpa_ctrl *wpa_message_listener = nullptr;
-
+    
     void (*function_called_when_results_are_returned)(std::vector<ScanResult> &) = nullptr;
 };
 
@@ -24,7 +24,7 @@ static WifiData *wifi_data = new WifiData;
 std::string_view trim(std::string_view s) {
     s.remove_prefix(std::min(s.find_first_not_of(" \t\r\v\n"), s.size()));
     s.remove_suffix(std::min(s.size() - s.find_last_not_of(" \t\r\v\n") - 1, s.size()));
-
+    
     return s;
 }
 
@@ -35,16 +35,16 @@ void wifi_wpa_has_message(App *app, int fd) {
         return;
     char buf[1000];
     size_t len = 1000;
-
+    
     while (wpa_ctrl_pending(wifi_data->wpa_message_listener)) {
         if (wpa_ctrl_recv(wifi_data->wpa_message_listener, buf, &len) == 0) {
             std::string text(buf, len);
             if (text.find("CTRL-EVENT-CONNECTED") != std::string::npos) {
-
+            
             } else if (text.find("CTRL-EVENT-DISCONNECTED") != std::string::npos) {
-
+            
             } else if (text.find("CTRL-EVENT-SCAN-STARTED") != std::string::npos) {
-
+            
             } else if (text.find("CTRL-EVENT-SCAN-FAILED") != std::string::npos) {
                 if (wifi_data->function_called_when_results_are_returned) {
                     std::vector<ScanResult> empty;
@@ -67,7 +67,7 @@ bool wifi_wpa_start(App *app) {
         return false;
     if (wpa_ctrl_attach(wifi_data->wpa_message_listener) != 0)
         return false;
-
+    
     int fd;
     if ((fd = wpa_ctrl_get_fd(wifi_data->wpa_message_listener)) != -1)
         return poll_descriptor(app, fd, EPOLLIN, wifi_wpa_has_message);
@@ -99,7 +99,7 @@ void wifi_scan(void (*function_called_when_results_are_returned)(std::vector<Sca
     if (wpa_ctrl_request(wifi_data->wpa_message_listener, "SCAN", 4,
                          buf, &len, NULL) != 0)
         return;
-
+    
     wifi_data->function_called_when_results_are_returned = function_called_when_results_are_returned;
 }
 
@@ -118,29 +118,29 @@ void get_scan_results(std::vector<ScanResult> *results) {
     if (wifi_data->type != 1)
         return;
     std::vector<std::string> lines;
-
+    
     char buf[10000];
     size_t len = 10000;
     if (wpa_ctrl_request(wifi_data->wpa_message_listener, "SCAN_RESULTS", 12,
                          buf, &len, NULL) != 0) {
         return;
     }
-
+    
     std::string response(buf, len);
     auto response_stream = std::stringstream{response};
     for (std::string line; std::getline(response_stream, line, '\n');)
         lines.push_back(line);
-
+    
     if (!lines.empty()) {
         auto header = lines[0];
         auto header_stream = std::stringstream{header};
-
+        
         std::vector<std::string> header_order;
         for (std::string line; std::getline(header_stream, line, '/');) {
             auto trimmed = trim(line);
             header_order.emplace_back(trimmed.data(), trimmed.length());
         }
-
+        
         for (int i = 1; i < lines.size(); i++) {
             auto line = lines[i];
             auto line_stream = std::stringstream{line};
@@ -178,29 +178,29 @@ void get_network_list(std::vector<ScanResult> *results) {
     if (wifi_data->type != 1)
         return;
     std::vector<std::string> lines;
-
+    
     char buf[10000];
     size_t len = 10000;
     if (wpa_ctrl_request(wifi_data->wpa_message_listener, "LIST_NETWORKS", 13,
                          buf, &len, NULL) != 0) {
         return;
     }
-
+    
     std::string response(buf, len);
     auto response_stream = std::stringstream{response};
     for (std::string line; std::getline(response_stream, line, '\n');)
         lines.push_back(line);
-
+    
     if (!lines.empty()) {
         auto header = lines[0];
         auto header_stream = std::stringstream{header};
-
+        
         std::vector<std::string> header_order;
         for (std::string line; std::getline(header_stream, line, '/');) {
             auto trimmed = trim(line);
             header_order.emplace_back(trimmed.data(), trimmed.length());
         }
-
+        
         for (int i = 1; i < lines.size(); i++) {
             auto line = lines[i];
             auto line_stream = std::stringstream{line};
@@ -226,11 +226,11 @@ void get_network_list(std::vector<ScanResult> *results) {
 void wifi_wpa_parse_scan_results() {
     if (wifi_data->function_called_when_results_are_returned) {
         std::vector<ScanResult> results;
-
+        
         get_network_list(&results);
-
+        
         get_scan_results(&results);
-
+        
         wifi_data->function_called_when_results_are_returned(results);
     }
 }
@@ -239,11 +239,11 @@ void wifi_networks_and_cached_scan(void (*function_called_when_results_are_retur
     std::vector<ScanResult> results;
     if (!function_called_when_results_are_returned)
         return;
-
+    
     get_network_list(&results);
-
+    
     get_scan_results(&results);
-
+    
     function_called_when_results_are_returned(results);
 }
 
@@ -253,7 +253,7 @@ void wifi_stop() {
         wpa_ctrl_close(wifi_data->wpa_message_listener);
         wpa_ctrl_detach(wifi_data->wpa_message_listener);
     }
-
+    
     delete wifi_data;
     wifi_data = new WifiData;
 }
@@ -287,22 +287,22 @@ std::string get_default_wifi_interface() {
     static long program_start_time = get_current_time_in_ms();
     static long previous_cache_time = 0; // only set to 0 the first time this function is called because of: "static"
     static std::string cached_interface;
-
+    
     long current_time = get_current_time_in_ms();
     int cache_timeout = 1000 * 60;
     if (current_time - program_start_time < 1000 * 60)
         cache_timeout = 2000;
     if (current_time - previous_cache_time > cache_timeout) { // Re-cache Wifi interface every five minutes
         previous_cache_time = current_time;
-
+        
         if (script_exists("route")) { // Try to use legacy "route" to find default interface
             std::vector<std::string> lines;
-
+            
             std::string response = exec("route");
             auto response_stream = std::stringstream{response};
             for (std::string line; std::getline(response_stream, line, '\n');)
                 lines.push_back(line);
-
+            
             if (!lines.empty()) {
                 int header_line = 0;
                 for (int i = 0; i < lines.size(); i++) {
@@ -311,20 +311,20 @@ std::string get_default_wifi_interface() {
                         break;
                     }
                 }
-
+                
                 std::string buf;
                 auto header = lines[header_line];
                 auto header_stream = std::stringstream{header};
                 std::vector<std::string> header_order;
                 while (header_stream >> buf)
                     header_order.push_back(buf);
-
+                
                 for (int i = (header_line + 1); i < lines.size(); i++) {
                     auto line = lines[i];
                     auto line_stream = std::stringstream{line};
                     int x = 0;
                     bool default_line_found = false;
-
+                    
                     while (line_stream >> buf) {
                         if (header_order[x] == "Destination") {
                             if (buf == "default")
@@ -340,22 +340,22 @@ std::string get_default_wifi_interface() {
                 }
             }
         }
-
+        
         if (script_exists("ip")) { // Try to use "ip" to find default interface
             std::vector<std::string> lines;
-
+            
             std::string response = exec("ip route");
             auto response_stream = std::stringstream{response};
             for (std::string line; std::getline(response_stream, line, '\n');)
                 lines.push_back(line);
-
+            
             std::string buf;
             if (!lines.empty()) {
                 for (const auto &line: lines) {
                     auto line_stream = std::stringstream{line};
                     int x = 0;
                     bool default_line_found = false;
-
+                    
                     while (line_stream >> buf) {
                         if (x == 0 && buf == "default")
                             default_line_found = true;
@@ -369,6 +369,6 @@ std::string get_default_wifi_interface() {
             }
         }
     }
-
+    
     return cached_interface;
 }

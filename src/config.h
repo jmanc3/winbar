@@ -7,25 +7,25 @@
 
 struct Config {
     bool found_config = false;
-
+    
     int config_version = 0;
-
+    
     int taskbar_height = 40;
-
+    
     int starting_tab_index = 0;
-
+    
     std::string font = "Segoe UI";
-
+    
     std::string open_pinned_icon_editor = "WHEN_ANY_FIELD_EMPTY";
-
+    
     std::string volume_command;
     std::string wifi_command;
     std::string date_command;
     std::string battery_command;
     std::string systray_command;
-
+    
     bool date_single_line = false;
-
+    
     ArgbColor color_taskbar_background = ArgbColor("#dd101010");
     ArgbColor color_taskbar_button_icons = ArgbColor("#ffffffff");
     ArgbColor color_taskbar_button_default = ArgbColor("#00ffffff");
@@ -52,16 +52,16 @@ struct Config {
     ArgbColor color_taskbar_minimize_line = ArgbColor("#ff222222");
     ArgbColor color_taskbar_attention_accent = ArgbColor("#fffc8803");
     ArgbColor color_taskbar_attention_background = ArgbColor("#fffc8803");
-
+    
     ArgbColor color_systray_background = ArgbColor("#f3282828");
-
+    
     ArgbColor color_battery_background = ArgbColor("#f31f1f1f");
     ArgbColor color_battery_text = ArgbColor("#ffffffff");
     ArgbColor color_battery_icons = ArgbColor("#ffffffff");
     ArgbColor color_battery_slider_background = ArgbColor("#ff797979");
     ArgbColor color_battery_slider_foreground = ArgbColor("#ff0178d6");
     ArgbColor color_battery_slider_active = ArgbColor("#ffffffff");
-
+    
     ArgbColor color_wifi_background = ArgbColor("#f31f1f1f");
     ArgbColor color_wifi_icons = ArgbColor("#ffffffff");
     ArgbColor color_wifi_default_button = ArgbColor("#00ffffff");
@@ -73,7 +73,7 @@ struct Config {
     ArgbColor color_wifi_text_settings_hovered_title = ArgbColor("#ffa4a4a4");
     ArgbColor color_wifi_text_settings_pressed_title = ArgbColor("#ff787878");
     ArgbColor color_wifi_text_settings_title_info = ArgbColor("#ffa4a4a4");
-
+    
     ArgbColor color_date_background = ArgbColor("#f31f1f1f");
     ArgbColor color_date_seperator = ArgbColor("#ff4b4b4b");
     ArgbColor color_date_text = ArgbColor("#ffffffff");
@@ -96,7 +96,7 @@ struct Config {
     ArgbColor color_date_text_pressed_button = ArgbColor("#ff787878");
     ArgbColor color_date_cursor = ArgbColor("#ffffffff");
     ArgbColor color_date_text_prompt = ArgbColor("#ffcccccc");
-
+    
     ArgbColor color_volume_background = ArgbColor("#f31f1f1f");
     ArgbColor color_volume_text = ArgbColor("#ffffffff");
     ArgbColor color_volume_default_icon = ArgbColor("#ffd2d2d2");
@@ -105,7 +105,7 @@ struct Config {
     ArgbColor color_volume_slider_background = ArgbColor("#ff797979");
     ArgbColor color_volume_slider_foreground = ArgbColor("#ff0178d6");
     ArgbColor color_volume_slider_active = ArgbColor("#ffffffff");
-
+    
     ArgbColor color_apps_background = ArgbColor("#f31f1f1f");
     ArgbColor color_apps_text = ArgbColor("#ffffffff");
     ArgbColor color_apps_text_inactive = ArgbColor("#ff505050");
@@ -124,13 +124,13 @@ struct Config {
     ArgbColor color_apps_scrollbar_default_button_icon = ArgbColor("#ffffffff");
     ArgbColor color_apps_scrollbar_hovered_button_icon = ArgbColor("#ffffffff");
     ArgbColor color_apps_scrollbar_pressed_button_icon = ArgbColor("#ff545454");
-
+    
     ArgbColor color_pin_menu_background = ArgbColor("#f31f1f1f");
     ArgbColor color_pin_menu_hovered_item = ArgbColor("#22ffffff");
     ArgbColor color_pin_menu_pressed_item = ArgbColor("#44ffffff");
     ArgbColor color_pin_menu_text = ArgbColor("#ffffffff");
     ArgbColor color_pin_menu_icons = ArgbColor("#ffffffff");
-
+    
     ArgbColor color_windows_selector_default_background = ArgbColor("#f3282828");
     ArgbColor color_windows_selector_hovered_background = ArgbColor("#f33d3d3d");
     ArgbColor color_windows_selector_pressed_background = ArgbColor("#f3535353");
@@ -141,7 +141,7 @@ struct Config {
     ArgbColor color_windows_selector_close_icon_hovered_background = ArgbColor("#ffc61a28");
     ArgbColor color_windows_selector_close_icon_pressed_background = ArgbColor("#ffe81123");
     ArgbColor color_windows_selector_attention_background = ArgbColor("#fffc8803");
-
+    
     ArgbColor color_search_tab_bar_background = ArgbColor("#f31f1f1f");
     ArgbColor color_search_accent = ArgbColor("#ff0078d7");
     ArgbColor color_search_tab_bar_default_text = ArgbColor("#ffbfbfbf");
@@ -171,7 +171,7 @@ struct Config {
     ArgbColor color_search_content_left_set_active_button_active = ArgbColor("#ff97b8d2");
     ArgbColor color_search_content_left_set_active_button_icon_default = ArgbColor("#ff606060");
     ArgbColor color_search_content_left_set_active_button_icon_pressed = ArgbColor("#ffffffff");
-
+    
     ArgbColor color_pinned_icon_editor_background = ArgbColor("#ffffffff");
     ArgbColor color_pinned_icon_editor_field_default_text = ArgbColor("#ff000000");
     ArgbColor color_pinned_icon_editor_field_hovered_text = ArgbColor("#ff2d2d2d");
@@ -182,7 +182,7 @@ struct Config {
     ArgbColor color_pinned_icon_editor_cursor = ArgbColor("#ff000000");
     ArgbColor color_pinned_icon_editor_button_default = ArgbColor("#ffcccccc");
     ArgbColor color_pinned_icon_editor_button_text_default = ArgbColor("#ff000000");
-
+    
     ArgbColor color_notification_content_background = ArgbColor("#ff1f1f1f");
     ArgbColor color_notification_title_background = ArgbColor("#ff191919");
     ArgbColor color_notification_content_text = ArgbColor("#ffffffff");
@@ -196,7 +196,7 @@ struct Config {
     ArgbColor color_notification_button_send_to_action_center_default = ArgbColor("#ff9c9c9c");
     ArgbColor color_notification_button_send_to_action_center_hovered = ArgbColor("#ffcccccc");
     ArgbColor color_notification_button_send_to_action_center_pressed = ArgbColor("#ff888888");
-
+    
     ArgbColor color_action_center_background = ArgbColor("#ff1f1f1f");
     ArgbColor color_action_center_history_text = ArgbColor("#ffa5d6fd");
     ArgbColor color_action_center_no_new_text = ArgbColor("#ffffffff");

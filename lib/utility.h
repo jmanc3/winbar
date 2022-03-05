@@ -13,21 +13,21 @@ static bool parse_hex(std::string hex, double *a, double *r, double *g, double *
         hex.erase(0, 1);
     }
     std::regex pattern("([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})");
-
+    
     std::smatch match;
     if (std::regex_match(hex, match, pattern)) {
         double t_a = std::stoul(match[1].str(), nullptr, 16);
         double t_r = std::stoul(match[2].str(), nullptr, 16);
         double t_g = std::stoul(match[3].str(), nullptr, 16);
         double t_b = std::stoul(match[4].str(), nullptr, 16);
-
+        
         *a = t_a / 255;
         *r = t_r / 255;
         *g = t_g / 255;
         *b = t_b / 255;
         return true;
     }
-
+    
     return false;
 }
 
@@ -36,27 +36,27 @@ struct ArgbColor {
     double g;
     double b;
     double a;
-
+    
     ArgbColor() { r = g = b = a = 0; }
-
+    
     ArgbColor(double r, double g, double b, double a) {
         this->r = r;
         this->g = g;
         this->b = b;
         this->a = a;
     }
-
+    
     ArgbColor(std::string hex) {
         parse_hex(hex, &this->a, &this->r, &this->g, &this->b);
     }
-
+    
     void add(double r, double g, double b, double a) {
         this->r += r;
         this->g += r;
         this->b += r;
         this->a += r;
     }
-
+    
     ArgbColor copy() {
         ArgbColor color;
         color.r = r;

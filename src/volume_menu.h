@@ -15,7 +15,7 @@ public:
     cairo_surface_t *medium = nullptr;
     cairo_surface_t *high = nullptr;
     cairo_surface_t *mute = nullptr;
-
+    
     ~volume_surfaces() {
         if (none)
             cairo_surface_destroy(none);

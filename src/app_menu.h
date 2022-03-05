@@ -14,17 +14,17 @@ public:
     std::string icon;
     std::string exec;
     std::string wmclass;
-
+    
     cairo_surface_t *icon_16 = nullptr;
     cairo_surface_t *icon_32 = nullptr;
     cairo_surface_t *icon_24 = nullptr;
     cairo_surface_t *icon_64 = nullptr;
-
+    
     time_t time_modified = 0;
     int priority = 0;
-
+    
     int app_menu_priority = 0;
-
+    
     ~Launcher() {
         if (icon_16)
             cairo_surface_destroy(icon_16);

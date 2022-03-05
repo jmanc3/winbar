@@ -80,25 +80,25 @@ easeInMiddle(double t) {
     double distance_from_middle = .5 - t;
     if (distance_from_middle < 0)
         distance_from_middle = -distance_from_middle;
-
-
+    
+    
     if (t < .5) {
         t -= t * distance_from_middle;
     }
-
+    
     return t;
-
-
+    
+    
     // as distance_from_middle approaches 0, t is supposed to be repulsed from the value .5
     //
     double repulsion_amount = distance_from_middle;
-
+    
     if (t < .5) {
         return t - repulsion_amount;
     } else {
         return t + repulsion_amount;
     }
-
+    
     /*
     if (t < 0.5) {
         return 2 * t * t;
@@ -269,7 +269,7 @@ getEasingFunction(easing_functions function) {
         easingFunctions.insert(std::make_pair(EaseOutBounce, easeOutBounce));
         easingFunctions.insert(std::make_pair(EaseInOutBounce, easeInOutBounce));
     }
-
+    
     auto it = easingFunctions.find(function);
     return it == easingFunctions.end() ? nullptr : it->second;
 }

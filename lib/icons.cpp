@@ -30,17 +30,17 @@
 
 struct IconData {
     std::string theme;
-
+    
     std::string name;
-
+    
     std::string full_path;
-
+    
     uint32_t size = 0; // 0 == unknown, 1 == scalable
-
+    
     uint32_t extension = 0; // 0 == unknown, 1 == png, 2 == svg, 3 == xpm
-
+    
     uint32_t scale = 1; // 1 == default
-
+    
     // Used for sorting
     int size_index = 10;
     bool is_part_of_current_theme = false;
@@ -63,7 +63,7 @@ void load_icons(App *app) {
     ZoneScoped;
 #endif
     icon_search_paths.clear();
-
+    
     // Setup search paths for icons
     //
     const char *h = getenv("HOME");
@@ -94,9 +94,9 @@ void load_icons(App *app) {
         }
     }
     icon_search_paths.emplace_back("/usr/share/pixmaps");
-
+    
     app_timeout_create(app, nullptr, 50000, icon_directory_timeout, nullptr);
-
+    
     check_icon_cache();
 }
 
@@ -142,11 +142,11 @@ void update_icon_cache() {
         icon_cache_data = nullptr;
         icon_cache_data_length = 0;
     }
-
+    
     const char *home_directory = getenv("HOME");
     std::string icon_cache_path(home_directory);
     icon_cache_path += "/.cache/winbar_icon_cache/icon.cache";
-
+    
     std::string icon_cache_temp_path(home_directory);
     icon_cache_temp_path += "/.cache";
     std::ofstream cache_file;
@@ -159,71 +159,71 @@ void update_icon_cache() {
             if (errno != EEXIST)
                 return;
         icon_cache_temp_path += "/icon.cache.tmp";
-
+        
         cache_file.open(icon_cache_temp_path);
         if (!cache_file.is_open())
             return;
     }
-
+    
     const std::filesystem::directory_options options = (
             std::filesystem::directory_options::follow_directory_symlink |
             std::filesystem::directory_options::skip_permission_denied
     );
-
+    
     cache_file << std::to_string(cache_version) << '\0' << '\n';
     cache_file << std::to_string(cache_flags) << '\0' << '\n';
     bool first = true;
-
+    
     struct stat st{};
     for (auto search_path: icon_search_paths) {
         // Check if the search path exists
         if (stat(search_path.c_str(), &st) != 0)
             continue;
-
+        
         int parent_directories_to_skip = 0;
         for (auto c: search_path)
             if (c == '/')
                 parent_directories_to_skip++;
         parent_directories_to_skip++;
-
+        
         int previous_depth = -1;
         std::string data_full_path;
         std::string data_theme;
         int data_size = 0;
         int data_scale = 1;
-
+        
         for (auto i = std::filesystem::recursive_directory_iterator(search_path,
                                                                     std::filesystem::directory_options(options));
              i != std::filesystem::recursive_directory_iterator();
              ++i) {
             int depth = i.depth();
             auto path = i->path();
-
+            
             if (previous_depth != depth) {
                 previous_depth = depth;
                 data_full_path.clear();
                 data_theme.clear();
                 data_size = 0;
                 data_scale = 1;
-
+                
                 auto p = path;
                 if (is_regular_file(p)) {
                     if (exists(p.parent_path())) {
                         p = p.parent_path();
                     }
                 }
-
+                
                 data_full_path = p.string();
-
+                
                 int skip_variable = 0;
                 for (const auto &item: p) {
                     if (skip_variable++ < parent_directories_to_skip)
                         continue; // We don't need to check the parent paths which are part of the search path
-
+                    
                     if ((skip_variable == parent_directories_to_skip + 1) && data_theme.empty()) {
                         data_theme = item.string();
                     }
-
+                    
                     // Update data if there is something to update
                     std::regex single_digit("[0-9]*");
                     std::smatch match;
@@ -240,7 +240,7 @@ void update_icon_cache() {
                         auto sc = match[0].str();
                         if (!sc.empty()) {
                             sc.erase(0, 1);
-
+                            
                             if (!sc.empty() && std::all_of(sc.begin(), sc.end(), ::isdigit)) {
                                 data_scale = std::stoi(sc);
                             }
@@ -258,11 +258,11 @@ void update_icon_cache() {
                         }
                     }
                 }
-
+                
                 if (!first)
                     cache_file << '\n';
                 first = false;
-
+                
                 cache_file << data_full_path << '\0';
                 cache_file << std::to_string(data_size) << '\0';
                 cache_file << std::to_string(data_scale) << '\0';
@@ -291,37 +291,37 @@ void paint_warning(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
     set_argb(cr, correct_opaqueness(client, config->color_volume_background));
     cairo_fill(cr);
-
+    
     PangoLayout *layout = get_cached_pango_font(cr, config->font, 14, PangoWeight::PANGO_WEIGHT_BOLD);
     int width;
     int height;
     pango_layout_set_text(layout, first_message.data(), first_message.size());
     pango_layout_get_pixel_size(layout, &width, &height);
-
+    
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
                   10);
     pango_cairo_show_layout(cr, layout);
-
-
+    
+    
     layout = get_cached_pango_font(cr, config->font, 12, PangoWeight::PANGO_WEIGHT_NORMAL);
     int second_height;
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
     pango_layout_set_text(layout, second_message.data(), second_message.size());
     pango_layout_get_pixel_size(layout, &width, &second_height);
-
+    
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
                   10,
                   10 + height + 10);
     pango_cairo_show_layout(cr, layout);
-
+    
     pango_layout_set_text(layout, third_message.data(), third_message.size());
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
-
+    
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
                   10,
@@ -339,12 +339,12 @@ void check_icon_cache() {
             return;
         }
     }
-
+    
     // Check if cache file exists and that it is up-to date, and refresh cache, if it is not.
     const char *home_directory = getenv("HOME");
     std::string icon_cache_path(home_directory);
     icon_cache_path += "/.cache/winbar_icon_cache/icon.cache";
-
+    
     struct stat cache_stat{};
     if (stat(icon_cache_path.c_str(), &cache_stat) == 0) { // exists
         bool cache_version_on_disk_acceptable = true;
@@ -361,7 +361,7 @@ void check_icon_cache() {
             }
             fclose(fp);
         }
-
+        
         if (!cache_version_on_disk_acceptable) {
             if (icon_cache_data != nullptr) {
                 free(icon_cache_data);
@@ -423,7 +423,7 @@ void check_icon_cache() {
             t2.join();
         }
     }
-
+    
     last_time_cached_checked = get_current_time_in_ms();
 }
 
@@ -445,40 +445,40 @@ void search_icons(std::vector<IconTarget> &targets) {
     check_icon_cache();
     if (!icon_cache_data)
         return;
-
+    
     // Go through cache and match name, return index in results
     unsigned long index_into_file = 0;
 #define NOT_DONE index_into_file < icon_cache_data_length
-
+    
     // Skip first two lines
     while (NOT_DONE && icon_cache_data[index_into_file++] != '\n'); // Version
     while (NOT_DONE && icon_cache_data[index_into_file++] != '\n'); // Flags
-
+    
     char buffer[NAME_MAX];
     while (NOT_DONE) {
         unsigned long line_index = index_into_file;
-
+        
         // Copy icon name to buffer
         strcpy(buffer, icon_cache_data + index_into_file);
         long len = strlen(buffer);
         index_into_file += len + 1;
         std::string pre_path = std::string(buffer, std::max(len, (long) 0));
-
+        
         strcpy(buffer, icon_cache_data + index_into_file);
         len = strlen(buffer);
         index_into_file += len + 1;
         std::string size = std::string(buffer, std::max(len, (long) 0));
-
+        
         strcpy(buffer, icon_cache_data + index_into_file);
         len = strlen(buffer);
         index_into_file += len + 1;
         std::string scale = std::string(buffer, std::max(len, (long) 0));
-
+        
         strcpy(buffer, icon_cache_data + index_into_file);
         len = strlen(buffer);
         index_into_file += len + 1;
         std::string theme = std::string(buffer, std::max(len, (long) 0));
-
+        
         while (NOT_DONE && icon_cache_data[index_into_file] != '\n') {
             strcpy(buffer, icon_cache_data + index_into_file);
             len = strlen(buffer);
@@ -492,7 +492,7 @@ void search_icons(std::vector<IconTarget> &targets) {
                 } else if (strncmp(buffer + len - 4, ".xpm", 4) == 0) {
                     extension = 3;
                 }
-
+                
                 for (int i = 0; i < targets.size(); i++) {
                     if (strcmp(name_without_extension.data(), targets[i].name.data()) == 0) {
                         targets[i].indexes_of_results.emplace_back(
@@ -506,10 +506,10 @@ void search_icons(std::vector<IconTarget> &targets) {
                     }
                 }
             }
-
+            
             index_into_file += len + 1;
         }
-
+        
         // Skip until the next icon option
         while (NOT_DONE && icon_cache_data[index_into_file++] != '\n');
     }
@@ -521,11 +521,11 @@ static std::string get_current_theme_name() {
 #endif
     std::string gtk_settings_file_path(getenv("HOME"));
     gtk_settings_file_path += "/.config/gtk-3.0/settings.ini";
-
+    
     INIReader gtk_settings(gtk_settings_file_path);
     if (gtk_settings.ParseError() != 0)
         return "hicolor";
-
+    
     return gtk_settings.Get("Settings", "gtk-icon-theme-name", "hicolor");
 }
 
@@ -547,14 +547,14 @@ static void c3ic_generate_sizes(int target_size, std::vector<int> &target_sizes)
     target_sizes.push_back(128);
     target_sizes.push_back(256);
     target_sizes.push_back(512);
-
+    
     std::sort(target_sizes.begin(), target_sizes.end(), [target_size](int a, int b) {
         // Prefer higher pixel icons to lower ones
         long absolute_difference_between_a_and_the_target = std::abs(target_size - a);
         bool a_is_too_low = a < target_size;
         long absolute_difference_between_b_and_the_target = std::abs(target_size - b);
         bool b_is_too_low = b < target_size;
-
+        
         if (a_is_too_low || b_is_too_low) {
             if (a_is_too_low && !b_is_too_low)
                 return false;
@@ -562,7 +562,7 @@ static void c3ic_generate_sizes(int target_size, std::vector<int> &target_sizes)
                 return true;
             return absolute_difference_between_a_and_the_target < absolute_difference_between_b_and_the_target;
         }
-
+        
         return absolute_difference_between_a_and_the_target < absolute_difference_between_b_and_the_target;
     });
 }
@@ -595,7 +595,7 @@ void pick_best(std::vector<IconTarget> &targets, int target_size) {
                 data->scale = index.scale;
                 possible_icons.push_back(data);
             }
-
+            
             // Sort vector based on quality and size, and current theme
             // Set best_full_path equal to best top option
             std::sort(possible_icons.begin(), possible_icons.end(),
@@ -613,10 +613,10 @@ void pick_best(std::vector<IconTarget> &targets, int target_size) {
                           }
                           return lhs->is_part_of_current_theme > rhs->is_part_of_current_theme;
                       });
-
+            
             if (!possible_icons.empty())
                 targets[ss].best_full_path = possible_icons[0]->full_path;
-
+            
             for (auto p: possible_icons)
                 delete p;
             possible_icons.clear();
@@ -633,11 +633,11 @@ void icon_directory_timeout(App *, AppClient *, Timeout *timeout, void *) {
         const char *home_directory = getenv("HOME");
         std::string icon_cache_path(home_directory);
         icon_cache_path += "/.cache/winbar_icon_cache/icon.cache";
-
+        
         struct stat cache_stat{};
         if (stat(icon_cache_path.c_str(), &cache_stat) == 0) { // exists
             bool found_newer_folder_than_cache_file = false;
-
+            
             const std::filesystem::directory_options options = (
                     std::filesystem::directory_options::follow_directory_symlink |
                     std::filesystem::directory_options::skip_permission_denied
@@ -647,12 +647,12 @@ void icon_directory_timeout(App *, AppClient *, Timeout *timeout, void *) {
                 // Check if the search path exists
                 if (stat(search_path.c_str(), &search_stat) != 0)
                     continue;
-
+                
                 if (search_stat.st_mtim.tv_sec > cache_stat.st_mtim.tv_sec) {
                     found_newer_folder_than_cache_file = true;
                     break;
                 }
-
+                
                 for (auto i = std::filesystem::recursive_directory_iterator(search_path,
                                                                             std::filesystem::directory_options(
                                                                                     options));
@@ -661,7 +661,7 @@ void icon_directory_timeout(App *, AppClient *, Timeout *timeout, void *) {
                     if (i.depth() == 0 && i->is_directory() && i->exists()) {
                         if (stat(i->path().string().data(), &search_stat) != 0)
                             continue;
-
+                        
                         if (search_stat.st_mtim.tv_sec > cache_stat.st_mtim.tv_sec) {
                             found_newer_folder_than_cache_file = true;
                             break;
@@ -671,7 +671,7 @@ void icon_directory_timeout(App *, AppClient *, Timeout *timeout, void *) {
                 if (found_newer_folder_than_cache_file)
                     break;
             }
-
+            
             if (found_newer_folder_than_cache_file)
                 update_icon_cache();
         }
@@ -704,16 +704,16 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
     const char *home_directory = getenv("HOME");
     std::string to_fix_path(home_directory);
     to_fix_path += "/.config/winbar/tofix.csv";
-
+    
     struct stat buffer{};
     int cache_exists = stat(to_fix_path.c_str(), &buffer) == 0;
-
+    
     // TODO: we have to compare modified time of the folders to see if we are up to date
     if (!cache_exists) {
 //        printf("%s doesn't exists\n", to_fix_path.c_str());
         return given_icon;
     }
-
+    
     // Attempt to mmap the file
     int file_descriptor = open(to_fix_path.c_str(), O_RDWR, S_IRUSR | S_IWUSR);
     struct stat sb;
@@ -722,23 +722,23 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
         close(file_descriptor);
         return given_icon;
     }
-
+    
     char *to_fix_data = (char *) mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, file_descriptor, 0);
     if (!to_fix_data) {
 //        printf("Couldn't mmap file.\n");
         close(file_descriptor);
         return given_icon;
     }
-
+    
     unsigned long index_into_file = 0;
-
+    
     // Eat the first line;
 #define MNOT_DONE index_into_file < buffer.st_size
     while (MNOT_DONE && to_fix_data[index_into_file] != '\n') {
         index_into_file++;
     }
     index_into_file++;
-
+    
     int loading_type = 0;
     int offset = 0;
     char first[1024 * 6] = {0};
@@ -746,13 +746,13 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
     char third[1024 * 6] = {0};
     char fourth[1024 * 6] = {0};
     bool should_change = false;
-
+    
     const char *given_name_c = given_name.c_str();
     const char *given_wm_class_c = given_wm_class.c_str();
-
+    
     char given_path_c[1024 * 6] = {0};
     const char *temp_given_path_c = given_path.c_str();
-
+    
     for (int i = 0; i < given_path.size() + 1; i++) {
         char c = temp_given_path_c[i];
         if (c == '/') {
@@ -762,7 +762,7 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
         }
     }
     offset = 0;
-
+    
     while (MNOT_DONE) {
         if (to_fix_data[index_into_file] == ',') {
             switch (loading_type) {
@@ -782,7 +782,7 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
                 }
                 case 2: {
                     third[offset] = '\0';
-
+                    
                     if (strcmp(third, given_path_c) == 0) {
                         should_change = true;
                     }
@@ -832,10 +832,10 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
             }
         }
     }
-
+    
     munmap(to_fix_data, sb.st_size);
     close(file_descriptor);
-
+    
     return given_icon;
 }
 

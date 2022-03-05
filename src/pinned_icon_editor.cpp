@@ -26,7 +26,7 @@ static TextAreaData *wm_field_data = nullptr;
 class Label : public UserData {
 public:
     std::string text;
-
+    
     explicit Label(std::string text) {
         this->text = text;
     }
@@ -61,7 +61,7 @@ static void paint_state_label(AppClient *client, cairo_t *cr, Container *contain
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
-
+    
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
@@ -70,8 +70,8 @@ static void paint_state_label(AppClient *client, cairo_t *cr, Container *contain
         pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
     }
     pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
-
-
+    
+    
     set_argb(cr, config->color_pinned_icon_editor_field_default_text);
     cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y + container->real_bounds.h);
     pango_cairo_show_layout(cr, layout);
@@ -86,12 +86,12 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_BOLD);
-
+    
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
-
+    
     set_argb(cr, config->color_pinned_icon_editor_field_default_text);
     cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y + container->real_bounds.h);
     pango_cairo_show_layout(cr, layout);
@@ -111,7 +111,7 @@ static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
             set_argb(cr, color);
             set_rect(cr, container->real_bounds);
             cairo_fill(cr);
-
+            
             set_argb(cr, darken(color, 18));
             paint_margins_rect(client, cr, container->real_bounds, 2, 0);
         }
@@ -120,16 +120,16 @@ static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
         set_argb(cr, color);
         cairo_fill(cr);
     }
-
+    
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
-
+    
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
-
+    
     set_argb(cr, config->color_pinned_icon_editor_button_text_default);
     cairo_move_to(cr, container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
                   container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
@@ -141,14 +141,14 @@ static void paint_restore(AppClient *client, cairo_t *cr, Container *container) 
     ZoneScoped;
 #endif
     ArgbColor color = config->color_pinned_icon_editor_button_default;
-
+    
     bool disabled = true;
     if (pinned_icon_data->command_launched_by != launch_field_data->state->text ||
         pinned_icon_data->icon_name != icon_field_data->state->text | \
         pinned_icon_data->class_name != wm_field_data->state->text) {
         disabled = false;
     }
-
+    
     if (disabled) {
         set_rect(cr, container->real_bounds);
         set_argb(cr, color);
@@ -163,7 +163,7 @@ static void paint_restore(AppClient *client, cairo_t *cr, Container *container) 
                 set_argb(cr, color);
                 set_rect(cr, container->real_bounds);
                 cairo_fill(cr);
-
+                
                 set_argb(cr, darken(color, 18));
                 paint_margins_rect(client, cr, container->real_bounds, 2, 0);
             }
@@ -173,17 +173,17 @@ static void paint_restore(AppClient *client, cairo_t *cr, Container *container) 
             cairo_fill(cr);
         }
     }
-
-
+    
+    
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
-
+    
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
-
+    
     if (disabled) {
         set_argb(cr, lighten(config->color_pinned_icon_editor_button_text_default, 45));
     } else {
@@ -219,19 +219,19 @@ static Container *make_button(AppClient *client, Container *parent, std::string 
     ZoneScoped;
 #endif
     Container *button = parent->child(FILL_SPACE, FILL_SPACE);
-
+    
     PangoLayout *layout =
             get_cached_pango_font(client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
-
+    
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
-
+    
     button->user_data = new Label(std::move(text));
     button->when_paint = paint_button;
     button->wanted_bounds.w = width + 64;
-
+    
     return button;
 }
 
@@ -244,7 +244,7 @@ static void clicked_save_and_quit(AppClient *client, cairo_t *cr, Container *con
     pinned_icon_data->icon_name = icon_field_data->state->text;
     client_close_threaded(client->app, client);
     update_pinned_items_file(false);
-
+    
     update_pinned_items_icon();
 }
 
@@ -254,7 +254,7 @@ static void update_icon(AppClient *client) {
 #endif
     if (auto icon = container_by_name("icon", client->root)) {
         auto icon_data = (IconButton *) icon->user_data;
-
+        
         std::vector<IconTarget> targets;
         targets.emplace_back(IconTarget(icon_field_data->state->text));
         search_icons(targets);
@@ -288,19 +288,19 @@ static void clicked_restore(AppClient *client, cairo_t *cr, Container *container
     }
     if (disabled)
         return;
-
+    
     delete launch_field_data->state;
     launch_field_data->state = new TextState;
     launch_field_data->state->text = pinned_icon_data->command_launched_by;
-
+    
     delete wm_field_data->state;
     wm_field_data->state = new TextState;
     wm_field_data->state->text = pinned_icon_data->class_name;
-
+    
     delete icon_field_data->state;
     icon_field_data->state = new TextState;
     icon_field_data->state->text = pinned_icon_data->icon_name;
-
+    
     update_icon(client);
 }
 
@@ -323,7 +323,7 @@ icon_name_key_event(AppClient *client,
     }
     if (container->parent->active) {
         textarea_handle_keypress(client, container, is_string, keysym, string, mods, XKB_KEY_DOWN);
-
+        
         update_icon(client);
     }
 }
@@ -337,7 +337,7 @@ void fill_root(AppClient *client) {
     root->spacing = 10;
     root->type = vbox;
     root->when_paint = paint_background;
-
+    
     TextAreaSettings textarea_settings = TextAreaSettings();
     textarea_settings.single_line = true;
     textarea_settings.bottom_show_amount = 2;
@@ -346,11 +346,11 @@ void fill_root(AppClient *client) {
     textarea_settings.color = config->color_pinned_icon_editor_field_default_text;
     textarea_settings.color_cursor = config->color_pinned_icon_editor_cursor;
     textarea_settings.pad = Bounds(4, 3, 8, 0);
-
+    
     { // Icon
         Container *centered = root->child(::hbox, FILL_SPACE, 64);
         centered->child(FILL_SPACE, FILL_SPACE);
-
+        
         Container *icon = centered->child(64, 64);
         icon->name = "icon";
         auto icon_data = new IconButton;
@@ -365,19 +365,19 @@ void fill_root(AppClient *client) {
         } else {
             icon_search_state = new Label("Didn't find a match for: '" + pinned_icon_data->icon_name + "'");
         }
-
+        
         icon->user_data = icon_data;
         icon->when_paint = paint_icon;
-
+        
         centered->child(FILL_SPACE, FILL_SPACE);
     }
-
+    
     { // Icon search state label
         Container *icon_search_state_label = root->child(FILL_SPACE, 13);
         icon_search_state_label->user_data = icon_search_state;
         icon_search_state_label->when_paint = paint_state_label;
     }
-
+    
     Container *icon_name_hbox = root->child(layout_type::hbox, FILL_SPACE, 64);
     icon_name_hbox->spacing = 10;
     {
@@ -386,9 +386,9 @@ void fill_root(AppClient *client) {
             Container *icon_name_label = icon_name_label_and_field_vbox->child(FILL_SPACE, 13);
             icon_name_label->user_data = new Label("Icon");
             icon_name_label->when_paint = paint_label;
-
+            
             icon_name_label_and_field_vbox->child(FILL_SPACE, FILL_SPACE);
-
+            
             Container *icon_name_field = make_textarea(app, client, icon_name_label_and_field_vbox, textarea_settings);
             icon_name_field->parent->when_paint = paint_textarea_border;
             icon_name_field->when_key_event = icon_name_key_event;
@@ -399,15 +399,15 @@ void fill_root(AppClient *client) {
             icon_name_field->wanted_bounds.h = 32;
         }
     }
-
+    
     Container *launch_command_label_and_field = root->child(layout_type::vbox, FILL_SPACE, 64);
     {
         Container *launch_command_label = launch_command_label_and_field->child(FILL_SPACE, 13);
         launch_command_label->user_data = new Label("Command");
         launch_command_label->when_paint = paint_label;
-
+        
         launch_command_label_and_field->child(FILL_SPACE, FILL_SPACE);
-
+        
         Container *launch_command_field = make_textarea(app, client, launch_command_label_and_field, textarea_settings);
         launch_command_field->parent->when_paint = paint_textarea_border;
         auto launch_command_field_data = (TextAreaData *) launch_command_field->user_data;
@@ -416,15 +416,15 @@ void fill_root(AppClient *client) {
 //        launch_command_field->when_paint = paint_ex;
         launch_command_field->wanted_bounds.h = 32;
     }
-
+    
     Container *wm_class_label_and_field = root->child(layout_type::vbox, FILL_SPACE, 64);
     {
         Container *wm_class_label = wm_class_label_and_field->child(FILL_SPACE, 13);
         wm_class_label->user_data = new Label("WM_CLASS");
         wm_class_label->when_paint = paint_label;
-
+        
         wm_class_label_and_field->child(FILL_SPACE, FILL_SPACE);
-
+        
         Container *wm_class_field = make_textarea(app, client, wm_class_label_and_field, textarea_settings);
         wm_class_field->parent->when_paint = paint_textarea_border;
         auto wm_class_field_data = (TextAreaData *) wm_class_field->user_data;
@@ -433,21 +433,21 @@ void fill_root(AppClient *client) {
 //        wm_class_field->when_paint = paint_ex;i
         wm_class_field->wanted_bounds.h = 32;
     }
-
+    
     root->child(FILL_SPACE, FILL_SPACE);
-
+    
     Container *button_hbox = root->child(::hbox, FILL_SPACE, 30);
     button_hbox->spacing = 10;
     {
         button_hbox->child(FILL_SPACE, FILL_SPACE);
-
+        
         Container *save_button = make_button(client, button_hbox, "Save & Quit");
         save_button->when_clicked = clicked_save_and_quit;
-
+        
         Container *restore_button = make_button(client, button_hbox, "Restore");
         restore_button->when_paint = paint_restore;
         restore_button->when_clicked = clicked_restore;
-
+        
         Container *cancel_button = make_button(client, button_hbox, "Close");
         cancel_button->when_clicked = clicked_cancel;
     }
@@ -464,7 +464,7 @@ void start_pinned_icon_editor(Container *icon_container) {
         pinned_icon_data = nullptr;
         return;
     }
-
+    
     Settings settings;
     settings.w = 600;
     settings.h = 450;

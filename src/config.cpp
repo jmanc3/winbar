@@ -16,10 +16,10 @@ void load_hex(const libconfig::Setting &theme, std::string value_name, ArgbColor
     bool success = theme.lookupValue(value_name, temp);
     std::string name;
     theme.lookupValue("name", name);
-
+    
     if (success) {
         success = parse_hex(temp, &target_color->a, &target_color->r, &target_color->g, &target_color->b);
-
+        
         if (!success) {
             target_color->r = 1;
             target_color->g = 0;
@@ -35,48 +35,48 @@ void load_hex(const libconfig::Setting &theme, std::string value_name, ArgbColor
 
 void config_load() {
     bool success;
-
+    
     libconfig::Config cfg;
     success = config_parse(cfg);
     if (!success)
         return;
-
+    
     config->found_config = true;
-
+    
     success = cfg.lookupValue("version", config->config_version);
-
+    
     success = cfg.lookupValue("taskbar_height", config->taskbar_height);
-
+    
     success = cfg.lookupValue("starting_tab_index", config->starting_tab_index);
-
+    
     success = cfg.lookupValue("font", config->font);
-
+    
     success = cfg.lookupValue("open_pinned_icon_editor", config->open_pinned_icon_editor);
-
+    
     success = cfg.lookupValue("volume_command", config->volume_command);
     success = cfg.lookupValue("wifi_command", config->wifi_command);
     success = cfg.lookupValue("date_command", config->date_command);
     success = cfg.lookupValue("battery_command", config->battery_command);
     success = cfg.lookupValue("systray_command", config->systray_command);
-
+    
     success = cfg.lookupValue("date_single_line", config->date_single_line);
-
+    
     std::string active_theme_name;
     success = cfg.lookupValue("active_theme_name", active_theme_name);
-
+    
     if (success) { // Then the user selected a theme
         const libconfig::Setting &root = cfg.getRoot();
-
+        
         try {
             const libconfig::Setting &themes = root["themes"];
-
+            
             for (int i = 0; themes.getLength(); i++) {
                 const libconfig::Setting &theme = themes[i];
-
+                
                 std::string name;
-
+                
                 success = theme.lookupValue("name", name);
-
+                
                 if (success) {
                     if (name == active_theme_name) {
                         load_hex(theme, "color_taskbar_background", &config->color_taskbar_background);
@@ -125,16 +125,16 @@ void config_load() {
                                  &config->color_taskbar_attention_accent);
                         load_hex(theme, "color_taskbar_attention_background",
                                  &config->color_taskbar_attention_background);
-
+                        
                         load_hex(theme, "color_systray_background", &config->color_systray_background);
-
+                        
                         load_hex(theme, "color_battery_background", &config->color_battery_background);
                         load_hex(theme, "color_battery_text", &config->color_battery_text);
                         load_hex(theme, "color_battery_icons", &config->color_battery_icons);
                         load_hex(theme, "color_battery_slider_background", &config->color_battery_slider_background);
                         load_hex(theme, "color_battery_slider_foreground", &config->color_battery_slider_foreground);
                         load_hex(theme, "color_battery_slider_active", &config->color_battery_slider_active);
-
+                        
                         load_hex(theme, "color_wifi_background", &config->color_wifi_background);
                         load_hex(theme, "color_wifi_icons", &config->color_wifi_icons);
                         load_hex(theme, "color_wifi_default_button", &config->color_wifi_default_button);
@@ -150,7 +150,7 @@ void config_load() {
                                  &config->color_wifi_text_settings_pressed_title);
                         load_hex(theme, "color_wifi_text_settings_title_info",
                                  &config->color_wifi_text_settings_title_info);
-
+                        
                         load_hex(theme, "color_date_background", &config->color_date_background);
                         load_hex(theme, "color_date_seperator", &config->color_date_seperator);
                         load_hex(theme, "color_date_text", &config->color_date_text);
@@ -174,7 +174,7 @@ void config_load() {
                         load_hex(theme, "color_date_text_pressed_button", &config->color_date_text_pressed_button);
                         load_hex(theme, "color_date_cursor", &config->color_date_cursor);
                         load_hex(theme, "color_date_text_prompt", &config->color_date_text_prompt);
-
+                        
                         load_hex(theme, "color_volume_background", &config->color_volume_background);
                         load_hex(theme, "color_volume_text", &config->color_volume_text);
                         load_hex(theme, "color_volume_default_icon", &config->color_volume_default_icon);
@@ -183,7 +183,7 @@ void config_load() {
                         load_hex(theme, "color_volume_slider_background", &config->color_volume_slider_background);
                         load_hex(theme, "color_volume_slider_foreground", &config->color_volume_slider_foreground);
                         load_hex(theme, "color_volume_slider_active", &config->color_volume_slider_active);
-
+                        
                         load_hex(theme, "color_apps_background", &config->color_apps_background);
                         load_hex(theme, "color_apps_text", &config->color_apps_text);
                         load_hex(theme, "color_apps_text_inactive", &config->color_apps_text_inactive);
@@ -211,13 +211,13 @@ void config_load() {
                                  &config->color_apps_scrollbar_hovered_button_icon);
                         load_hex(theme, "color_apps_scrollbar_pressed_button_icon",
                                  &config->color_apps_scrollbar_pressed_button_icon);
-
+                        
                         load_hex(theme, "color_pin_menu_background", &config->color_pin_menu_background);
                         load_hex(theme, "color_pin_menu_hovered_item", &config->color_pin_menu_hovered_item);
                         load_hex(theme, "color_pin_menu_pressed_item", &config->color_pin_menu_pressed_item);
                         load_hex(theme, "color_pin_menu_text", &config->color_pin_menu_text);
                         load_hex(theme, "color_pin_menu_icons", &config->color_pin_menu_icons);
-
+                        
                         load_hex(theme, "color_windows_selector_default_background",
                                  &config->color_windows_selector_default_background);
                         load_hex(theme, "color_windows_selector_hovered_background",
@@ -237,7 +237,7 @@ void config_load() {
                                  &config->color_windows_selector_close_icon_pressed_background);
                         load_hex(theme, "color_windows_selector_attention_background",
                                  &config->color_windows_selector_attention_background);
-
+                        
                         load_hex(theme, "color_search_tab_bar_background", &config->color_search_tab_bar_background);
                         load_hex(theme, "color_search_accent", &config->color_search_accent);
                         load_hex(theme, "color_search_tab_bar_default_text",
@@ -293,7 +293,7 @@ void config_load() {
                                  &config->color_search_content_left_set_active_button_icon_default);
                         load_hex(theme, "color_search_content_left_set_active_button_icon_pressed",
                                  &config->color_search_content_left_set_active_button_icon_pressed);
-
+                        
                         load_hex(theme, "color_pinned_icon_editor_background",
                                  &config->color_pinned_icon_editor_background);
                         load_hex(theme, "color_pinned_icon_editor_field_default_text",
@@ -314,7 +314,7 @@ void config_load() {
                                  &config->color_pinned_icon_editor_button_default);
                         load_hex(theme, "color_pinned_icon_editor_button_text_default",
                                  &config->color_pinned_icon_editor_button_text_default);
-
+                        
                         load_hex(theme, "color_notification_content_background",
                                  &config->color_notification_content_background);
                         load_hex(theme, "color_notification_title_background",
@@ -339,7 +339,7 @@ void config_load() {
                                  &config->color_notification_button_send_to_action_center_hovered);
                         load_hex(theme, "color_notification_button_send_to_action_center_pressed",
                                  &config->color_notification_button_send_to_action_center_pressed);
-
+                        
                         load_hex(theme, "color_action_center_background", &config->color_action_center_background);
                         load_hex(theme, "color_action_center_history_text", &config->color_action_center_history_text);
                         load_hex(theme, "color_action_center_no_new_text", &config->color_action_center_no_new_text);
@@ -363,7 +363,7 @@ void config_load() {
                                  &config->color_action_center_notification_button_text_hovered);
                         load_hex(theme, "color_action_center_notification_button_text_pressed",
                                  &config->color_action_center_notification_button_text_pressed);
-
+                        
                         break;
                     }
                 } else {
@@ -377,24 +377,24 @@ void config_load() {
 
 bool config_parse(libconfig::Config &cfg) {
     char *home = getenv("HOME");
-
+    
     std::string config_directory(home);
     config_directory += "/.config/winbar";
     mkdir(config_directory.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-
+    
     std::string config_file(config_directory + "/winbar.cfg");
-
+    
     try {
         cfg.readFile(config_file.c_str());
     } catch (const libconfig::FileIOException &fioex) {
         std::cout << "IO error:  " << config_file << std::endl;
         return false;
     } catch (const libconfig::ParseException &pex) {
-
+        
         std::cout << "Parsing error:  " << config_file << " Line: " << pex.getLine() << " Error: " << pex.getError()
                   << std::endl;
         return false;
     }
-
+    
     return true;
 }

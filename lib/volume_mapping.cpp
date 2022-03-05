@@ -93,33 +93,33 @@ static double get_normalized_volume(snd_mixer_elem_t *elem,
     long min, max, value;
     double normalized, min_norm;
     int err;
-
+    
     err = get_dB_range[ctl_dir](elem, &min, &max);
     if (err < 0 || min >= max) {
         err = get_raw_range[ctl_dir](elem, &min, &max);
         if (err < 0 || min == max)
             return 0;
-
+        
         err = get_raw[ctl_dir](elem, channel, &value);
         if (err < 0)
             return 0;
-
+        
         return (value - min) / (double) (max - min);
     }
-
+    
     err = get_dB[ctl_dir](elem, channel, &value);
     if (err < 0)
         return 0;
-
+    
     if (use_linear_dB_scale(min, max))
         return (value - min) / (double) (max - min);
-
+    
     normalized = exp10((value - max) / 6000.0);
     if (min != SND_CTL_TLV_DB_GAIN_MUTE) {
         min_norm = exp10((min - max) / 6000.0);
         normalized = (normalized - min_norm) / (1 - min_norm);
     }
-
+    
     return normalized;
 }
 
@@ -130,22 +130,22 @@ static int set_normalized_volume(snd_mixer_elem_t *elem,
     long min, max, value;
     double min_norm;
     int err;
-
+    
     err = get_dB_range[ctl_dir](elem, &min, &max);
     if (err < 0 || min >= max) {
         err = get_raw_range[ctl_dir](elem, &min, &max);
         if (err < 0)
             return err;
-
+        
         value = lrint_dir(volume * (max - min), dir) + min;
         return set_raw[ctl_dir](elem, value);
     }
-
+    
     if (use_linear_dB_scale(min, max)) {
         value = lrint_dir(volume * (max - min), dir) + min;
         return set_dB[ctl_dir](elem, value, dir);
     }
-
+    
     if (min != SND_CTL_TLV_DB_GAIN_MUTE) {
         min_norm = exp10((min - max) / 6000.0);
         volume = volume * (1 - min_norm) + min_norm;

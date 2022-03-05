@@ -34,18 +34,18 @@ static void paint_prompt(AppClient *client, cairo_t *cr, Container *container) {
             return;
         }
     }
-
+    
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_BOLD);
     pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_LEFT);
-
+    
     std::string text = "No new notifications";
-
+    
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), text.size());
     pango_layout_get_pixel_size(layout, &width, &height);
-
+    
     set_argb(cr, config->color_action_center_no_new_text);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
@@ -55,7 +55,7 @@ static void paint_prompt(AppClient *client, cairo_t *cr, Container *container) {
 
 static void paint_root(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationWrapper *) container->user_data;
-
+    
     set_argb(cr, config->color_action_center_background);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
@@ -63,7 +63,7 @@ static void paint_root(AppClient *client, cairo_t *cr, Container *container) {
 
 static void paint_notification_root(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationWrapper *) container->user_data;
-
+    
     set_argb(cr, config->color_action_center_notification_content_background);
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
@@ -71,33 +71,33 @@ static void paint_notification_root(AppClient *client, cairo_t *cr, Container *c
 
 static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LabelData *) container->user_data;
-
+    
     PangoLayout *layout = get_cached_pango_font(
             client->cr, config->font, data->size, data->weight);
     auto initial_wrap = pango_layout_get_wrap(layout);
     auto initial_ellipse = pango_layout_get_ellipsize(layout);
-
+    
     pango_layout_set_attributes(layout, nullptr);
     PangoAttrList *attrs = nullptr;
     pango_parse_markup(data->text.data(), data->text.length(), 0, &attrs, NULL, NULL, NULL);
     if (attrs) {
         pango_layout_set_attributes(layout, attrs);
     }
-
+    
     const std::string &stripped = strip_html(data->text);
-
+    
     pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
     pango_layout_set_text(layout, stripped.data(), stripped.length());
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
     pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
-
+    
     set_argb(cr, config->color_action_center_notification_content_text);
     cairo_move_to(cr,
                   container->real_bounds.x,
                   container->real_bounds.y);
     pango_cairo_show_layout(cr, layout);
-
+    
     pango_layout_set_width(layout, -1);
     pango_layout_set_wrap(layout, initial_wrap);
     pango_layout_set_ellipsize(layout, initial_ellipse);
@@ -105,15 +105,15 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
 
 static void paint_label_button(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LabelData *) container->user_data;
-
+    
     PangoLayout *layout = get_cached_pango_font(
             client->cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
-
+    
     pango_layout_set_text(layout, data->text.c_str(), data->text.length());
     PangoRectangle ink;
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
-
+    
     set_argb(cr, config->color_action_center_history_text);
     cairo_move_to(cr,
                   container->real_bounds.x,
@@ -127,20 +127,20 @@ static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
     set_argb(cr, config->color_action_center_notification_title_background);
     cairo_fill(cr);
-
+    
     auto wrapper = (NotificationWrapper *) container->parent->user_data;
     std::string text = "Received at " + wrapper->ni->time_started;
-
+    
     PangoLayout *layout = get_cached_pango_font(
             client->cr, config->font, 10, PANGO_WEIGHT_BOLD);
-
+    
     pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
     pango_layout_set_text(layout, text.c_str(), text.length());
-
+    
     PangoRectangle ink;
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
-
+    
     set_argb(cr, config->color_action_center_notification_title_text);
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 -
@@ -153,7 +153,7 @@ static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
 static void paint_action(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationActionWrapper *) container->user_data;
     auto action = data->action;
-
+    
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
             set_argb(cr, config->color_action_center_notification_button_pressed);
@@ -165,19 +165,19 @@ static void paint_action(AppClient *client, cairo_t *cr, Container *container) {
     }
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
-
+    
     std::string text = action.label;
-
+    
     PangoLayout *layout = get_cached_pango_font(
             client->cr, config->font, 11, PANGO_WEIGHT_NORMAL);
-
+    
     pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
     pango_layout_set_text(layout, text.c_str(), text.length());
-
+    
     PangoRectangle ink;
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
-
+    
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
             set_argb(cr, config->color_action_center_notification_button_text_pressed);
@@ -212,7 +212,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     data->ni = notification_info;
     container->user_data = data;
     container->when_paint = paint_notification_root;
-
+    
     // -------------------
     // | (a) |   b   | c |
     // -------------------
@@ -223,11 +223,11 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     //  b : (summary), body, (app)
     //  c : close/send to action center button shown only when mouse is in container
     // (d): optional actions. stack vertically
-
+    
     std::string title_text = notification_info->summary;
     std::string body_text = notification_info->body;
     std::string subtitle_text = notification_info->app_name;
-
+    
     // The subtitle can be used as the title if no title was sent
     if (title_text.empty() && !subtitle_text.empty()) {
         title_text = subtitle_text;
@@ -238,7 +238,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
         title_text = body_text;
         title_text.clear();
     }
-
+    
     std::vector<IconTarget> targets;
     targets.emplace_back(IconTarget(notification_info->app_icon));
     targets.emplace_back(IconTarget(subtitle_text));
@@ -250,9 +250,9 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
             notification_info->icon_path = targets[1].best_full_path;
         }
     }
-
+    
     bool has_icon = !notification_info->icon_path.empty();
-
+    
     int max_text_width = width;
     max_text_width -= 16 * 3; // subtract the part taken up by [c]
     if (has_icon) {
@@ -260,7 +260,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     } else {
         max_text_width -= 55; // subtract the padding used instead of [a]
     }
-
+    
     int container_height = 20 * 2; // The top and bottom padding
     int title_height = determine_height_of_text(app, title_text, PangoWeight::PANGO_WEIGHT_BOLD, 11, max_text_width);
     container_height += title_height;
@@ -275,26 +275,26 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
         container_height += 3;
     if (has_icon)
         container_height = container_height < (20 * 2 + 48) ? 20 * 2 + 48 : container_height;
-
+    
     container_height += 40; // received at
-
+    
     int icon_content_close_height = container_height;
-
+    
     if (!notification_info->actions.empty()) {
         container_height += 16; // for the bottom pad
-
+        
         container_height += notification_info->actions.size() * 32;
         container_height += notification_info->actions.size() - 1 * 4; // pad between each option
     }
-
+    
     container->real_bounds.w = width;
     container->real_bounds.h = container_height;
-
+    
     auto notify_user_container = container->child(FILL_SPACE, 40);
     notify_user_container->when_paint = paint_notify;
-
+    
     auto icon_content_close_hbox = container->child(layout_type::hbox, FILL_SPACE, FILL_SPACE);
-
+    
     if (has_icon) {
         auto icon = icon_content_close_hbox->child(48 + 16 * 2, FILL_SPACE);
         icon->name = "icon";
@@ -304,7 +304,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     } else {
         icon_content_close_hbox->child(55, FILL_SPACE);
     }
-
+    
     auto content = icon_content_close_hbox->child(max_text_width, FILL_SPACE);
     content->child(FILL_SPACE, FILL_SPACE);
     if (!title_text.empty()) {
@@ -337,9 +337,9 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
         subtitle_label_data->text = subtitle_text;
     }
     content->child(FILL_SPACE, FILL_SPACE);
-
+    
     auto send_to_action_center = icon_content_close_hbox->child(16 * 3, FILL_SPACE);
-
+    
     if (!notification_info->actions.empty()) {
         auto actions_container = container->child(layout_type::vbox, FILL_SPACE,
                                                   container_height - icon_content_close_height);
@@ -347,7 +347,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
         actions_container->wanted_pad = Bounds(16, 0, 16, 16);
         actions_container->name = "actions_container";
         actions_container->interactable = false;
-
+        
         for (auto action: notification_info->actions) {
             auto action_container = actions_container->child(FILL_SPACE, FILL_SPACE);
             auto data = new NotificationActionWrapper;
@@ -356,7 +356,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
             action_container->when_paint = paint_action;
         }
     }
-
+    
     return container;
 }
 
@@ -366,32 +366,32 @@ static void fill_root(AppClient *client, Container *root) {
     root->type = layout_type::vbox;
     root->spacing = 0;
     root->interactable = false;
-
+    
     Container *top_hbox = root->child(::hbox, FILL_SPACE, 44);
     {
         std::string text = "Notification history";
-
+        
         PangoLayout *layout = get_cached_pango_font(
                 client->cr, config->font, 9, PANGO_WEIGHT_NORMAL);
-
+        
         pango_layout_set_text(layout, text.c_str(), text.length());
-
+        
         PangoRectangle ink;
         PangoRectangle logical;
         pango_layout_get_extents(layout, &ink, &logical);
-
+        
         top_hbox->wanted_pad.y = (top_hbox->wanted_bounds.h - logical.height / PANGO_SCALE) / 2;
         top_hbox->wanted_pad.h = (top_hbox->wanted_bounds.h - logical.height / PANGO_SCALE) / 2;
-
+        
         top_hbox->child(FILL_SPACE, FILL_SPACE);
-
+        
         auto label = top_hbox->child(logical.width / PANGO_SCALE, logical.height / PANGO_SCALE);
         auto label_data = new LabelData;
         label_data->text = text;
         label->user_data = label_data;
         label->when_paint = paint_label_button;
     }
-
+    
     auto r = root->child(FILL_SPACE, FILL_SPACE);
     ScrollPaneSettings settings;
     settings.right_show_amount = 2;
@@ -402,7 +402,7 @@ static void fill_root(AppClient *client, Container *root) {
     auto content = scroll_pane->child(::vbox, FILL_SPACE, 0);
     content->name = "content";
     content->spacing = 8;
-
+    
     for (int i = notifications.size(); i--;) {
         NotificationInfo *n = notifications[i];
         if (n->removed_from_action_center)
@@ -411,7 +411,7 @@ static void fill_root(AppClient *client, Container *root) {
         notification_container->parent = content;
         notification_container->wanted_bounds.h = notification_container->real_bounds.h;
         content->children.push_back(notification_container);
-
+        
         if (auto icon_container = container_by_name("icon", notification_container)) {
             auto icon_data = (IconButton *) icon_container->user_data;
             load_icon_full_path(app, client, &icon_data->surface, n->icon_path, 48);
@@ -421,7 +421,7 @@ static void fill_root(AppClient *client, Container *root) {
             load_icon_full_path(app, client, &icon_data->surface, as_resource_path("close-12.png"), 12);
         }
     }
-
+    
     content->wanted_bounds.h = true_height(content) + true_height(content->parent);
 }
 
@@ -459,7 +459,7 @@ event_handler(App *app, xcb_generic_event_t *event) {
             break;
         }
     }
-
+    
     return false;
 }
 
@@ -472,7 +472,7 @@ void start_action_center(App *app) {
         notification_closed_signal(c->app, wrapper->ni, NotificationReasonClosed::UNDEFINED_OR_RESERVED_REASON);
         client_close_threaded(app, c);
     }
-
+    
     Settings settings;
     settings.w = 396;
     settings.h = app->bounds.h - config->taskbar_height;
@@ -499,15 +499,15 @@ void start_action_center(App *app) {
     settings.slide_data[2] = 120;
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
-
+    
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "action_center";
         auto client = taskbar->create_popup(popup_settings, settings);
-
+        
         fill_root(client, client->root);
         client_show(app, client);
-
+        
         if (auto c = client_by_name(app, "taskbar")) {
             if (auto co = container_by_name("action", c->root)) {
                 auto data = (ActionCenterButtonData *) co->user_data;

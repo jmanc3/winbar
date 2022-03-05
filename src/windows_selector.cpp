@@ -57,7 +57,7 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
         return;
     }
     selector_type we_are = data->type;
-
+    
     auto they = client_by_name(app, "windows_selector");
     bool they_are_us = false;
     selector_type they_are = selector_type::CLOSED;
@@ -68,17 +68,17 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
         }
         they_are = pii->data->type;
     }
-
+    
     // cancel any possibly_stop
     if (data->possibly_stop_timeout != nullptr) {
         app_timeout_stop(app, nullptr, data->possibly_stop_timeout);
         data->possibly_stop_timeout = nullptr;
     }
-
+    
     if (they && they_are_us) { // we are already open, we don't need to reopen
         return;
     }
-
+    
     if (we_are == selector_type::CLOSED) {
         if (they) {
             if (they_are != selector_type::OPEN_CLICKED) {
@@ -104,7 +104,7 @@ void possibly_close(App *app, Container *container, LaunchableButton *data) {
         return;
     }
     selector_type we_are = data->type;
-
+    
     auto they = client_by_name(app, "windows_selector");
     bool they_are_us = false;
     selector_type they_are = selector_type::CLOSED;
@@ -115,17 +115,17 @@ void possibly_close(App *app, Container *container, LaunchableButton *data) {
         }
         they_are = pii->data->type;
     }
-
+    
     // cancel any possibly_open
     if (data->possibly_open_timeout != nullptr) {
         app_timeout_stop(app, nullptr, data->possibly_open_timeout);
         data->possibly_open_timeout = nullptr;
     }
-
+    
     if (we_are == selector_type::CLOSED) { // if we are already closed, we don't need to re-close
         return;
     }
-
+    
     if (we_are == selector_type::OPEN_HOVERED) {
         if (data->possibly_stop_timeout == nullptr) {
             data->possibly_stop_timeout = app_timeout_create(app, nullptr, 220, on_close_timeout, container);
@@ -142,18 +142,18 @@ window_option_clicked(AppClient *client_entity, cairo_t *cr, Container *containe
             break;
         }
     }
-
+    
     auto pii = (PinnedIconInfo *) client_entity->root->user_data;
-
+    
     xcb_window_t to_focus = pii->data->windows_data_list[index]->id;
-
+    
     xcb_ewmh_request_change_active_window(&app->ewmh,
                                           app->screen_number,
                                           to_focus,
                                           XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
                                           XCB_CURRENT_TIME,
                                           XCB_NONE);
-
+    
     client_close_threaded(app, client_entity);
     xcb_flush(app->connection);
     app->grab_window = -1;
@@ -171,11 +171,11 @@ clicked_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
 
 static int get_width(LaunchableButton *data) {
     double total_width = 0;
-
+    
     for (auto w: data->windows_data_list) {
         if (w->marked_to_close)
             continue;
-
+        
         double pad = option_pad;
         double target_width = option_width - pad * 2;
         double target_height = option_height - pad;
@@ -190,10 +190,10 @@ static int get_width(LaunchableButton *data) {
         if (width < option_min_width) {
             width = option_min_width;
         }
-
+        
         total_width += width;
     }
-
+    
     return total_width;
 }
 
@@ -206,12 +206,12 @@ window_option_closed(AppClient *client_entity, cairo_t *cr, Container *container
             break;
         }
     }
-
+    
     auto pii = (PinnedIconInfo *) client_entity->root->user_data;
-
+    
     xcb_window_t to_close = pii->data->windows_data_list[index]->id;
     pii->data->windows_data_list[index]->marked_to_close = true;
-
+    
     unsigned long windows_count = pii->data->windows_data_list.size();
     xcb_ewmh_request_close_window(&app->ewmh,
                                   app->screen_number,
@@ -249,11 +249,11 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
         }
     }
     auto pii = (PinnedIconInfo *) client_entity->root->user_data;
-
+    
     bool hovered = false;
     bool pressed = false;
     paint_option_hovered_or_pressed(container, hovered, pressed);
-
+    
     ArgbColor background = config->color_windows_selector_default_background;
     if (hovered || pressed) {
         if (pressed) {
@@ -264,7 +264,7 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
     } else {
         background = correct_opaqueness(client_entity, config->color_windows_selector_default_background);
     }
-
+    
     if (pii->data->wants_attention_amount != 0 && pii->data->windows_data_list[index]->wants_attention) {
         double blinks = 10.5;
         double scalar = fmod(pii->data->wants_attention_amount, (1.0 / blinks)); // get N blinks
@@ -276,7 +276,7 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
             scalar = 1;
         background = lerp_argb(scalar, background, config->color_windows_selector_attention_background);
     }
-
+    
     set_argb(cr, background);
     cairo_rectangle(cr,
                     container->real_bounds.x - 1,
@@ -289,7 +289,7 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
 static void
 paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto *data = static_cast<PinnedIconInfo *>(client_entity->root->user_data);
-
+    
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         ArgbColor color;
         if (container->state.mouse_pressing) {
@@ -301,13 +301,13 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
         set_rect(cr, container->real_bounds);
         cairo_fill(cr);
     }
-
+    
     bool active = container->state.mouse_pressing || container->state.mouse_hovering ||// US
                   container->parent->children[0]->state.mouse_pressing ||
                   container->parent->children[0]->state.mouse_hovering ||// TITLE
                   container->parent->parent->children[1]->state.mouse_pressing ||
                   container->parent->parent->children[1]->state.mouse_hovering;// BODY
-
+    
     if (data->surface && active) {
         if (container->state.mouse_pressing || container->state.mouse_hovering) {
             if (container->state.mouse_pressing) {
@@ -339,28 +339,28 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
             break;
         }
     }
-
+    
     auto pii = (PinnedIconInfo *) client_entity->root->user_data;
     if (pii->icon_surface != nullptr) {
         cairo_set_source_surface(cr, pii->icon_surface, container->real_bounds.x + 8, container->real_bounds.y + 8);
         cairo_paint(cr);
     }
-
+    
     auto windows_data = ((BodyData *) container->parent->parent->children[1]->user_data)->windows_data;
     std::string title = windows_data->title;
     if (title.empty()) {
         auto pii = (PinnedIconInfo *) client_entity->root->user_data;
         title = pii->data->class_name;
     }
-
+    
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
-
+    
     int width;
     int height;
     pango_layout_set_text(layout, title.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
-
+    
     int close_w = close_width;
     bool hovered = false;
     bool pressed = false;
@@ -377,7 +377,7 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     if (close_w == 0) {
         pad = option_pad;
     }
-
+    
     set_argb(cr, config->color_windows_selector_text);
     cairo_move_to(cr,
                   container->real_bounds.x + pad + 24,
@@ -393,7 +393,7 @@ paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     auto data = ((BodyData *) container->user_data)->windows_data;
-
+    
     double pad = option_pad;
     double target_width = container->real_bounds.w - pad * 2;
     double target_height = container->real_bounds.h - pad;
@@ -404,7 +404,7 @@ paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
     } else {
         scale_w = scale_h;
     }
-
+    
     long currrent_time = get_current_time_in_ms();
     if ((currrent_time - data->last_rescale_timestamp) > 1000) {
         if (screen_has_transparency(app)) {
@@ -415,10 +415,10 @@ paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
     if (data->scaled_thumbnail_surface) {
         double width = data->width * scale_w;
         double height = data->height * scale_h;
-
+        
         double dest_x = container->real_bounds.x + pad + target_width / 2 - width / 2;
         double dest_y = container->real_bounds.y + target_height / 2 - height / 2;
-
+        
         cairo_save(cr);
         cairo_set_source_surface(cr, data->scaled_thumbnail_surface,
                                  dest_x, dest_y);
@@ -451,16 +451,16 @@ fill_root(AppClient *client, Container *root) {
     root->receive_events_even_if_obstructed = true;
     root->when_mouse_enters_container = when_enter;
     root->when_mouse_leaves_container = when_leave;
-
+    
     if (screen_has_transparency(app)) {
         for (auto window_data: pii->data->windows_data_list) {
             window_data->last_rescale_timestamp = -1;
         }
     }
-
+    
     if (pii->data == nullptr)
         return;
-
+    
     for (int i = 0; i < pii->data->windows_data_list.size(); i++) {
         WindowsData *w = pii->data->windows_data_list[i];
         double pad = option_pad;
@@ -477,7 +477,7 @@ fill_root(AppClient *client, Container *root) {
         if (width < option_min_width) {
             width = option_min_width;
         }
-
+        
         Container *option_container = new Container();
         option_container->type = vbox;
         option_container->parent = root;
@@ -486,14 +486,14 @@ fill_root(AppClient *client, Container *root) {
         option_container->when_paint = paint_option_background;
         option_container->name = std::to_string(w->id);
         root->children.push_back(option_container);
-
+        
         Container *option_top_hbox = new Container();
         option_top_hbox->parent = option_container;
         option_top_hbox->wanted_bounds.w = FILL_SPACE;
         option_top_hbox->wanted_bounds.h = close_height;
         option_top_hbox->type = hbox;
         option_container->children.push_back(option_top_hbox);
-
+        
         Container *option_titlebar = new Container();
         option_titlebar->parent = option_top_hbox;
         option_titlebar->wanted_bounds.w = FILL_SPACE;
@@ -501,7 +501,7 @@ fill_root(AppClient *client, Container *root) {
         option_titlebar->when_paint = paint_titlebar;
         option_titlebar->when_clicked = clicked_titlebar;
         option_top_hbox->children.push_back(option_titlebar);
-
+        
         Container *option_close_button = new Container();
         option_close_button->parent = option_top_hbox;
         option_close_button->wanted_bounds.w = close_width;
@@ -509,7 +509,7 @@ fill_root(AppClient *client, Container *root) {
         option_close_button->when_paint = paint_close;
         option_close_button->when_clicked = clicked_close;
         option_top_hbox->children.push_back(option_close_button);
-
+        
         // Body
         Container *option_body = new Container();
         option_body->parent = option_container;
@@ -548,7 +548,7 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     pii->data->type = selector_state;
     pii->data->possibly_open_timeout = nullptr;
     pii->data->possibly_stop_timeout = nullptr;
-
+    
     int width = get_width(pii->data);
     Settings settings;
     settings.w = width;
@@ -568,13 +568,13 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     settings.decorations = false;
     settings.skip_taskbar = true;
     settings.override_redirect = true;
-
+    
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "windows_selector";
         popup_settings.takes_input_focus = false;
         auto client = taskbar->create_popup(popup_settings, settings);
-
+        
         client->root->user_data = pii;
         if (pii->data->surface) {
             std::string path;
@@ -590,29 +590,29 @@ void start_windows_selector(Container *container, selector_type selector_state) 
             if (path.empty()) {
                 pii->icon_surface = accelerated_surface(app, client, 16, 16);
                 cairo_t *cr = cairo_create(pii->icon_surface);
-
+                
                 double starting_w = cairo_image_surface_get_width(pii->data->surface);
                 double target_w = 16;
                 double sx = target_w / starting_w;
-
+                
                 cairo_scale(cr, sx, sx);
                 cairo_set_source_surface(cr, pii->data->surface, 0, 0);
                 cairo_paint(cr);
-
+                
                 cairo_destroy(cr);
             } else {
                 load_icon_full_path(app, client, &pii->icon_surface, path, 16);
             }
         }
-
-
+        
+        
         client->fps = 30;
         client->when_closed = when_closed;
         client_register_animation(app, client);
         fill_root(client, client->root);
-
+        
         client_show(app, client);
-
+        
         if (auto c = client_by_name(app, "taskbar")) {
             request_refresh(app, c);
         }

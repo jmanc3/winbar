@@ -24,25 +24,25 @@ void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
     if (surface == nullptr)
         return;
     cairo_surface_flush(surface);
-
+    
     unsigned char *data = cairo_image_surface_get_data(surface);
     int width = cairo_image_surface_get_width(surface);
     int height = cairo_image_surface_get_height(surface);
     int stride = cairo_image_surface_get_stride(surface);
-
+    
     for (int y = 0; y < height; y++) {
         auto row = (uint32_t *) data;
         data += stride;
-
+        
         for (int x = 0; x < width; x++) {
             unsigned int color = *row;
-
+            
             unsigned int alpha = ((color >> 24) & 0xFF);
-
+            
             unsigned int red = std::floor(argb_color.r * 255);
             unsigned int green = std::floor(argb_color.g * 255);
             unsigned int blue = std::floor(argb_color.b * 255);
-
+            
             // pre multiplied alpha
             // a r g b
             // unsigned int set_argb = (0x44 << 24) | (0x44 << 16) | (0x00 << 8) |
@@ -50,7 +50,7 @@ void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
             // https://www.cairographics.org/manual/cairo-Image-Surfaces.html#cairo-format-t
             unsigned int set_color = (alpha << 24) | ((red * alpha / 255) << 16) |
                                      (green * alpha / 255 << 8) | blue * alpha / 255;
-
+            
             *row = set_color;
             row++;
         }
@@ -64,19 +64,19 @@ void dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold) {
     if (surface == nullptr)
         return;
     cairo_surface_flush(surface);
-
+    
     unsigned char *data = cairo_image_surface_get_data(surface);
     int width = cairo_image_surface_get_width(surface);
     int height = cairo_image_surface_get_height(surface);
     int stride = cairo_image_surface_get_stride(surface);
-
+    
     for (int y = 0; y < height; y++) {
         auto row = (uint32_t *) data;
         data += stride;
-
+        
         for (int x = 0; x < width; x++) {
             unsigned int color = *row;
-
+            
             unsigned int alpha = ((color >> 24) & 0xFF);
             if (alpha != 0) {
                 if (alpha > thresh_hold) {
@@ -92,7 +92,7 @@ void dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold) {
             unsigned int red = ((color >> 16) & 0xFF);
             unsigned int green = ((color >> 8) & 0xFF);
             unsigned int blue = ((color >> 0) & 0xFF);
-
+            
             // pre multiplied alpha
             // a r g b
             // unsigned int set_argb = (0x44 << 24) | (0x44 << 16) | (0x00 << 8) |
@@ -100,7 +100,7 @@ void dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold) {
             // https://www.cairographics.org/manual/cairo-Image-Surfaces.html#cairo-format-t
             unsigned int set_color = (alpha << 24) | ((red * alpha / 255) << 16) |
                                      (green * alpha / 255 << 8) | blue * alpha / 255;
-
+            
             *row = set_color;
             row++;
         }
@@ -118,25 +118,25 @@ void get_average_color(cairo_surface_t *surface, ArgbColor *result) {
     if (surface == nullptr)
         return;
     cairo_surface_flush(surface);
-
+    
     unsigned char *data = cairo_image_surface_get_data(surface);
     int width = cairo_image_surface_get_width(surface);
     int height = cairo_image_surface_get_height(surface);
     int stride = cairo_image_surface_get_stride(surface);
-
+    
     int total_pixels = width * height;
     double a = 0;
     double r = 0;
     double g = 0;
     double b = 0;
-
+    
     for (int y = 0; y < height; y++) {
         auto row = (uint32_t *) data;
         data += stride;
-
+        
         for (int x = 0; x < width; x++) {
             unsigned int color = *row;
-
+            
             unsigned int alpha = ((color >> 24) & 0xFF);
             unsigned int red = ((color >> 16) & 0xFF);
             unsigned int green = ((color >> 8) & 0xFF);
@@ -149,7 +149,7 @@ void get_average_color(cairo_surface_t *surface, ArgbColor *result) {
                 g += (((double) green) / 255);
                 b += (((double) blue) / 255);
             }
-
+            
             row++;
         }
     }
@@ -194,7 +194,7 @@ struct CachedFont {
     int size;
     PangoWeight weight;
     PangoLayout *layout;
-
+    
     ~CachedFont() { g_object_unref(layout); }
 };
 
@@ -210,13 +210,13 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
             return font->layout;
         }
     }
-
+    
     auto *font = new CachedFont;
     assert(font);
     font->name = name;
     font->size = pixel_height;
     font->weight = weight;
-
+    
     PangoLayout *layout = pango_cairo_create_layout(cr);
     PangoFontDescription *desc = pango_font_description_new();
     pango_font_description_set_size(desc, pixel_height * PANGO_SCALE);
@@ -225,15 +225,15 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
     pango_layout_set_font_description(layout, desc);
     pango_font_description_free(desc);
     pango_layout_set_attributes(layout, nullptr);
-
+    
     assert(layout);
-
+    
     font->layout = layout;
-
+    
     cached_fonts.push_back(font);
-
+    
     assert(font->layout);
-
+    
     return font->layout;
 }
 
@@ -313,7 +313,7 @@ intern_atom(xcb_connection_t *conn, const char *atom) {
 struct CachedAtom {
     std::string name;
     xcb_atom_t atom;
-
+    
     ~CachedAtom() {}
 };
 
@@ -355,7 +355,7 @@ void launch_command(std::string command) {
         fprintf(stderr, "winbar: Could not fork\n");
         return;
     }
-
+    
     if (pid == 0) {
         char *dir = getenv("HOME");
         if (dir) {
@@ -364,10 +364,10 @@ void launch_command(std::string command) {
                 fprintf(stderr, "winbar: failed to chdir to %s\n", dir);
             }
         }
-
+        
         execlp("sh", "sh", "-c", command.c_str(), NULL);
         fprintf(stderr, "winbar: Failed to execute %s\n", command.c_str());
-
+        
         _exit(1);
     } else {
         signal(SIGCHLD, SIG_IGN); // https://www.geeksforgeeks.org/zombie-processes-prevention/
@@ -381,9 +381,9 @@ mod_color(ArgbColor *color, double amount) {
     double s; // saturation
     double p; // perceived brightness
     rgb2hsluv(color->r, color->g, color->b, &h, &s, &p);
-
+    
     p = p + amount;
-
+    
     if (p < 0)
         p = 0;
     else if (p > 100)
@@ -446,26 +446,26 @@ bool paint_svg_to_surface(cairo_surface_t *surface, std::string path, int target
 #endif
     GFile *gfile = g_file_new_for_path(path.c_str());
     RsvgHandle *handle = rsvg_handle_new_from_gfile_sync(gfile, RSVG_HANDLE_FLAGS_NONE, NULL, NULL);
-
+    
     // TODO: is this correct?
     if (handle == nullptr)
         return false;
-
+    
     auto *temp_context = cairo_create(surface);
     cairo_save(temp_context);
     cairo_set_operator(temp_context, CAIRO_OPERATOR_CLEAR);
     cairo_paint(temp_context);
     cairo_restore(temp_context);
-
+    
     cairo_save(temp_context);
     const RsvgRectangle viewport{0, 0, (double) target_size, (double) target_size};
     rsvg_handle_render_layer(handle, temp_context, NULL, &viewport, nullptr);
     cairo_restore(temp_context);
     cairo_destroy(temp_context);
-
+    
     g_object_unref(gfile);
     g_object_unref(handle);
-
+    
     return true;
 }
 
@@ -474,21 +474,21 @@ bool paint_png_to_surface(cairo_surface_t *surface, std::string path, int target
     ZoneScoped;
 #endif
     auto *png_surface = cairo_image_surface_create_from_png(path.c_str());
-
+    
     if (cairo_surface_status(png_surface) != CAIRO_STATUS_SUCCESS) {
         cairo_surface_destroy(png_surface);
         return false;
     }
-
+    
     auto *temp_context = cairo_create(surface);
     int w = cairo_image_surface_get_width(png_surface);
     int h = cairo_image_surface_get_height(png_surface);
-
+    
     cairo_save(temp_context);
     cairo_set_operator(temp_context, CAIRO_OPERATOR_CLEAR);
     cairo_paint(temp_context);
     cairo_restore(temp_context);
-
+    
     cairo_save(temp_context);
     if (target_size != w) {
         double scale = ((double) target_size) / ((double) w);
@@ -499,7 +499,7 @@ bool paint_png_to_surface(cairo_surface_t *surface, std::string path, int target
     cairo_restore(temp_context);
     cairo_destroy(temp_context);
     cairo_surface_destroy(png_surface);
-
+    
     return true;
 }
 
@@ -527,13 +527,13 @@ accelerated_surface(App *app, AppClient *client_entity, int w, int h) {
 #endif
     if (client_entity && client_entity->cr == nullptr)
         return nullptr;
-
+    
     cairo_surface_t *fast_surface = cairo_surface_create_similar_image(
             cairo_get_target(client_entity->cr), CAIRO_FORMAT_ARGB32, w, h);
-
+    
     if (cairo_surface_status(fast_surface) != CAIRO_STATUS_SUCCESS)
         return nullptr;
-
+    
     return fast_surface;
 }
 
@@ -544,13 +544,13 @@ accelerated_surface_rgb(App *app, AppClient *client_entity, int w, int h) {
 #endif
     if (client_entity && client_entity->cr == nullptr)
         return nullptr;
-
+    
     cairo_surface_t *fast_surface = cairo_surface_create_similar_image(
             cairo_get_target(client_entity->cr), CAIRO_FORMAT_RGB24, w, h);
-
+    
     if (cairo_surface_status(fast_surface) != CAIRO_STATUS_SUCCESS)
         return nullptr;
-
+    
     return fast_surface;
 }
 
@@ -561,17 +561,17 @@ void paint_surface_with_data(cairo_surface_t *surface, uint32_t *icon_data) {
 bool there_is_a_compositor(App *app) {
     const char register_prop[] = "_NET_WM_CM_S";
     xcb_atom_t atom;
-
+    
     char *buf = NULL;
     if (asprintf(&buf, "%s%d", register_prop, app->screen_number) < 0) {
         return false;
     }
     atom = get_cached_atom(app, buf);
     free(buf);
-
+    
     xcb_get_selection_owner_reply_t *reply = xcb_get_selection_owner_reply(
             app->connection, xcb_get_selection_owner(app->connection, atom), NULL);
-
+    
     if (reply && reply->owner != XCB_NONE) {
         // Another compositor already running
         free(reply);
@@ -629,7 +629,7 @@ double calculate_overlap_percentage(double ax, double ay, double aw, double ah,
     //trivial cases
     if (!overlaps(ax, ay, aw, ah, bx, by, bw, bh)) return 0.0;
     if (ax == bx && ay == by && aw == bw && ah == bh) return 100.0;
-
+    
     //# overlap between A and B
     double SA = aw * ah;
     double SB = bw * bh;
@@ -657,13 +657,13 @@ void
 paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, double pad) {
     cairo_rectangle(cr, (int) (b.x + pad), (int) (b.y + pad), (int) (b.w - pad * 2 - width), (int) (width));
     cairo_fill(cr);
-
+    
     cairo_rectangle(cr, (int) (b.x + pad), (int) (b.y + pad + width), (int) (width), (int) (b.h - pad * 2 - width * 2));
     cairo_fill(cr);
-
+    
     cairo_rectangle(cr, (int) (b.x + b.w - width - pad), (int) (b.y + pad), (int) (width), (int) (b.h - pad * 2));
     cairo_fill(cr);
-
+    
     cairo_rectangle(cr, (int) (b.x + pad), (int) (b.y + b.h - width - pad), (int) (b.w - pad * 2 - width), (width));
     cairo_fill(cr);
 }
@@ -673,6 +673,6 @@ bool is_light_theme(const ArgbColor &color) {
     double s; // saturation
     double p; // perceived brightness
     rgb2hsluv(color.r, color.g, color.b, &h, &s, &p);
-
+    
     return p >= 50;
 }

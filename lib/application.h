@@ -29,18 +29,18 @@ struct Settings {
     int16_t y = 0;
     uint16_t w = 800;
     uint16_t h = 600;
-
+    
     uint32_t background = 0x00000000;
-
+    
     bool force_position = false;
     bool decorations = true;
-
+    
     bool reserve_side = false;
     uint32_t reserve_left = 0;
     uint32_t reserve_right = 0;
     uint32_t reserve_top = 0;
     uint32_t reserve_bottom = 0;
-
+    
     bool slide = false;
     // From: https://github.com/droidian/kwin/blob/15736367f6f533b075094e8ab384ee3b948f4cb9/effects/slidingpopups/slidingpopups.cpp
     // [1] Offset amount of pixels which are left empty at the beginning of the animation, and which return at the end
@@ -49,7 +49,7 @@ struct Settings {
     // [4] Animation-out duration in milliseconds
     // [5] Start fading window after duration in milliseconds
     int slide_data[5] = {-1, 3, 160, 100, 80};
-
+    
     bool skip_taskbar = false;
     bool no_input_focus = false;
     bool dock = false;
@@ -57,18 +57,18 @@ struct Settings {
     bool window_transparent = true;
     bool override_redirect = false;
     bool keep_above = false;
-
+    
     Settings() { reserve_side = false; }
 };
 
 struct client_container_info {
     // initial refers to the click
     int mouse_initial_x = 0;
-
+    
     int mouse_initial_y = 0;
-
+    
     int mouse_current_x = 0;
-
+    
     int mouse_current_y = 0;
 };
 
@@ -80,21 +80,21 @@ struct Handler;
 
 struct Timeout {
     int file_descriptor;
-
+    
     void (*function)(App *, AppClient *, Timeout *, void *user_data);
-
+    
     AppClient *client = nullptr;
-
+    
     void *user_data = nullptr;
-
+    
     bool keep_running = false;
-
+    
     bool kill = false;
 };
 
 struct PolledDescriptor {
     int file_descriptor;
-
+    
     void (*function)(App *, int fd);
 };
 
@@ -102,54 +102,54 @@ struct DBusConnection;
 
 struct App {
     xcb_ewmh_connection_t ewmh;
-
+    
     std::mutex running_mutex;
     bool running = true;
-
+    
     Bounds bounds;// these are the bounds of the entire screen
-
+    
     std::vector<AppClient *> clients;
-
+    
     std::mutex thread_mutex;
-
+    
     std::vector<Handler *> handlers;
-
+    
     xcb_window_t grab_window;
-
+    
     xcb_connection_t *connection = nullptr;
-
+    
     xcb_visualtype_t *argb_visualtype = nullptr;
-
+    
     xcb_visualtype_t *root_visualtype = nullptr;
-
+    
     int screen_number = 0;
-
+    
     xcb_screen_t *screen = nullptr;
-
+    
     int epoll_fd = -1;
     std::vector<PolledDescriptor> descriptors_being_polled;
-
+    
     std::vector<Timeout *> timeouts;
-
+    
     int loop = 0;
-
+    
     // TODO: move atoms into their own things
     xcb_atom_t protocols_atom = 0;
-
+    
     xcb_atom_t delete_window_atom = 0;
-
+    
     xcb_atom_t MOTIF_WM_HINTS = 0;
-
+    
     cairo_device_t *device = nullptr;
-
+    
     AppClient *popup_client = nullptr;
-
+    
     App();
 };
 
 struct Handler {
     xcb_window_t target_window = 0;
-
+    
     // returning false from this callback means don't consume the event
     bool (*event_handler)(App *app, xcb_generic_event_t *) = nullptr;
 };

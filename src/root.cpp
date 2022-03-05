@@ -23,12 +23,12 @@ void update_stacking_order() {
                              XCB_ATOM_WINDOW,
                              0,
                              -1);
-
+    
     xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, NULL);
-
+    
     long windows_count = xcb_get_property_value_length(reply) / sizeof(xcb_window_t);
     auto *windows = (xcb_window_t *) xcb_get_property_value(reply);
-
+    
     stacking_order_changed(windows, windows_count);
     free(reply);
 }
@@ -41,14 +41,14 @@ void update_active_window() {
                                                         XCB_ATOM_WINDOW,
                                                         0,
                                                         -1);
-
+    
     xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, NULL);
-
+    
     long windows_count = xcb_get_property_value_length(reply) / sizeof(xcb_window_t);
     auto *windows = (xcb_window_t *) xcb_get_property_value(reply);
-
+    
     active_window_changed(windows[0]);
-
+    
     free(reply);
 }
 
@@ -61,7 +61,7 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
 //            xcb_get_atom_name_reply_t *reply = xcb_get_atom_name_reply(app->connection, cookie, NULL);
 //            char *name = xcb_get_atom_name_name(reply);
 //            printf("ATOM: %s\n", name);
-
+            
             if (e->atom == get_cached_atom(app, "_NET_CLIENT_LIST_STACKING")) {
                 update_stacking_order();
             }
@@ -87,14 +87,14 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
             break;
         }
     }
-
+    
     return false;
 }
 
 void meta_pressed(int num) {
     if (num == 0) {
         std::lock_guard lock(app->thread_mutex);
-
+        
         if (auto client = client_by_name(app, "app_menu")) {
             client_close(app, client);
             set_textarea_inactive();
@@ -113,15 +113,15 @@ void root_start(App *app) {
     handler->event_handler = root_event_handler;
     handler->target_window = app->screen->root;
     app->handlers.push_back(handler);
-
+    
     const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
     xcb_change_window_attributes(app->connection, app->screen->root, XCB_CW_EVENT_MASK, values);
-
+    
     // If not on another thread, will block this one
     if (t == nullptr) {
         t = new std::thread(watch_meta_key);
         t->detach();
     }
-
+    
     xcb_flush(app->connection);
 }

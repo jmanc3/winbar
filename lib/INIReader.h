@@ -181,7 +181,7 @@ ini_parse_stream(ini_reader reader, void *stream, ini_handler handler, void *use
 #endif
     char section[MAX_SECTION] = "";
     char prev_name[MAX_NAME] = "";
-
+    
     char *start;
     char *end;
     char *name;
@@ -195,11 +195,11 @@ ini_parse_stream(ini_reader reader, void *stream, ini_handler handler, void *use
         return -2;
     }
 #endif
-
+    
     /* Scan through stream line by line */
     while (reader(line, INI_MAX_LINE, stream) != NULL) {
         lineno++;
-
+        
         start = line;
 #if INI_ALLOW_BOM
         if (lineno == 1 && (unsigned char) start[0] == 0xEF && (unsigned char) start[1] == 0xBB &&
@@ -208,7 +208,7 @@ ini_parse_stream(ini_reader reader, void *stream, ini_handler handler, void *use
         }
 #endif
         start = lskip(rstrip(start));
-
+        
         if (*start == ';' || *start == '#') {
             /* Per Python configparser, allow both ; and # comments at the
                start of a line */
@@ -222,7 +222,7 @@ ini_parse_stream(ini_reader reader, void *stream, ini_handler handler, void *use
                 *end = '\0';
             rstrip(start);
 #endif
-
+            
             /* Non-blank line with leading whitespace, treat as continuation
                of previous name's value (as per Python configparser). */
             if (!handler(user, section, prev_name, start) && !error)
@@ -253,7 +253,7 @@ ini_parse_stream(ini_reader reader, void *stream, ini_handler handler, void *use
                     *end = '\0';
 #endif
                 rstrip(value);
-
+                
                 /* Valid name[=:]value pair found, call handler */
                 strncpy0(prev_name, name, sizeof(prev_name));
                 if (!handler(user, section, name, value) && !error)
@@ -273,7 +273,7 @@ ini_parse_stream(ini_reader reader, void *stream, ini_handler handler, void *use
 #if !INI_USE_STACK
     free(line);
 #endif
-
+    
     return error;
 }
 
@@ -288,7 +288,7 @@ inline int
 ini_parse(const char *filename, ini_handler handler, void *user) {
     FILE *file;
     int error;
-
+    
     file = fopen(filename, "r");
     if (!file)
         return -1;
@@ -312,34 +312,34 @@ class INIReader {
 public:
     // Empty Constructor
     INIReader() {};
-
+    
     // Construct INIReader and parse given filename. See ini.h for more nomral
     // about the parsing.
     INIReader(std::string filename);
-
+    
     // Construct INIReader and parse given file. See ini.h for more nomral
     // about the parsing.
     INIReader(FILE *file);
-
+    
     // Return the result of ini_parse(), i.e., 0 on success, line number of
     // first error on parse error, or -1 on file open error.
     int ParseError() const;
-
+    
     // Return the list of sections found in ini file
     const std::set<std::string> &Sections() const;
-
+    
     // Get a string value from INI file, returning default_value if not found.
     std::string Get(std::string section, std::string name, std::string default_value) const;
-
+    
     // Get an integer (long) value from INI file, returning default_value if
     // not found or not a valid integer (decimal "1234", "-1234", or hex "0x4d2").
     long GetInteger(std::string section, std::string name, long default_value) const;
-
+    
     // Get a real (floating point double) value from INI file, returning
     // default_value if not found or not a valid floating point value
     // according to strtod().
     double GetReal(std::string section, std::string name, double default_value) const;
-
+    
     // Get a boolean value from INI file, returning default_value if not found or
     // if not a valid true/false value. Valid true values are "true", "yes", "on",
     // "1", and valid false values are "false", "no", "off", "0" (not case
@@ -350,9 +350,9 @@ protected:
     int _error;
     std::map<std::string, std::string> _values;
     std::set<std::string> _sections;
-
+    
     static std::string MakeKey(std::string section, std::string name);
-
+    
     static int ValueHandler(void *user, const char *section, const char *name, const char *value);
 };
 

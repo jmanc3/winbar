@@ -22,7 +22,7 @@ struct data_battery_surfaces : public IconButton {
     int animating_capacity_index = 0;
     long previous_status_update_ms = -1;
     int animating_fd = -1;
-
+    
     ~data_battery_surfaces() {
         for (auto surface: normal_surfaces) {
             cairo_surface_destroy(surface);

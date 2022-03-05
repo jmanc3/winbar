@@ -46,7 +46,7 @@ paint_display(AppClient *client_entity, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     ArgbColor bg_color = correct_opaqueness(client_entity, config->color_systray_background);
-
+    
     for (int i = 0; i < systray_icons.size(); i++) {
         Systray_Icon *icon = systray_icons[i];
         int r = (int) (bg_color.r * 255);
@@ -57,22 +57,22 @@ paint_display(AppClient *client_entity, cairo_t *cr, Container *container) {
         uint32_t value_list[] = {rgb};
         xcb_change_window_attributes(app->connection, icon->window, XCB_CW_BACK_PIXEL, value_list);
     }
-
+    
     if (layout_invalid) {
         layout_systray();
     }
-
+    
     for (auto icon: systray_icons) {
         xcb_map_window(app->connection, icon->window);
     }
-
+    
     xcb_map_window(app->connection, client_entity->window);
     xcb_map_subwindows(app->connection, client_entity->window);
-
+    
     xcb_flush(app->connection);
-
+    
     // paint the background
-
+    
     set_rect(cr, container->real_bounds);
     set_argb(cr, bg_color);
     cairo_fill(cr);
@@ -86,40 +86,40 @@ systray_event_handler(App *app, xcb_generic_event_t *event) {
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
         case XCB_CLIENT_MESSAGE: {
             auto *client_message = (xcb_client_message_event_t *) event;
-
+            
             if (client_message->type == get_cached_atom(app, "_NET_SYSTEM_TRAY_OPCODE")) {
                 if (client_message->data.data32[1] == SYSTEM_TRAY_REQUEST_DOCK) {
                     auto window_to_be_docked = client_message->data.data32[2];
-
+                    
                     for (auto icon: systray_icons)
                         if (icon->window == window_to_be_docked)
                             break;
-
+                    
                     const uint32_t cw_values[] = {
                             XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT |
                             XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_ENTER_WINDOW};
                     xcb_change_window_attributes(app->connection, window_to_be_docked,
                                                  XCB_CW_EVENT_MASK, cw_values);
                     xcb_change_save_set(app->connection, XCB_SET_MODE_INSERT, window_to_be_docked);
-
+                    
                     auto icon = new Systray_Icon;
                     icon->window = window_to_be_docked;
                     systray_icons.push_back(icon);
-
+                    
                     if (display) {
                         xcb_reparent_window(app->connection, icon->window, display->window, -512, -512);
                     } else if (systray) {
                         xcb_reparent_window(app->connection, icon->window, systray->window, 0, 0);
                     }
                     xcb_unmap_window(app->connection, icon->window);
-
+                    
                     layout_invalid = true;
                 }
             }
         }
             break;
     }
-
+    
     return false;
 }
 
@@ -135,14 +135,14 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
     // Since this function looks at every single xcb event generated
     // we first need to filter out windows that are not clients (icons) we are handling
     xcb_window_t event_window = get_window(generic_event);
-
+    
     bool window_is_systray_icon = false;
     for (auto icon: systray_icons)
         if (icon->window == event_window)
             window_is_systray_icon = true;
     if (!window_is_systray_icon)
         return false;// Let someone else handle the event
-
+    
     switch (XCB_EVENT_RESPONSE_TYPE(generic_event)) {
         case XCB_DESTROY_NOTIFY: {
             for (int i = 0; i < systray_icons.size(); i++) {
@@ -153,7 +153,7 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
                 }
             }
             layout_invalid = true;
-
+            
             if (systray_icons.empty()) {
                 display_close();
             }
@@ -161,7 +161,7 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
         }
     }
     layout_invalid = true;
-
+    
     return true;
 }
 
@@ -190,16 +190,16 @@ layout_systray() {
     } else if (w > 4) {// after we reach a width of 4 icons we just want to grow upwards
         w = 4;
     }
-
+    
     // This part puts the icon in the correct location at the correct size
     for (int i = 0; i < systray_icons.size(); i++) {
         if (x == w) {
             x = 0;
             y++;
         }
-
+        
         Systray_Icon *icon = systray_icons[i];
-
+        
         uint32_t value_mask = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
                               XCB_CONFIG_WINDOW_HEIGHT;
         uint32_t value_list_resize[] = {
@@ -208,21 +208,21 @@ layout_systray() {
                 icon_size,
                 icon_size};
         xcb_configure_window(app->connection, icon->window, value_mask, value_list_resize);
-
+        
         x++;
     }
-
+    
     // If the display window (which holds our icon windows) is open, we move and resize it to the
     // correct spot
     if (display) {
         layout_invalid = false;
-
+        
         auto window_width = (uint32_t) container_size * w;
         auto window_height = (uint32_t) container_size * ++y;
-
+        
         auto window_x = (uint32_t) 0;
         auto window_y = (uint32_t) (app->bounds.h - config->taskbar_height - window_height);
-
+        
         if (auto taskbar = client_by_name(app, "taskbar")) {
             window_x = taskbar->bounds->x;
             window_y = taskbar->bounds->y - window_height;
@@ -231,7 +231,7 @@ layout_systray() {
                             window_width / 2;
             }
         }
-
+        
         uint32_t value_mask = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
                               XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
         uint32_t value_list_resize[] = {window_x, window_y, window_width, window_height};
@@ -264,7 +264,7 @@ void register_as_systray() {
     systray = client_new(app, settings, "systray");
     systray->keeps_app_running = false;
     systray->when_closed = on_systray_closed;
-
+    
     std::string selection = "_NET_SYSTEM_TRAY_S";
     selection.append(std::to_string(app->screen_number));
     auto tray_atom = get_cached_atom(app, selection.c_str());
@@ -279,15 +279,15 @@ void register_as_systray() {
         return;
     }
     free(selection_owner_reply);
-
+    
     layout_invalid = true;
     for (auto a: systray_icons)
         delete a;
     systray_icons.clear();
     systray_icons.shrink_to_fit();
-
+    
     app_create_custom_event_handler(app, INT_MAX, icon_event_handler);
-
+    
     xcb_client_message_event_t ev;
     ev.response_type = XCB_CLIENT_MESSAGE;
     ev.window = app->screen->root;
@@ -297,7 +297,7 @@ void register_as_systray() {
     ev.data.data32[1] = tray_atom;
     ev.data.data32[2] = systray->window;
     ev.data.data32[3] = ev.data.data32[4] = 0;
-
+    
     xcb_send_event_checked(app->connection, false, app->screen->root, 0xFFFFFF, (char *) &ev);
     xcb_flush(app->connection);
 }
@@ -310,7 +310,7 @@ void open_systray() {
         printf("Can't open systray display because we didn't manage to register as it earlier\n");
         return;
     }
-
+    
     Settings settings;
     // Very important that the window is not 32 bit depth because you can't embed non transparent windows into transparent ones
     settings.window_transparent = false;
@@ -324,22 +324,22 @@ void open_systray() {
     settings.no_input_focus = false;
     settings.override_redirect = true;
     settings.background = argb_to_color(config->color_systray_background);
-
+    
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "display";
         display = taskbar->create_popup(popup_settings, settings);
-
+        
         display->root->when_paint = paint_display;
         display->when_closed = on_display_closed;
-
+        
         for (auto icon: systray_icons)
             xcb_reparent_window(app->connection, icon->window, display->window, -512, -512);
-
+        
         client_show(app, display);
-
+        
         layout_systray();
-
+        
         layout_invalid = true;
     }
 }

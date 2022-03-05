@@ -18,22 +18,22 @@ public:
 class IconButton : public HoverableButton {
 public:
     cairo_surface_t *surface = nullptr;
-
+    
     // These three things are so that opening menus with buttons toggles between opening and closing
     std::string invalidate_button_press_if_client_with_this_name_is_open;
     bool invalid_button_down = false;
     long timestamp = 0;
-
+    
     ~IconButton() { cairo_surface_destroy(surface); }
 };
 
 struct ActionCenterButtonData : public IconButton {
     cairo_surface_t *surface_unseen_notification = nullptr;
     cairo_surface_t *surface_mask = nullptr;
-
+    
     bool some_unseen = false;
     double slide_anim = 0;
-
+    
     ~ActionCenterButtonData() {
         if (surface_unseen_notification)
             cairo_surface_destroy(surface_unseen_notification);
@@ -44,47 +44,47 @@ struct ActionCenterButtonData : public IconButton {
 
 class WindowsData {
 public:
-
+    
     xcb_window_t id = -1;
-
+    
     std::string title;
-
+    
     // Window is shown on screen
     bool mapped = true;
-
+    
     bool wants_attention = false;
-
+    
     // This is the surface that is linked to the actual window content
     cairo_surface_t *window_surface = nullptr;
     int width = -1;
     int height = -1;
-
+    
     int gtk_left_margin = 0;
     int gtk_right_margin = 0;
     int gtk_top_margin = 0;
     int gtk_bottom_margin = 0;
-
+    
     // This is where screenshots are stored every so often (if we could guarantee a compositor, we wouldn't need this.
     cairo_surface_t *raw_thumbnail_surface = nullptr;
     cairo_t *raw_thumbnail_cr = nullptr;
-
+    
     long last_rescale_timestamp = 0;
-
+    
     // This is where we rescale the screenshot to the correct thumbnail size
     cairo_surface_t *scaled_thumbnail_surface = nullptr;
     cairo_t *scaled_thumbnail_cr = nullptr;
-
+    
     bool marked_to_close = false;
-
+    
     ScreenInformation *on_screen = nullptr;
     int on_desktop = 0;
-
+    
     WindowsData(App *app, xcb_window_t window);
-
+    
     void take_screenshot();
-
+    
     void rescale(double scale_w, double scale_h);
-
+    
     ~WindowsData();
 };
 
@@ -97,7 +97,7 @@ enum selector_type {
 class LaunchableButton : public IconButton {
 public:
     std::vector<WindowsData *> windows_data_list;
-
+    
     bool pinned = false;
     std::string class_name;
     std::string icon_name;
@@ -105,21 +105,21 @@ public:
     bool has_launchable_info = false;
     std::string command_launched_by;
     int initial_mouse_click_before_drag_offset_x = 0;
-
+    
     double active_amount = 0;
     double hover_amount = 0;
     double wants_attention_amount = 0;
-
+    
     selector_type type = selector_type::CLOSED;
     Timeout *possibly_open_timeout = nullptr;
     Timeout *possibly_stop_timeout = nullptr;
-
+    
     // For icon lerping to correct position
     bool animating = false;
     double target = 0;
-
+    
     ~LaunchableButton() {
-
+    
     }
 };
 
@@ -129,7 +129,7 @@ public:
     cairo_surface_t *wireless_down = nullptr;
     cairo_surface_t *wired_up = nullptr;
     cairo_surface_t *wired_down = nullptr;
-
+    
     ~wifi_surfaces() {
         if (wireless_up)
             cairo_surface_destroy(wireless_up);

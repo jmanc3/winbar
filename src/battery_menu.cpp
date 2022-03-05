@@ -25,7 +25,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     assert(data);
     assert(!data->normal_surfaces.empty());
     assert(!data->charging_surfaces.empty());
-
+    
     std::string line;
     std::ifstream status("/sys/class/power_supply/BAT0/status");
     if (status.is_open()) {
@@ -36,7 +36,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     } else {
         data->status = "Missing BAT0";
     }
-
+    
     std::ifstream capacity("/sys/class/power_supply/BAT0/capacity");
     if (capacity.is_open()) {
         if (getline(capacity, line)) {
@@ -46,14 +46,14 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     } else {
         data->capacity = "0";
     }
-
+    
     int capacity_index = std::floor(((double) (std::stoi(data->capacity))) / 10.0);
-
+    
     if (capacity_index > 9)
         capacity_index = 9;
     if (capacity_index < 0)
         capacity_index = 0;
-
+    
     cairo_surface_t *surface;
     if (data->status == "Charging") {
         surface = data->charging_surfaces[capacity_index];
@@ -68,37 +68,37 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
             (int) (container->real_bounds.x + 12),
             (int) (container->real_bounds.y + container->real_bounds.h / 2 - image_height / 2));
     cairo_paint(cr);
-
+    
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 34, PangoWeight::PANGO_WEIGHT_NORMAL);
     set_argb(cr, config->color_battery_text);
     std::string text = data->capacity + "%";
     pango_layout_set_text(layout, text.c_str(), text.length());
-
+    
     int charge_width, charge_height;
     pango_layout_get_pixel_size(layout, &charge_width, &charge_height);
-
+    
     int text_x = (int) (container->real_bounds.x + 72);
     int text_y =
             (int) (container->real_bounds.y + container->real_bounds.h / 2 - charge_height / 2) - 3;
     cairo_move_to(cr, text_x, text_y);
-
+    
     pango_cairo_show_layout(cr, layout);
-
+    
     layout = get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
     ArgbColor copy = config->color_battery_text;
     set_argb(cr, copy);
     text = "Status: " + data->status;
     pango_layout_set_text(layout, text.c_str(), text.length());
-
+    
     int status_height;
     int status_width;
     pango_layout_get_pixel_size(layout, &status_width, &status_height);
-
+    
     text_x = (int) (container->real_bounds.x + 72 + charge_width + 14);
     text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - status_height / 2);
     cairo_move_to(cr, text_x, text_y);
-
+    
     pango_cairo_show_layout(cr, layout);
 }
 
@@ -109,14 +109,14 @@ paint_title(AppClient *client_entity, cairo_t *cr, Container *container) {
     set_argb(cr, config->color_battery_text);
     std::string text = "Screen Brightness";
     pango_layout_set_text(layout, text.c_str(), text.length());
-
+    
     int text_width, text_height;
     pango_layout_get_pixel_size(layout, &text_width, &text_height);
-
+    
     int text_x = (int) (container->real_bounds.x + 13);
     int text_y = (int) (container->real_bounds.y);
     cairo_move_to(cr, text_x, text_y);
-
+    
     pango_cairo_show_layout(cr, layout);
 }
 
@@ -124,7 +124,7 @@ static void
 rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height) {
     double radius = corner_radius;
     double degrees = M_PI / 180.0;
-
+    
     cairo_new_sub_path(cr);
     cairo_arc(cr, x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
     cairo_arc(cr, x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees);
@@ -137,14 +137,14 @@ static void
 paint_brightness_amount(AppClient *client_entity, cairo_t *cr, Container *container) {
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 17, PangoWeight::PANGO_WEIGHT_NORMAL);
-
+    
     std::string text = std::to_string((int) (marker_position_scalar * 100));
-
+    
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), -1);
     pango_layout_get_pixel_size(layout, &width, &height);
-
+    
     set_argb(cr, config->color_battery_text);
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
@@ -156,16 +156,16 @@ static void
 drag(AppClient *client_entity, cairo_t *cr, Container *container, bool real) {
     // mouse_current_x and y are relative to the top left point of the window
     int limited_x = client_entity->mouse_current_x;
-
+    
     if (limited_x < container->real_bounds.x) {
         limited_x = container->real_bounds.x;
     } else if (limited_x > container->real_bounds.x + container->real_bounds.w) {
         limited_x = container->real_bounds.x + container->real_bounds.w;
     }
-
+    
     limited_x -= container->real_bounds.x;
     marker_position_scalar = limited_x / container->real_bounds.w;
-
+    
     int amount = (int) (marker_position_scalar * 100);
     if (amount <= 0)
         amount = 1;
@@ -194,7 +194,7 @@ static void
 paint_slider(AppClient *client_entity, cairo_t *cr, Container *container) {
     double marker_height = 24;
     double marker_width = 8;
-
+    
     double line_height = 2;
     set_argb(cr, config->color_battery_slider_background);
     cairo_rectangle(cr,
@@ -203,7 +203,7 @@ paint_slider(AppClient *client_entity, cairo_t *cr, Container *container) {
                     container->real_bounds.w,
                     line_height);
     cairo_fill(cr);
-
+    
     set_argb(cr, config->color_battery_slider_foreground);
     cairo_rectangle(cr,
                     container->real_bounds.x,
@@ -211,13 +211,13 @@ paint_slider(AppClient *client_entity, cairo_t *cr, Container *container) {
                     (marker_position_scalar * container->real_bounds.w),
                     line_height);
     cairo_fill(cr);
-
+    
     if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
         set_argb(cr, config->color_battery_slider_active);
     } else {
         set_argb(cr, config->color_battery_slider_foreground);
     }
-
+    
     rounded_rect(cr,
                  4,
                  container->real_bounds.x + (marker_position_scalar * container->real_bounds.w) -
@@ -238,12 +238,12 @@ paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 paint_brightness_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto *data = (IconButton *) container->user_data;
-
+    
     if (data->surface == nullptr)
         return;
-
+    
     dye_surface(data->surface, config->color_battery_icons);
-
+    
     cairo_set_source_surface(cr,
                              data->surface,
                              (int) (container->real_bounds.x + container->real_bounds.w / 2 -
@@ -268,7 +268,7 @@ make_battery_bar(Container *root) {
                 as_resource_path("battery/40/normal/" + std::to_string(i) + ".png"), 40,
                 nullptr);
         data->normal_surfaces.push_back(normal_surface);
-
+        
         auto *charging_surface = accelerated_surface(app, battery_entity, 40, 40);
         paint_surface_with_image(
                 charging_surface,
@@ -277,7 +277,7 @@ make_battery_bar(Container *root) {
         data->charging_surfaces.push_back(charging_surface);
     }
     battery_bar->user_data = data;
-
+    
     return battery_bar;
 }
 
@@ -288,17 +288,17 @@ make_brightness_slider(Container *root) {
     vbox->parent = root;
     vbox->wanted_bounds.w = FILL_SPACE;
     vbox->wanted_bounds.h = FILL_SPACE;
-
+    
     auto title = new Container();
     title->parent = vbox;
     vbox->children.push_back(title);
     title->when_paint = paint_title;
     title->wanted_bounds.w = FILL_SPACE;
     title->wanted_bounds.h = 23;
-
+    
     auto hbox = vbox->child(FILL_SPACE, FILL_SPACE);
     hbox->type = ::hbox;
-
+    
     auto brightness_icon = hbox->child(55, FILL_SPACE);
     brightness_icon->when_paint = paint_brightness_icon;
     auto *brightness_icon_data = new IconButton();
@@ -306,7 +306,7 @@ make_brightness_slider(Container *root) {
     paint_surface_with_image(
             brightness_icon_data->surface, as_resource_path("brightness.png"), 24, nullptr);
     brightness_icon->user_data = brightness_icon_data;
-
+    
     auto slider = new Container();
     slider->parent = hbox;
     hbox->children.push_back(slider);
@@ -317,10 +317,10 @@ make_brightness_slider(Container *root) {
     slider->when_drag_start = drag_not_real;
     slider->wanted_bounds.w = FILL_SPACE;
     slider->wanted_bounds.h = FILL_SPACE;
-
+    
     auto brightness_amount = hbox->child(65, FILL_SPACE);
     brightness_amount->when_paint = paint_brightness_amount;
-
+    
     return vbox;
 }
 
@@ -328,7 +328,7 @@ static void
 fill_root(Container *root) {
     root->when_paint = paint_root;
     root->type = vbox;
-
+    
     root->children.push_back(make_battery_bar(root));
     root->children.push_back(make_brightness_slider(root));
 }
@@ -337,7 +337,7 @@ void start_battery_menu() {
     if (valid_client(app, battery_entity)) {
         client_close(app, battery_entity);
     }
-
+    
     Settings settings;
     settings.w = 360;
     settings.h = 164;
@@ -357,13 +357,13 @@ void start_battery_menu() {
     settings.slide_data[2] = 160;
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
-
+    
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "battery_menu";
         battery_entity = taskbar->create_popup(popup_settings, settings);
         fill_root(battery_entity->root);
-
+        
         int brightness = backlight_get_brightness();
         if (dbus_gnome_running()) {
             brightness = dbus_get_gnome_brightness();
@@ -374,7 +374,7 @@ void start_battery_menu() {
         } else {
             marker_position_scalar = (brightness) / 100.0;
         }
-
+        
         client_show(app, battery_entity);
     }
 }

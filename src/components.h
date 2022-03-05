@@ -13,17 +13,17 @@ class ScrollPaneSettings : public UserData {
 public:
     int right_width = 15;
     int right_arrow_height = 15;
-
+    
     int bottom_height = 15;
     int bottom_arrow_width = 15;
-
+    
     bool right_inline_track = false;
     bool bottom_inline_track = false;
-
+    
     // 0 is always show, 1 is when needed, 2 is never show
     int right_show_amount = 1;
     int bottom_show_amount = 1;
-
+    
     // paint functions
 };
 
@@ -52,13 +52,13 @@ enum UndoType {
 class UndoAction {
 public:
     UndoType type;
-
+    
     std::string inserted_text;
     std::string replaced_text;
-
+    
     int cursor_start = -1;
     int cursor_end = -1;
-
+    
     int selection_start = -1;
     int selection_end = -1;
 };
@@ -67,21 +67,21 @@ class TextState : public UserData {
 public:
     std::string text;
     std::string prompt;
-
+    
     Timeout *cursor_blink = nullptr;
     int cursor = 0;
     bool cursor_on = true;
     long last_time_key_press = 0;
     long last_time_mouse_press = 0;
-
+    
     int preferred_x = 0;
-
+    
     int selection_x = -1;// when -1 means there is no selection
     std::vector<UndoAction *> redo_stack;
     std::vector<UndoAction *> undo_stack;
-
+    
     bool first_bounds_update = true;
-
+    
     ~TextState() {
         for (auto *a: redo_stack) {
             delete a;
@@ -96,22 +96,22 @@ class TextAreaData : public UserData {
 public:
     // The state is the replaceable
     TextState *state = new TextState;
-
+    
     // The following variables are the style
     std::string font = "Arial";
     int font_size = 15;
-
+    
     bool single_line = false;
     bool wrap = false;
-
+    
     ArgbColor color = ArgbColor(1, 1, 0, 1);
     ArgbColor color_cursor = ArgbColor(0, 1, 1, 1);
     double cursor_width = 1;
     ArgbColor color_prompt = ArgbColor(0, .5, .5, 1);
-
+    
     int text_alignment = -1;
     int prompt_alignment = -1;
-
+    
     ~TextAreaData() {
     }
 };
@@ -128,7 +128,7 @@ public:
     int prompt_alignment = -1;
     int text_alignment = -1;
     ArgbColor color_prompt = ArgbColor(0, .5, .5, 1);
-
+    
     ArgbColor color = ArgbColor(1, 1, 0, 1);
     ArgbColor color_cursor = ArgbColor(0, 1, 1, 1);
     double cursor_width = 1;
@@ -154,7 +154,7 @@ insert_action(AppClient *client, Container *textarea, TextAreaData *data, std::s
 
 enum Transition {
     ANIM_NONE = 1 << 0,
-
+    
     ANIM_DEFAULT_TO_SQUASHED = 1 << 1,
     ANIM_SQUASHED_TO_DEFAULT = 1 << 2,
     ANIM_DEFAULT_TO_EXPANDED = 1 << 3,

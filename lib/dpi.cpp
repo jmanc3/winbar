@@ -51,7 +51,7 @@ check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(App *app,
                 client->screen_information = nullptr;
             }
             client->screen_information = new ScreenInformation(*screen_client_overlaps_most);
-
+            
             if (client->on_dpi_change) {
                 client->on_dpi_change(app, client);
             }
@@ -105,7 +105,7 @@ static bool listen_to_randr_and_client_configured_events(App *app, xcb_generic_e
                     if (e->width == client->bounds->w && e->height == client->bounds->h) {
                         // PASS CONFIGURE EVENT TO THE CLIENT SO IT CAN UPDATE IT'S INTERNAL DATA
                         handle_xcb_event(app, client->window, event, false);
-
+                        
                         check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, client, true);
                         return true;
                     }
@@ -114,31 +114,31 @@ static bool listen_to_randr_and_client_configured_events(App *app, xcb_generic_e
             }
         }
     }
-
+    
     return false; // Returning false here means this event handler does not consume the event
 }
 
 void dpi_setup(App *app) {
     // PASS US ALL EVENTS
     app_create_custom_event_handler(app, INT_MAX, listen_to_randr_and_client_configured_events);
-
+    
     randr_query = xcb_get_extension_data(app->connection, &xcb_randr_id);
     if (!randr_query->present) {
         perror("XRandr was not present on Xorg server.\n");
         assert(false);
     }
-
+    
     update_information_of_all_screens(app);
     for (auto c: app->clients) {
         check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(app, c, false);
     }
     assert(!screens.empty());
-
+    
     // Create a client that won't be shown and selects to have RandR events sent to it
     AppClient *client = client_new(app, Settings(), "hidden_client_to_be_notified_of_randr_events");
     client->keeps_app_running = false;
     assert(client != nullptr);
-
+    
     auto xrandr_mask = XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE | XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE;
     xcb_randr_select_input(app->connection, client->window, xrandr_mask);
 }
@@ -150,24 +150,24 @@ static void update_information_of_all_screens(App *app) {
     //
     xcb_screen_iterator_t iter = xcb_setup_roots_iterator(xcb_get_setup(app->connection));
     xcb_generic_error_t *err = NULL;
-
+    
     int randr_active = randr_query->present;
     int has_randr_primary = 0;
-
+    
     int count = 0, i, j;
-
+    
     /* Collect information first, then show. This should make the async
      * requests such as those for RANDR faster.
      */
     xcb_screen_t *screen_data = static_cast<xcb_screen_t *>(malloc(iter.rem * sizeof(*screen_data)));
-
+    
     uint32_t rr_major = 0, rr_minor = 0;
-
+    
     xcb_randr_query_version_cookie_t rr_ver_cookie;
     xcb_randr_query_version_reply_t *rr_ver_rep = NULL;
     if (randr_active)
         rr_ver_cookie = xcb_randr_query_version(app->connection, 1, 5);
-
+    
     xcb_randr_get_screen_resources_cookie_t *rr_cookie = static_cast<xcb_randr_get_screen_resources_cookie_t *>(randr_active
                                                                                                                 ?
                                                                                                                 malloc(iter.rem *
@@ -178,7 +178,7 @@ static void update_information_of_all_screens(App *app) {
                                                                                                              calloc(iter.rem,
                                                                                                                     sizeof(*rr_res))
                                                                                                              : NULL);
-
+    
     xcb_randr_get_output_primary_cookie_t *rr_primary_cookie = static_cast<xcb_randr_get_output_primary_cookie_t *>(randr_active
                                                                                                                     ?
                                                                                                                     malloc(iter.rem *
@@ -189,7 +189,7 @@ static void update_information_of_all_screens(App *app) {
                                                                                                                    calloc(iter.rem,
                                                                                                                           sizeof(*rr_primary_reply))
                                                                                                                    : NULL);
-
+    
     xcb_randr_crtc_t **rr_crtc = static_cast<xcb_randr_crtc_t **>(randr_active ?
                                                                   calloc(iter.rem, sizeof(*rr_crtc)) : NULL);
     xcb_randr_output_t **rr_output = static_cast<xcb_randr_output_t **>(randr_active ?
@@ -216,7 +216,7 @@ static void update_information_of_all_screens(App *app) {
                 has_randr_primary = 1;
         }
     }
-
+    
     if (!screen_data) {
         fputs("could not allocate memory for screen data\n", stderr);
         goto cleanup;
@@ -230,7 +230,7 @@ static void update_information_of_all_screens(App *app) {
         goto cleanup;
     }
     /** Query **/
-
+    
     /* Collect core info and query RANDR */
     for (count = 0; iter.rem; ++count, xcb_screen_next(&iter)) {
         screen_data[count] = *iter.data;
@@ -241,17 +241,17 @@ static void update_information_of_all_screens(App *app) {
             rr_primary_cookie[count] = xcb_randr_get_output_primary(app->connection,
                                                                     iter.data->root);
     }
-
+    
     /** Get the actual data **/
     /* RANDR */
     if (randr_active)
         for (i = 0; i < count; ++i) {
             int num_crtcs = 0;
             int num_outputs = 0;
-
+            
             xcb_randr_get_crtc_info_cookie_t *crtc_cookie = NULL;
             xcb_randr_get_output_info_cookie_t *output_cookie = NULL;
-
+            
             rr_res[i] = xcb_randr_get_screen_resources_reply(app->connection,
                                                              rr_cookie[i], &err);
             if (err) {
@@ -261,10 +261,10 @@ static void update_information_of_all_screens(App *app) {
                 err = NULL;
                 randr_active = 0;
             }
-
+            
             if (!randr_active)
                 break;
-
+            
             if (has_randr_primary) {
                 rr_primary_reply[i] = xcb_randr_get_output_primary_reply(app->connection,
                                                                          rr_primary_cookie[i], &err);
@@ -276,49 +276,49 @@ static void update_information_of_all_screens(App *app) {
                     randr_active = 0;
                 }
             }
-
+            
             if (!randr_active)
                 break;
-
-
+            
+            
             num_crtcs = xcb_randr_get_screen_resources_crtcs_length(rr_res[i]);
             num_outputs = xcb_randr_get_screen_resources_outputs_length(rr_res[i]);
-
+            
             /* Get the first crtc and output. We store the CRTC to match it to the output
              * later on. NOTE that this is not for us to free. */
             rr_crtc[i] = xcb_randr_get_screen_resources_crtcs(rr_res[i]);
             rr_output[i] = xcb_randr_get_screen_resources_outputs(rr_res[i]);
-
+            
             /* Cookies for the requests */
             crtc_cookie = static_cast<xcb_randr_get_crtc_info_cookie_t *>(calloc(num_crtcs,
                                                                                  sizeof(xcb_randr_get_crtc_info_cookie_t)));
             output_cookie = static_cast<xcb_randr_get_output_info_cookie_t *>(calloc(num_outputs,
                                                                                      sizeof(xcb_randr_get_output_info_cookie_t)));
-
+            
             if (!crtc_cookie || !output_cookie) {
                 fputs("could not allocate memory for RANDR request cookies\n", stderr);
                 break;
             }
-
+            
             /* CRTC requests */
             for (j = 0; j < num_crtcs; ++j)
                 crtc_cookie[j] = xcb_randr_get_crtc_info(app->connection, rr_crtc[i][j], 0);
-
+            
             /* Output requests */
             for (j = 0; j < num_outputs; ++j)
                 output_cookie[j] = xcb_randr_get_output_info(app->connection, rr_output[i][j], 0);
-
+            
             /* Room for the replies */
             rr_crtc_info[i] = static_cast<xcb_randr_get_crtc_info_reply_t **>(calloc(num_crtcs,
                                                                                      sizeof(xcb_randr_get_crtc_info_reply_t *)));
             rr_out[i] = static_cast<xcb_randr_get_output_info_reply_t **>(calloc(num_outputs,
                                                                                  sizeof(xcb_randr_get_output_info_reply_t *)));
-
+            
             if (!rr_crtc_info[i] || !rr_out[i]) {
                 fputs("could not allocate memory for RANDR data\n", stderr);
                 break;
             }
-
+            
             /* Actually get the replies. */
             for (j = 0; j < num_crtcs; ++j) {
                 rr_crtc_info[i][j] = xcb_randr_get_crtc_info_reply(app->connection, crtc_cookie[j], &err);
@@ -330,7 +330,7 @@ static void update_information_of_all_screens(App *app) {
                     continue;
                 }
             }
-
+            
             for (j = 0; j < num_outputs; ++j) {
                 rr_out[i][j] = xcb_randr_get_output_info_reply(app->connection, output_cookie[j], &err);
                 if (err) {
@@ -341,29 +341,29 @@ static void update_information_of_all_screens(App *app) {
                     continue;
                 }
             }
-
+            
             free(output_cookie);
             free(crtc_cookie);
         }
-
+    
     for (auto screen: screens)
         delete screen;
     screens.clear();
     screens.shrink_to_fit();
-
+    
     // Kinda strange that we go through (count: screen count) and then 'sub' outputs.
     /* Show it */
     for (i = 0; i < count; ++i) {
         xcb_randr_output_t primary = -1;
         if (has_randr_primary)
             primary = rr_primary_reply[i]->output;
-
+        
         /* XRANDR information */
         if (randr_active && rr_res[i]) {
             const xcb_randr_get_screen_resources_reply_t *rr = rr_res[i];
             for (int o = 0; o < rr->num_outputs; ++o) {
                 const xcb_randr_get_output_info_reply_t *rro = rr_out[i][o];
-
+                
                 if (rro->crtc) {
                     int c = 0;
                     while (c < rr->num_crtcs) {
@@ -375,15 +375,15 @@ static void update_information_of_all_screens(App *app) {
                         const xcb_randr_get_crtc_info_reply_t *rrc = rr_crtc_info[i][c];
                         uint16_t w = rrc->width;
                         uint16_t h = rrc->height;
-
+                        
                         uint16_t rot = (rrc->rotation & 0x0f);
                         int rotated = ((rot == XCB_RANDR_ROTATION_ROTATE_90) || (rot == XCB_RANDR_ROTATION_ROTATE_270));
-
+                        
                         uint32_t mmw = rotated ? rro->mm_height : rro->mm_width;
                         uint32_t mmh = rotated ? rro->mm_width : rro->mm_height;
-
+                        
                         xcb_randr_output_t output = rr_output[i][o];
-
+                        
                         // EDID is a unique property set on every monitor which might be worth using but I think for now it's fine
                         ScreenInformation *screen_information = new ScreenInformation;
                         screen_information->x = rrc->x;
@@ -404,7 +404,7 @@ static void update_information_of_all_screens(App *app) {
             }
         }
     }
-
+    
     cleanup:
     free(screen_data);
     free(rr_cookie);

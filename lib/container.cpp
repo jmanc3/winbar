@@ -53,20 +53,20 @@ modify_all(Container *container, double x_change, double y_change) {
     for (auto child: container->children) {
         modify_all(child, x_change, y_change);
     }
-
+    
     container->real_bounds.x += x_change;
     container->real_bounds.y += y_change;
 }
 
 void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
     double fill_h = single_filler_height(container);
-
+    
     double offset = 0;
     for (auto child: container->children) {
         if (child && child->exists) {
             double target_w = child->wanted_pad.x + child->wanted_pad.w;
             double target_h = child->wanted_pad.y + child->wanted_pad.h;
-
+            
             if (child->wanted_bounds.w == FILL_SPACE) {
                 target_w = container->children_bounds.w;
             } else if (child->wanted_bounds.w == USE_CHILD_SIZE) {
@@ -84,7 +84,7 @@ void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bou
             if (child->wanted_bounds.w == DYNAMIC || child->wanted_bounds.h == DYNAMIC) {
                 child->when_layout(client, container, bounds, &target_w, &target_h);
             }
-
+            
             // Keep within horizontal bounds
             if (container->scroll_h_real > 0)
                 container->scroll_h_real = 0;
@@ -97,7 +97,7 @@ void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                     container->scroll_h_real = 0;
                 }
             }
-
+            
             // Keep within vertical bounds
             if (container->scroll_v_real > 0)
                 container->scroll_v_real = 0;
@@ -110,7 +110,7 @@ void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                     container->scroll_v_real = 0;
                 }
             }
-
+            
             // Keep within horizontal bounds
             if (container->scroll_h_visual > 0)
                 container->scroll_h_visual = 0;
@@ -123,7 +123,7 @@ void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                     container->scroll_h_visual = 0;
                 }
             }
-
+            
             // Keep within vertical bounds
             if (container->scroll_v_visual > 0)
                 container->scroll_v_visual = 0;
@@ -136,29 +136,29 @@ void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                     container->scroll_v_visual = 0;
                 }
             }
-
+            
             layout(client, cr, child,
                    Bounds(container->children_bounds.x + container->scroll_h_visual,
                           container->children_bounds.y + offset + container->scroll_v_visual,
                           target_w,
                           target_h));
-
+            
             offset += child->real_bounds.h + container->spacing;
         }
     }
-
+    
     if (container->wanted_bounds.w == USE_CHILD_SIZE) {
         container->real_bounds.w = reserved_width(container);
     }
     if (container->wanted_bounds.h == USE_CHILD_SIZE) {
         container->real_bounds.h = reserved_height(container);
     }
-
+    
     if (container->alignment & ALIGN_CENTER) {
         // Get height, divide by two, subtract that by parent y - h / 2
         double full_height = offset;
         double align_offset = bounds.h / 2 - full_height / 2;
-
+        
         modify_all(container, 0, align_offset);
     }
 }
@@ -213,13 +213,13 @@ single_filler_width(Container *container) {
 
 void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
     double fill_w = single_filler_width(container);
-
+    
     double offset = 0;
     for (auto child: container->children) {
         if (child && child->exists) {
             double target_w = child->wanted_pad.x + child->wanted_pad.w;
             double target_h = child->wanted_pad.y + child->wanted_pad.h;
-
+            
             if (child->wanted_bounds.w == FILL_SPACE) {
                 target_w += fill_w;
             } else if (child->wanted_bounds.w == USE_CHILD_SIZE) {
@@ -237,7 +237,7 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
             if (child->wanted_bounds.w == DYNAMIC || child->wanted_bounds.h == DYNAMIC) {
                 child->when_layout(client, container, bounds, &target_w, &target_h);
             }
-
+            
             // Keep within horizontal bounds
             if (container->scroll_h_real > 0)
                 container->scroll_h_real = 0;
@@ -250,7 +250,7 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                     container->scroll_h_real = 0;
                 }
             }
-
+            
             // Keep within vertical bounds
             if (container->scroll_v_real > 0)
                 container->scroll_v_real = 0;
@@ -263,7 +263,7 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                     container->scroll_v_real = 0;
                 }
             }
-
+            
             // Keep within horizontal bounds
             if (container->scroll_h_visual > 0)
                 container->scroll_h_visual = 0;
@@ -276,7 +276,7 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                     container->scroll_h_visual = 0;
                 }
             }
-
+            
             // Keep within vertical bounds
             if (container->scroll_v_visual > 0)
                 container->scroll_v_visual = 0;
@@ -289,31 +289,31 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                     container->scroll_v_visual = 0;
                 }
             }
-
+            
             layout(client, cr, child,
                    Bounds(container->children_bounds.x + offset + container->scroll_h_visual,
                           container->children_bounds.y + container->scroll_v_visual,
                           target_w,
                           target_h));
-
+            
             offset += child->real_bounds.w + container->spacing;
         }
     }
-
+    
     if (container->wanted_bounds.w == USE_CHILD_SIZE) {
         container->real_bounds.w = reserved_width(container);
     }
     if (container->wanted_bounds.h == USE_CHILD_SIZE) {
         container->real_bounds.h = reserved_height(container);
     }
-
+    
     if (container->alignment & ALIGN_CENTER) {
         for (auto c: container->children) {
             if (c->wanted_bounds.h != FILL_SPACE) {
                 // Get height, divide by two, subtract that by parent y - h / 2
                 double full_height = c->real_bounds.h;
                 double align_offset = bounds.h / 2 - full_height / 2;
-
+                
                 modify_all(c, 0, align_offset);
             }
         }
@@ -332,12 +332,12 @@ void layout_stack(AppClient *client, cairo_t *cr, Container *container, const Bo
 // [required] content_area
 void layout_scrollpane(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
     assert(container->children.size() == 3 && !container->children[2]->children.empty());
-
+    
     auto *r_bar = container->children[0];
     auto *b_bar = container->children[1];
     auto *content_area = container->children[2];
     auto *content = container->children[2]->children[0];
-
+    
     int rv = content_area->scroll_v_real;
     int rh = content_area->scroll_h_real;
     content_area->scroll_v_real = 0;
@@ -351,16 +351,16 @@ void layout_scrollpane(AppClient *client, cairo_t *cr, Container *container, con
     content_area->scroll_h_real = rh;
     content_area->scroll_v_visual = vv;
     content_area->scroll_h_visual = vh;
-
+    
     int options = container->type;
-
+    
     double r_w = r_bar->wanted_bounds.w;
     double b_h = b_bar->wanted_bounds.h;
     double target_w = content->wanted_bounds.w;
     double target_h = content->wanted_bounds.h;
-
+    
     if (options & scrollpane_r_always) {
-
+    
     } else if (options & scrollpane_r_never) {
         r_w = 0;
     } else if (options & scrollpane_r_sometimes) {// sometimes
@@ -370,9 +370,9 @@ void layout_scrollpane(AppClient *client, cairo_t *cr, Container *container, con
             }
         } else {
             int future_b_h = b_h;
-
+            
             if (options & scrollpane_b_always) {
-
+            
             } else if (options & scrollpane_b_never) {
                 future_b_h = 0;
             } else {// sometimes
@@ -386,14 +386,14 @@ void layout_scrollpane(AppClient *client, cairo_t *cr, Container *container, con
                     }
                 }
             }
-
+            
             if (target_h + future_b_h <= container->real_bounds.h) {
                 r_w = 0;
             }
         }
     }
     if (options & scrollpane_b_always) {
-
+    
     } else if (options & scrollpane_b_never) {
         b_h = 0;
     } else if (options & scrollpane_b_sometimes) {// sometimes
@@ -409,7 +409,7 @@ void layout_scrollpane(AppClient *client, cairo_t *cr, Container *container, con
     }
     r_bar->exists = (r_w != 0);
     b_bar->exists = (b_h != 0);
-
+    
     if (!(options & ::scrollpane_inline_r) && !(options & ::scrollpane_inline_b)) {
         layout(client, cr, content_area, Bounds(bounds.x, bounds.y, bounds.w - r_w, bounds.h - b_h));
     } else if (!(options & ::scrollpane_inline_r)) {
@@ -419,7 +419,7 @@ void layout_scrollpane(AppClient *client, cairo_t *cr, Container *container, con
     } else {
         layout(client, cr, content_area, Bounds(bounds.x, bounds.y, bounds.w, bounds.h));
     }
-
+    
     if (r_bar->exists) {
         layout(client, cr, r_bar, Bounds(bounds.x + bounds.w - r_w, bounds.y, r_w, bounds.h - b_h));
     }
@@ -430,24 +430,24 @@ void layout_scrollpane(AppClient *client, cairo_t *cr, Container *container, con
 void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
     container->real_bounds.x = bounds.x;
     container->real_bounds.y = bounds.y;
-
+    
     bool fill_w = container->wanted_bounds.w == FILL_SPACE;
     bool fill_h = container->wanted_bounds.h == FILL_SPACE;
     container->real_bounds.w = (fill_w) ? bounds.w : container->wanted_bounds.w;
     container->real_bounds.h = (fill_h) ? bounds.h : container->wanted_bounds.h;
-
+    
     container->children_bounds.x = container->real_bounds.x + container->wanted_pad.x;
     container->children_bounds.y = container->real_bounds.y + container->wanted_pad.y;
     container->children_bounds.w =
             container->real_bounds.w - container->wanted_pad.x - container->wanted_pad.w;
     container->children_bounds.h =
             container->real_bounds.h - container->wanted_pad.y - container->wanted_pad.h;
-
+    
     if (container->children.empty())
         return;
     if (!container->should_layout_children)
         return;
-
+    
     if (container->type & layout_type::hbox) {
         layout_hbox(client, cr, container, container->children_bounds);
     } else if (container->type & layout_type::vbox) {
@@ -467,7 +467,7 @@ void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &
             }
         }
     }
-
+    
     // TODO: this only covers the first layer and not all of them
     // for sharp pixel boundaries
     for (auto child: container->children) {
@@ -476,7 +476,7 @@ void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &
             child->real_bounds.y = round(child->real_bounds.y);
             child->real_bounds.w = round(child->real_bounds.w);
             child->real_bounds.h = round(child->real_bounds.h);
-
+            
             child->children_bounds.x = round(child->children_bounds.x);
             child->children_bounds.y = round(child->children_bounds.y);
             child->children_bounds.w = round(child->children_bounds.w);
@@ -496,17 +496,17 @@ container_by_name(std::string name, Container *root) {
     if (!root) {
         return nullptr;
     }
-
+    
     if (root->name == name) {
         return root;;
     }
-
+    
     for (auto child: root->children) {
         auto possible = container_by_name(name, child);
         if (possible)
             return possible;
     }
-
+    
     return nullptr;
 }
 
@@ -515,20 +515,20 @@ container_by_container(Container *target, Container *root) {
     if (root == target) {
         return root;;
     }
-
+    
     for (auto child: root->children) {
         auto possible = container_by_container(target, child);
         if (possible)
             return possible;
     }
-
+    
     return nullptr;
 }
 
 bool overlaps(Bounds a, Bounds b) {
     if (a.x > (b.x + b.w) || b.x > (a.x + a.w))
         return false;
-
+    
     return !(a.y > (b.y + b.h) || b.y > (a.y + a.h));
 }
 
@@ -537,7 +537,7 @@ bool bounds_contains(const Bounds &bounds, int x, int y) {
     int bounds_y = std::round(bounds.y);
     int bounds_w = std::round(bounds.w);
     int bounds_h = std::round(bounds.h);
-
+    
     return x >= bounds_x && x <= bounds_x + bounds_w && y >= bounds_y && y <= bounds_y + bounds_h;
 }
 
@@ -597,24 +597,24 @@ Container::Container(double wanted_width, double wanted_height) {
 Container::Container(const Container &c) {
     parent = c.parent;
     name = c.name;
-
+    
     for (auto child: c.children) {
         children.push_back(new Container(*child));
     }
-
+    
     type = c.type;
     z_index = c.z_index;
     spacing = c.spacing;
-
+    
     wanted_bounds = c.wanted_bounds;
     wanted_pad = c.wanted_pad;
     real_bounds = c.real_bounds;
     children_bounds = c.children_bounds;
     interactable = c.interactable;
-
+    
     should_layout_children = c.should_layout_children;
     clip_children = c.clip_children;
-
+    
     when_paint = c.when_paint;
     when_layout = c.when_layout;
     when_mouse_enters_container = c.when_mouse_enters_container;
@@ -647,7 +647,7 @@ Container::Container() {
 
 AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client_settings) {
     // Close other top level popups
-
+    
     AppClient *popup_client = nullptr;
     if (popup_settings.name.empty()) {
         popup_client = client_new(app, client_settings, this->name + "_popup");
@@ -656,7 +656,7 @@ AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client
     }
     if (popup_client) {
         popup_client->popup_info = popup_settings;
-
+        
         this->child_popup = popup_client;
         // TODO: is this the correct order (Why is teh comment on the function so useless!)
         xcb_icccm_set_wm_transient_for(app->connection, this->window, popup_client->window);

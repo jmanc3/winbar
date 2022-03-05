@@ -16,7 +16,7 @@ struct ScanResult {
     std::string connection_quality;
     std::string frequency;
     std::string flags;
-
+    
     bool saved_network = false;
     int network_index = -1;
 };

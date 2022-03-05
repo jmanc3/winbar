@@ -29,13 +29,13 @@ struct NotificationInfo {
     std::string calling_dbus_client;
     bool sent_to_action_center = false;
     bool removed_from_action_center = false;
-
+    
     std::string app_name;
     std::string app_icon;
     std::string summary;
     std::string body;
     dbus_int32_t expire_timeout_in_milliseconds = -1; // 0 means never, -1 means the server (us) decides
-
+    
     std::vector<NotificationAction> actions;
 };
 

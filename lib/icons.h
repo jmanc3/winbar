@@ -24,7 +24,7 @@ struct IndexResult {
     std::string theme;
     std::string name;
     int extension = 0;
-
+    
     IndexResult(std::string prePath, int size, int scale, std::string theme, std::string name, int extension)
             : pre_path(std::move(prePath)), size(size), scale(scale), theme(std::move(theme)), name(std::move(name)),
               extension(extension) {}
@@ -33,13 +33,13 @@ struct IndexResult {
 struct IconTarget {
     std::string name;
     std::vector<IndexResult> indexes_of_results;
-
+    
     std::string best_full_path;
-
+    
     void *user_data = nullptr;
-
+    
     IconTarget(std::string name) : name(std::move(name)) {}
-
+    
     IconTarget(std::string name, void *user_data) : name(std::move(name)), user_data(user_data) {}
 };
 
