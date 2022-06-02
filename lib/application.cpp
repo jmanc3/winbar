@@ -62,6 +62,34 @@ update_keymap(struct ClientKeyboard *kbd) {
     return -1;
 }
 
+void timeout_stop_and_remove_timeout(App *app, Timeout *timeout) {
+    for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
+        Timeout *t = app->timeouts[timeout_index];
+        if (t == timeout) {
+            if (t->client) {
+                // printf("Timeout Removed: client = %s, fd = %d\n", t->client->name.data(), t->file_descriptor);
+            } else {
+                // printf("Timeout Removed: noclient, fd = %d\n", t->file_descriptor);
+            }
+            app->timeouts.erase(app->timeouts.begin() + timeout_index);
+            epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor, NULL);
+            close(timeout->file_descriptor);
+            delete timeout;
+            return;
+        }
+    }
+}
+
+void timeout_add(App *app, Timeout *t) {
+    if (t->client) {
+        // printf("Timeout added: client = %s, fd = %d\n", t->client->name.data(), t->file_descriptor);
+    } else {
+        // printf("Timeout added: noclient, fd = %d\n", t->file_descriptor);
+    }
+
+    app->timeouts.push_back(t);
+}
+
 static int
 select_xkb_events_for_device(xcb_connection_t *conn, int32_t device_id) {
 #ifdef TRACY_ENABLE
@@ -313,10 +341,7 @@ void timeout_poll_wakeup(App *app, int fd) {
         if (timeout->file_descriptor == fd) {
             if (timeout->kill) {
                 keep_running = false;
-                app->timeouts.erase(app->timeouts.begin() + timeout_index);
-                epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor, NULL);
-                close(timeout->file_descriptor);
-                delete timeout;
+                timeout_stop_and_remove_timeout(app, timeout);
                 break;
             }
             
@@ -326,10 +351,7 @@ void timeout_poll_wakeup(App *app, int fd) {
             if ((keep_running = timeout->keep_running))
                 break;
             
-            app->timeouts.erase(app->timeouts.begin() + timeout_index);
-            epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor, NULL);
-            close(timeout->file_descriptor);
-            delete timeout;
+            timeout_stop_and_remove_timeout(app, timeout);
             break;
         }
     }
@@ -914,13 +936,18 @@ void client_close(App *app, AppClient *client) {
                                        app->timeouts.end(),
                                        [client](Timeout *timeout) {
                                            auto *timeout_client = (AppClient *) timeout->client;
-                                           if (timeout_client == client) {
+                                           bool remove = timeout_client == client;
+                                           
+                                           if (remove) {
                                                epoll_ctl(client->app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor,
                                                          NULL);
                                                close(timeout->file_descriptor);
                                                delete timeout;
                                            }
-                                           return timeout_client == client;
+                                           if (remove != (timeout_client == client)) {
+                                               // printf("----> Previously would've resulted in an error\n");
+                                           }
+                                           return remove;
                                        }), app->timeouts.end());
     
     client->animations.clear();
@@ -1865,12 +1892,19 @@ void app_main(App *app) {
         app->loop++;
         
         for (int event_index = 0; event_index < event_count; event_index++) {
+            bool found = false;
             for (auto polled: app->descriptors_being_polled) {
                 if (events[event_index].data.fd == polled.file_descriptor) {
+                    found = true;
                     if (polled.function) {
                         polled.function(app, polled.file_descriptor);
                     }
                 }
+            }
+            if (!found) {
+                // printf("Epoll was awoke by a file descriptor that is not in our descriptors_being_polled anymore\n");
+                epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, events[event_index].data.fd, NULL);
+                close(events[event_index].data.fd);
             }
         }
         
@@ -2062,7 +2096,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
     timeout->user_data = user_data;
     timeout->keep_running = false;
     timeout->kill = false;
-    app->timeouts.emplace_back(timeout);
+    timeout_add(app, timeout);    
     
     struct itimerspec time = {0};
     // The division done below converts the timeout_ms into seconds and nanoseconds
