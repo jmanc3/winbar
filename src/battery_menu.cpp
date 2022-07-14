@@ -65,12 +65,12 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     cairo_set_source_surface(
             cr,
             surface,
-            (int) (container->real_bounds.x + 12),
+            (int) (container->real_bounds.x + 12 * config->dpi),
             (int) (container->real_bounds.y + container->real_bounds.h / 2 - image_height / 2));
     cairo_paint(cr);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 34, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 34 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     set_argb(cr, config->color_battery_text);
     std::string text = data->capacity + "%";
     pango_layout_set_text(layout, text.c_str(), text.length());
@@ -78,14 +78,14 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     int charge_width, charge_height;
     pango_layout_get_pixel_size(layout, &charge_width, &charge_height);
     
-    int text_x = (int) (container->real_bounds.x + 72);
+    int text_x = (int) (container->real_bounds.x + 72 * config->dpi);
     int text_y =
             (int) (container->real_bounds.y + container->real_bounds.h / 2 - charge_height / 2) - 3;
     cairo_move_to(cr, text_x, text_y);
     
     pango_cairo_show_layout(cr, layout);
     
-    layout = get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+    layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     ArgbColor copy = config->color_battery_text;
     set_argb(cr, copy);
     text = "Status: " + data->status;
@@ -95,7 +95,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     int status_width;
     pango_layout_get_pixel_size(layout, &status_width, &status_height);
     
-    text_x = (int) (container->real_bounds.x + 72 + charge_width + 14);
+    text_x = (int) (container->real_bounds.x + 72 * config->dpi + charge_width + 14);
     text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - status_height / 2);
     cairo_move_to(cr, text_x, text_y);
     
@@ -105,7 +105,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 paint_title(AppClient *client_entity, cairo_t *cr, Container *container) {
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     set_argb(cr, config->color_battery_text);
     std::string text = "Screen Brightness";
     pango_layout_set_text(layout, text.c_str(), text.length());
@@ -136,7 +136,7 @@ rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width
 static void
 paint_brightness_amount(AppClient *client_entity, cairo_t *cr, Container *container) {
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 17, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     std::string text = std::to_string((int) (marker_position_scalar * 100));
     
@@ -258,21 +258,21 @@ make_battery_bar(Container *root) {
     auto battery_bar = new Container();
     battery_bar->parent = root;
     battery_bar->wanted_bounds.w = FILL_SPACE;
-    battery_bar->wanted_bounds.h = 77;
+    battery_bar->wanted_bounds.h = 77 * config->dpi;
     battery_bar->when_paint = paint_battery_bar;
     auto *data = new data_battery_surfaces;
     for (int i = 0; i <= 9; i++) {
-        auto *normal_surface = accelerated_surface(app, battery_entity, 40, 40);
+        auto *normal_surface = accelerated_surface(app, battery_entity, 40 * config->dpi, 40 * config->dpi);
         paint_surface_with_image(
                 normal_surface,
-                as_resource_path("battery/40/normal/" + std::to_string(i) + ".png"), 40,
+                as_resource_path("battery/40/normal/" + std::to_string(i) + ".png"), 40 * config->dpi,
                 nullptr);
         data->normal_surfaces.push_back(normal_surface);
         
-        auto *charging_surface = accelerated_surface(app, battery_entity, 40, 40);
+        auto *charging_surface = accelerated_surface(app, battery_entity, 40 * config->dpi, 40 * config->dpi);
         paint_surface_with_image(
                 charging_surface,
-                as_resource_path("battery/40/charging/" + std::to_string(i) + ".png"), 40,
+                as_resource_path("battery/40/charging/" + std::to_string(i) + ".png"), 40 * config->dpi,
                 nullptr);
         data->charging_surfaces.push_back(charging_surface);
     }
@@ -294,17 +294,17 @@ make_brightness_slider(Container *root) {
     vbox->children.push_back(title);
     title->when_paint = paint_title;
     title->wanted_bounds.w = FILL_SPACE;
-    title->wanted_bounds.h = 23;
+    title->wanted_bounds.h = 23 * config->dpi;
     
     auto hbox = vbox->child(FILL_SPACE, FILL_SPACE);
     hbox->type = ::hbox;
     
-    auto brightness_icon = hbox->child(55, FILL_SPACE);
+    auto brightness_icon = hbox->child(55 * config->dpi, FILL_SPACE);
     brightness_icon->when_paint = paint_brightness_icon;
     auto *brightness_icon_data = new IconButton();
-    brightness_icon_data->surface = accelerated_surface(app, battery_entity, 24, 24);
+    brightness_icon_data->surface = accelerated_surface(app, battery_entity, 24 * config->dpi, 24 * config->dpi);
     paint_surface_with_image(
-            brightness_icon_data->surface, as_resource_path("brightness.png"), 24, nullptr);
+            brightness_icon_data->surface, as_resource_path("brightness.png"), 24 * config->dpi, nullptr);
     brightness_icon->user_data = brightness_icon_data;
     
     auto slider = new Container();
@@ -318,7 +318,7 @@ make_brightness_slider(Container *root) {
     slider->wanted_bounds.w = FILL_SPACE;
     slider->wanted_bounds.h = FILL_SPACE;
     
-    auto brightness_amount = hbox->child(65, FILL_SPACE);
+    auto brightness_amount = hbox->child(65 * config->dpi, FILL_SPACE);
     brightness_amount->when_paint = paint_brightness_amount;
     
     return vbox;
@@ -339,8 +339,8 @@ void start_battery_menu() {
     }
     
     Settings settings;
-    settings.w = 360;
-    settings.h = 164;
+    settings.w = 360 * config->dpi;
+    settings.h = 164 * config->dpi;
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     if (auto *taskbar = client_by_name(app, "taskbar")) {

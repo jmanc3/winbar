@@ -142,9 +142,9 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
         cairo_push_group(cr);
         
         PangoLayout *layout =
-                get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+                get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         if (data->text == "START") {
-            layout = get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_BOLD);
+            layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
         }
         
         set_argb(cr, config->color_apps_text);
@@ -252,7 +252,7 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text = data->launcher->name;
     pango_layout_set_text(layout, text.c_str(), text.size());
     
@@ -304,7 +304,7 @@ paint_item_title(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text(data->text);
     pango_layout_set_text(layout, text.c_str(), text.size());
     
@@ -730,7 +730,7 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
         cairo_paint(cr);
     } else {
         PangoLayout *layout =
-                get_cached_pango_font(cr, config->font, 14, PangoWeight::PANGO_WEIGHT_NORMAL);
+                get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         std::string text(data->text);
         pango_layout_set_text(layout, text.c_str(), text.size());
         
@@ -1298,8 +1298,8 @@ void start_app_menu() {
     
     Settings settings;
     settings.force_position = true;
-    settings.w = 320;
-    settings.h = 641;
+    settings.w = 320 * config->dpi;
+    settings.h = 641 * config->dpi;
     settings.x = app->bounds.x;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
