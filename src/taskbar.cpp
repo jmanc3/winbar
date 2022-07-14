@@ -1984,7 +1984,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_volume->name = "volume";
     auto surfaces = new volume_surfaces;
     surfaces->none = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->none, as_resource_path("audio/none16.png"), 16, nullptr);
+    paint_surface_with_image(surfaces->none, as_resource_path("audio/none16.png"), 16 * config->dpi, nullptr);
     surfaces->low = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
     paint_surface_with_image(surfaces->low, as_resource_path("audio/low16.png"), 16 * config->dpi, nullptr);
     surfaces->medium = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
