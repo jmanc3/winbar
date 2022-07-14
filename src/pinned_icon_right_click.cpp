@@ -109,7 +109,7 @@ paint_icon(AppClient *client, cairo_t *cr, Container *container, bool dye) {
         cairo_set_source_surface(
                 cr,
                 data->surface,
-                (int) (container->real_bounds.x + 12),
+                (int) (container->real_bounds.x + 12 * config->dpi),
                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
         cairo_paint(cr);
     }
@@ -120,7 +120,7 @@ paint_text(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (OptionData *) container->user_data;
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int width;
     int height;
@@ -323,25 +323,25 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
         if (item->category != active_category) {
             Container *title = nullptr;
             if (active_category.empty()) {
-                title = root->child(FILL_SPACE, 30);
+                title = root->child(FILL_SPACE, 30 * config->dpi);
             } else {
-                title = root->child(FILL_SPACE, 30);
+                title = root->child(FILL_SPACE, 30 * config->dpi);
             }
             title->when_paint = paint_title;
             auto *data = new OptionData();
-            data->text_offset = 12;
+            data->text_offset = 12 * config->dpi;
             data->text = item->category;
             title->user_data = data;
             active_category = item->category;
         }
         
-        auto *option = root->child(FILL_SPACE, 30);
+        auto *option = root->child(FILL_SPACE, 30 * config->dpi);
         option->when_paint = paint_custom_option;
         auto *data = new OptionData();
         option->when_clicked = option_clicked;
         data->option_type = option_data_type::CUSTOM;
         data->user_data = item;
-        data->text_offset = 40;
+        data->text_offset = 40 * config->dpi;
         data->text = item->name;
         option->user_data = data;
         
@@ -355,19 +355,19 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     
     auto *data = new OptionData();
     data->option_type = option_data_type::OPEN;
-    auto *open = root->child(FILL_SPACE, 30);
+    auto *open = root->child(FILL_SPACE, 30 * config->dpi);
     pinned_icon_data->icon_name = c3ic_fix_wm_class(pinned_icon_data->icon_name);
     
     auto *d = new DelayedSurfacePainting();
     d->surface = &data->surface;
-    d->size = 16;
+    d->size = 16 * config->dpi;
     std::string icon_path;
     
     std::vector<IconTarget> targets;
     targets.emplace_back(IconTarget(pinned_icon_data->icon_name));
     targets.emplace_back(IconTarget(c3ic_fix_wm_class(pinned_icon_data->class_name)));
     search_icons(targets);
-    pick_best(targets, 16);
+    pick_best(targets, 16 * config->dpi);
     icon_path = targets[0].best_full_path;
     
     if (icon_path.empty()) {
@@ -383,36 +383,36 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     open->when_clicked = option_clicked;
     
     data->text = pinned_icon_data->class_name;
-    data->text_offset = 40;
+    data->text_offset = 40 * config->dpi;
     open->user_data = data;
     
     if (pinned_icon_data->pinned) {
-        auto *edit = root->child(FILL_SPACE, 30);
+        auto *edit = root->child(FILL_SPACE, 30 * config->dpi);
         edit->when_paint = paint_option;
         data = new OptionData();
         edit->when_clicked = option_clicked;
         
         d = new DelayedSurfacePainting();
         d->surface = &data->surface;
-        d->size = 16;
+        d->size = 16 * config->dpi;
         
         data->text = "Edit";
         d->path = as_resource_path("taskbar-edit.png");
         data->option_type = option_data_type::EDIT;
         delayed->push_back(d);
         
-        data->text_offset = 40;
+        data->text_offset = 40 * config->dpi;
         edit->user_data = data;
     }
     
-    auto *pinned = root->child(FILL_SPACE, 30);
+    auto *pinned = root->child(FILL_SPACE, 30 * config->dpi);
     pinned->when_paint = paint_option;
     data = new OptionData();
     pinned->when_clicked = option_clicked;
     
     d = new DelayedSurfacePainting();
     d->surface = &data->surface;
-    d->size = 16;
+    d->size = 16 * config->dpi;
     
     if (pinned_icon_data->pinned) {
         data->text = "Unpin from taskbar";
@@ -425,11 +425,11 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     }
     delayed->push_back(d);
     
-    data->text_offset = 40;
+    data->text_offset = 40 * config->dpi;
     pinned->user_data = data;
     
     if (!pinned_icon_data->windows_data_list.empty()) {
-        auto *close = root->child(FILL_SPACE, 30);
+        auto *close = root->child(FILL_SPACE, 30 * config->dpi);
         close->when_paint = paint_option;
         close->when_clicked = option_clicked;
         data = new OptionData();
@@ -442,9 +442,9 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
         auto *d = new DelayedSurfacePainting();
         d->surface = &data->surface;
         d->path = as_resource_path("taskbar-close.png");
-        d->size = 16;
+        d->size = 16 * config->dpi;
         delayed->push_back(d);
-        data->text_offset = 40;
+        data->text_offset = 40 * config->dpi;
         close->user_data = data;
     }
     
@@ -452,7 +452,7 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     
     double height = true_height(root);
     
-    root->wanted_bounds.w = 256;
+    root->wanted_bounds.w = 256 * config->dpi;
     root->wanted_bounds.h = height;
     return root;
 }
@@ -507,11 +507,11 @@ void start_pinned_icon_right_click(Container *container) {
         for (auto *d: delayed) {
             if (d->path.empty()) {
                 if (pinned_icon_data->surface) {
-                    *d->surface = accelerated_surface(app, client, d->size, d->size);
+                    *d->surface = accelerated_surface(app, client, d->size , d->size);
                     cairo_t *cr = cairo_create(*d->surface);
                     
                     double starting_w = cairo_image_surface_get_width(pinned_icon_data->surface);
-                    double target_w = 16;
+                    double target_w = 16 * config->dpi;
                     double sx = target_w / starting_w;
                     
                     cairo_scale(cr, sx, sx);
