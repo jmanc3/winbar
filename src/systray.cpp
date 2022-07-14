@@ -287,6 +287,7 @@ void register_as_systray() {
     systray_icons.shrink_to_fit();
     
     app_create_custom_event_handler(app, INT_MAX, icon_event_handler);
+    app_create_custom_event_handler(app, systray->window, systray_event_handler);
     
     xcb_client_message_event_t ev;
     ev.response_type = XCB_CLIENT_MESSAGE;
@@ -306,6 +307,8 @@ void open_systray() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    icon_size = 22 * config->dpi;
+    container_size = 40 * config->dpi;
     if (!systray) {
         printf("Can't open systray display because we didn't manage to register as it earlier\n");
         return;
