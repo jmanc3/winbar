@@ -318,9 +318,11 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
         } else {
             dye_surface(data->surface, config->color_windows_selector_close_icon);
         }
-        double offset = (double) (32 - 16) / 2;
+        double offset = (double) (cairo_image_surface_get_width(data->surface));
         cairo_set_source_surface(
-                cr, data->surface, container->real_bounds.x + offset, container->real_bounds.y + offset);
+                cr, data->surface,
+                container->real_bounds.x + container->real_bounds.w / 2 - offset / 2,
+                container->real_bounds.y + container->real_bounds.h / 2 - offset / 2);
         cairo_paint(cr);
     }
 }
@@ -342,7 +344,9 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     auto pii = (PinnedIconInfo *) client_entity->root->user_data;
     if (pii->icon_surface != nullptr) {
-        cairo_set_source_surface(cr, pii->icon_surface, container->real_bounds.x + 8, container->real_bounds.y + 8);
+        cairo_set_source_surface(cr, pii->icon_surface,
+                                 container->real_bounds.x + (8 * config->dpi),
+                                 container->real_bounds.y + (8 * config->dpi));
         cairo_paint(cr);
     }
     
@@ -354,7 +358,7 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int width;
     int height;
@@ -372,7 +376,7 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     if (close_w == 0) {
         pad = 5;
     }
-    pango_layout_set_width(layout, (((container->real_bounds.w - (pad * 2)) + close_w) - 24) * PANGO_SCALE);
+    pango_layout_set_width(layout, (((container->real_bounds.w - (pad * 2)) + close_w) - 24 * config->dpi) * PANGO_SCALE);
     pango_layout_set_ellipsize(layout, PangoEllipsizeMode::PANGO_ELLIPSIZE_END);
     if (close_w == 0) {
         pad = option_pad;
@@ -380,8 +384,8 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     set_argb(cr, config->color_windows_selector_text);
     cairo_move_to(cr,
-                  container->real_bounds.x + pad + 24,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+                  container->real_bounds.x + ((pad + 24 * config->dpi)),
+                  container->real_bounds.y + container->real_bounds.h / 2 - (height / 2));
     pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
     pango_cairo_show_layout(cr, layout);
     pango_layout_set_width(layout, -1); // because other people using this cached layout don't expect wrapping
@@ -397,8 +401,8 @@ paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
     double pad = option_pad;
     double target_width = container->real_bounds.w - pad * 2;
     double target_height = container->real_bounds.h - pad;
-    double scale_w = target_width / data->width;
-    double scale_h = target_height / data->height;
+    double scale_w = (target_width) / data->width;
+    double scale_h = (target_height) / data->height;
     if (scale_w < scale_h) {
         scale_h = scale_w;
     } else {
@@ -446,8 +450,8 @@ void when_leave(AppClient *client, cairo_t *cr, Container *self) {
 static void
 fill_root(AppClient *client, Container *root) {
     auto pii = (PinnedIconInfo *) root->user_data;
-    pii->surface = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(pii->surface, as_resource_path("taskbar-close.png"), 16, nullptr);
+    pii->surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
+    paint_surface_with_image(pii->surface, as_resource_path("taskbar-close.png"), 16 * config->dpi, nullptr);
     root->receive_events_even_if_obstructed = true;
     root->when_mouse_enters_container = when_enter;
     root->when_mouse_leaves_container = when_leave;
@@ -537,6 +541,13 @@ static void when_closed(AppClient *client) {
 }
 
 void start_windows_selector(Container *container, selector_type selector_state) {
+    option_width = 217 * 1.2 * config->dpi;
+    option_min_width = 100 * 1.2 * config->dpi;
+    option_height = 144 * 1.2 * config->dpi;
+    option_pad = 8 * config->dpi;
+    close_width = 32 * config->dpi;
+    close_height = 32 * config->dpi;
+    
     if (auto c = client_by_name(app, "windows_selector")) {
         client_close(app, c);
         xcb_flush(app->connection);
@@ -582,17 +593,17 @@ void start_windows_selector(Container *container, selector_type selector_state) 
             targets.emplace_back(IconTarget(pii->data->icon_name));
             targets.emplace_back(IconTarget(c3ic_fix_wm_class(pii->data->class_name)));
             search_icons(targets);
-            pick_best(targets, 16);
+            pick_best(targets, 16  * config->dpi);
             path = targets[0].best_full_path;
             if (path.empty()) {
                 path = targets[1].best_full_path;
             }
             if (path.empty()) {
-                pii->icon_surface = accelerated_surface(app, client, 16, 16);
+                pii->icon_surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
                 cairo_t *cr = cairo_create(pii->icon_surface);
                 
                 double starting_w = cairo_image_surface_get_width(pii->data->surface);
-                double target_w = 16;
+                double target_w = 16 * config->dpi;
                 double sx = target_w / starting_w;
                 
                 cairo_scale(cr, sx, sx);
@@ -601,7 +612,7 @@ void start_windows_selector(Container *container, selector_type selector_state) 
                 
                 cairo_destroy(cr);
             } else {
-                load_icon_full_path(app, client, &pii->icon_surface, path, 16);
+                load_icon_full_path(app, client, &pii->icon_surface, path, 16 * config->dpi);
             }
         }
         

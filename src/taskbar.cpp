@@ -3459,13 +3459,14 @@ WindowsData::WindowsData(App *app, xcb_window_t window) {
             window_surface = cairo_xcb_surface_create(app->connection,
                                                       window,
                                                       visual,
-                                                      (width = geom->width),
+                                                      (width = geom->width) ,
                                                       (height = geom->height));
             
-            raw_thumbnail_surface = accelerated_surface(app, client_by_name(app, "taskbar"), width, height);
+            raw_thumbnail_surface = accelerated_surface(app, client_by_name(app, "taskbar"),
+                                                        width * config->dpi, height * config->dpi);
             raw_thumbnail_cr = cairo_create(raw_thumbnail_surface);
-            scaled_thumbnail_surface = accelerated_surface(app, client_by_name(app, "taskbar"), option_width,
-                                                           option_height);
+            scaled_thumbnail_surface = accelerated_surface(app, client_by_name(app, "taskbar"), option_width * config->dpi,
+                                                           option_height * config->dpi);
             scaled_thumbnail_cr = cairo_create(scaled_thumbnail_surface);
             take_screenshot();
             free(geom);
