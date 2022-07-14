@@ -8,11 +8,13 @@
 struct Config {
     bool found_config = false;
     
-    int config_version = 0;
+    int config_version = 2;
     
     int taskbar_height = 40;
     
     int starting_tab_index = 0;
+    
+    float dpi = 1;
     
     std::string font = "Segoe UI";
     

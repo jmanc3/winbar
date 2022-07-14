@@ -40,6 +40,7 @@ int main() {
     
     // Load the config
     config_load();
+    config->taskbar_height = config->taskbar_height * config->dpi;
     
     check_config_version();
     
@@ -105,7 +106,7 @@ int main() {
     return 0;
 }
 
-static int acceptable_config_version = 1;
+static int acceptable_config_version = 2;
 
 std::string first_message;
 std::string second_message;

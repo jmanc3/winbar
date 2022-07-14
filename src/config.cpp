@@ -49,6 +49,8 @@ void config_load() {
     
     success = cfg.lookupValue("starting_tab_index", config->starting_tab_index);
     
+    success = cfg.lookupValue("dpi", config->dpi);
+    
     success = cfg.lookupValue("font", config->font);
     
     success = cfg.lookupValue("open_pinned_icon_editor", config->open_pinned_icon_editor);

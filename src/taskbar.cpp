@@ -168,8 +168,10 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
         cairo_set_source_surface(
                 cr,
                 data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                       cairo_image_surface_get_width(data->surface) / 2),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                       cairo_image_surface_get_width(data->surface) / 2));
         cairo_paint(cr);
     }
 }
@@ -244,8 +246,10 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
             cairo_set_source_surface(
                     cr,
                     data->surface_hover,
-                    (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
-                    (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                    (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                           cairo_image_surface_get_width(data->surface) / 2),
+                    (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                           cairo_image_surface_get_width(data->surface) / 2));
             cairo_paint(cr);
         }
     } else {
@@ -255,8 +259,10 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
             cairo_set_source_surface(
                     cr,
                     data->surface,
-                    (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
-                    (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                    (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                           cairo_image_surface_get_width(data->surface) / 2),
+                    (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                           cairo_image_surface_get_width(data->surface) / 2));
             cairo_paint(cr);
         }
     }
@@ -347,8 +353,10 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         cairo_set_source_surface(
                 cr,
                 data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 12),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 12));
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                       cairo_image_surface_get_width(data->surface) / 2),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                       cairo_image_surface_get_width(data->surface) / 2));
         cairo_paint(cr);
     }
 }
@@ -1146,7 +1154,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     auto backup_bounds = container->real_bounds;
-    container->real_bounds.w = container->real_bounds.w - 8;
+    container->real_bounds.w = container->real_bounds.w - (8 * config->dpi);
     paint_hoverable_button_background(client, cr, container);
     container->real_bounds = backup_bounds;
     
@@ -1157,8 +1165,8 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
         cairo_set_source_surface(
                 cr,
                 data->surface,
-                (int) (container->real_bounds.x + 12),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                (int) (container->real_bounds.x + (12 * config->dpi)),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
         cairo_paint(cr);
     }
     
@@ -1168,13 +1176,13 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
         cairo_set_source_surface(
                 cr,
                 data->surface_unseen_notification,
-                (int) (container->real_bounds.x + 12 + (1 - data->slide_anim) * 16),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                (int) (container->real_bounds.x + (12 * config->dpi) + (1 - data->slide_anim) * (16 * config->dpi)),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
         cairo_mask_surface(
                 cr,
                 data->surface_unseen_notification,
-                (int) (container->real_bounds.x + 12),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                (int) (container->real_bounds.x + (12 * config->dpi)),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
         cairo_fill(cr);
         cairo_restore(cr);
     } else if (data->some_unseen) {
@@ -1182,8 +1190,8 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
         cairo_set_source_surface(
                 cr,
                 data->surface_unseen_notification,
-                (int) (container->real_bounds.x + 12 + (1 - data->slide_anim) * 16),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                (int) (container->real_bounds.x + (12 * config->dpi) + (1 - data->slide_anim) * (16 * config->dpi)),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
         cairo_paint(cr);
     }
     
@@ -1192,9 +1200,9 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
         cairo_set_line_width(cr, 1);
         cairo_set_source_rgba(cr, 0.6, 0.6, 0.6, .8);
         
-        cairo_arc(cr, container->real_bounds.x + 12 + 16,
-                  container->real_bounds.y + container->real_bounds.h / 2 + 8,
-                  17.0 / 2.0, 0, 2 * M_PI);
+        cairo_arc(cr, container->real_bounds.x + (12 * config->dpi) + (16 * config->dpi),
+                  container->real_bounds.y + container->real_bounds.h / 2 + (8 * config->dpi),
+                  (17.0 / 2.0) * config->dpi, 0, 2 * M_PI);
         cairo_stroke_preserve(cr);
         
         cairo_set_source_rgba(cr, 1, 1, 1, 0.1);
@@ -1210,7 +1218,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
         count_text = std::to_string(count);
         
         PangoLayout *layout =
-                get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+                get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         
         pango_layout_set_text(layout, count_text.c_str(), 2);
         PangoRectangle ink;
@@ -1219,9 +1227,10 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
         
         set_argb(cr, config->color_taskbar_date_time_text);
         cairo_move_to(cr,
-                      container->real_bounds.x - (ink.x / PANGO_SCALE) + 12 + 16 -
+                      container->real_bounds.x - (ink.x / PANGO_SCALE) + (12 * config->dpi) + (16 * config->dpi) -
                       (std::ceil(ink.width / PANGO_SCALE / 2)) - 1,
-                      container->real_bounds.y - (ink.y / PANGO_SCALE) + (container->real_bounds.h / 2 + 8) -
+                      container->real_bounds.y - (ink.y / PANGO_SCALE) +
+                      (container->real_bounds.h / 2 + (8 * config->dpi)) -
                       (std::ceil(ink.height / PANGO_SCALE / 2)) - 1);
         pango_cairo_show_layout(cr, layout);
         
@@ -1247,8 +1256,10 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
         cairo_set_source_surface(
                 cr,
                 data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                       cairo_image_surface_get_width(data->surface) / 2),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                       cairo_image_surface_get_width(data->surface) / 2));
         cairo_paint(cr);
     }
 }
@@ -1261,7 +1272,7 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     PangoAlignment initial_alignment = pango_layout_get_alignment(layout);
     pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_CENTER);
     
@@ -1547,14 +1558,14 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
         cairo_set_source_surface(
                 cr,
                 data->surface,
-                (int) (container->real_bounds.x + 12),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
+                (int) (container->real_bounds.x + 12 * config->dpi),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi));
         cairo_paint(cr);
     }
     
     if (text_empty) {
         PangoLayout *layout =
-                get_cached_pango_font(cr, config->font, 12, PangoWeight::PANGO_WEIGHT_NORMAL);
+                get_cached_pango_font(cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         std::string text("Type here to search");
         pango_layout_set_text(layout, text.c_str(), text.size());
         
@@ -1573,7 +1584,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
         pango_layout_get_extents(layout, &ink, &logical);
         
         cairo_move_to(cr,
-                      container->real_bounds.x + 12 + 16 + 12,
+                      container->real_bounds.x + (12 + 16 + 12) * config->dpi,
                       container->real_bounds.y + container->real_bounds.h / 2 -
                       ((logical.height / PANGO_SCALE) / 2));
         pango_cairo_show_layout(cr, layout);
@@ -1681,8 +1692,10 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
         cairo_set_source_surface(
                 cr,
                 surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 16 / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2));
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                       cairo_image_surface_get_width(surface) / 2),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                       cairo_image_surface_get_width(surface) / 2));
         cairo_paint(cr);
     }
 }
@@ -1705,7 +1718,7 @@ make_battery_button(Container *parent, AppClient *client_entity) {
     auto *c = new Container();
     c->parent = parent;
     c->type = hbox;
-    c->wanted_bounds.w = 24;
+    c->wanted_bounds.w = 24 * config->dpi;
     c->wanted_bounds.h = FILL_SPACE;
     c->when_paint = paint_battery;
     c->when_clicked = clicked_battery;
@@ -1715,17 +1728,17 @@ make_battery_button(Container *parent, AppClient *client_entity) {
     data->invalidate_button_press_if_client_with_this_name_is_open = "app_menu";
     c->when_mouse_down = invalidate_icon_button_press_if_window_open;
     for (int i = 0; i <= 9; i++) {
-        auto *normal_surface = accelerated_surface(app, client_entity, 16, 16);
+        auto *normal_surface = accelerated_surface(app, client_entity, 16 * config->dpi, 16 * config->dpi);
         paint_surface_with_image(
                 normal_surface,
-                as_resource_path("battery/16/normal/" + std::to_string(i) + ".png"), 16,
+                as_resource_path("battery/16/normal/" + std::to_string(i) + ".png"), 16 * config->dpi,
                 nullptr);
         data->normal_surfaces.push_back(normal_surface);
         
-        auto *charging_surface = accelerated_surface(app, client_entity, 16, 16);
+        auto *charging_surface = accelerated_surface(app, client_entity, 16 * config->dpi, 16 * config->dpi);
         paint_surface_with_image(
                 charging_surface,
-                as_resource_path("battery/16/charging/" + std::to_string(i) + ".png"), 16,
+                as_resource_path("battery/16/charging/" + std::to_string(i) + ".png"), 16 * config->dpi,
                 nullptr);
         data->charging_surfaces.push_back(charging_surface);
     }
@@ -1847,8 +1860,10 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
         cairo_set_source_surface(
                 cr,
                 surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 16 / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2));
+                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                       cairo_image_surface_get_width(surface) / 2),
+                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                       cairo_image_surface_get_width(surface) / 2));
         cairo_paint(cr);
     }
 }
@@ -1862,18 +1877,17 @@ fill_root(App *app, AppClient *client, Container *root) {
     root->type = hbox;
     root->spacing = 0;
     
-    double fill_amount = 10;
-    Container *button_super = root->child(48, FILL_SPACE);
-    Container *field_search = root->child(344, FILL_SPACE);
-    Container *button_workspace = root->child(48, FILL_SPACE);
+    Container *button_super = root->child(48 * config->dpi, FILL_SPACE);
+    Container *field_search = root->child(344 * config->dpi, FILL_SPACE);
+    Container *button_workspace = root->child(48 * config->dpi, FILL_SPACE);
     Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
-    Container *button_systray = root->child(24, FILL_SPACE);
+    Container *button_systray = root->child(24 * config->dpi, FILL_SPACE);
     make_battery_button(root, client);
-    Container *button_wifi = root->child(24, FILL_SPACE);
-    Container *button_volume = root->child(24, FILL_SPACE);
-    Container *button_date = root->child(80, FILL_SPACE);
-    Container *button_action_center = root->child(48, FILL_SPACE);
-    Container *button_minimize = root->child(5, FILL_SPACE);
+    Container *button_wifi = root->child(24 * config->dpi, FILL_SPACE);
+    Container *button_volume = root->child(24 * config->dpi, FILL_SPACE);
+    Container *button_date = root->child(80 * config->dpi, FILL_SPACE);
+    Container *button_action_center = root->child(48 * config->dpi, FILL_SPACE);
+    Container *button_minimize = root->child(5 * config->dpi, FILL_SPACE);
     
     button_super->when_paint = paint_super;
     auto button_super_data = new IconButton;
@@ -1885,7 +1899,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((IconButton *) button_super->user_data)->surface,
-                        as_resource_path("windows.png"), 16);
+                        as_resource_path("windows.png"), 16 * config->dpi);
     
     field_search->when_paint = paint_search;
     field_search->when_mouse_down = clicked_search;
@@ -1895,10 +1909,10 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((IconButton *) field_search->user_data)->surface,
-                        as_resource_path("search.png"), 16);
+                        as_resource_path("search.png"), 16 * config->dpi);
     
     TextAreaSettings settings;
-    settings.font_size = 12;
+    settings.font_size = 12 * config->dpi;
     settings.font = config->font;
     settings.color = ArgbColor(0, 0, 0, 1);
     settings.color_cursor = ArgbColor(0, 0, 0, 1);
@@ -1906,8 +1920,8 @@ fill_root(App *app, AppClient *client, Container *root) {
     settings.wrap = false;
     settings.right_show_amount = 2;
     settings.bottom_show_amount = 2;
-    field_search->wanted_pad.x = 12 + 16 + 12;
-    field_search->wanted_pad.w = 8;
+    field_search->wanted_pad.x = (12 + 16 + 12) * config->dpi;
+    field_search->wanted_pad.w = 8 * config->dpi;
     auto *con = field_search->child(FILL_SPACE, FILL_SPACE);
     Container *textarea = make_textarea(app, client, con, settings);
     textarea->name = "main_text_area";
@@ -1920,11 +1934,11 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((WorkspaceButton *) button_workspace->user_data)->surface,
-                        as_resource_path("taskview.png"), 16);
+                        as_resource_path("taskview.png"), 16 * config->dpi);
     load_icon_full_path(app,
                         client,
                         &((WorkspaceButton *) button_workspace->user_data)->surface_hover,
-                        as_resource_path("taskview-hovered.png"), 16);
+                        as_resource_path("taskview-hovered.png"), 16 * config->dpi);
     
     container_icons->spacing = 1;
     container_icons->type = hbox;
@@ -1941,24 +1955,24 @@ fill_root(App *app, AppClient *client, Container *root) {
     load_icon_full_path(app,
                         client,
                         &((IconButton *) button_systray->user_data)->surface,
-                        as_resource_path("arrow.png"), 16);
+                        as_resource_path("arrow.png"), 16 * config->dpi);
     
     button_wifi->when_paint = paint_wifi;
     button_wifi->when_clicked = clicked_wifi;
     button_wifi->name = "wifi";
     auto wifi_data = new wifi_surfaces;
-    wifi_data->wired_up = accelerated_surface(app, client, 16, 16);
+    wifi_data->wired_up = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
     paint_surface_with_image(
-            wifi_data->wired_up, as_resource_path("wifi/16/wired_up.png"), 16, nullptr);
-    wifi_data->wired_down = accelerated_surface(app, client, 16, 16);
+            wifi_data->wired_up, as_resource_path("wifi/16/wired_up.png"), 16 * config->dpi, nullptr);
+    wifi_data->wired_down = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
     paint_surface_with_image(
-            wifi_data->wired_down, as_resource_path("wifi/16/wired_down.png"), 16, nullptr);
-    wifi_data->wireless_down = accelerated_surface(app, client, 16, 16);
+            wifi_data->wired_down, as_resource_path("wifi/16/wired_down.png"), 16 * config->dpi, nullptr);
+    wifi_data->wireless_down = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
     paint_surface_with_image(
-            wifi_data->wireless_down, as_resource_path("wifi/16/wireless_down.png"), 16, nullptr);
-    wifi_data->wireless_up = accelerated_surface(app, client, 16, 16);
+            wifi_data->wireless_down, as_resource_path("wifi/16/wireless_down.png"), 16 * config->dpi, nullptr);
+    wifi_data->wireless_up = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
     paint_surface_with_image(
-            wifi_data->wireless_up, as_resource_path("wifi/16/wireless_up.png"), 16, nullptr);
+            wifi_data->wireless_up, as_resource_path("wifi/16/wireless_up.png"), 16 * config->dpi, nullptr);
     wifi_data->invalidate_button_press_if_client_with_this_name_is_open = "wifi_menu";
     button_wifi->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_wifi->user_data = wifi_data;
@@ -1969,16 +1983,16 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_volume->when_mouse_leaves_container = mouse_leaves_volume;
     button_volume->name = "volume";
     auto surfaces = new volume_surfaces;
-    surfaces->none = accelerated_surface(app, client, 16, 16);
+    surfaces->none = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
     paint_surface_with_image(surfaces->none, as_resource_path("audio/none16.png"), 16, nullptr);
-    surfaces->low = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(surfaces->low, as_resource_path("audio/low16.png"), 16, nullptr);
-    surfaces->medium = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium16.png"), 16, nullptr);
-    surfaces->high = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(surfaces->high, as_resource_path("audio/high16.png"), 16, nullptr);
-    surfaces->mute = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute16.png"), 16, nullptr);
+    surfaces->low = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
+    paint_surface_with_image(surfaces->low, as_resource_path("audio/low16.png"), 16 * config->dpi, nullptr);
+    surfaces->medium = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
+    paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium16.png"), 16 * config->dpi, nullptr);
+    surfaces->high = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
+    paint_surface_with_image(surfaces->high, as_resource_path("audio/high16.png"), 16 * config->dpi, nullptr);
+    surfaces->mute = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
+    paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute16.png"), 16 * config->dpi, nullptr);
     surfaces->invalidate_button_press_if_client_with_this_name_is_open = "volume";
     button_volume->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_volume->user_data = surfaces;
@@ -2006,11 +2020,11 @@ fill_root(App *app, AppClient *client, Container *root) {
     auto action_center_data = new ActionCenterButtonData;
     button_action_center->user_data = action_center_data;
     load_icon_full_path(app, client, &action_center_data->surface,
-                        as_resource_path("taskbar-notification-empty.png"), 16);
+                        as_resource_path("taskbar-notification-empty.png"), 16 * config->dpi);
     load_icon_full_path(app, client, &action_center_data->surface_unseen_notification,
-                        as_resource_path("taskbar-notification-available.png"), 16);
+                        as_resource_path("taskbar-notification-available.png"), 16 * config->dpi);
     load_icon_full_path(app, client, &action_center_data->surface_mask,
-                        as_resource_path("taskbar-notification-mask.png"), 16);
+                        as_resource_path("taskbar-notification-mask.png"), 16 * config->dpi);
     
     action_center_data->invalidate_button_press_if_client_with_this_name_is_open = "action_center";
     button_action_center->when_mouse_down = invalidate_icon_button_press_if_window_open;
@@ -2484,18 +2498,18 @@ create_taskbar(App *app) {
     taskbar->when_closed = when_taskbar_closed;
     taskbar->on_any_screen_change = taskbar_on_screen_size_change;
     
-    global->unknown_icon_16 = accelerated_surface(app, taskbar, 16, 16);
-    global->unknown_icon_24 = accelerated_surface(app, taskbar, 24, 24);
-    global->unknown_icon_32 = accelerated_surface(app, taskbar, 32, 32);
-    global->unknown_icon_64 = accelerated_surface(app, taskbar, 64, 64);
+    global->unknown_icon_16 = accelerated_surface(app, taskbar, 16 * config->dpi, 16 * config->dpi);
+    global->unknown_icon_24 = accelerated_surface(app, taskbar, 24 * config->dpi, 24 * config->dpi);
+    global->unknown_icon_32 = accelerated_surface(app, taskbar, 32 * config->dpi, 32 * config->dpi);
+    global->unknown_icon_64 = accelerated_surface(app, taskbar, 64 * config->dpi, 64 * config->dpi);
     paint_surface_with_image(
-            global->unknown_icon_16, as_resource_path("unknown-16.svg"), 16, nullptr);
+            global->unknown_icon_16, as_resource_path("unknown-16.svg"), 16 * config->dpi, nullptr);
     paint_surface_with_image(
-            global->unknown_icon_24, as_resource_path("unknown-24.svg"), 24, nullptr);
+            global->unknown_icon_24, as_resource_path("unknown-24.svg"), 24 * config->dpi, nullptr);
     paint_surface_with_image(
-            global->unknown_icon_32, as_resource_path("unknown-32.svg"), 32, nullptr);
+            global->unknown_icon_32, as_resource_path("unknown-32.svg"), 32 * config->dpi, nullptr);
     paint_surface_with_image(
-            global->unknown_icon_64, as_resource_path("unknown-64.svg"), 64, nullptr);
+            global->unknown_icon_64, as_resource_path("unknown-64.svg"), 64 * config->dpi, nullptr);
     
     app_create_custom_event_handler(app, taskbar->window, taskbar_event_handler);
     app_create_custom_event_handler(app, INT_MAX, window_event_handler);
@@ -2723,7 +2737,7 @@ void add_window(App *app, xcb_window_t window) {
     xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
     xcb_flush(app->connection);
     
-    Container *a = icons->child(48, FILL_SPACE);
+    Container *a = icons->child(48 * config->dpi, FILL_SPACE);
     a->when_drag_end_is_click = false;
     a->minimum_x_distance_to_move_before_drag_begins = 15;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
@@ -2760,7 +2774,7 @@ void add_window(App *app, xcb_window_t window) {
         std::vector<IconTarget> targets;
         targets.emplace_back(IconTarget(icon_name));
         search_icons(targets);
-        pick_best(targets, 24);
+        pick_best(targets, 24 * config->dpi);
         path = targets[0].best_full_path;
         data->icon_name = icon_name;
     }
@@ -2775,7 +2789,7 @@ void add_window(App *app, xcb_window_t window) {
             std::vector<IconTarget> targets;
             targets.emplace_back(IconTarget(data->icon_name));
             search_icons(targets);
-            pick_best(targets, 24);
+            pick_best(targets, 24 * config->dpi);
             path = targets[0].best_full_path;
             xcb_icccm_get_text_property_reply_wipe(&props);
         }
@@ -2784,13 +2798,13 @@ void add_window(App *app, xcb_window_t window) {
         std::vector<IconTarget> targets;
         targets.emplace_back(IconTarget(window_class_name));
         search_icons(targets);
-        pick_best(targets, 24);
+        pick_best(targets, 24 * config->dpi);
         path = targets[0].best_full_path;
         data->icon_name = window_class_name;
     }
     
     if (!path.empty()) {
-        load_icon_full_path(app, client, &data->surface, path, 24);
+        load_icon_full_path(app, client, &data->surface, path, 24 * config->dpi);
     } else {
         xcb_generic_error_t *error;
         xcb_get_property_cookie_t c = xcb_ewmh_get_wm_icon(&app->ewmh, window);
@@ -2801,9 +2815,9 @@ void add_window(App *app, xcb_window_t window) {
         
         if (error) {
             std::free(error);
-            data->surface = accelerated_surface(app, client, 24, 24);
+            data->surface = accelerated_surface(app, client, 24 * config->dpi, 24 * config->dpi);
             paint_surface_with_image(data->surface, as_resource_path("unknown-24.svg"),
-                                     24, nullptr);
+                                     24 * config->dpi, nullptr);
         } else {
             if (0 < xcb_ewmh_get_wm_icon_length(&wm_icon)) {
                 uint32_t width = 0;
@@ -2816,7 +2830,7 @@ void add_window(App *app, xcb_window_t window) {
                         width = iter.width;
                         height = iter.height;
                         icon_data = iter.data;
-                        if (width == 24) {
+                        if (width >= 24) {
                             break;
                         }
                     }
@@ -2828,11 +2842,11 @@ void add_window(App *app, xcb_window_t window) {
                 cairo_pattern_t *pattern = cairo_pattern_create_for_surface(surface);
                 cairo_pattern_set_filter(pattern, CAIRO_FILTER_BEST);
                 
-                data->surface = accelerated_surface(app, client, 24, 24);
+                data->surface = accelerated_surface(app, client, 24 * config->dpi, 24 * config->dpi);
                 cairo_t *cr = cairo_create(data->surface);
                 
                 cairo_save(cr);
-                double taskbar_icon_size = 24;
+                double taskbar_icon_size = 24 * config->dpi;
                 cairo_scale(cr, taskbar_icon_size / (width), taskbar_icon_size / (width));
                 cairo_set_source(cr, pattern);
                 cairo_paint(cr);
@@ -2841,9 +2855,9 @@ void add_window(App *app, xcb_window_t window) {
                 cairo_destroy(cr);
                 xcb_ewmh_get_wm_icon_reply_wipe(&wm_icon);
             } else {
-                data->surface = accelerated_surface(app, client, 24, 24);
+                data->surface = accelerated_surface(app, client, 24 * config->dpi, 24 * config->dpi);
                 paint_surface_with_image(data->surface, as_resource_path("unknown-24.svg"),
-                                         24, nullptr);
+                                         24 * config->dpi, nullptr);
             }
         }
     }
@@ -3177,14 +3191,14 @@ load_pinned_icons() {
         i++;
     }
     search_icons(targets);
-    pick_best(targets, 24);
+    pick_best(targets, 24 * config->dpi);
     
     i = 0;
     for (const std::string &section_title: itemFile.Sections()) {
         auto *child = new Container();
         child->parent = icons;
         child->wanted_bounds.h = FILL_SPACE;
-        child->wanted_bounds.w = 48;
+        child->wanted_bounds.w = 48 * config->dpi;
         
         child->when_drag_end_is_click = false;
         child->minimum_x_distance_to_move_before_drag_begins = 15;
@@ -3215,16 +3229,16 @@ load_pinned_icons() {
         }
         
         if (!path.empty()) {
-            load_icon_full_path(app, client_entity, &data->surface, path, 24);
+            load_icon_full_path(app, client_entity, &data->surface, path, 24 * config->dpi);
         } else {
-            data->surface = accelerated_surface(app, client_entity, 24, 24);
+            data->surface = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
             char *string = getenv("HOME");
             std::string home(string);
             home += "/.config/winbar/cached_icons/" + data->class_name + ".png";
-            bool b = paint_surface_with_image(data->surface, home, 24, nullptr);
+            bool b = paint_surface_with_image(data->surface, home, 24 * config->dpi, nullptr);
             if (!b) {
                 paint_surface_with_image(
-                        data->surface, as_resource_path("unknown-24.svg"), 24, nullptr);
+                        data->surface, as_resource_path("unknown-24.svg"), 24 * config->dpi, nullptr);
             }
         }
         
@@ -3380,7 +3394,7 @@ void update_pinned_items_icon() {
                     targets.emplace_back(IconTarget(data->icon_name));
                     targets.emplace_back(IconTarget(data->class_name));
                     search_icons(targets);
-                    pick_best(targets, 24);
+                    pick_best(targets, 24 * config->dpi);
                     path = targets[0].best_full_path;
                     if (!data->icon_name.empty()) {
                         path = targets[0].best_full_path;
@@ -3389,16 +3403,16 @@ void update_pinned_items_icon() {
                         path = targets[1].best_full_path;
                     }
                     if (!path.empty()) {
-                        load_icon_full_path(app, client, &data->surface, path, 24);
+                        load_icon_full_path(app, client, &data->surface, path, 24 * config->dpi);
                     } else {
-                        data->surface = accelerated_surface(app, client, 24, 24);
+                        data->surface = accelerated_surface(app, client, 24 * config->dpi, 24 * config->dpi);
                         char *string = getenv("HOME");
                         std::string home(string);
                         home += "/.config/winbar/cached_icons/" + data->class_name + ".png";
-                        bool b = paint_surface_with_image(data->surface, home, 24, nullptr);
+                        bool b = paint_surface_with_image(data->surface, home, 24 * config->dpi, nullptr);
                         if (!b) {
                             paint_surface_with_image(
-                                    data->surface, as_resource_path("unknown-24.svg"), 24, nullptr);
+                                    data->surface, as_resource_path("unknown-24.svg"), 24 * config->dpi, nullptr);
                         }
                     }
                 }
