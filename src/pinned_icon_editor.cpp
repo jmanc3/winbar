@@ -60,7 +60,7 @@ static void paint_state_label(AppClient *client, cairo_t *cr, Container *contain
 #endif
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int width;
     int height;
@@ -85,7 +85,7 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_BOLD);
+            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
     
     int width;
     int height;
@@ -123,7 +123,7 @@ static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
     
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int width;
     int height;
@@ -177,7 +177,7 @@ static void paint_restore(AppClient *client, cairo_t *cr, Container *container) 
     
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int width;
     int height;
@@ -221,7 +221,7 @@ static Container *make_button(AppClient *client, Container *parent, std::string 
     Container *button = parent->child(FILL_SPACE, FILL_SPACE);
     
     PangoLayout *layout =
-            get_cached_pango_font(client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int width;
     int height;
@@ -230,7 +230,7 @@ static Container *make_button(AppClient *client, Container *parent, std::string 
     
     button->user_data = new Label(std::move(text));
     button->when_paint = paint_button;
-    button->wanted_bounds.w = width + 64;
+    button->wanted_bounds.w = width + 64 * config->dpi;
     
     return button;
 }
@@ -258,14 +258,14 @@ static void update_icon(AppClient *client) {
         std::vector<IconTarget> targets;
         targets.emplace_back(IconTarget(icon_field_data->state->text));
         search_icons(targets);
-        pick_best(targets, 64);
+        pick_best(targets, 64 * config->dpi);
         std::string icon_path = targets[0].best_full_path;
         if (!icon_path.empty()) {
             if (icon_data->surface) {
                 cairo_surface_destroy(icon_data->surface);
                 icon_data->surface = nullptr;
             }
-            load_icon_full_path(app, client, &icon_data->surface, icon_path, 64);
+            load_icon_full_path(app, client, &icon_data->surface, icon_path, 64 * config->dpi);
             icon_search_state->text = "Found a match for: '" + icon_field_data->state->text + "'";
         } else {
             icon_search_state->text = "Didn't find a match for: '" + icon_field_data->state->text + "'";
@@ -333,8 +333,8 @@ void fill_root(AppClient *client) {
     ZoneScoped;
 #endif
     Container *root = client->root;
-    root->wanted_pad = Bounds(10, 10, 10, 10);
-    root->spacing = 10;
+    root->wanted_pad = Bounds(10 * config->dpi, 10 * config->dpi, 10 * config->dpi, 10 * config->dpi);
+    root->spacing = 10 * config->dpi;
     root->type = vbox;
     root->when_paint = paint_background;
     
@@ -342,25 +342,25 @@ void fill_root(AppClient *client) {
     textarea_settings.single_line = true;
     textarea_settings.bottom_show_amount = 2;
     textarea_settings.right_show_amount = 2;
-    textarea_settings.font_size = 13;
+    textarea_settings.font_size = 13 * config->dpi;
     textarea_settings.color = config->color_pinned_icon_editor_field_default_text;
     textarea_settings.color_cursor = config->color_pinned_icon_editor_cursor;
-    textarea_settings.pad = Bounds(4, 3, 8, 0);
+    textarea_settings.pad = Bounds(4 * config->dpi, 3 * config->dpi, 8 * config->dpi, 0);
     
     { // Icon
-        Container *centered = root->child(::hbox, FILL_SPACE, 64);
+        Container *centered = root->child(::hbox, FILL_SPACE, 64 * config->dpi);
         centered->child(FILL_SPACE, FILL_SPACE);
         
-        Container *icon = centered->child(64, 64);
+        Container *icon = centered->child(64 * config->dpi, 64 * config->dpi);
         icon->name = "icon";
         auto icon_data = new IconButton;
         std::vector<IconTarget> targets;
         targets.emplace_back(IconTarget(pinned_icon_data->icon_name));
         search_icons(targets);
-        pick_best(targets, 64);
+        pick_best(targets, 64 * config->dpi);
         std::string icon_path = targets[0].best_full_path;
         if (!icon_path.empty()) {
-            load_icon_full_path(app, client, &icon_data->surface, icon_path, 64);
+            load_icon_full_path(app, client, &icon_data->surface, icon_path, 64 * config->dpi);
             icon_search_state = new Label("Found a match for: '" + pinned_icon_data->icon_name + "'");
         } else {
             icon_search_state = new Label("Didn't find a match for: '" + pinned_icon_data->icon_name + "'");
@@ -373,17 +373,17 @@ void fill_root(AppClient *client) {
     }
     
     { // Icon search state label
-        Container *icon_search_state_label = root->child(FILL_SPACE, 13);
+        Container *icon_search_state_label = root->child(FILL_SPACE, 13 * config->dpi);
         icon_search_state_label->user_data = icon_search_state;
         icon_search_state_label->when_paint = paint_state_label;
     }
     
-    Container *icon_name_hbox = root->child(layout_type::hbox, FILL_SPACE, 64);
-    icon_name_hbox->spacing = 10;
+    Container *icon_name_hbox = root->child(layout_type::hbox, FILL_SPACE, 64 * config->dpi);
+    icon_name_hbox->spacing = 10 * config->dpi;
     {
         Container *icon_name_label_and_field_vbox = icon_name_hbox->child(layout_type::vbox, FILL_SPACE, FILL_SPACE);
         {
-            Container *icon_name_label = icon_name_label_and_field_vbox->child(FILL_SPACE, 13);
+            Container *icon_name_label = icon_name_label_and_field_vbox->child(FILL_SPACE, 13 * config->dpi);
             icon_name_label->user_data = new Label("Icon");
             icon_name_label->when_paint = paint_label;
             
@@ -396,13 +396,13 @@ void fill_root(AppClient *client) {
             icon_name_field_data->state->text = pinned_icon_data->icon_name;
             icon_field_data = icon_name_field_data;
 //            icon_name_field->when_paint = paint_ex;
-            icon_name_field->wanted_bounds.h = 32;
+            icon_name_field->wanted_bounds.h = 32 * config->dpi;
         }
     }
     
-    Container *launch_command_label_and_field = root->child(layout_type::vbox, FILL_SPACE, 64);
+    Container *launch_command_label_and_field = root->child(layout_type::vbox, FILL_SPACE, 64 * config->dpi);
     {
-        Container *launch_command_label = launch_command_label_and_field->child(FILL_SPACE, 13);
+        Container *launch_command_label = launch_command_label_and_field->child(FILL_SPACE, 13 * config->dpi);
         launch_command_label->user_data = new Label("Command");
         launch_command_label->when_paint = paint_label;
         
@@ -414,12 +414,12 @@ void fill_root(AppClient *client) {
         launch_command_field_data->state->text = pinned_icon_data->command_launched_by;
         launch_field_data = launch_command_field_data;
 //        launch_command_field->when_paint = paint_ex;
-        launch_command_field->wanted_bounds.h = 32;
+        launch_command_field->wanted_bounds.h = 32 * config->dpi;
     }
     
-    Container *wm_class_label_and_field = root->child(layout_type::vbox, FILL_SPACE, 64);
+    Container *wm_class_label_and_field = root->child(layout_type::vbox, FILL_SPACE, 64 * config->dpi);
     {
-        Container *wm_class_label = wm_class_label_and_field->child(FILL_SPACE, 13);
+        Container *wm_class_label = wm_class_label_and_field->child(FILL_SPACE, 13 * config->dpi);
         wm_class_label->user_data = new Label("WM_CLASS");
         wm_class_label->when_paint = paint_label;
         
@@ -431,13 +431,13 @@ void fill_root(AppClient *client) {
         wm_class_field_data->state->text = pinned_icon_data->class_name;
         wm_field_data = wm_class_field_data;
 //        wm_class_field->when_paint = paint_ex;i
-        wm_class_field->wanted_bounds.h = 32;
+        wm_class_field->wanted_bounds.h = 32 * config->dpi;
     }
     
     root->child(FILL_SPACE, FILL_SPACE);
     
-    Container *button_hbox = root->child(::hbox, FILL_SPACE, 30);
-    button_hbox->spacing = 10;
+    Container *button_hbox = root->child(::hbox, FILL_SPACE, 30 * config->dpi);
+    button_hbox->spacing = 10 * config->dpi;
     {
         button_hbox->child(FILL_SPACE, FILL_SPACE);
         
@@ -466,8 +466,8 @@ void start_pinned_icon_editor(Container *icon_container) {
     }
     
     Settings settings;
-    settings.w = 600;
-    settings.h = 450;
+    settings.w = 600 * config->dpi;
+    settings.h = 450 * config->dpi;
     if (auto client = client_new(app, settings, "pinned_icon_editor")) {
         fill_root(client);
         std::string title = "Pinned Icon Editor";
