@@ -78,7 +78,7 @@ paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
         PangoLayout *layout =
-                get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+                get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         
         int width;
         int height;
@@ -150,7 +150,7 @@ paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container)
 //    printf("is mater: %d, volume: %f, muted: %d\n", client->is_master, client->get_volume(), client->is_muted());
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 17, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     double scalar = client->get_volume();
     
@@ -179,7 +179,7 @@ paint_label(AppClient *client_entity, cairo_t *cr, Container *container) {
         text = client->subtitle;
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), -1);
@@ -201,11 +201,11 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     Audio_Client *client = data->client();
     if (!client) return;
     
-    double marker_height = 24;
-    double marker_width = 8;
+    double marker_height = 24 * config->dpi;
+    double marker_width = 8 * config->dpi;
     double marker_position = client->get_volume() * container->real_bounds.w;
     
-    double line_height = 2;
+    double line_height = 2 * config->dpi;
     set_argb(cr, config->color_volume_slider_background);
     cairo_rectangle(cr,
                     container->real_bounds.x,
@@ -228,7 +228,7 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
     
     rounded_rect(cr,
-                 4,
+                 4 * config->dpi,
                  container->real_bounds.x + marker_position - marker_width / 2,
                  container->real_bounds.y + container->real_bounds.h / 2 - marker_height / 2,
                  marker_width,
@@ -349,7 +349,7 @@ void fill_root(Container *root) {
     for (int i = 0; i < audio_clients.size(); i++) {
         auto vbox_container = new Container();
         vbox_container->type = vbox;
-        vbox_container->wanted_bounds.h = 96;
+        vbox_container->wanted_bounds.h = 96 * config->dpi;
         vbox_container->wanted_bounds.w = FILL_SPACE;
         auto data = new option_data();
         auto uid = audio_clients[i]->unique_id();
@@ -357,7 +357,7 @@ void fill_root(Container *root) {
         vbox_container->user_data = data;
         
         auto label = new Container();
-        label->wanted_bounds.h = 34;
+        label->wanted_bounds.h = 34 * config->dpi;
         label->wanted_bounds.w = FILL_SPACE;
         label->when_paint = paint_label;
         
@@ -368,23 +368,23 @@ void fill_root(Container *root) {
         
         auto volume_icon = new Container();
         volume_icon->wanted_bounds.h = FILL_SPACE;
-        volume_icon->wanted_bounds.w = 55;
+        volume_icon->wanted_bounds.w = 55 * config->dpi;
         volume_icon->when_paint = paint_volume_icon;
         volume_icon->when_clicked = toggle_mute;
         volume_icon->when_scrolled = scroll;
         volume_icon->parent = hbox_volume;
         hbox_volume->children.push_back(volume_icon);
         auto surfaces = new volume_surfaces();
-        surfaces->none = accelerated_surface(app, client_entity, 24, 24);
-        paint_surface_with_image(surfaces->none, as_resource_path("audio/none24.png"), 24, nullptr);
-        surfaces->low = accelerated_surface(app, client_entity, 24, 24);
-        paint_surface_with_image(surfaces->low, as_resource_path("audio/low24.png"), 24, nullptr);
-        surfaces->medium = accelerated_surface(app, client_entity, 24, 24);
-        paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium24.png"), 24, nullptr);
-        surfaces->high = accelerated_surface(app, client_entity, 24, 24);
-        paint_surface_with_image(surfaces->high, as_resource_path("audio/high24.png"), 24, nullptr);
-        surfaces->mute = accelerated_surface(app, client_entity, 24, 24);
-        paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute24.png"), 24, nullptr);
+        surfaces->none = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
+        paint_surface_with_image(surfaces->none, as_resource_path("audio/none24.png"), 24 * config->dpi, nullptr);
+        surfaces->low = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
+        paint_surface_with_image(surfaces->low, as_resource_path("audio/low24.png"), 24 * config->dpi, nullptr);
+        surfaces->medium = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
+        paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium24.png"), 24 * config->dpi, nullptr);
+        surfaces->high = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
+        paint_surface_with_image(surfaces->high, as_resource_path("audio/high24.png"), 24 * config->dpi, nullptr);
+        surfaces->mute = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
+        paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute24.png"), 24 * config->dpi, nullptr);
         volume_icon->user_data = surfaces;
         dye_opacity(surfaces->none, opacity_diff, opacity_thresh);
         dye_opacity(surfaces->low, opacity_diff, opacity_thresh);
@@ -408,7 +408,7 @@ void fill_root(Container *root) {
         
         auto volume_amount = new Container();
         volume_amount->wanted_bounds.h = FILL_SPACE;
-        volume_amount->wanted_bounds.w = 65;
+        volume_amount->wanted_bounds.w = 65 * config->dpi;
         volume_amount->when_paint = paint_volume_amount;
         volume_amount->parent = hbox_volume;
         volume_amount->when_scrolled = scroll;
@@ -550,19 +550,21 @@ void open_volume_menu() {
     settings.decorations = false;
     settings.skip_taskbar = true;
     settings.sticky = true;
-    settings.w = 360;
+    settings.w = 360 * config->dpi;
     if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
-        settings.h = 80;
+        settings.h = 80 * config->dpi;
     } else {
         unsigned long count = audio_clients.size();
-        double maximum_visiually_pleasing_volume_menu_items_count = app->bounds.h * .70 / 96;
+        double maximum_visiually_pleasing_volume_menu_items_count = app->bounds.h * .70 / (config->dpi * 96);
+    
         if (count < maximum_visiually_pleasing_volume_menu_items_count) {
-            settings.h = count * 96;
+            settings.h = count * (config->dpi * 96);
         } else {
             settings.w += 12;
-            settings.h = maximum_visiually_pleasing_volume_menu_items_count * 96;
+            settings.h = maximum_visiually_pleasing_volume_menu_items_count * (config->dpi * 96);
         }
     }
+    settings.h += 1;
     
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
@@ -587,8 +589,8 @@ void open_volume_menu() {
         
         Container *root = client_entity->root;
         ScrollPaneSettings s;
-        s.right_width = 12;
-        s.right_arrow_height = 12;
+        s.right_width = 12 * config->dpi;
+        s.right_arrow_height = 12 * config->dpi;
         Container *scrollpane = make_scrollpane(root, s);
         scrollpane->when_scrolled = nullptr;
         Container *content = scrollpane->child(::vbox, FILL_SPACE, FILL_SPACE);
@@ -600,15 +602,15 @@ void open_volume_menu() {
         Container *top_arrow = scrollpane->parent->children[0]->children[0];
         top_arrow->when_paint = paint_arrow;
         auto *top_data = new IconButton;
-        top_data->surface = accelerated_surface(app, client_entity, 12, 12);
-        paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12, nullptr);
+        top_data->surface = accelerated_surface(app, client_entity, 12 * config->dpi, 12 * config->dpi);
+        paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12 * config->dpi, nullptr);
         
         top_arrow->user_data = top_data;
         Container *bottom_arrow = scrollpane->parent->children[0]->children[2];
         bottom_arrow->when_paint = paint_arrow;
         auto *bottom_data = new IconButton;
-        bottom_data->surface = accelerated_surface(app, client_entity, 12, 12);
-        paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12, nullptr);
+        bottom_data->surface = accelerated_surface(app, client_entity, 12 * config->dpi, 12 * config->dpi);
+        paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12 * config->dpi, nullptr);
         
         bottom_arrow->user_data = bottom_data;
         

@@ -192,10 +192,10 @@ drag_not_real(AppClient *client_entity, cairo_t *cr, Container *container) {
 
 static void
 paint_slider(AppClient *client_entity, cairo_t *cr, Container *container) {
-    double marker_height = 24;
-    double marker_width = 8;
+    double marker_height = 24 * config->dpi;
+    double marker_width = 8 * config->dpi;
     
-    double line_height = 2;
+    double line_height = 2 * config->dpi;
     set_argb(cr, config->color_battery_slider_background);
     cairo_rectangle(cr,
                     container->real_bounds.x,
@@ -219,7 +219,7 @@ paint_slider(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
     
     rounded_rect(cr,
-                 4,
+                 4 * config->dpi,
                  container->real_bounds.x + (marker_position_scalar * container->real_bounds.w) -
                  marker_width / 2,
                  container->real_bounds.y + container->real_bounds.h / 2 - marker_height / 2,
