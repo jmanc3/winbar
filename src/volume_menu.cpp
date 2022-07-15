@@ -564,7 +564,6 @@ void open_volume_menu() {
             settings.h = maximum_visiually_pleasing_volume_menu_items_count * (config->dpi * 96);
         }
     }
-    settings.h += 1;
     
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;

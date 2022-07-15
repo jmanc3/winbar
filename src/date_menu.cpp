@@ -171,7 +171,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     PangoLayout *top_layout =
-            get_cached_pango_font(client->cr, config->font, 34, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 34 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(top_layout, top_text.c_str(), top_text.length());
     PangoRectangle top_ink;
     PangoRectangle top_logical;
@@ -182,7 +182,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
     std::string top_right_text = sl.str();
     
     PangoLayout *top_right_layout =
-            get_cached_pango_font(client->cr, config->font, 14, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(top_right_layout, top_right_text.c_str(), top_right_text.length());
     PangoRectangle top_right_ink;
     PangoRectangle top_right_logical;
@@ -196,28 +196,28 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
             std::string(date_names[day_index]) + " " + std::string(months[ltm->tm_mon]) + " " +
             std::to_string(ltm->tm_mday) + ", " + std::to_string(1900 + ltm->tm_year);
     PangoLayout *bottom_layout =
-            get_cached_pango_font(client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(bottom_layout, bottom_text.c_str(), bottom_text.length());
     PangoRectangle bottom_ink;
     PangoRectangle bottom_logical;
     pango_layout_get_extents(bottom_layout, &bottom_ink, &bottom_logical);
     
-    int top_x = container->real_bounds.x + 24 - (top_ink.x / PANGO_SCALE);
-    int top_y = container->real_bounds.y + 27 - (top_ink.y / PANGO_SCALE);
+    int top_x = container->real_bounds.x + (24 * config->dpi) - (top_ink.x / PANGO_SCALE);
+    int top_y = container->real_bounds.y + (27 * config->dpi) - (top_ink.y / PANGO_SCALE);
     set_argb(cr, config->color_date_text_title);
     cairo_move_to(cr, top_x, top_y);
     pango_cairo_show_layout(cr, top_layout);
     
-    int top_right_x = container->real_bounds.x + 24 - (top_right_ink.x / PANGO_SCALE) +
-                      (top_logical.width / PANGO_SCALE) + 10;
-    int top_right_y = container->real_bounds.y + 27 - (top_right_ink.y / PANGO_SCALE) +
+    int top_right_x = container->real_bounds.x + (24 * config->dpi) - (top_right_ink.x / PANGO_SCALE) +
+                      (top_logical.width / PANGO_SCALE) + (10 * config->dpi);
+    int top_right_y = container->real_bounds.y + (27 * config->dpi) - (top_right_ink.y / PANGO_SCALE) +
                       (top_ink.height / PANGO_SCALE) - (top_right_ink.height / PANGO_SCALE);
     set_argb(cr, config->color_date_text_title_period);
     cairo_move_to(cr, top_right_x, top_right_y);
     pango_cairo_show_layout(cr, top_right_layout);
     
-    int bottom_x = container->real_bounds.x + 25 - (bottom_ink.x / PANGO_SCALE);
-    int bottom_y = container->real_bounds.y + 27 + (top_ink.height / PANGO_SCALE) + 16;
+    int bottom_x = container->real_bounds.x + (25 * config->dpi) - (bottom_ink.x / PANGO_SCALE);
+    int bottom_y = container->real_bounds.y + (27 * config->dpi) + (top_ink.height / PANGO_SCALE) + (16 * config->dpi);
     set_argb(cr, config->color_date_text_title_info);
     cairo_move_to(cr, bottom_x, bottom_y);
     pango_cairo_show_layout(cr, bottom_layout);
@@ -244,7 +244,7 @@ paint_body(AppClient *client, cairo_t *cr, Container *container) {
 static void
 paint_centered_text(AppClient *client, cairo_t *cr, Container *container, std::string text) {
     PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, text.c_str(), text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;
@@ -272,7 +272,7 @@ paint_events(AppClient *client, cairo_t *cr, Container *container) {
     }
     set_argb(cr, config->color_date_weekday_monthday);
     PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 13, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 13 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     const char *date_names[] = {"Sunday", "Monday", "Tuesday", "Wednesday",
                                 "Thursday", "Friday", "Saturday"};
@@ -286,7 +286,7 @@ paint_events(AppClient *client, cairo_t *cr, Container *container) {
     PangoRectangle text_logical;
     pango_layout_get_extents(text_layout, &text_ink, &text_logical);
     
-    cairo_move_to(cr, container->real_bounds.x + 24, container->real_bounds.y + 21);
+    cairo_move_to(cr, container->real_bounds.x + (24 * config->dpi), container->real_bounds.y + (21 * config->dpi));
     pango_cairo_show_layout(cr, text_layout);
 }
 
@@ -295,7 +295,7 @@ paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (AgendaData *) container->user_data;
     
     PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text;
     if (agenda_showing) {
         text = "Hide agenda";
@@ -329,14 +329,14 @@ paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
         if (data->down) {
             dye_surface(data->down, color);
             cairo_set_source_surface(
-                    cr, data->down, pos_x + (text_logical.width / PANGO_SCALE) + 5, pos_y + 4);
+                    cr, data->down, (pos_x + (text_logical.width / PANGO_SCALE) + 5) * config->dpi, (pos_y + 4) * config->dpi);
             cairo_paint(cr);
         }
     } else {
         if (data->up) {
             dye_surface(data->up, color);
             cairo_set_source_surface(
-                    cr, data->up, pos_x + (text_logical.width / PANGO_SCALE) + 5, pos_y + 4);
+                    cr, data->up, (pos_x + (text_logical.width / PANGO_SCALE) + 5) * config->dpi, (pos_y + 4) * config->dpi);
             cairo_paint(cr);
         }
     }
@@ -351,7 +351,7 @@ paint_month_year_label(AppClient *client, cairo_t *cr, Container *container) {
     std::string text = months[view_month];
     text += " " + std::to_string(view_year);
     PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, text.c_str(), text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;
@@ -390,7 +390,7 @@ paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
         auto *data = (TextAreaData *) c->user_data;
         if (data->state->text.empty() && !container->active) {
             PangoLayout *text_layout = get_cached_pango_font(
-                    client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+                    client->cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
             std::string text("Write the days events here");
             pango_layout_set_text(text_layout, text.c_str(), text.length());
             PangoRectangle text_ink;
@@ -414,9 +414,6 @@ paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
 static void
 paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (date_title *) container->user_data;
-    
-    int pad = 2;
-    int width = 2;
     
     for (auto *ud: unique_day_text_state) {
         if (ud->day == data->day && ud->month == data->month && ud->year == data->year &&
@@ -474,7 +471,7 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, data->text.c_str(), data->text.length());
     PangoRectangle text_ink;
     PangoRectangle text_logical;
@@ -584,7 +581,7 @@ clicked_agenda(AppClient *client, cairo_t *cr, Container *container) {
             if (agenda_showing) {
                 c->wanted_pad = Bounds(0, 0, 0, 0);
             } else {
-                c->wanted_pad = Bounds(24, 58, 24, 0);
+                c->wanted_pad = Bounds(24 * config->dpi, 58 * config->dpi, 24 * config->dpi, 0);
             }
         }
         
@@ -594,9 +591,9 @@ clicked_agenda(AppClient *client, cairo_t *cr, Container *container) {
         uint32_t value_list_resize[4];
         if (agenda_showing) {
             value_list_resize[0] = client->bounds->x;
-            value_list_resize[1] = app->bounds.h - config->taskbar_height - 502;
+            value_list_resize[3] = (502 * config->dpi);
+            value_list_resize[1] = app->bounds.h - config->taskbar_height - value_list_resize[3];
             value_list_resize[2] = client->bounds->w;
-            value_list_resize[3] = 502;
             xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
             handle_configure_notify(app, client, value_list_resize[0],
                                     value_list_resize[1],
@@ -604,9 +601,9 @@ clicked_agenda(AppClient *client, cairo_t *cr, Container *container) {
                                     value_list_resize[3]);
         } else {
             value_list_resize[0] = client->bounds->x;
-            value_list_resize[1] = app->bounds.h - config->taskbar_height - 735;
+            value_list_resize[3] = 735 * config->dpi;
+            value_list_resize[1] = app->bounds.h - config->taskbar_height - value_list_resize[3];
             value_list_resize[2] = client->bounds->w;
-            value_list_resize[3] = 735;
             xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
             handle_configure_notify(app, client, value_list_resize[0],
                                     value_list_resize[1],
@@ -643,10 +640,8 @@ paint_clear_text(AppClient *client, cairo_t *cr, Container *container) {
         }
     }
     
-    auto *data = (IconButton *) container->user_data;
-    
     PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(client->cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     std::string text = "Clear text";
     pango_layout_set_text(text_layout, text.c_str(), text.length());
@@ -662,8 +657,6 @@ paint_clear_text(AppClient *client, cairo_t *cr, Container *container) {
     } else {
         set_argb(cr, config->color_date_text_default_button);
     }
-    int pos_x =
-            container->real_bounds.x + container->real_bounds.w - (text_logical.width / PANGO_SCALE) - 24;
     int pos_y = container->real_bounds.y + container->real_bounds.h / 2 -
                 ((text_logical.height / PANGO_SCALE) / 2);
     cairo_move_to(cr, container->real_bounds.x, pos_y);
@@ -676,55 +669,55 @@ fill_root(AppClient *client) {
     root->when_paint = paint_root;
     root->type = ::vbox;
     
-    Container *title = root->child(FILL_SPACE, 111);
+    Container *title = root->child(FILL_SPACE, 111 * config->dpi);
     title->when_paint = paint_title;
     
-    Container *body = root->child(FILL_SPACE, 343);
+    Container *body = root->child(FILL_SPACE, 343 * config->dpi);
     body->type = ::vbox;
     body->when_paint = paint_body;
     
-    Container *up_down_hbox = body->child(FILL_SPACE, 18 + 18 + 16);
+    Container *up_down_hbox = body->child(FILL_SPACE, (18 + 18 + 16) * config->dpi);
     up_down_hbox->type = ::hbox;
-    up_down_hbox->wanted_pad.x = 24;
-    up_down_hbox->wanted_pad.w = 28;
-    up_down_hbox->wanted_pad.y = 18;
-    up_down_hbox->wanted_pad.h = 18;
+    up_down_hbox->wanted_pad.x = 24 * config->dpi;
+    up_down_hbox->wanted_pad.w = 28 * config->dpi;
+    up_down_hbox->wanted_pad.y = 18 * config->dpi;
+    up_down_hbox->wanted_pad.h = 18 * config->dpi;
     
-    Container *month_year_label = up_down_hbox->child(66, FILL_SPACE);
+    Container *month_year_label = up_down_hbox->child(66 * config->dpi, FILL_SPACE);
     month_year_label->when_paint = paint_month_year_label;
     
     // Pad
     up_down_hbox->child(FILL_SPACE, FILL_SPACE);
     
-    Container *up_arrow = up_down_hbox->child(16, FILL_SPACE);
+    Container *up_arrow = up_down_hbox->child(16 * config->dpi, FILL_SPACE);
     up_arrow->when_paint = paint_arrow;
     up_arrow->when_clicked = clicked_up_arrow;
     auto *up_data = new IconButton;
     up_arrow->user_data = up_data;
-    up_data->surface = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(up_data->surface, as_resource_path("arrow-up-16.png"), 16, nullptr);
+    up_data->surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
+    paint_surface_with_image(up_data->surface, as_resource_path("arrow-up-16.png"), 16 * config->dpi, nullptr);
     
     // Pad
-    up_down_hbox->child(32, FILL_SPACE);
+    up_down_hbox->child(32 * config->dpi, FILL_SPACE);
     
-    Container *down_arrow = up_down_hbox->child(16, FILL_SPACE);
+    Container *down_arrow = up_down_hbox->child(16 * config->dpi, FILL_SPACE);
     down_arrow->when_paint = paint_arrow;
     down_arrow->when_clicked = clicked_down_arrow;
     auto *down_data = new IconButton;
     down_arrow->user_data = down_data;
-    down_data->surface = accelerated_surface(app, client, 16, 16);
-    paint_surface_with_image(down_data->surface, as_resource_path("arrow-down-16.png"), 16, nullptr);
+    down_data->surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
+    paint_surface_with_image(down_data->surface, as_resource_path("arrow-down-16.png"), 16 * config->dpi, nullptr);
     
-    Container *day_titles = body->child(FILL_SPACE, 27);
+    Container *day_titles = body->child(FILL_SPACE, 27 * config->dpi);
     day_titles->type = ::hbox;
-    day_titles->wanted_pad.x = 13;
-    day_titles->wanted_pad.w = 13;
-    day_titles->spacing = 2;
+    day_titles->wanted_pad.x = 13 * config->dpi;
+    day_titles->wanted_pad.w = 13 * config->dpi;
+    day_titles->spacing = 2 * config->dpi;
     
     const char *names[] = {"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"};
     for (int i = 0; i < 7; i++) {
         auto day_title = day_titles->child(FILL_SPACE, FILL_SPACE);
-        day_title->spacing = 2;
+        day_title->spacing = 2 * config->dpi;
         day_title->when_paint = paint_weekday_title;
         auto *data = new weekday_title;
         data->text = names[i];
@@ -733,18 +726,18 @@ fill_root(AppClient *client) {
     
     Container *dates = body->child(FILL_SPACE, FILL_SPACE);
     dates->type = ::vbox;
-    dates->wanted_pad.x = 13;
-    dates->wanted_pad.w = 13;
-    dates->wanted_pad.y = 6;
-    dates->wanted_pad.h = 6;
-    dates->spacing = 2;
+    dates->wanted_pad.x = 13 * config->dpi;
+    dates->wanted_pad.w = 13 * config->dpi;
+    dates->wanted_pad.y = 6 * config->dpi;
+    dates->wanted_pad.h = 6 * config->dpi;
+    dates->spacing = 2 * config->dpi;
     dates->name = "dates_container";
     
     int x = 0;
     for (int i = 0; i < 6; i++) {
-        Container *temp_hbox = dates->child(FILL_SPACE, 40);
+        Container *temp_hbox = dates->child(FILL_SPACE, 40 * config->dpi);
         temp_hbox->type = ::hbox;
-        temp_hbox->spacing = 2;
+        temp_hbox->spacing = 2 * config->dpi;
         
         for (int i = 0; i < 7; i++) {
             x++;
@@ -770,14 +763,14 @@ fill_root(AppClient *client) {
     Container *events = root->child(FILL_SPACE, FILL_SPACE);
     events->exists = agenda_showing;
     events->name = "events";
-    events->wanted_pad = Bounds(24, 58, 24, 0);
+    events->wanted_pad = Bounds(24 * config->dpi, 58 * config->dpi, 24 * config->dpi, 0);
     events->when_paint = paint_events;
     
     TextAreaSettings settings;
     settings.color = config->color_date_text;
     settings.color_cursor = config->color_date_cursor;
     settings.font = config->font;
-    settings.font_size = 11;
+    settings.font_size = 11 * config->dpi;
     settings.wrap = true;
     settings.bottom_show_amount = 2;
     settings.right_show_amount = 2;
@@ -796,9 +789,9 @@ fill_root(AppClient *client) {
         }
     }
     
-    Container *agenda_hbox = root->child(::hbox, FILL_SPACE, 48);
-    agenda_hbox->wanted_pad.x = 20;
-    agenda_hbox->wanted_pad.w = 10;
+    Container *agenda_hbox = root->child(::hbox, FILL_SPACE, 48 * config->dpi);
+    agenda_hbox->wanted_pad.x = 20 * config->dpi;
+    agenda_hbox->wanted_pad.w = 10 * config->dpi;
     Container *clear_text = agenda_hbox->child(FILL_SPACE, FILL_SPACE);
     clear_text->when_paint = paint_clear_text;
     clear_text->when_clicked = clicked_clear_text;
@@ -808,8 +801,8 @@ fill_root(AppClient *client) {
     agenda->when_paint = paint_agenda;
     agenda->when_clicked = clicked_agenda;
     auto *agenda_data = new AgendaData;
-    load_icon_full_path(app, client, &agenda_data->down, as_resource_path("arrow-down-12.png"), 12);
-    load_icon_full_path(app, client, &agenda_data->up, as_resource_path("arrow-up-12.png"), 12);
+    load_icon_full_path(app, client, &agenda_data->down, as_resource_path("arrow-down-12.png"), 12 * config->dpi);
+    load_icon_full_path(app, client, &agenda_data->up, as_resource_path("arrow-up-12.png"), 12 * config->dpi);
     agenda->user_data = agenda_data;
 }
 
@@ -993,11 +986,11 @@ static void paint_date_menu(App *app, AppClient *client, Timeout *timeout, void 
 
 void start_date_menu() {
     Settings settings;
-    settings.w = 360;
+    settings.w = 360 * config->dpi;
     if (agenda_showing) {
-        settings.h = 780;
+        settings.h = 780 * config->dpi;
     } else {
-        settings.h = 502;
+        settings.h = 502 * config->dpi;
     }
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
@@ -1020,6 +1013,7 @@ void start_date_menu() {
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "date_menu";
+        popup_settings.takes_input_focus = true;
         auto client = taskbar->create_popup(popup_settings, settings);
         client->when_closed = date_menu_closed;
         
