@@ -288,8 +288,8 @@ paint_right_item(AppClient *client, cairo_t *cr, Container *container) {
         
         cairo_set_source_surface(cr,
                                  arrow_right_surface,
-                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - 16 / 2),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2));
+                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - ((16 / 2) * config->dpi)),
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - ((16 / 2) * config->dpi)));
         cairo_paint(cr);
     }
 }
@@ -302,7 +302,7 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     paint_item_background(client, cr, container, 1);
     auto *data = (SearchItemData *) container->parent->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int location = -1;
     int length = -1;
@@ -340,7 +340,7 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_get_extents(layout, &ink, &logical);
     
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 40),
+                  (int) (container->real_bounds.x + (40 * config->dpi)),
                   (int) (container->real_bounds.y + (container->real_bounds.h / 2) -
                          ((logical.height / PANGO_SCALE) / 2)));
     pango_cairo_show_layout(cr, layout);
@@ -351,8 +351,8 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
         if (script_16) {
             cairo_set_source_surface(cr,
                                      script_16,
-                                     container->real_bounds.x + 12,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 8);
+                                     container->real_bounds.x + (12 * config->dpi),
+                                     container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi));
             cairo_paint(cr);
         }
     } else if (active_tab == "Apps") {
@@ -360,13 +360,13 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
         if (l_data->icon_16) {
             cairo_set_source_surface(cr,
                                      l_data->icon_16,
-                                     container->real_bounds.x + 12,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 8);
+                                     container->real_bounds.x + 12 * config->dpi,
+                                     container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi);
         } else {
             cairo_set_source_surface(cr,
                                      global->unknown_icon_16,
-                                     container->real_bounds.x + 12,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 8);
+                                     container->real_bounds.x + 12 * config->dpi,
+                                     container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi);
         }
         cairo_paint(cr);
     }
@@ -381,7 +381,7 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
     
     auto *data = (SearchItemData *) container->parent->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int location = -1;
     int length = -1;
@@ -417,19 +417,19 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_get_pixel_size(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
-    cairo_move_to(cr, (int) (container->real_bounds.x + 56), (int) (container->real_bounds.y + 10));
+    cairo_move_to(cr, (int) (container->real_bounds.x + 56 * config->dpi), (int) (container->real_bounds.y + 10 * config->dpi));
     pango_cairo_show_layout(cr, layout);
     pango_layout_set_attributes(layout, nullptr);
     
-    layout = get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     pango_layout_set_text(layout, active_tab.c_str(), active_tab.size());
     pango_layout_get_pixel_size(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_secondary);
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 56),
-                  (int) (container->real_bounds.y + container->real_bounds.h - 10 - height));
+                  (int) (container->real_bounds.x + 56 * config->dpi),
+                  (int) (container->real_bounds.y + container->real_bounds.h - 10 * config->dpi - height));
     pango_cairo_show_layout(cr, layout);
     pango_layout_set_attributes(layout, nullptr);
     
@@ -437,8 +437,8 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
         if (script_32) {
             cairo_set_source_surface(cr,
                                      script_32,
-                                     container->real_bounds.x + 12,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 16);
+                                     container->real_bounds.x + 12 * config->dpi,
+                                     container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
             cairo_paint(cr);
         }
     } else if (active_tab == "Apps") {
@@ -446,13 +446,13 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
         if (l_data->icon_32) {
             cairo_set_source_surface(cr,
                                      l_data->icon_32,
-                                     container->real_bounds.x + 12,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 16);
+                                     container->real_bounds.x + 12 * config->dpi,
+                                     container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
         } else {
             cairo_set_source_surface(cr,
                                      global->unknown_icon_32,
-                                     container->real_bounds.x + 12,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 16);
+                                     container->real_bounds.x + 12 * config->dpi,
+                                     container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
         }
         cairo_paint(cr);
     }
@@ -467,7 +467,7 @@ paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
     
     auto *data = (SearchItemData *) container->parent->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int location = -1;
     int length = -1;
@@ -503,11 +503,11 @@ paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_get_pixel_size(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
-    cairo_move_to(cr, (int) (container->real_bounds.x + 56), (int) (container->real_bounds.y + 10));
+    cairo_move_to(cr, (int) (container->real_bounds.x + 56 * config->dpi), (int) (container->real_bounds.y + 10 * config->dpi));
     pango_cairo_show_layout(cr, layout);
     pango_layout_set_attributes(layout, nullptr);
     
-    layout = get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     std::string subtitle_text = "Run command anyways";
     pango_layout_set_text(layout, subtitle_text.c_str(), subtitle_text.size());
@@ -515,15 +515,15 @@ paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
     
     set_argb(cr, config->color_search_content_text_secondary);
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 56),
-                  (int) (container->real_bounds.y + container->real_bounds.h - 10 - height));
+                  (int) (container->real_bounds.x + 56 * config->dpi),
+                  (int) (container->real_bounds.y + container->real_bounds.h - 10 * config->dpi - height));
     pango_cairo_show_layout(cr, layout);
     pango_layout_set_attributes(layout, nullptr);
     
     cairo_set_source_surface(cr,
                              script_32,
-                             container->real_bounds.x + 12,
-                             container->real_bounds.y + container->real_bounds.h / 2 - 16);
+                             container->real_bounds.x + 12 * config->dpi,
+                             container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
     cairo_paint(cr);
 }
 
@@ -534,7 +534,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     auto *data = (TitleData *) container->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_BOLD);
+            get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
     
     int width;
     int height;
@@ -543,7 +543,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
     
     set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 13),
+                  (int) (container->real_bounds.x + 13 * config->dpi),
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
 }
@@ -555,7 +555,7 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     auto *data = (SearchItemData *) container->parent->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 13, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 13 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         std::string text(data->sortable->name);
@@ -578,14 +578,14 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + 106 - height / 2));
+                  (int) (container->real_bounds.y + 106 * config->dpi - height / 2));
     pango_cairo_show_layout(cr, layout);
     
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         pango_layout_set_attributes(layout, nullptr);
     }
     
-    layout = get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     pango_layout_set_text(layout, active_tab.data(), active_tab.length());
     pango_layout_get_pixel_size(layout, &width, &height);
@@ -593,15 +593,15 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, config->color_search_content_text_secondary);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + 106 + height - (height / 3)));
+                  (int) (container->real_bounds.y + 106 * config->dpi + height - (height / 3)));
     pango_cairo_show_layout(cr, layout);
     
     if (active_tab == "Scripts") {
         if (script_32) {
             cairo_set_source_surface(cr,
                                      script_64,
-                                     container->real_bounds.x + container->real_bounds.w / 2 - 32,
-                                     container->real_bounds.y + 21);
+                                     container->real_bounds.x + container->real_bounds.w / 2 - 32 * config->dpi,
+                                     container->real_bounds.y + 21 * config->dpi);
             cairo_paint(cr);
         }
     } else if (active_tab == "Apps") {
@@ -609,13 +609,13 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
         if (l_data->icon_64) {
             cairo_set_source_surface(cr,
                                      l_data->icon_64,
-                                     container->real_bounds.x + container->real_bounds.w / 2 - 32,
-                                     container->real_bounds.y + 21);
+                                     container->real_bounds.x + container->real_bounds.w / 2 - 32 * config->dpi,
+                                     container->real_bounds.y + 21 * config->dpi);
         } else {
             cairo_set_source_surface(cr,
                                      global->unknown_icon_64,
-                                     container->real_bounds.x + container->real_bounds.w / 2 - 32,
-                                     container->real_bounds.y + 21);
+                                     container->real_bounds.x + container->real_bounds.w / 2 - 32 * config->dpi,
+                                     container->real_bounds.y + 21 * config->dpi);
         }
         cairo_paint(cr);
     }
@@ -628,7 +628,7 @@ paint_right_active_title_for_no_results(AppClient *client, cairo_t *cr, Containe
 #endif
     auto *data = (SearchItemData *) container->parent->user_data;
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 13, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 13 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         std::string text(data->sortable->name);
@@ -651,14 +651,14 @@ paint_right_active_title_for_no_results(AppClient *client, cairo_t *cr, Containe
     set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + 106 - height / 2));
+                  (int) (container->real_bounds.y + 106 * config->dpi - height / 2));
     pango_cairo_show_layout(cr, layout);
     
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         pango_layout_set_attributes(layout, nullptr);
     }
     
-    layout = get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     std::string subtitle_text = "Run command anyways";
     pango_layout_set_text(layout, subtitle_text.data(), subtitle_text.length());
@@ -667,14 +667,14 @@ paint_right_active_title_for_no_results(AppClient *client, cairo_t *cr, Containe
     set_argb(cr, config->color_search_content_text_secondary);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + 106 + height - (height / 3)));
+                  (int) (container->real_bounds.y + 106 * config->dpi + height - (height / 3)));
     pango_cairo_show_layout(cr, layout);
     
     if (script_32) {
         cairo_set_source_surface(cr,
                                  script_64,
-                                 container->real_bounds.x + container->real_bounds.w / 2 - 32,
-                                 container->real_bounds.y + 21);
+                                 container->real_bounds.x + container->real_bounds.w / 2 - 32 * config->dpi,
+                                 container->real_bounds.y + 21 * config->dpi);
         cairo_paint(cr);
     }
 }
@@ -682,8 +682,8 @@ paint_right_active_title_for_no_results(AppClient *client, cairo_t *cr, Containe
 static void
 paint_spacer(AppClient *client, cairo_t *cr, Container *container) {
     Bounds b = container->real_bounds;
-    b.x += 6;
-    b.w -= 6;
+    b.x += 6 * config->dpi;
+    b.w -= 6 * config->dpi;
     set_rect(cr, b);
     set_argb(cr, config->color_search_content_right_splitter);
     cairo_fill(cr);
@@ -704,7 +704,7 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     std::string text("Open");
     int width;
@@ -714,7 +714,7 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
     
     set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 52),
+                  (int) (container->real_bounds.x + 52 * config->dpi),
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
     
@@ -722,8 +722,8 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
         dye_surface(open_surface, config->color_search_accent);
         cairo_set_source_surface(cr,
                                  open_surface,
-                                 (int) (container->real_bounds.x + 23),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - 16 / 2));
+                                 (int) (container->real_bounds.x + 23 * config->dpi),
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - ((16 / 2) * config->dpi)));
         cairo_paint(cr);
     }
 }
@@ -888,7 +888,7 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 20, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 20 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     std::string min = active_tab;
     min[0] = std::tolower(min[0]);
@@ -903,7 +903,7 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, config->color_search_empty_tab_content_text);
     cairo_move_to(cr,
                   container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
-                  container->real_bounds.y + container->real_bounds.h - 256 - height / 2);
+                  container->real_bounds.y + container->real_bounds.h - 256 * config->dpi - height / 2);
     pango_cairo_show_layout(cr, layout);
     
     if (auto *tab_group = container_by_name("tab_group", client->root)) {
@@ -914,8 +914,8 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
                 cairo_set_source_surface(cr,
                                          tab_data->surface,
                                          container->real_bounds.x + container->real_bounds.w / 2 -
-                                         128 / 2,
-                                         container->real_bounds.y + 156);
+                                         ((128 / 2) * config->dpi),
+                                         container->real_bounds.y + 156 * config->dpi);
                 cairo_paint(cr);
             }
         }
@@ -925,7 +925,7 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
 static void
 paint_tab(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (TabData *) container->user_data;
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_BOLD);
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
     
     int width;
     int height;
@@ -947,7 +947,7 @@ paint_tab(AppClient *client, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, layout);
     
     if (data->name == active_tab) {
-        int height = 4;
+        int height = 4 * config->dpi;
         cairo_rectangle(cr,
                         container->real_bounds.x,
                         container->real_bounds.y + container->real_bounds.h - height,
@@ -965,7 +965,7 @@ clicked_right_item(AppClient *client, cairo_t *cr, Container *container) {
             auto *child = content->children[i];
             auto *data = (SearchItemData *) (child->user_data);
             if (data && data->item_number == active_item) {
-                Container *right_item = child->child(49, FILL_SPACE);
+                Container *right_item = child->child(49 * config->dpi, FILL_SPACE);
                 right_item->when_paint = paint_right_item;
                 right_item->when_clicked = clicked_right_item;
             }
@@ -1046,22 +1046,22 @@ clicked_tab(AppClient *client, cairo_t *cr, Container *container) {
 static void
 add_tab(AppClient *client, Container *tab_bar, std::string tab_name) {
     PangoLayout *layout =
-            get_cached_pango_font(client->cr, config->font, 10, PangoWeight::PANGO_WEIGHT_BOLD);
+            get_cached_pango_font(client->cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
     
     int width;
     int height;
     pango_layout_set_text(layout, tab_name.c_str(), tab_name.size());
     pango_layout_get_pixel_size(layout, &width, &height);
     
-    auto *tab = tab_bar->child(width + 12 * 2, FILL_SPACE);
+    auto *tab = tab_bar->child((width + 12 * 2) * config->dpi, FILL_SPACE);
     auto *data = new TabData();
     data->name = tab_name;
     tab->user_data = data;
     tab->when_paint = paint_tab;
     tab->when_clicked = clicked_tab;
     
-    data->surface = accelerated_surface(client->app, client, 128, 128);
-    paint_surface_with_image(data->surface, as_resource_path(tab_name + ".png"), 128, nullptr);
+    data->surface = accelerated_surface(client->app, client, 128 * config->dpi, 128 * config->dpi);
+    paint_surface_with_image(data->surface, as_resource_path(tab_name + ".png"), 128 * config->dpi, nullptr);
 }
 
 static inline bool
@@ -1108,11 +1108,11 @@ void sort_and_add(std::vector<T> *sortables,
         ZoneScopedN("create_containers_for_sorted_items");
 #endif
         Container *hbox = bottom->child(::hbox, FILL_SPACE, FILL_SPACE);
-        Container *left = hbox->child(::vbox, 344, FILL_SPACE);
+        Container *left = hbox->child(::vbox, 344 * config->dpi, FILL_SPACE);
         left->when_paint = paint_left_bg;
         Container *right = hbox->child(::vbox, FILL_SPACE, FILL_SPACE);
         right->when_paint = paint_right_bg;
-        right->wanted_pad = Bounds(12, 12, 12, 0);
+        right->wanted_pad = Bounds(12 * config->dpi, 12 * config->dpi, 12 * config->dpi, 0);
         
         Container *right_fg = right->child(::vbox, FILL_SPACE, FILL_SPACE);
         right_fg->when_paint = paint_right_fg;
@@ -1141,14 +1141,14 @@ void sort_and_add(std::vector<T> *sortables,
         }
         
         if (sorted.empty()) {
-            Container *title = content->child(::hbox, FILL_SPACE, 32);
+            Container *title = content->child(::hbox, FILL_SPACE, 32 * config->dpi);
             title->when_paint = paint_title;
             auto *title_data = new TitleData;
             title_data->text = "Zero results";
             title->user_data = title_data;
             
             bool top_item = true;
-            Container *hbox = content->child(::hbox, FILL_SPACE, top_item ? 64 : 32);
+            Container *hbox = content->child(::hbox, FILL_SPACE, top_item ? 64 * config->dpi : 32 * config->dpi);
             hbox->when_paint = paint_hbox;
             Container *item = hbox->child(FILL_SPACE, FILL_SPACE);
             
@@ -1175,20 +1175,20 @@ void sort_and_add(std::vector<T> *sortables,
             right_data->item_number = 0;
             right_fg->user_data = right_data;
             
-            Container *right_active_title = right_fg->child(FILL_SPACE, 176);
+            Container *right_active_title = right_fg->child(FILL_SPACE, 176 * config->dpi);
             right_active_title->when_paint = paint_right_active_title_for_no_results;
             right_active_title->when_clicked = clicked_right_active_title;
             
-            auto *spacer = right_fg->child(FILL_SPACE, 2);
+            auto *spacer = right_fg->child(FILL_SPACE, 2 * config->dpi);
             spacer->when_paint = paint_spacer;
             
-            right_fg->child(FILL_SPACE, 12);
+            right_fg->child(FILL_SPACE, 12 * config->dpi);
             
-            Container *open = right_fg->child(FILL_SPACE, 32);
+            Container *open = right_fg->child(FILL_SPACE, 32 * config->dpi);
             open->when_paint = paint_open;
             open->when_clicked = clicked_open;
             
-            right_fg->child(FILL_SPACE, 12);
+            right_fg->child(FILL_SPACE, 12 * config->dpi);
             
             content->wanted_bounds.h = true_height(content_area) + true_height(content);
             return;
@@ -1200,13 +1200,13 @@ void sort_and_add(std::vector<T> *sortables,
             }
             
             if (i == 0) {
-                Container *item = content->child(::hbox, FILL_SPACE, 32);
+                Container *item = content->child(::hbox, FILL_SPACE, 32 * config->dpi);
                 item->when_paint = paint_title;
                 auto *data = new TitleData;
                 data->text = "Best match";
                 item->user_data = data;
             } else if (i == 1) {
-                Container *item = content->child(::hbox, FILL_SPACE, 32);
+                Container *item = content->child(::hbox, FILL_SPACE, 32 * config->dpi);
                 item->when_paint = paint_title;
                 auto *data = new TitleData;
                 data->text = "Other results";
@@ -1215,7 +1215,7 @@ void sort_and_add(std::vector<T> *sortables,
             
             bool top_item = i == 0;
             
-            Container *hbox = content->child(::hbox, FILL_SPACE, top_item ? 64 : 36);
+            Container *hbox = content->child(::hbox, FILL_SPACE, top_item ? 64 * config->dpi: 36 * config->dpi);
             hbox->when_paint = paint_hbox;
             Container *item = hbox->child(FILL_SPACE, FILL_SPACE);
             if (i == active_item) {
@@ -1225,22 +1225,22 @@ void sort_and_add(std::vector<T> *sortables,
                 right_data->item_number = i;
                 right_fg->user_data = right_data;
                 
-                Container *right_active_title = right_fg->child(FILL_SPACE, 176);
+                Container *right_active_title = right_fg->child(FILL_SPACE, 176 * config->dpi);
                 right_active_title->when_paint = paint_right_active_title;
                 right_active_title->when_clicked = clicked_right_active_title;
                 
-                auto *spacer = right_fg->child(FILL_SPACE, 2);
+                auto *spacer = right_fg->child(FILL_SPACE, 2 * config->dpi);
                 spacer->when_paint = paint_spacer;
                 
-                right_fg->child(FILL_SPACE, 12);
+                right_fg->child(FILL_SPACE, 12 * config->dpi);
                 
-                Container *open = right_fg->child(FILL_SPACE, 32);
+                Container *open = right_fg->child(FILL_SPACE, 32 * config->dpi);
                 open->when_paint = paint_open;
                 open->when_clicked = clicked_open;
                 
-                right_fg->child(FILL_SPACE, 12);
+                right_fg->child(FILL_SPACE, 12 * config->dpi);
             } else {
-                Container *right_item = hbox->child(49, FILL_SPACE);
+                Container *right_item = hbox->child(49 * config->dpi, FILL_SPACE);
                 right_item->when_paint = paint_right_item;
                 right_item->when_clicked = clicked_right_item;
             }
@@ -1366,34 +1366,34 @@ fill_root(AppClient *client) {
     root->type = ::vbox;
     root->when_key_event = when_key_event;
     
-    auto *top = root->child(FILL_SPACE, 51);
+    auto *top = root->child(FILL_SPACE, 51 * config->dpi);
     top->type = ::hbox;
     top->when_paint = paint_top;
-    top->spacing = 2;
-    top->wanted_pad.x = 12;
-    top->wanted_pad.w = 12;
+    top->spacing = 2 * config->dpi;
+    top->wanted_pad.x = 12 * config->dpi;
+    top->wanted_pad.w = 12 * config->dpi;
     top->name = "tab_group";
     
     add_tab(client, top, "Apps");
     add_tab(client, top, "Scripts");
     
-    auto *splitter = root->child(FILL_SPACE, 1);
+    auto *splitter = root->child(FILL_SPACE, 1 * config->dpi);
     splitter->when_paint = paint_top_splitter;
     
     auto *bottom = root->child(FILL_SPACE, FILL_SPACE);
     bottom->name = "bottom";
     bottom->when_paint = paint_bottom;
     
-    script_16 = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(script_16, as_resource_path("script-16.svg"), 16, nullptr);
-    script_32 = accelerated_surface(client->app, client, 32, 32);
-    paint_surface_with_image(script_32, as_resource_path("script-32.svg"), 32, nullptr);
-    script_64 = accelerated_surface(client->app, client, 64, 64);
-    paint_surface_with_image(script_64, as_resource_path("script-64.svg"), 64, nullptr);
-    arrow_right_surface = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(arrow_right_surface, as_resource_path("arrow-right.png"), 16, nullptr);
-    open_surface = accelerated_surface(client->app, client, 16, 16);
-    paint_surface_with_image(open_surface, as_resource_path("open.png"), 16, nullptr);
+    script_16 = accelerated_surface(client->app, client, 16 * config->dpi, 16 * config->dpi);
+    paint_surface_with_image(script_16, as_resource_path("script-16.svg"), 16 * config->dpi, nullptr);
+    script_32 = accelerated_surface(client->app, client, 32 * config->dpi, 32 * config->dpi);
+    paint_surface_with_image(script_32, as_resource_path("script-32.svg"), 32 * config->dpi, nullptr);
+    script_64 = accelerated_surface(client->app, client, 64 * config->dpi, 64 * config->dpi);
+    paint_surface_with_image(script_64, as_resource_path("script-64.svg"), 64 * config->dpi, nullptr);
+    arrow_right_surface = accelerated_surface(client->app, client, 16 * config->dpi, 16 * config->dpi);
+    paint_surface_with_image(arrow_right_surface, as_resource_path("arrow-right.png"), 16 * config->dpi, nullptr);
+    open_surface = accelerated_surface(client->app, client, 16 * config->dpi, 16 * config->dpi);
+    paint_surface_with_image(open_surface, as_resource_path("open.png"), 16 * config->dpi, nullptr);
 }
 
 void load_historic_scripts() {
@@ -1537,9 +1537,9 @@ void start_search_menu() {
     settings.decorations = false;
     settings.skip_taskbar = true;
     settings.force_position = true;
-    settings.w = 762;
-    settings.h = 641;
-    int width = 48;
+    settings.w = 762 * config->dpi;
+    settings.h = 641 * config->dpi;
+    int width = 48 * config->dpi;
     settings.x = app->bounds.x + width;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     if (auto *taskbar = client_by_name(app, "taskbar")) {

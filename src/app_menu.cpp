@@ -321,7 +321,7 @@ paint_item_title(AppClient *client, cairo_t *cr, Container *container) {
     
     set_argb(cr, config->color_apps_text);
     cairo_move_to(cr,
-                  container->real_bounds.x + 3,
+                  container->real_bounds.x + 3 * config->dpi,
                   container->real_bounds.y + container->real_bounds.h / 2 -
                   ((logical.height / PANGO_SCALE) / 2));
     pango_cairo_show_layout(cr, layout);
