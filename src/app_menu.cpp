@@ -60,9 +60,9 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-    double openess = (container->real_bounds.w - 48) / 256;
+    double openess = (container->real_bounds.w - (48 * config->dpi)) / (256 * config->dpi);
     
-    if (container->real_bounds.w == 48) {
+    if (container->real_bounds.w == (48 * config->dpi)) {
         set_argb(cr, correct_opaqueness(client, config->color_apps_background));
     } else {
         ArgbColor color = correct_opaqueness(client, config->color_apps_background);
@@ -74,13 +74,13 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
     
     easingFunction ease = getEasingFunction(easing_functions::EaseInCubic);
-    if (container->real_bounds.w != 48) {
-        int steps = 14;
+    if (container->real_bounds.w != (48 * config->dpi)) {
+        int steps = 14 * config->dpi;
         for (int i = 0; i < steps; i++) {
             double scalar = ((double) (i)) / steps;
             scalar = (1 - scalar) * openess;
             scalar = ease(scalar);
-            scalar /= 4;
+            scalar /= (4 * config->dpi);
             cairo_rectangle(cr,
                             (int) (container->real_bounds.x + container->real_bounds.w + i),
                             (int) (container->real_bounds.y),
@@ -262,22 +262,29 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     
     set_argb(cr, config->color_apps_text);
     cairo_move_to(cr,
-                  container->real_bounds.x + 44,
+                  container->real_bounds.x + 44 * config->dpi,
                   container->real_bounds.y + container->real_bounds.h / 2 -
                   ((logical.height / PANGO_SCALE) / 2));
     pango_cairo_show_layout(cr, layout);
     
     if (data->launcher->icon_24) {
+        int width = cairo_image_surface_get_width(data->launcher->icon_24);
+        int height = cairo_image_surface_get_height(data->launcher->icon_24);
+        
         cairo_set_source_surface(cr,
                                  data->launcher->icon_24,
-                                 (int) (container->real_bounds.x + 4 + 4),
-                                 (int) (container->real_bounds.y + 2 + 4));
+                                 (int) (container->real_bounds.x + 8 * config->dpi),
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
         cairo_paint(cr);
     } else {
+        int width = cairo_image_surface_get_width(global->unknown_icon_24);
+        int height = cairo_image_surface_get_height(global->unknown_icon_24);
+
         cairo_set_source_surface(cr,
                                  global->unknown_icon_24,
-                                 (int) (container->real_bounds.x + 4 + 4),
-                                 (int) (container->real_bounds.y + 2 + 4));
+                                 (int) (container->real_bounds.x + 8 * config->dpi),
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        
         cairo_paint(cr);
     }
 }
@@ -494,7 +501,7 @@ left_open_timeout(App *app, AppClient *client, Timeout *, void *data) {
     if (app && app->running && valid_client(app, client) &&
         (container->state.mouse_hovering || container->state.mouse_pressing)) {
         client_create_animation(
-                app, client, &container->wanted_bounds.w, 100, nullptr, 256, true);
+                app, client, &container->wanted_bounds.w, 100, nullptr, 256 * config->dpi, true);
     }
     left_open_fd = nullptr;
 }
@@ -516,7 +523,7 @@ left_close(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(app, client, &container->wanted_bounds.w, 70, nullptr, 48, true);
+    client_create_animation(app, client, &container->wanted_bounds.w, 70, nullptr, 48 * config->dpi, true);
 }
 
 static bool
@@ -562,12 +569,12 @@ clicked_start_button(AppClient *client, cairo_t *cr, Container *container) {
     // Toggle left menu openess
     if (auto *client = client_by_name(app, "app_menu")) {
         if (auto *container = container_by_name("left_buttons", client->root)) {
-            if (container->real_bounds.w == 48) {
+            if (container->real_bounds.w == 48 * config->dpi) {
                 client_create_animation(
-                        app, client, &container->wanted_bounds.w, 120, nullptr, 256, true);
-            } else if (container->real_bounds.w == 256) {
+                        app, client, &container->wanted_bounds.w, 120, nullptr, 256 * config->dpi, true);
+            } else if (container->real_bounds.w == 256 * config->dpi) {
                 client_create_animation(
-                        app, client, &container->wanted_bounds.w, 120, nullptr, 48, true);
+                        app, client, &container->wanted_bounds.w, 120, nullptr, 48 * config->dpi, true);
             }
         }
     }
@@ -725,8 +732,8 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
             dye_surface(data->surface, config->color_apps_text_inactive);
         }
         cairo_set_source_surface(cr, data->surface,
-                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - 10),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - 10));
+                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - (10 * config->dpi)),
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - (10 * config->dpi)));
         cairo_paint(cr);
     } else {
         PangoLayout *layout =
@@ -764,13 +771,13 @@ fill_root(AppClient *client) {
     
     Container *stack = root->child(::stack, FILL_SPACE, FILL_SPACE);
     
-    int width = 48;
+    int width = 48 * config->dpi;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
         width = taskbar->root->children[0]->real_bounds.w;
     }
     Container *left_buttons = stack->child(::vbox, width, FILL_SPACE);
-    left_buttons->wanted_pad.y = 5;
-    left_buttons->spacing = 1;
+    left_buttons->wanted_pad.y = 5 * config->dpi;
+    left_buttons->spacing = 1 * config->dpi;
     left_buttons->name = "left_buttons";
     left_buttons->z_index++;
     left_buttons->receive_events_even_if_obstructed_by_one = true;
@@ -816,9 +823,9 @@ fill_root(AppClient *client) {
         // button->when_mouse_leaves_container = leave_fade;
         auto *data = new ButtonData;
         data->text = item;
-        data->surface = accelerated_surface(app, client, 16, 16);
+        data->surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
         paint_surface_with_image(
-                data->surface, as_resource_path("starticons/" + item + ".png"), 16, nullptr);
+                data->surface, as_resource_path("starticons/" + item + ".png"), 16 * config->dpi, nullptr);
         button->user_data = data;
     }
     auto start_filler = new Container();
@@ -829,7 +836,7 @@ fill_root(AppClient *client) {
     // left_buttons->children[0]->when_clicked = left_buttons_toggle;
     
     Container *right_hbox = stack->child(::hbox, FILL_SPACE, FILL_SPACE);
-    right_hbox->wanted_pad.w = 1;
+    right_hbox->wanted_pad.w = 1 * config->dpi;
     right_hbox->child(width, FILL_SPACE);
     
     auto *right_content = right_hbox->child(::transition, FILL_SPACE, FILL_SPACE);
@@ -850,12 +857,12 @@ fill_root(AppClient *client) {
     grid->alignment = ALIGN_CENTER;
     
     int pad = 4;
-    auto *g = grid->child(layout_type::vbox, 48 * 4 + (pad * 3), 48 * 8 + (pad * 7));
-    g->spacing = pad;
+    auto *g = grid->child(layout_type::vbox, (48 * 4 + (pad * 3)) * config->dpi, (48 * 8 + (pad * 7)) * config->dpi);
+    g->spacing = pad * config->dpi;
     
     ScrollPaneSettings settings;
-    settings.right_width = 12;
-    settings.right_arrow_height = 12;
+    settings.right_width = 12 * config->dpi;
+    settings.right_arrow_height = 12 * config->dpi;
     settings.right_inline_track = true;
     Container *content_area = make_scrollpane(app_list_container, settings);
     content_area->when_scrolled = scrolled_content_area;
@@ -869,22 +876,22 @@ fill_root(AppClient *client) {
     Container *top_arrow = content_area->parent->children[0]->children[0];
     top_arrow->when_paint = paint_arrow;
     auto *top_data = new IconButton;
-    top_data->surface = accelerated_surface(app, client, 12, 12);
-    paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12, nullptr);
+    top_data->surface = accelerated_surface(app, client, 12 * config->dpi, 12 * config->dpi);
+    paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12 * config->dpi, nullptr);
     
     top_arrow->user_data = top_data;
     Container *bottom_arrow = content_area->parent->children[0]->children[2];
     bottom_arrow->when_paint = paint_arrow;
     auto *bottom_data = new IconButton;
-    bottom_data->surface = accelerated_surface(app, client, 12, 12);
-    paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12, nullptr);
+    bottom_data->surface = accelerated_surface(app, client, 12 * config->dpi, 12 * config->dpi);
+    paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12 * config->dpi, nullptr);
     
     bottom_arrow->user_data = bottom_data;
     
-    content_area->wanted_pad = Bounds(13, 8, settings.right_width + 1, 54);
+    content_area->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, (settings.right_width + 1) * config->dpi, 54 * config->dpi);
     
     Container *content = content_area->child(FILL_SPACE, 0);
-    content->spacing = 2;
+    content->spacing = 2 * config->dpi;
     
     char previous_char = '\0';
     int previous_priority = 0;
@@ -904,7 +911,7 @@ fill_root(AppClient *client) {
                 content->children.push_back(title);
                 
                 title->wanted_bounds.w = FILL_SPACE;
-                title->wanted_bounds.h = 34;
+                title->wanted_bounds.h = 34 * config->dpi;
                 title->when_paint = paint_item_title;
                 title->when_clicked = clicked_title;
                 
@@ -918,7 +925,7 @@ fill_root(AppClient *client) {
             content->children.push_back(title);
             
             title->wanted_bounds.w = FILL_SPACE;
-            title->wanted_bounds.h = 34;
+            title->wanted_bounds.h = 34 * config->dpi;
             title->when_paint = paint_item_title;
             title->when_clicked = clicked_title;
             
@@ -936,7 +943,7 @@ fill_root(AppClient *client) {
             title->user_data = data;
         }
         
-        auto *child = content->child(FILL_SPACE, 36);
+        auto *child = content->child(FILL_SPACE, 36 * config->dpi);
         auto *data = new ItemData;
         data->launcher = l;
         child->user_data = data;
@@ -946,14 +953,14 @@ fill_root(AppClient *client) {
     
     int count = 0;
     for (int y = 0; y < 8; y++) {
-        auto hbox = g->child(layout_type::hbox, (48 * 8) + (pad * 7), 48);
+        auto hbox = g->child(layout_type::hbox, ((48 * 8) + (pad * 7)) * config->dpi, 48 * config->dpi);
         hbox->spacing = pad;
         for (int x = 0; x < 4; x++) {
             count++;
             if (count > 8 * 4 - 3) {
                 break;
             }
-            auto c = hbox->child(48, 48);
+            auto c = hbox->child(48 * config->dpi, 48 * config->dpi);
             c->when_paint = paint_grid_item;
             c->when_clicked = clicked_grid;
             auto data = new ButtonData;
@@ -962,8 +969,8 @@ fill_root(AppClient *client) {
                 if (!container_by_name("Recently added", root)) {
                     c->interactable = false;
                 }
-                data->surface = accelerated_surface(app, client, 20, 20);
-                paint_png_to_surface(data->surface, as_resource_path("recent.png"), 20);
+                data->surface = accelerated_surface(app, client, 20 * config->dpi, 20 * config->dpi);
+                paint_png_to_surface(data->surface, as_resource_path("recent.png"), 20 * config->dpi);
                 data->text = "Recently added";
             } else if (count == 2) { // &
                 if (!container_by_name("&", root)) {
@@ -1010,15 +1017,15 @@ paint_desktop_files() {
     }
     
     search_icons(targets);
-    pick_best(targets, 32);
+    pick_best(targets, 32 * config->dpi);
     
     for (const auto &t: targets) {
         if (t.user_data) {
             auto launcher = (Launcher *) t.user_data;
-            launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16, 16);
-            launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24, 24);
-            launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32, 32);
-            launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64, 64);
+            launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16 * config->dpi, 16 * config->dpi);
+            launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24 * config->dpi, 24 * config->dpi);
+            launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32 * config->dpi, 32 * config->dpi);
+            launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64 * config->dpi, 64 * config->dpi);
             
             std::string path16;
             std::string path24;
@@ -1074,31 +1081,31 @@ paint_desktop_files() {
             }
             
             if (!path16.empty() && !launcher->icon.empty()) {
-                paint_surface_with_image(launcher->icon_16, path16, 16, nullptr);
+                paint_surface_with_image(launcher->icon_16, path16, 16 * config->dpi, nullptr);
             } else {
                 paint_surface_with_image(
-                        launcher->icon_16, as_resource_path("unknown-16.svg"), 16, nullptr);
+                        launcher->icon_16, as_resource_path("unknown-16.svg"), 16 * config->dpi, nullptr);
             }
             
             if (!path24.empty() && !launcher->icon.empty()) {
-                paint_surface_with_image(launcher->icon_24, path24, 24, nullptr);
+                paint_surface_with_image(launcher->icon_24, path24, 24 * config->dpi, nullptr);
             } else {
                 paint_surface_with_image(
-                        launcher->icon_24, as_resource_path("unknown-24.svg"), 24, nullptr);
+                        launcher->icon_24, as_resource_path("unknown-24.svg"), 24 * config->dpi, nullptr);
             }
             
             if (!path32.empty() && !launcher->icon.empty()) {
-                paint_surface_with_image(launcher->icon_32, path32, 32, nullptr);
+                paint_surface_with_image(launcher->icon_32, path32, 32 * config->dpi, nullptr);
             } else {
                 paint_surface_with_image(
-                        launcher->icon_32, as_resource_path("unknown-32.svg"), 32, nullptr);
+                        launcher->icon_32, as_resource_path("unknown-32.svg"), 32 * config->dpi, nullptr);
             }
             
             if (!path32.empty() && !launcher->icon.empty()) {
-                paint_surface_with_image(launcher->icon_64, path64, 64, nullptr);
+                paint_surface_with_image(launcher->icon_64, path64, 64 * config->dpi, nullptr);
             } else {
                 paint_surface_with_image(
-                        launcher->icon_64, as_resource_path("unknown-64.svg"), 64, nullptr);
+                        launcher->icon_64, as_resource_path("unknown-64.svg"), 64 * config->dpi, nullptr);
             }
         }
     }
