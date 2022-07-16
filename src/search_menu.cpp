@@ -683,7 +683,7 @@ static void
 paint_spacer(AppClient *client, cairo_t *cr, Container *container) {
     Bounds b = container->real_bounds;
     b.x += 6 * config->dpi;
-    b.w -= 6 * config->dpi;
+    b.w -= (6 * 2) * config->dpi;
     set_rect(cr, b);
     set_argb(cr, config->color_search_content_right_splitter);
     cairo_fill(cr);
