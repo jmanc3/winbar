@@ -267,7 +267,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     }
     
     double top_and_bottom_pad = 20 * config->dpi;
-    int container_height = (top_and_bottom_pad * 2); // variable that keeps track of how tall the notification has to be (starts off with just the top and bottom padding)
+    int container_height = top_and_bottom_pad * 2; // variable that keeps track of how tall the notification has to be (starts off with just the top and bottom padding)
 
     // determine_height_of_text returns 0 for the height if string is empty
     int title_height = determine_height_of_text(app, title_text, PangoWeight::PANGO_WEIGHT_BOLD, 11 * config->dpi, max_text_width);
