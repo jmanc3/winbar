@@ -259,7 +259,8 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     double a_pad = 16 * config->dpi;
     double a_offset_if_no_icon = 55 * config->dpi;
     double icon_space_horizontally = (a_pad * 2) + icon_size;
-    max_text_width -= (c_pad * 3); // subtract the part taken up by [c] (16 pad on both sides and icon is 16 px at DPI     
+    max_text_width -= (c_pad *
+                       3); // subtract the part taken up by [c] (16 pad on both sides and icon is 16 px at DPI
     if (has_icon) {
         max_text_width -= icon_space_horizontally; // subtract the part taken up [a] (16 pad on both sides and icon is 48 px at DPI 1
     } else {
@@ -267,24 +268,28 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     }
     
     double top_and_bottom_pad = 20 * config->dpi;
-    int container_height = top_and_bottom_pad * 2; // variable that keeps track of how tall the notification has to be (starts off with just the top and bottom padding)
-
+    int container_height = top_and_bottom_pad *
+                           2; // variable that keeps track of how tall the notification has to be (starts off with just the top and bottom padding)
+    
     // determine_height_of_text returns 0 for the height if string is empty
-    int title_height = determine_height_of_text(app, title_text, PangoWeight::PANGO_WEIGHT_BOLD, 11 * config->dpi, max_text_width);
+    int title_height = determine_height_of_text(app, title_text, PangoWeight::PANGO_WEIGHT_BOLD, 11 * config->dpi,
+                                                max_text_width);
     container_height += title_height;
-
-    int body_height = determine_height_of_text(app, body_text, PangoWeight::PANGO_WEIGHT_NORMAL, 11 * config->dpi, max_text_width);
+    
+    int body_height = determine_height_of_text(app, body_text, PangoWeight::PANGO_WEIGHT_NORMAL, 11 * config->dpi,
+                                               max_text_width);
     container_height += body_height;
-
-    int subtitle_height = determine_height_of_text(app, subtitle_text, PangoWeight::PANGO_WEIGHT_NORMAL, 9 * config->dpi,
+    
+    int subtitle_height = determine_height_of_text(app, subtitle_text, PangoWeight::PANGO_WEIGHT_NORMAL,
+                                                   9 * config->dpi,
                                                    max_text_width);
     container_height += subtitle_height;
-
+    
     if (!title_text.empty() && !body_text.empty()) // if we have title and body, add some padding between them
         container_height += 1 * config->dpi;
     if (!subtitle_text.empty()) // if we have a subtitle, add some padding for it
         container_height += 3 * config->dpi;
-
+    
     int vertical_space_icon_requires = top_and_bottom_pad * 2 + icon_size;
     if (has_icon && vertical_space_icon_requires > container_height) {
         container_height = vertical_space_icon_requires;

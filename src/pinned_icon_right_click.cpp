@@ -507,7 +507,7 @@ void start_pinned_icon_right_click(Container *container) {
         for (auto *d: delayed) {
             if (d->path.empty()) {
                 if (pinned_icon_data->surface) {
-                    *d->surface = accelerated_surface(app, client, d->size , d->size);
+                    *d->surface = accelerated_surface(app, client, d->size, d->size);
                     cairo_t *cr = cairo_create(*d->surface);
                     
                     double starting_w = cairo_image_surface_get_width(pinned_icon_data->surface);

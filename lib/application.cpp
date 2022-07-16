@@ -86,7 +86,7 @@ void timeout_add(App *app, Timeout *t) {
     } else {
         // printf("Timeout added: noclient, fd = %d\n", t->file_descriptor);
     }
-
+    
     app->timeouts.push_back(t);
 }
 
@@ -937,7 +937,7 @@ void client_close(App *app, AppClient *client) {
                                        [client](Timeout *timeout) {
                                            auto *timeout_client = (AppClient *) timeout->client;
                                            bool remove = timeout_client == client;
-                                           
+        
                                            if (remove) {
                                                epoll_ctl(client->app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor,
                                                          NULL);
@@ -2096,7 +2096,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
     timeout->user_data = user_data;
     timeout->keep_running = false;
     timeout->kill = false;
-    timeout_add(app, timeout);    
+    timeout_add(app, timeout);
     
     struct itimerspec time = {0};
     // The division done below converts the timeout_ms into seconds and nanoseconds

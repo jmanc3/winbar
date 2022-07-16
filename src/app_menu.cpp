@@ -279,7 +279,7 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     } else {
         int width = cairo_image_surface_get_width(global->unknown_icon_24);
         int height = cairo_image_surface_get_height(global->unknown_icon_24);
-
+        
         cairo_set_source_surface(cr,
                                  global->unknown_icon_24,
                                  (int) (container->real_bounds.x + 8 * config->dpi),
@@ -888,7 +888,8 @@ fill_root(AppClient *client) {
     
     bottom_arrow->user_data = bottom_data;
     
-    content_area->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, (settings.right_width + 1) * config->dpi, 54 * config->dpi);
+    content_area->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, (settings.right_width + 1) * config->dpi,
+                                      54 * config->dpi);
     
     Container *content = content_area->child(FILL_SPACE, 0);
     content->spacing = 2 * config->dpi;
@@ -1022,10 +1023,14 @@ paint_desktop_files() {
     for (const auto &t: targets) {
         if (t.user_data) {
             auto launcher = (Launcher *) t.user_data;
-            launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16 * config->dpi, 16 * config->dpi);
-            launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24 * config->dpi, 24 * config->dpi);
-            launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32 * config->dpi, 32 * config->dpi);
-            launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64 * config->dpi, 64 * config->dpi);
+            launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16 * config->dpi,
+                                                    16 * config->dpi);
+            launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24 * config->dpi,
+                                                    24 * config->dpi);
+            launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32 * config->dpi,
+                                                    32 * config->dpi);
+            launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64 * config->dpi,
+                                                    64 * config->dpi);
             
             std::string path16;
             std::string path24;

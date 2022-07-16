@@ -329,14 +329,16 @@ paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
         if (data->down) {
             dye_surface(data->down, color);
             cairo_set_source_surface(
-                    cr, data->down, (pos_x + (text_logical.width / PANGO_SCALE) + 5) * config->dpi, (pos_y + 4) * config->dpi);
+                    cr, data->down, (pos_x + (text_logical.width / PANGO_SCALE) + 5) * config->dpi,
+                    (pos_y + 4) * config->dpi);
             cairo_paint(cr);
         }
     } else {
         if (data->up) {
             dye_surface(data->up, color);
             cairo_set_source_surface(
-                    cr, data->up, (pos_x + (text_logical.width / PANGO_SCALE) + 5) * config->dpi, (pos_y + 4) * config->dpi);
+                    cr, data->up, (pos_x + (text_logical.width / PANGO_SCALE) + 5) * config->dpi,
+                    (pos_y + 4) * config->dpi);
             cairo_paint(cr);
         }
     }

@@ -288,8 +288,10 @@ paint_right_item(AppClient *client, cairo_t *cr, Container *container) {
         
         cairo_set_source_surface(cr,
                                  arrow_right_surface,
-                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - ((16 / 2) * config->dpi)),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - ((16 / 2) * config->dpi)));
+                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                                        ((16 / 2) * config->dpi)),
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                                        ((16 / 2) * config->dpi)));
         cairo_paint(cr);
     }
 }
@@ -417,7 +419,8 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_get_pixel_size(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
-    cairo_move_to(cr, (int) (container->real_bounds.x + 56 * config->dpi), (int) (container->real_bounds.y + 10 * config->dpi));
+    cairo_move_to(cr, (int) (container->real_bounds.x + 56 * config->dpi),
+                  (int) (container->real_bounds.y + 10 * config->dpi));
     pango_cairo_show_layout(cr, layout);
     pango_layout_set_attributes(layout, nullptr);
     
@@ -503,7 +506,8 @@ paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_get_pixel_size(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
-    cairo_move_to(cr, (int) (container->real_bounds.x + 56 * config->dpi), (int) (container->real_bounds.y + 10 * config->dpi));
+    cairo_move_to(cr, (int) (container->real_bounds.x + 56 * config->dpi),
+                  (int) (container->real_bounds.y + 10 * config->dpi));
     pango_cairo_show_layout(cr, layout);
     pango_layout_set_attributes(layout, nullptr);
     
@@ -723,7 +727,8 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
         cairo_set_source_surface(cr,
                                  open_surface,
                                  (int) (container->real_bounds.x + 23 * config->dpi),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - ((16 / 2) * config->dpi)));
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                                        ((16 / 2) * config->dpi)));
         cairo_paint(cr);
     }
 }
@@ -1215,7 +1220,7 @@ void sort_and_add(std::vector<T> *sortables,
             
             bool top_item = i == 0;
             
-            Container *hbox = content->child(::hbox, FILL_SPACE, top_item ? 64 * config->dpi: 36 * config->dpi);
+            Container *hbox = content->child(::hbox, FILL_SPACE, top_item ? 64 * config->dpi : 36 * config->dpi);
             hbox->when_paint = paint_hbox;
             Container *item = hbox->child(FILL_SPACE, FILL_SPACE);
             if (i == active_item) {

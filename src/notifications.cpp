@@ -230,8 +230,10 @@ static void clicked_action(AppClient *client, cairo_t *cr, Container *container)
 }
 
 static bool send_to_action_pierced_handler(Container *container, int mouse_x, int mouse_y) {
-    return bounds_contains(Bounds(container->real_bounds.x + 16 * config->dpi, container->real_bounds.y + 16 * config->dpi, 16 * config->dpi, 15 * config->dpi), mouse_x,
-                           mouse_y);
+    return bounds_contains(
+            Bounds(container->real_bounds.x + 16 * config->dpi, container->real_bounds.y + 16 * config->dpi,
+                   16 * config->dpi, 15 * config->dpi), mouse_x,
+            mouse_y);
 }
 
 static void clicked_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
@@ -329,7 +331,8 @@ void show_notification(App *app, NotificationInfo *ni) {
     client->when_closed = client_closed;
     
     for (auto c: displaying_notifications) {
-        client_set_position(app, c, c->bounds->x, c->bounds->y - notification_container->real_bounds.h - 12 * config->dpi);
+        client_set_position(app, c, c->bounds->x,
+                            c->bounds->y - notification_container->real_bounds.h - 12 * config->dpi);
     }
     
     client_show(app, client);
@@ -425,13 +428,14 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     }
     
     bool has_icon = !notification_info->icon_path.empty();
-        
+    
     int max_text_width = width;
     double c_pad = 16 * config->dpi;
     double a_pad = 16 * config->dpi;
     double a_offset_if_no_icon = 55 * config->dpi;
     double icon_space_horizontally = (a_pad * 2) + icon_size;
-    max_text_width -= (c_pad * 3); // subtract the part taken up by [c] (16 pad on both sides and icon is 16 px at DPI     
+    max_text_width -= (c_pad *
+                       3); // subtract the part taken up by [c] (16 pad on both sides and icon is 16 px at DPI
     if (has_icon) {
         max_text_width -= icon_space_horizontally; // subtract the part taken up [a] (16 pad on both sides and icon is 48 px at DPI 1
     } else {
@@ -439,16 +443,20 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     }
     
     double top_and_bottom_pad = 20 * config->dpi;
-    int container_height = top_and_bottom_pad * 2; // variable that keeps track of how tall the notification has to be (starts off with just the top and bottom padding)
-
+    int container_height = top_and_bottom_pad *
+                           2; // variable that keeps track of how tall the notification has to be (starts off with just the top and bottom padding)
+    
     // determine_height_of_text returns 0 for the height if string is empty
-    int title_height = determine_height_of_text(app, title_text, PangoWeight::PANGO_WEIGHT_BOLD, 11 * config->dpi, max_text_width);
+    int title_height = determine_height_of_text(app, title_text, PangoWeight::PANGO_WEIGHT_BOLD, 11 * config->dpi,
+                                                max_text_width);
     container_height += title_height;
     
-    int body_height = determine_height_of_text(app, body_text, PangoWeight::PANGO_WEIGHT_NORMAL, 11 * config->dpi, max_text_width);
+    int body_height = determine_height_of_text(app, body_text, PangoWeight::PANGO_WEIGHT_NORMAL, 11 * config->dpi,
+                                               max_text_width);
     container_height += body_height;
     
-    int subtitle_height = determine_height_of_text(app, subtitle_text, PangoWeight::PANGO_WEIGHT_NORMAL, 9 * config->dpi,
+    int subtitle_height = determine_height_of_text(app, subtitle_text, PangoWeight::PANGO_WEIGHT_NORMAL,
+                                                   9 * config->dpi,
                                                    max_text_width);
     container_height += subtitle_height;
     

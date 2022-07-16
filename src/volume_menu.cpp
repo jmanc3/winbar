@@ -556,7 +556,7 @@ void open_volume_menu() {
     } else {
         unsigned long count = audio_clients.size();
         double maximum_visiually_pleasing_volume_menu_items_count = app->bounds.h * .70 / (config->dpi * 96);
-    
+        
         if (count < maximum_visiually_pleasing_volume_menu_items_count) {
             settings.h = count * (config->dpi * 96);
         } else {
@@ -609,7 +609,8 @@ void open_volume_menu() {
         bottom_arrow->when_paint = paint_arrow;
         auto *bottom_data = new IconButton;
         bottom_data->surface = accelerated_surface(app, client_entity, 12 * config->dpi, 12 * config->dpi);
-        paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12 * config->dpi, nullptr);
+        paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12 * config->dpi,
+                                 nullptr);
         
         bottom_arrow->user_data = bottom_data;
         

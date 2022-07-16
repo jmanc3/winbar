@@ -376,7 +376,8 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     if (close_w == 0) {
         pad = 5;
     }
-    pango_layout_set_width(layout, (((container->real_bounds.w - (pad * 2)) + close_w) - 24 * config->dpi) * PANGO_SCALE);
+    pango_layout_set_width(layout,
+                           (((container->real_bounds.w - (pad * 2)) + close_w) - 24 * config->dpi) * PANGO_SCALE);
     pango_layout_set_ellipsize(layout, PangoEllipsizeMode::PANGO_ELLIPSIZE_END);
     if (close_w == 0) {
         pad = option_pad;
@@ -593,7 +594,7 @@ void start_windows_selector(Container *container, selector_type selector_state) 
             targets.emplace_back(IconTarget(pii->data->icon_name));
             targets.emplace_back(IconTarget(c3ic_fix_wm_class(pii->data->class_name)));
             search_icons(targets);
-            pick_best(targets, 16  * config->dpi);
+            pick_best(targets, 16 * config->dpi);
             path = targets[0].best_full_path;
             if (path.empty()) {
                 path = targets[1].best_full_path;
