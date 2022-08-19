@@ -94,7 +94,12 @@ static DBusHandlerResult signal_handler(DBusConnection *connection,
             fprintf(stderr, "Error getting NameAcquired args");
             return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
         }
-        
+    
+        if (std::string(name) == "local.org_kde_powerdevil")
+            dbus_kde_max_brightness();
+        if (std::string(name) == "org.gnome.SettingsDaemon.Power")
+            gnome_brightness_running = true;
+    
         if (std::string(name) == "org.freedesktop.Notifications") {
             static const DBusObjectPathVTable vtable = {
                     .message_function = handle_message_cb,
@@ -395,7 +400,14 @@ static bool dbus_kde_max_brightness() {
     return true;
 }
 
+// TODO time-gate this so it only happens every 3 seconds
 double dbus_get_kde_max_brightness() {
+    if (max_kde_brightness == 0) {
+        for (auto name: running_dbus_services) {
+            if (std::string(name) == "local.org_kde_powerdevil")
+                dbus_kde_max_brightness();
+        }
+    }
     return max_kde_brightness;
 }
 

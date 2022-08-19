@@ -155,25 +155,28 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
     
     paint_hoverable_button_background(client, cr, container);
     
-    if (data->surface) {
-        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
-        if (container->state.mouse_pressing) {
-            dye_surface(data->surface, config->color_taskbar_windows_button_pressed_icon);
-        } else if (container->state.mouse_hovering) {
-            dye_surface(data->surface, config->color_taskbar_windows_button_hovered_icon);
-        } else {
-            dye_surface(data->surface, config->color_taskbar_windows_button_default_icon);
-        }
-        
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2));
-        cairo_paint(cr);
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    pango_layout_set_text(layout, "\uE782", strlen("\uE83F"));
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    if (container->state.mouse_pressing) {
+        set_argb(cr, config->color_taskbar_windows_button_pressed_icon);
+    } else if (container->state.mouse_hovering) {
+        set_argb(cr, config->color_taskbar_windows_button_hovered_icon);
+    } else {
+        set_argb(cr, config->color_taskbar_windows_button_default_icon);
     }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -218,15 +221,43 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
         surface = surfaces->high;
     }
     
-    dye_surface(surface, config->color_taskbar_button_icons);
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    cairo_set_source_surface(cr,
-                             surface,
-                             (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                                    cairo_image_surface_get_width(surface) / 2),
-                             (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                                    cairo_image_surface_get_height(surface) / 2));
-    cairo_paint(cr);
+    int width;
+    int height;
+    pango_layout_set_text(layout, "\uEBC5", strlen("\uE83F"));
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    if (!mute_state) {
+        ArgbColor volume_bars_color = ArgbColor(.4, .4, .4, 1);
+        set_argb(cr, volume_bars_color);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, layout);
+    }
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    if (mute_state) {
+        pango_layout_set_text(layout, "\uE74F", strlen("\uE83F"));
+    } else if (val == 0) {
+        pango_layout_set_text(layout, "\uE992", strlen("\uE83F"));
+    } else if (val < 33) {
+        pango_layout_set_text(layout, "\uE993", strlen("\uE83F"));
+    } else if (val < 66) {
+        pango_layout_set_text(layout, "\uE994", strlen("\uE83F"));
+    } else {
+        pango_layout_set_text(layout, "\uE995", strlen("\uE83F"));
+    }
+    
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -239,33 +270,30 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
     
     paint_hoverable_button_background(client, cr, container);
     
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    set_argb(cr, config->color_taskbar_button_icons);
+    
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (data->surface_hover) {
-            dye_surface(data->surface_hover, config->color_taskbar_button_icons);
-            // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
-            cairo_set_source_surface(
-                    cr,
-                    data->surface_hover,
-                    (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                           cairo_image_surface_get_width(data->surface) / 2),
-                    (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                           cairo_image_surface_get_width(data->surface) / 2));
-            cairo_paint(cr);
+            pango_layout_set_text(layout, "\uEB91", strlen("\uE83F"));
         }
     } else {
         if (data->surface) {
-            dye_surface(data->surface, config->color_taskbar_button_icons);
-            // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
-            cairo_set_source_surface(
-                    cr,
-                    data->surface,
-                    (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                           cairo_image_surface_get_width(data->surface) / 2),
-                    (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                           cairo_image_surface_get_width(data->surface) / 2));
-            cairo_paint(cr);
+            pango_layout_set_text(layout, "\uE7C4", strlen("\uE83F"));
         }
     }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -698,7 +726,7 @@ void active_window_changed(xcb_window_t new_active_window) {
         if (auto data = (LaunchableButton *) new_active_container->user_data) {
             for (int i = 0; i < data->windows_data_list.size(); i++) {
                 if (data->windows_data_list[i]->id == active_window) {
-                    std::swap(data->windows_data_list[0], data->windows_data_list[i]);
+//                    std::swap(data->windows_data_list[0], data->windows_data_list[i]);
                     break;
                 }
             }
@@ -1250,18 +1278,23 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
     
     IconButton *data = (IconButton *) container->user_data;
-    if (data->surface) {
-        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
-        dye_surface(data->surface, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2));
-        cairo_paint(cr);
-    }
+    
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE971", strlen("\uE83F"));
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -1544,23 +1577,30 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     
     // Paint search icon
     if (data->surface) {
-        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
+        PangoLayout *layout =
+                get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+        // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+        pango_layout_set_text(layout, "\uE721", strlen("\uE83F"));
+    
         if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
             if (active || container->state.mouse_pressing) {
-                dye_surface(data->surface, config->color_taskbar_search_bar_pressed_icon);
+                set_argb(cr, config->color_taskbar_search_bar_pressed_icon);
             } else {
-                dye_surface(data->surface, config->color_taskbar_search_bar_hovered_icon);
+                set_argb(cr, config->color_taskbar_search_bar_hovered_icon);
             }
         } else {
-            dye_surface(data->surface, config->color_taskbar_search_bar_default_icon);
+            set_argb(cr, config->color_taskbar_search_bar_default_icon);
         }
-        
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + 12 * config->dpi),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi));
-        cairo_paint(cr);
+    
+        int width;
+        int height;
+        pango_layout_get_pixel_size(layout, &width, &height);
+    
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + 12 * config->dpi),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi));
+        pango_cairo_show_layout(cr, layout);
     }
     
     if (text_empty) {
@@ -1840,32 +1880,33 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     bool wired = false;
     wifi_state(&up, &wired);
     
-    cairo_surface_t *surface = nullptr;
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     if (up) {
         if (wired) {
-            surface = data->wired_up;
+            pango_layout_set_text(layout, "\uE839", strlen("\uE83F"));
         } else {
-            surface = data->wireless_up;
+            pango_layout_set_text(layout, "\uEC3F", strlen("\uE83F"));
         }
     } else {
         if (wired) {
-            surface = data->wired_down;
+            pango_layout_set_text(layout, "\uF384", strlen("\uE83F"));
         } else {
-            surface = data->wireless_down;
+            pango_layout_set_text(layout, "\uEB5E", strlen("\uE83F"));
         }
     }
     
-    if (surface) {
-        dye_surface(surface, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                       cairo_image_surface_get_width(surface) / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                       cairo_image_surface_get_width(surface) / 2));
-        cairo_paint(cr);
-    }
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void

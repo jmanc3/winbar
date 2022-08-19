@@ -122,17 +122,44 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     container->real_bounds.w += 2;
     
     if (data && data->surface) {
-        int width = cairo_image_surface_get_width(data->surface);
-        int height = cairo_image_surface_get_height(data->surface);
-        
-        dye_surface(data->surface, config->color_apps_icons);
-        
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.h / 2 - height / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-        cairo_paint(cr);
+        PangoLayout *icon_layout =
+                get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+        // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+        if (data->text == "START") {
+            pango_layout_set_text(icon_layout, "\uE700", strlen("\uE83F"));
+        } else if (data->text == "Documents") {
+            pango_layout_set_text(icon_layout, "\uE7C3", strlen("\uE83F"));
+        } else if (data->text == "Downloads") {
+            pango_layout_set_text(icon_layout, "\uE896", strlen("\uE83F"));
+        } else if (data->text == "Music") {
+            pango_layout_set_text(icon_layout, "\uEC4F", strlen("\uE83F"));
+        } else if (data->text == "Pictures") {
+            pango_layout_set_text(icon_layout, "\uEB9F", strlen("\uE83F"));
+        } else if (data->text == "Videos") {
+            pango_layout_set_text(icon_layout, "\uE714", strlen("\uE83F"));
+        } else if (data->text == "Network") {
+            pango_layout_set_text(icon_layout, "\uEC27", strlen("\uE83F"));
+        } else if (data->text == "Personal Folder") {
+            pango_layout_set_text(icon_layout, "\uEC25", strlen("\uE83F"));
+        } else if (data->text == "File Explorer") {
+            pango_layout_set_text(icon_layout, "\uEC50", strlen("\uE83F"));
+        } else if (data->text == "Settings") {
+            pango_layout_set_text(icon_layout, "\uE713", strlen("\uE83F"));
+        } else if (data->text == "Power") {
+            pango_layout_set_text(icon_layout, "\uE7E8", strlen("\uE83F"));
+        }
+    
+        set_argb(cr, config->color_apps_icons);
+    
+        int width;
+        int height;
+        pango_layout_get_pixel_size(icon_layout, &width, &height);
+    
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + container->real_bounds.h / 2 - height / 2),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, icon_layout);
     }
     
     auto taskbar_entity = client_by_name(app, "taskbar");

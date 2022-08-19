@@ -77,6 +77,7 @@ set(
         xcb-cursor # for setting the cursor
         dbus-1 # for interacting with dbus
         alsa # to be able to modify audio volume and mute state on alsa
+        fontconfig # to be able to add fonts
 )
 
 foreach (LIB IN LISTS LIBS)

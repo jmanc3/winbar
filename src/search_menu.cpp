@@ -104,7 +104,7 @@ determine_priority(Sortable *item,
 #endif
     if (text.empty())
         return 11;
-    // Sort priority (this won't try to do anything smart when searching for multiple words)
+    // Sort priority (this won't try to do anything smart when searching for multiple words at the same time: "Firefox Steam")
     //
     // 0: name found somewhere in history TODO: need to implement this
     // 1: Perfect match is highest
@@ -279,21 +279,26 @@ static void
 paint_right_item(AppClient *client, cairo_t *cr, Container *container) {
     paint_item_background(client, cr, container, 0);
     
-    if (arrow_right_surface) {
-        if (container->state.mouse_pressing) {
-            dye_surface(arrow_right_surface, config->color_search_content_left_set_active_button_icon_pressed);
-        } else {
-            dye_surface(arrow_right_surface, config->color_search_content_left_set_active_button_icon_default);
-        }
-        
-        cairo_set_source_surface(cr,
-                                 arrow_right_surface,
-                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                                        ((16 / 2) * config->dpi)),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                                        ((16 / 2) * config->dpi)));
-        cairo_paint(cr);
+    PangoLayout *icon_layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(icon_layout, "\uE974", strlen("\uE83F"));
+    
+    if (container->state.mouse_pressing) {
+        set_argb(cr, config->color_search_content_left_set_active_button_icon_pressed);
+    } else {
+        set_argb(cr, config->color_search_content_left_set_active_button_icon_default);
     }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(icon_layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, icon_layout);
 }
 
 static void
@@ -722,15 +727,22 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
     
-    if (open_surface) {
-        dye_surface(open_surface, config->color_search_accent);
-        cairo_set_source_surface(cr,
-                                 open_surface,
-                                 (int) (container->real_bounds.x + 23 * config->dpi),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                                        ((16 / 2) * config->dpi)));
-        cairo_paint(cr);
-    }
+    
+    PangoLayout *icon_layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(icon_layout, "\uE8A7", strlen("\uE83F"));
+    
+    set_argb(cr, config->color_search_accent);
+    
+    pango_layout_get_pixel_size(icon_layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + 23 * config->dpi),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                         ((16 / 2) * config->dpi)));
+    pango_cairo_show_layout(cr, icon_layout);
 }
 
 static void

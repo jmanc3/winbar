@@ -239,18 +239,22 @@ static void
 paint_brightness_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto *data = (IconButton *) container->user_data;
     
-    if (data->surface == nullptr)
-        return;
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 24 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    dye_surface(data->surface, config->color_battery_icons);
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uEC8A", strlen("\uE83F"));
     
-    cairo_set_source_surface(cr,
-                             data->surface,
-                             (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                                    cairo_image_surface_get_width(data->surface) / 2),
-                             (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                                    cairo_image_surface_get_height(data->surface) / 2));
-    cairo_paint(cr);
+    set_argb(cr, config->color_battery_icons);
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static Container *

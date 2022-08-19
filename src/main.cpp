@@ -22,6 +22,8 @@ bool restart = false;
 
 void check_config_version();
 
+void load_in_fonts();
+
 int main() {
 //    char buf[102];
 //    buf[0] = '\0';
@@ -43,6 +45,8 @@ int main() {
     config->taskbar_height = config->taskbar_height * config->dpi;
     
     check_config_version();
+    
+    load_in_fonts();
     
     active_tab = config->starting_tab_index == 0 ? "Apps" : "Scripts";
     
@@ -106,7 +110,7 @@ int main() {
     return 0;
 }
 
-static int acceptable_config_version = 2;
+static int acceptable_config_version = 3;
 
 std::string first_message;
 std::string second_message;
@@ -197,11 +201,22 @@ void check_config_version() {
                             "download the resources: \"winbar.zip\", "
                             "and unzip them into the correct place (as you have already done once) overriding the old files.";
         }
-        
+    
         client_layout(app, client);
         request_refresh(app, client);
         client_show(app, client);
         app_main(app);
         app_clean(app);
     }
+}
+
+#include <fontconfig/fontconfig.h>
+
+void load_in_fonts() {
+    char *home = getenv("HOME");
+    std::string font_directory(home);
+    font_directory += "/.config/winbar/fonts";
+    
+    const FcChar8 *file = (const FcChar8 *) font_directory.c_str();
+    FcBool fontAddStatus = FcConfigAppFontAddDir(FcConfigGetCurrent(), file);
 }

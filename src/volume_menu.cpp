@@ -122,23 +122,43 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
         surface = surfaces->high;
     }
     
-    if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
-        if (container->state.mouse_pressing) {
-            dye_surface(surface, config->color_volume_pressed_icon);
-        } else {
-            dye_surface(surface, config->color_volume_hovered_icon);
-        }
-    } else {
-        dye_surface(surface, config->color_volume_default_icon);
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 20 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    int width;
+    int height;
+    pango_layout_set_text(layout, "\uEBC5", strlen("\uE83F"));
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    if (!client->is_muted()) {
+        ArgbColor volume_bars_color = ArgbColor(.4, .4, .4, 1);
+        set_argb(cr, volume_bars_color);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, layout);
     }
     
-    cairo_set_source_surface(cr,
-                             surface,
-                             (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                                    cairo_image_surface_get_width(surface) / 2),
-                             (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                                    cairo_image_surface_get_height(surface) / 2));
-    cairo_paint(cr);
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    if (client->is_muted()) {
+        pango_layout_set_text(layout, "\uE74F", strlen("\uE83F"));
+    } else if (val == 0) {
+        pango_layout_set_text(layout, "\uE992", strlen("\uE83F"));
+    } else if (val < 33) {
+        pango_layout_set_text(layout, "\uE993", strlen("\uE83F"));
+    } else if (val < 66) {
+        pango_layout_set_text(layout, "\uE994", strlen("\uE83F"));
+    } else {
+        pango_layout_set_text(layout, "\uE995", strlen("\uE83F"));
+    }
+    
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
