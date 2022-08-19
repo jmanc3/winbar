@@ -53,3 +53,9 @@ sudo ./install.sh
 
 If compilation fails, it should tell you what headers are missing and you can look up what you need to install for your
 distribution to get that library.
+
+## Changes you might want to make
+
+* The configuration file is located at $HOME/.config/winbar/winbar.cfg
+
+* You can change the DPI through the "dpi" variable in the configuration file.
