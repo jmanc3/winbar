@@ -308,22 +308,33 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
                   container->parent->parent->children[1]->state.mouse_pressing ||
                   container->parent->parent->children[1]->state.mouse_hovering;// BODY
     
-    if (data->surface && active) {
+    
+    if (active) {
+        PangoLayout *layout =
+                get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        
         if (container->state.mouse_pressing || container->state.mouse_hovering) {
             if (container->state.mouse_pressing) {
-                dye_surface(data->surface, config->color_windows_selector_close_icon_pressed);
+                set_argb(cr, config->color_windows_selector_close_icon_pressed);
             } else {
-                dye_surface(data->surface, config->color_windows_selector_close_icon_hovered);
+                set_argb(cr, config->color_windows_selector_close_icon_hovered);
             }
         } else {
-            dye_surface(data->surface, config->color_windows_selector_close_icon);
+            set_argb(cr, config->color_windows_selector_close_icon);
         }
+        
+        int width;
+        int height;
+        pango_layout_set_text(layout, "\uE10A", strlen("\uE83F"));
+        
+        pango_layout_get_pixel_size(layout, &width, &height);
+        cairo_save(cr);
         double offset = (double) (cairo_image_surface_get_width(data->surface));
-        cairo_set_source_surface(
-                cr, data->surface,
-                container->real_bounds.x + container->real_bounds.w / 2 - offset / 2,
-                container->real_bounds.y + container->real_bounds.h / 2 - offset / 2);
-        cairo_paint(cr);
+        cairo_move_to(cr,
+                      container->real_bounds.x + container->real_bounds.w / 2 - offset / 2,
+                      container->real_bounds.y + container->real_bounds.h / 2 - offset / 2);
+        pango_cairo_show_layout(cr, layout);
+        cairo_restore(cr);
     }
 }
 

@@ -95,24 +95,44 @@ load_custom_items() {
 
 static void
 paint_icon(AppClient *client, cairo_t *cr, Container *container, bool dye) {
-    
     auto *data = (OptionData *) container->user_data;
     
-    if (data->surface != nullptr) {
-        int width = cairo_image_surface_get_width(data->surface);
-        int height = cairo_image_surface_get_height(data->surface);
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    set_argb(cr, config->color_pin_menu_icons);
+    
+    int width;
+    int height;
+    if (data->text == "Edit") {
+        pango_layout_set_text(layout, "\uE713", strlen("\uE83F"));
+    } else if (data->text == "Pin to taskbar") {
+        pango_layout_set_text(layout, "\uE718", strlen("\uE83F"));
+    } else if (data->text == "Unpin from taskbar") {
+        pango_layout_set_text(layout, "\uE77A", strlen("\uE83F"));
+    } else if (data->text == "Close window" || data->text == "Close all windows") {
+        pango_layout_set_text(layout, "\uE10A", strlen("\uE83F"));
+    } else if (data->surface != nullptr) {
+        height = cairo_image_surface_get_height(data->surface);
         
-        if (dye) {
+        if (dye)
             dye_surface(data->surface, config->color_pin_menu_icons);
-        }
         
         cairo_set_source_surface(
                 cr,
                 data->surface,
-                (int) (container->real_bounds.x + 12 * config->dpi),
+                (int) (container->real_bounds.x + 10 * config->dpi),
                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
         cairo_paint(cr);
+        return;
     }
+    
+    pango_layout_get_pixel_size(layout, &width, &height);
+    cairo_save(cr);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + (12 * config->dpi)),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
+    cairo_restore(cr);
 }
 
 static void

@@ -1189,7 +1189,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (ActionCenterButtonData *) container->user_data;
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 11.5 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     if (data->surface) {
         cairo_save(cr);
@@ -1825,8 +1825,8 @@ make_battery_button(Container *parent, AppClient *client_entity) {
                 parent->children.push_back(c);
                 app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data);
                 update_battery_status_timeout(app, client_entity, nullptr, data);
-                
-                app_timeout_create(app, client_entity, 1200, update_battery_animation_timeout, data);
+    
+                app_timeout_create(app, client_entity, 700, update_battery_animation_timeout, data);
             } else {
                 delete c;
             }
