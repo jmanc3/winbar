@@ -377,7 +377,7 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    auto *data = (IconButton *) container->user_data;
+    auto *data = (ButtonData *) container->user_data;
     
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
@@ -401,22 +401,36 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
         cairo_fill(cr);
     }
     
-    if (data->surface) {
-        // TODO: cache the dye so we only do it once
-        if (container->state.mouse_pressing || container->state.mouse_hovering) {
-            if (container->state.mouse_pressing) {
-                dye_surface(data->surface, config->color_apps_scrollbar_pressed_button_icon);
-            } else {
-                dye_surface(data->surface, config->color_apps_scrollbar_hovered_button_icon);
-            }
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            auto c = ArgbColor(config->color_apps_scrollbar_pressed_button_icon);
+            c.a = scrollbar_openess;
+            set_argb(cr, c);
         } else {
-            dye_surface(data->surface, config->color_apps_scrollbar_default_button_icon);
+            auto c = ArgbColor(config->color_apps_scrollbar_hovered_button_icon);
+            c.a = scrollbar_openess;
+            set_argb(cr, c);
         }
-        
-        cairo_set_source_surface(
-                cr, data->surface, container->real_bounds.x, container->real_bounds.y);
-        cairo_paint_with_alpha(cr, scrollbar_openess);
+    } else {
+        auto c = ArgbColor(config->color_apps_scrollbar_default_button_icon);
+        c.a = scrollbar_openess;
+        set_argb(cr, c);
     }
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, data->text.data(), strlen("\uE83F"));
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -752,38 +766,30 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
     
     auto *data = (ButtonData *) container->user_data;
     
-    if (data->surface) {
-        if (container->interactable) {
-            dye_surface(data->surface, config->color_apps_text);
-        } else {
-            dye_surface(data->surface, config->color_apps_text_inactive);
-        }
-        cairo_set_source_surface(cr, data->surface,
-                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - (10 * config->dpi)),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - (10 * config->dpi)));
-        cairo_paint(cr);
+    PangoLayout *layout =
+            get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    std::string text(data->text);
+    if (data->text == "Recently added") {
+        pango_layout_set_text(layout, "\uE823", strlen("\uE972"));
     } else {
-        PangoLayout *layout =
-                get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-        std::string text(data->text);
         pango_layout_set_text(layout, text.c_str(), text.size());
-        
-        PangoRectangle ink;
-        PangoRectangle logical;
-        pango_layout_get_extents(layout, &ink, &logical);
-        
-        if (container->interactable) {
-            set_argb(cr, config->color_apps_text);
-        } else {
-            set_argb(cr, config->color_apps_text_inactive);
-        }
-        cairo_move_to(cr,
-                      (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                             ((logical.width / PANGO_SCALE) / 2)),
-                      (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                             ((logical.height / PANGO_SCALE) / 2)));
-        pango_cairo_show_layout(cr, layout);
     }
+    
+    PangoRectangle ink;
+    PangoRectangle logical;
+    pango_layout_get_extents(layout, &ink, &logical);
+    
+    if (container->interactable) {
+        set_argb(cr, config->color_apps_text);
+    } else {
+        set_argb(cr, config->color_apps_text_inactive);
+    }
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                         ((logical.width / PANGO_SCALE) / 2)),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                         ((logical.height / PANGO_SCALE) / 2)));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -902,16 +908,14 @@ fill_root(AppClient *client) {
     right_thumb_container->when_paint = paint_right_thumb;
     Container *top_arrow = content_area->parent->children[0]->children[0];
     top_arrow->when_paint = paint_arrow;
-    auto *top_data = new IconButton;
-    top_data->surface = accelerated_surface(app, client, 12 * config->dpi, 12 * config->dpi);
-    paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12 * config->dpi, nullptr);
+    auto *top_data = new ButtonData;
+    top_data->text = "\uE971";
     
     top_arrow->user_data = top_data;
     Container *bottom_arrow = content_area->parent->children[0]->children[2];
     bottom_arrow->when_paint = paint_arrow;
-    auto *bottom_data = new IconButton;
-    bottom_data->surface = accelerated_surface(app, client, 12 * config->dpi, 12 * config->dpi);
-    paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12 * config->dpi, nullptr);
+    auto *bottom_data = new ButtonData;
+    bottom_data->text = "\uE972";
     
     bottom_arrow->user_data = bottom_data;
     
@@ -997,8 +1001,6 @@ fill_root(AppClient *client) {
                 if (!container_by_name("Recently added", root)) {
                     c->interactable = false;
                 }
-                data->surface = accelerated_surface(app, client, 20 * config->dpi, 20 * config->dpi);
-                paint_png_to_surface(data->surface, as_resource_path("recent.png"), 20 * config->dpi);
                 data->text = "Recently added";
             } else if (count == 2) { // &
                 if (!container_by_name("&", root)) {

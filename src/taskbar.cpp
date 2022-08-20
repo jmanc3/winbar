@@ -1293,7 +1293,7 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2 + height * .1));
     pango_cairo_show_layout(cr, layout);
 }
 
@@ -1640,7 +1640,7 @@ void update_battery_animation_timeout(App *app, AppClient *client, Timeout *time
     auto *data = static_cast<data_battery_surfaces *>(userdata);
     
     data->animating_capacity_index++;
-    if (data->animating_capacity_index > 9)
+    if (data->animating_capacity_index > 10)
         data->animating_capacity_index = data->capacity_index;
     
     request_refresh(app, client);
@@ -1687,10 +1687,14 @@ void update_battery_status_timeout(App *app, AppClient *client, Timeout *timeout
     }
     data->previous_status_update_ms = current_time;
     
-    int capacity_index = std::floor(((double) (std::stoi(data->capacity))) / 10.0);
+    float i = std::stoi(data->capacity);
+    if (i == 5)
+        i = 4;
+    int rounded = std::round(i / 10) * 10;
+    int capacity_index = std::floor(((double) (rounded)) / 10.0);
     
-    if (capacity_index > 9)
-        capacity_index = 9;
+    if (capacity_index > 10)
+        capacity_index = 10;
     if (capacity_index < 0)
         capacity_index = 0;
     
@@ -1721,23 +1725,34 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     assert(!data->normal_surfaces.empty());
     assert(!data->charging_surfaces.empty());
     
-    cairo_surface_t *surface;
-    if (data->status == "Charging") {
-        surface = data->charging_surfaces[data->animating_capacity_index];
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    std::string regular[] = {"\uE678", "\uE679", "\uE67A", "\uE67B", "\uE67C", "\uE67D", "\uE67E", "\uE67F", "\uE680",
+                             "\uE681", "\uE682"};
+    
+    std::string charging[] = {"\uE683", "\uE684", "\uE685", "\uE686", "\uE687", "\uE688", "\uE689", "\uE68A", "\uE68B",
+                              "\uE68C", "\uE68D"};
+    
+    if (data->status == "Full") {
+        pango_layout_set_text(layout, regular[10].c_str(), strlen("\uE83F"));
+    } else if (data->status == "Charging") {
+//        surface = data->charging_surfaces[data->animating_capacity_index];
+        pango_layout_set_text(layout, charging[data->animating_capacity_index].c_str(), strlen("\uE83F"));
     } else {
-        surface = data->normal_surfaces[data->capacity_index];
+//        surface = data->normal_surfaces[data->capacity_index];
+        pango_layout_set_text(layout, regular[data->capacity_index].c_str(), strlen("\uE83F"));
     }
-    if (surface) {
-        dye_surface(surface, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                       cairo_image_surface_get_width(surface) / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                       cairo_image_surface_get_width(surface) / 2));
-        cairo_paint(cr);
-    }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 void invalidate_icon_button_press_if_window_open(AppClient *client, cairo_t *cr, Container *container) {

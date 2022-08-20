@@ -47,29 +47,51 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
         data->capacity = "0";
     }
     
-    int capacity_index = std::floor(((double) (std::stoi(data->capacity))) / 10.0);
+    float i = std::stoi(data->capacity);
+    if (i == 5)
+        i = 4;
+    int rounded = std::round(i / 10) * 10;
+    int capacity_index = std::floor(((double) (rounded)) / 10.0);
     
-    if (capacity_index > 9)
-        capacity_index = 9;
+    if (capacity_index > 10)
+        capacity_index = 10;
     if (capacity_index < 0)
         capacity_index = 0;
     
-    cairo_surface_t *surface;
-    if (data->status == "Charging") {
-        surface = data->charging_surfaces[capacity_index];
-    } else {
-        surface = data->normal_surfaces[capacity_index];
-    }
-    int image_height = cairo_image_surface_get_height(surface);
-    dye_surface(surface, config->color_battery_icons);
-    cairo_set_source_surface(
-            cr,
-            surface,
-            (int) (container->real_bounds.x + 12 * config->dpi),
-            (int) (container->real_bounds.y + container->real_bounds.h / 2 - image_height / 2));
-    cairo_paint(cr);
+    data->capacity_index = capacity_index;
     
     PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 32 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    std::string regular[] = {"\uEBA0", "\uEBA1", "\uEBA2", "\uEBA3", "\uEBA4", "\uEBA5", "\uEBA6", "\uEBA7", "\uEBA8",
+                             "\uEBA9", "\uEBAA"};
+    
+    std::string charging[] = {"\uEBAB", "\uEBAC", "\uEBAD", "\uEBAE", "\uEBAF", "\uEBB0", "\uEBB1", "\uEBB2", "\uEBB3",
+                              "\uEBB4", "\uEBB5"};
+    
+    if (data->status == "Full") {
+        pango_layout_set_text(layout, regular[10].c_str(), strlen("\uE83F"));
+    } else if (data->status == "Charging") {
+//        surface = data->charging_surfaces[data->animating_capacity_index];
+        pango_layout_set_text(layout, charging[data->capacity_index].c_str(), strlen("\uE83F"));
+    } else {
+//        surface = data->normal_surfaces[data->capacity_index];
+        pango_layout_set_text(layout, regular[data->capacity_index].c_str(), strlen("\uE83F"));
+    }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(
+            cr,
+            (int) (container->real_bounds.x + 12 * config->dpi),
+            (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
+    
+    
+    layout =
             get_cached_pango_font(cr, config->font, 34 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     set_argb(cr, config->color_battery_text);
     std::string text = data->capacity + "%";
@@ -78,7 +100,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     int charge_width, charge_height;
     pango_layout_get_pixel_size(layout, &charge_width, &charge_height);
     
-    int text_x = (int) (container->real_bounds.x + 72 * config->dpi);
+    int text_x = (int) (container->real_bounds.x + 90 * config->dpi);
     int text_y =
             (int) (container->real_bounds.y + container->real_bounds.h / 2 - charge_height / 2) - 3;
     cairo_move_to(cr, text_x, text_y);
@@ -95,7 +117,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     int status_width;
     pango_layout_get_pixel_size(layout, &status_width, &status_height);
     
-    text_x = (int) (container->real_bounds.x + 72 * config->dpi + charge_width + 14);
+    text_x = (int) (container->real_bounds.x + 90 * config->dpi + charge_width + 10 * config->dpi);
     text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - status_height / 2);
     cairo_move_to(cr, text_x, text_y);
     
