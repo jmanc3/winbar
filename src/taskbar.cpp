@@ -1194,7 +1194,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     if (data->surface) {
         cairo_save(cr);
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-        pango_layout_set_text(layout, "\uED0D", strlen("\uE83F"));
+        pango_layout_set_text(layout, "\uE91C", strlen("\uE83F"));
         set_argb(cr, config->color_taskbar_button_icons);
         cairo_move_to(cr,
                       (int) (container->real_bounds.x + (12 * config->dpi)),
@@ -1206,7 +1206,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     dye_surface(data->surface_unseen_notification, config->color_taskbar_button_icons);
     if (data->slide_anim != 1) {
         cairo_push_group(cr);
-        pango_layout_set_text(layout, "\uED0C", strlen("\uE83F"));
+        pango_layout_set_text(layout, "\uE7E7", strlen("\uE83F"));
         set_argb(cr, config->color_taskbar_button_icons);
         cairo_move_to(cr,
                       (int) (container->real_bounds.x + (12 * config->dpi)),
@@ -1215,7 +1215,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
         cairo_pattern_t *mask = cairo_pop_group(cr);
     
         cairo_push_group(cr);
-        pango_layout_set_text(layout, "\uED0C", strlen("\uE83F"));
+        pango_layout_set_text(layout, "\uE7E7", strlen("\uE83F"));
         set_argb(cr, config->color_taskbar_button_icons);
         cairo_move_to(cr,
                       (int) (container->real_bounds.x + (12 * config->dpi) +
@@ -1228,7 +1228,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
         cairo_mask(cr, mask);
     } else if (data->some_unseen) {
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-        pango_layout_set_text(layout, "\uED0C", strlen("\uE83F"));
+        pango_layout_set_text(layout, "\uE7E7", strlen("\uE83F"));
     
         set_argb(cr, config->color_taskbar_button_icons);
     
