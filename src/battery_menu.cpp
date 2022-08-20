@@ -19,6 +19,9 @@ double marker_position_scalar = .5;
 
 static AppClient *battery_entity = nullptr;
 
+static int brightness = -1;
+static int brightness_fake = -1;
+
 static void
 paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto *data = static_cast<data_battery_surfaces *>(container->user_data);
@@ -160,7 +163,7 @@ paint_brightness_amount(AppClient *client_entity, cairo_t *cr, Container *contai
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    std::string text = std::to_string((int) (marker_position_scalar * 100));
+    std::string text = std::to_string((int) (brightness_fake));
     
     int width;
     int height;
@@ -188,10 +191,11 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool real) {
     limited_x -= container->real_bounds.x;
     marker_position_scalar = limited_x / container->real_bounds.w;
     
-    int amount = (int) (marker_position_scalar * 100);
+    int amount = (int) std::round(marker_position_scalar * 100);
     if (amount <= 0)
         amount = 1;
     if (real) {
+        brightness_fake = amount;
         if (dbus_gnome_running()) {
             dbus_set_gnome_brightness(amount);
         } else if (dbus_get_kde_max_brightness() != 0) {
@@ -359,7 +363,32 @@ fill_root(Container *root) {
     root->children.push_back(make_brightness_slider(root));
 }
 
+static void get_brightness(App *app, AppClient *client, Timeout *, void *) {
+    if (dbus_gnome_running()) {
+        brightness = dbus_get_gnome_brightness();
+    } else if (dbus_get_kde_max_brightness() != 0) {
+        brightness = (dbus_get_kde_current_brightness() / dbus_get_kde_max_brightness()) * 100;
+    } else {
+        brightness = backlight_get_brightness();
+    }
+    
+    if (brightness == -1) {
+        marker_position_scalar = 1;
+        brightness_fake = brightness;
+    } else {
+        marker_position_scalar = (brightness) / 100.0;
+        brightness_fake = brightness;
+    }
+    if (client) {
+        client_paint(app, client, true);
+    }
+}
+
 void start_battery_menu() {
+    static int loop = 0;
+    if (loop == 0)
+        get_brightness(nullptr, nullptr, nullptr, nullptr);
+    loop++;
     if (valid_client(app, battery_entity)) {
         client_close(app, battery_entity);
     }
@@ -389,18 +418,9 @@ void start_battery_menu() {
         popup_settings.name = "battery_menu";
         battery_entity = taskbar->create_popup(popup_settings, settings);
         fill_root(battery_entity->root);
-        
-        int brightness = backlight_get_brightness();
-        if (dbus_gnome_running()) {
-            brightness = dbus_get_gnome_brightness();
-        } else if (dbus_get_kde_max_brightness() != 0)
-            brightness = (dbus_get_kde_current_brightness() / dbus_get_kde_max_brightness()) * 100;
-        if (brightness == -1) {
-            marker_position_scalar = 1;
-        } else {
-            marker_position_scalar = (brightness) / 100.0;
-        }
-        
+    
+        app_timeout_create(app, battery_entity, 0, get_brightness, nullptr);
+    
         client_show(app, battery_entity);
     }
 }
