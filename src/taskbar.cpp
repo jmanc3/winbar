@@ -1188,51 +1188,69 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     
     auto data = (ActionCenterButtonData *) container->user_data;
     
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 11.5 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
     if (data->surface) {
-        dye_surface(data->surface, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + (12 * config->dpi)),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
-        cairo_paint(cr);
+        cairo_save(cr);
+        // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+        pango_layout_set_text(layout, "\uED0D", strlen("\uE83F"));
+        set_argb(cr, config->color_taskbar_button_icons);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + (12 * config->dpi)),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
+        pango_cairo_show_layout(cr, layout);
+        cairo_restore(cr);
     }
     
+    dye_surface(data->surface_unseen_notification, config->color_taskbar_button_icons);
     if (data->slide_anim != 1) {
-        cairo_save(cr);
-        dye_surface(data->surface_unseen_notification, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                data->surface_unseen_notification,
-                (int) (container->real_bounds.x + (12 * config->dpi) + (1 - data->slide_anim) * (16 * config->dpi)),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
-        cairo_mask_surface(
-                cr,
-                data->surface_unseen_notification,
-                (int) (container->real_bounds.x + (12 * config->dpi)),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
-        cairo_fill(cr);
-        cairo_restore(cr);
+        cairo_push_group(cr);
+        pango_layout_set_text(layout, "\uED0C", strlen("\uE83F"));
+        set_argb(cr, config->color_taskbar_button_icons);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + (12 * config->dpi)),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
+        pango_cairo_show_layout(cr, layout);
+        cairo_pattern_t *mask = cairo_pop_group(cr);
+    
+        cairo_push_group(cr);
+        pango_layout_set_text(layout, "\uED0C", strlen("\uE83F"));
+        set_argb(cr, config->color_taskbar_button_icons);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + (12 * config->dpi) +
+                             (1 - data->slide_anim) * (16 * config->dpi)),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
+        pango_cairo_show_layout(cr, layout);
+        cairo_pattern_t *actual = cairo_pop_group(cr);
+    
+        cairo_set_source(cr, actual);
+        cairo_mask(cr, mask);
     } else if (data->some_unseen) {
-        dye_surface(data->surface_unseen_notification, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                data->surface_unseen_notification,
-                (int) (container->real_bounds.x + (12 * config->dpi) + (1 - data->slide_anim) * (16 * config->dpi)),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
-        cairo_paint(cr);
+        // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+        pango_layout_set_text(layout, "\uED0C", strlen("\uE83F"));
+    
+        set_argb(cr, config->color_taskbar_button_icons);
+    
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + (12 * config->dpi) +
+                             (1 - data->slide_anim) * (16 * config->dpi)),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
+        pango_cairo_show_layout(cr, layout);
     }
     
     if (data->slide_anim != 0 && data->some_unseen) {
         cairo_push_group(cr);
+        // @Important (crazyness): https://stackoverflow.com/questions/66820155/how-to-prevent-an-extra-line-to-be-drawn-between-text-and-shape
+        cairo_new_path(cr);
         cairo_set_line_width(cr, 1);
         cairo_set_source_rgba(cr, 0.6, 0.6, 0.6, .8);
-        
+    
         cairo_arc(cr, container->real_bounds.x + (12 * config->dpi) + (16 * config->dpi),
                   container->real_bounds.y + container->real_bounds.h / 2 + (8 * config->dpi),
                   (17.0 / 2.0) * config->dpi, 0, 2 * M_PI);
         cairo_stroke_preserve(cr);
-        
+    
         cairo_set_source_rgba(cr, 1, 1, 1, 0.1);
         cairo_fill(cr);
         
@@ -1244,14 +1262,14 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
             }
         }
         count_text = std::to_string(count);
-        
-        PangoLayout *layout =
+    
+        PangoLayout *text_layout =
                 get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-        
-        pango_layout_set_text(layout, count_text.c_str(), 2);
+    
+        pango_layout_set_text(text_layout, count_text.c_str(), 2);
         PangoRectangle ink;
         PangoRectangle logical;
-        pango_layout_get_extents(layout, &ink, &logical);
+        pango_layout_get_extents(text_layout, &ink, &logical);
         
         set_argb(cr, config->color_taskbar_date_time_text);
         cairo_move_to(cr,
@@ -1260,9 +1278,9 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
                       container->real_bounds.y - (ink.y / PANGO_SCALE) +
                       (container->real_bounds.h / 2 + (8 * config->dpi)) -
                       (std::ceil(ink.height / PANGO_SCALE / 2)) - 1);
-        pango_cairo_show_layout(cr, layout);
-        
+        pango_cairo_show_layout(cr, text_layout);
         cairo_pop_group_to_source(cr);
+    
         double time = data->slide_anim * 2;
         if (time > 1)
             time = 1;

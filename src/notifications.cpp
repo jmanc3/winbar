@@ -244,30 +244,35 @@ static void clicked_send_to_action_center(AppClient *client, cairo_t *cr, Contai
 static void paint_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
     auto client_wrapper = (NotificationWrapper *) client->root->user_data;
     auto icon_button = (IconButton *) container->user_data;
-    if (icon_button->surface) {
-        if (container->state.mouse_pressing || container->state.mouse_hovering) {
-            if (container->state.mouse_pressing) {
-                dye_surface(icon_button->surface, config->color_notification_button_send_to_action_center_pressed);
-            } else {
-                dye_surface(icon_button->surface, config->color_notification_button_send_to_action_center_hovered);
-            }
+    
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE0AB", strlen("\uE83F"));
+    
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_notification_button_send_to_action_center_pressed);
         } else {
-            if (!bounds_contains(client->root->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
-                return;
-            }
-            if (auto c = container_by_name("actions_container", client->root)) {
-                for (auto co: c->children) {
-                    if (bounds_contains(co->real_bounds, client->mouse_current_x, client->mouse_current_y))
-                        return;
-                }
-            }
-            dye_surface(icon_button->surface, config->color_notification_button_send_to_action_center_default);
+            set_argb(cr, config->color_notification_button_send_to_action_center_hovered);
         }
-        cairo_set_source_surface(cr, icon_button->surface,
-                                 container->real_bounds.x + ((16 + 4) * config->dpi),
-                                 container->real_bounds.y + (18 * config->dpi));
-        cairo_paint(cr);
+    } else {
+        if (!bounds_contains(client->root->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+            return;
+        }
+        if (auto c = container_by_name("actions_container", client->root)) {
+            for (auto co: c->children) {
+                if (bounds_contains(co->real_bounds, client->mouse_current_x, client->mouse_current_y))
+                    return;
+            }
+        }
+        set_argb(cr, config->color_notification_button_send_to_action_center_default);
     }
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + ((16) * config->dpi)),
+                  (int) (container->real_bounds.y + (18 * config->dpi)));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void client_closed(AppClient *client) {
