@@ -2530,7 +2530,7 @@ create_taskbar(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    app = app;
+    audio_start(app);
     
     // Set window startup settings
     Settings settings;
@@ -3498,6 +3498,9 @@ void update_pinned_items_icon() {
 }
 
 WindowsData::WindowsData(App *app, xcb_window_t window) {
+    option_width = 217 * 1.2 * config->dpi;
+    option_height = 144 * 1.2 * config->dpi;
+    
     id = window;
     
     auto cookie = xcb_get_property(app->connection, 0, id, get_cached_atom(app, "_GTK_FRAME_EXTENTS"),
@@ -3539,11 +3542,11 @@ WindowsData::WindowsData(App *app, xcb_window_t window) {
                                                       (height = geom->height));
             
             raw_thumbnail_surface = accelerated_surface(app, client_by_name(app, "taskbar"),
-                                                        width * config->dpi, height * config->dpi);
+                                                        width, height);
             raw_thumbnail_cr = cairo_create(raw_thumbnail_surface);
             scaled_thumbnail_surface = accelerated_surface(app, client_by_name(app, "taskbar"),
-                                                           option_width * config->dpi,
-                                                           option_height * config->dpi);
+                                                           option_width,
+                                                           option_height);
             scaled_thumbnail_cr = cairo_create(scaled_thumbnail_surface);
             take_screenshot();
             free(geom);
