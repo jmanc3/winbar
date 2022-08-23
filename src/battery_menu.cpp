@@ -24,10 +24,8 @@ static int brightness_fake = -1;
 
 static void
 paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
-    auto *data = static_cast<data_battery_surfaces *>(container->user_data);
+    auto *data = static_cast<BatteryInfo *>(container->user_data);
     assert(data);
-    assert(!data->normal_surfaces.empty());
-    assert(!data->charging_surfaces.empty());
     
     std::string line;
     std::ifstream status("/sys/class/power_supply/BAT0/status");
@@ -75,10 +73,8 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     if (data->status == "Full") {
         pango_layout_set_text(layout, regular[10].c_str(), strlen("\uE83F"));
     } else if (data->status == "Charging") {
-//        surface = data->charging_surfaces[data->animating_capacity_index];
         pango_layout_set_text(layout, charging[data->capacity_index].c_str(), strlen("\uE83F"));
     } else {
-//        surface = data->normal_surfaces[data->capacity_index];
         pango_layout_set_text(layout, regular[data->capacity_index].c_str(), strlen("\uE83F"));
     }
     
@@ -263,8 +259,6 @@ paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
 
 static void
 paint_brightness_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
-    auto *data = (IconButton *) container->user_data;
-    
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets", 24 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
@@ -290,22 +284,7 @@ make_battery_bar(Container *root) {
     battery_bar->wanted_bounds.w = FILL_SPACE;
     battery_bar->wanted_bounds.h = 77 * config->dpi;
     battery_bar->when_paint = paint_battery_bar;
-    auto *data = new data_battery_surfaces;
-    for (int i = 0; i <= 9; i++) {
-        auto *normal_surface = accelerated_surface(app, battery_entity, 40 * config->dpi, 40 * config->dpi);
-        paint_surface_with_image(
-                normal_surface,
-                as_resource_path("battery/40/normal/" + std::to_string(i) + ".png"), 40 * config->dpi,
-                nullptr);
-        data->normal_surfaces.push_back(normal_surface);
-        
-        auto *charging_surface = accelerated_surface(app, battery_entity, 40 * config->dpi, 40 * config->dpi);
-        paint_surface_with_image(
-                charging_surface,
-                as_resource_path("battery/40/charging/" + std::to_string(i) + ".png"), 40 * config->dpi,
-                nullptr);
-        data->charging_surfaces.push_back(charging_surface);
-    }
+    auto *data = new BatteryInfo;
     battery_bar->user_data = data;
     
     return battery_bar;
@@ -331,11 +310,6 @@ make_brightness_slider(Container *root) {
     
     auto brightness_icon = hbox->child(55 * config->dpi, FILL_SPACE);
     brightness_icon->when_paint = paint_brightness_icon;
-    auto *brightness_icon_data = new IconButton();
-    brightness_icon_data->surface = accelerated_surface(app, battery_entity, 24 * config->dpi, 24 * config->dpi);
-    paint_surface_with_image(
-            brightness_icon_data->surface, as_resource_path("brightness.png"), 24 * config->dpi, nullptr);
-    brightness_icon->user_data = brightness_icon_data;
     
     auto slider = new Container();
     slider->parent = hbox;

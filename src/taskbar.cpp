@@ -1387,7 +1387,7 @@ clicked_systray(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_battery(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (data_battery_surfaces *) container->user_data;
+    auto *data = (BatteryInfo *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->battery_command.empty()) {
             start_battery_menu();
@@ -1655,7 +1655,7 @@ void update_battery_animation_timeout(App *app, AppClient *client, Timeout *time
 #endif
     timeout->keep_running = true;
     
-    auto *data = static_cast<data_battery_surfaces *>(userdata);
+    auto *data = static_cast<BatteryInfo *>(userdata);
     
     data->animating_capacity_index++;
     if (data->animating_capacity_index > 10)
@@ -1672,7 +1672,7 @@ void update_battery_status_timeout(App *app, AppClient *client, Timeout *timeout
         timeout->keep_running = true;
     }
     
-    auto data = (data_battery_surfaces *) userdata;
+    auto data = (BatteryInfo *) userdata;
     long current_time = get_current_time_in_ms();
     
     int previous_animating_capacity = 0;
@@ -1703,7 +1703,6 @@ void update_battery_status_timeout(App *app, AppClient *client, Timeout *timeout
     } else {
         data->capacity = "0";
     }
-    data->previous_status_update_ms = current_time;
     
     float i = std::stoi(data->capacity);
     if (i == 5)
@@ -1738,10 +1737,8 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     paint_hoverable_button_background(client_entity, cr, container);
     container->real_bounds = start;
     
-    auto *data = static_cast<data_battery_surfaces *>(container->user_data);
+    auto *data = static_cast<BatteryInfo *>(container->user_data);
     assert(data);
-    assert(!data->normal_surfaces.empty());
-    assert(!data->charging_surfaces.empty());
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -1797,24 +1794,9 @@ make_battery_button(Container *parent, AppClient *client_entity) {
     c->when_clicked = clicked_battery;
     c->name = "battery";
     
-    auto *data = new data_battery_surfaces;
+    auto *data = new BatteryInfo;
     data->invalidate_button_press_if_client_with_this_name_is_open = "app_menu";
     c->when_mouse_down = invalidate_icon_button_press_if_window_open;
-    for (int i = 0; i <= 9; i++) {
-        auto *normal_surface = accelerated_surface(app, client_entity, 16 * config->dpi, 16 * config->dpi);
-        paint_surface_with_image(
-                normal_surface,
-                as_resource_path("battery/16/normal/" + std::to_string(i) + ".png"), 16 * config->dpi,
-                nullptr);
-        data->normal_surfaces.push_back(normal_surface);
-        
-        auto *charging_surface = accelerated_surface(app, client_entity, 16 * config->dpi, 16 * config->dpi);
-        paint_surface_with_image(
-                charging_surface,
-                as_resource_path("battery/16/charging/" + std::to_string(i) + ".png"), 16 * config->dpi,
-                nullptr);
-        data->charging_surfaces.push_back(charging_surface);
-    }
     c->user_data = data;
     
     std::string line;
