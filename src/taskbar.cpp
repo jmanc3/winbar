@@ -1251,7 +1251,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
                   (17.0 / 2.0) * config->dpi, 0, 2 * M_PI);
         cairo_stroke_preserve(cr);
     
-        cairo_set_source_rgba(cr, 1, 1, 1, 0.1);
+        cairo_set_source_rgba(cr, .2, .2, .2, 0.7);
         cairo_fill(cr);
         
         std::string count_text;
