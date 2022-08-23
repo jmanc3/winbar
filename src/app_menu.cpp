@@ -26,6 +26,7 @@
 #include <hsluv.h>
 #include <sys/stat.h>
 #include "functional"
+#include "simple_dbus.h"
 
 std::vector<Launcher *> launchers;
 
@@ -43,6 +44,8 @@ public:
 static double scrollbar_openess = 0;
 // the scrollbar should only be visible if the mouse is in the container
 static double scrollbar_visible = 0;
+// when we open the power sub menu, the left sliding menu needs to be locked
+static bool left_locked = false;
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
@@ -51,6 +54,20 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     set_rect(cr, container->real_bounds);
     set_argb(cr, correct_opaqueness(client, config->color_apps_background));
+    cairo_fill(cr);
+}
+
+static void
+paint_power_menu(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    set_rect(cr, container->real_bounds);
+    if (is_light_theme(config->color_apps_background)) {
+        set_argb(cr, correct_opaqueness(client, darken(config->color_apps_background, 8)));
+    } else {
+        set_argb(cr, correct_opaqueness(client, lighten(config->color_apps_background, 8)));
+    }
     cairo_fill(cr);
 }
 
@@ -121,10 +138,10 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     container->real_bounds.x -= 1;
     container->real_bounds.w += 2;
     
-    if (data && data->surface) {
+    if (data) {
         PangoLayout *icon_layout =
                 get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
+        
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
         if (data->text == "START") {
             pango_layout_set_text(icon_layout, "\uE700", strlen("\uE83F"));
@@ -148,6 +165,14 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
             pango_layout_set_text(icon_layout, "\uE713", strlen("\uE83F"));
         } else if (data->text == "Power") {
             pango_layout_set_text(icon_layout, "\uE7E8", strlen("\uE83F"));
+        } else if (data->text == "Off") {
+            pango_layout_set_text(icon_layout, "\uE947", strlen("\uE83F"));
+        } else if (data->text == "Shut Down") {
+            pango_layout_set_text(icon_layout, "\uE7E8", strlen("\uE83F"));
+        } else if (data->text == "Restart") {
+            pango_layout_set_text(icon_layout, "\uE777", strlen("\uE83F"));
+        } else if (data->text == "Reload") {
+            pango_layout_set_text(icon_layout, "\uE117", strlen("\uE83F"));
         }
     
         set_argb(cr, config->color_apps_icons);
@@ -538,6 +563,8 @@ left_open_timeout(App *app, AppClient *client, Timeout *, void *data) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (left_locked)
+        return;
     auto *container = (Container *) data;
     if (app && app->running && valid_client(app, client) &&
         (container->state.mouse_hovering || container->state.mouse_pressing)) {
@@ -552,6 +579,8 @@ left_open(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (left_locked)
+        return;
     if (left_open_fd == nullptr) {
         left_open_fd = app_timeout_create(client->app, client, 160, left_open_timeout, container);
     } else {
@@ -564,6 +593,8 @@ left_close(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (left_locked || !container)
+        return;
     client_create_animation(app, client, &container->wanted_bounds.w, 70, nullptr, 48 * config->dpi, true);
 }
 
@@ -689,13 +720,19 @@ clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) 
 }
 
 static void
+sub_menu_closed(AppClient *client) {
+    left_locked = false;
+    if (auto client = client_by_name(app, "app_menu")) {
+        left_close(client, client->cr, container_by_name("left_buttons", client->root));
+    }
+}
+
+static void
 clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    std::lock_guard m(app->running_mutex);
-    client->app->running = false;
-    restart = true;
+
 }
 
 static void
@@ -740,10 +777,105 @@ when_key_event(AppClient *client,
 }
 
 static void
+clicked_off(AppClient *client, cairo_t *cr, Container *container) {
+    std::lock_guard m(app->running_mutex);
+    client->app->running = false;
+}
+
+static void
+clicked_shut_down(AppClient *client, cairo_t *cr, Container *container) {
+    dbus_computer_shut_down();
+}
+
+static void
+clicked_restart(AppClient *client, cairo_t *cr, Container *container) {
+    dbus_computer_restart();
+}
+
+static void
+clicked_reload(AppClient *client, cairo_t *cr, Container *container) {
+    std::lock_guard m(app->running_mutex);
+    client->app->running = false;
+    restart = true;
+}
+
+static void
 clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    // TODO make button open *and* close menu.
+    left_locked = true;
+    
+    Settings settings;
+    settings.force_position = true;
+    settings.w = 256 * config->dpi;
+    settings.h = ((48 * 4) * config->dpi) + (config->dpi * 3);
+    settings.x = app->bounds.x;
+    settings.y = app->bounds.h - settings.h - config->taskbar_height - (48 * 1) * config->dpi;
+    if (auto *taskbar = client_by_name(app, "taskbar")) {
+        settings.x = taskbar->bounds->x;
+        settings.y = taskbar->bounds->y - settings.h - (48 * 1) * config->dpi;
+    }
+    settings.skip_taskbar = true;
+    settings.decorations = false;
+    settings.override_redirect = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
+    
+    if (auto app_menu = client_by_name(app, "app_menu")) {
+        PopupSettings popup_settings;
+        popup_settings.takes_input_focus = true;
+        
+        auto popup = app_menu->create_popup(popup_settings, settings);
+        
+        popup->root->when_paint = paint_power_menu;
+        popup->root->type = vbox;
+        popup->root->spacing = 1;
+        
+        auto b = popup->root->child(FILL_SPACE, FILL_SPACE);
+        b->when_clicked = clicked_shut_down;
+        b->when_paint = paint_button;
+        auto *b_data = new ButtonData;
+        b_data->text = "Shut Down";
+        b->user_data = b_data;
+        
+        auto c = popup->root->child(FILL_SPACE, FILL_SPACE);
+        c->when_clicked = clicked_restart;
+        c->when_paint = paint_button;
+        auto *c_data = new ButtonData;
+        c_data->text = "Restart";
+        c->user_data = c_data;
+        
+        auto d = popup->root->child(FILL_SPACE, FILL_SPACE);
+        d->when_clicked = clicked_reload;
+        d->when_paint = paint_button;
+        auto *d_data = new ButtonData;
+        d_data->text = "Reload";
+        d->user_data = d_data;
+        
+        auto a = popup->root->child(FILL_SPACE, FILL_SPACE);
+        a->when_clicked = clicked_off;
+        a->when_paint = paint_button;
+        auto *a_data = new ButtonData;
+        a_data->text = "Off";
+        a->user_data = a_data;
+        
+        popup->when_closed = sub_menu_closed;
+        
+        client_show(app, popup);
+        
+        xcb_set_input_focus(app->connection, XCB_NONE, popup->window, XCB_CURRENT_TIME);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+    }
+    
+    return;
+    
     std::lock_guard m(app->running_mutex);
     client->app->running = false;
 }
@@ -1325,6 +1457,7 @@ void load_all_desktop_files() {
 void start_app_menu() {
     scrollbar_openess = 0;
     scrollbar_visible = 0;
+    left_locked = false;
     if (auto *c = client_by_name(app, "search_menu")) {
         client_close(app, c);
     }

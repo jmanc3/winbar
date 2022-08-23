@@ -44,4 +44,8 @@ double dbus_get_gnome_brightness();
 /// Number from 0 to 100
 bool dbus_set_gnome_brightness(double percentage);
 
+void dbus_computer_shut_down();
+
+void dbus_computer_restart();
+
 #endif //WINBAR_SIMPLE_DBUS_H

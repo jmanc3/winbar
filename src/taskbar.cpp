@@ -3334,6 +3334,8 @@ late_classes_update(App *app, AppClient *client, Timeout *timeout, void *data) {
 #endif
     if (timeout)
         timeout->keep_running = true;
+    if (!client || !app)
+        return;
     auto *root = client->root;
     if (!root)
         return;

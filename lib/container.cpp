@@ -647,6 +647,8 @@ Container::Container() {
 
 AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client_settings) {
     // Close other top level popups
+    if (this->popup_info.is_popup && this->wants_popup_events)
+        this->wants_popup_events = false;
     
     AppClient *popup_client = nullptr;
     if (popup_settings.name.empty()) {
@@ -662,7 +664,6 @@ AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client
         xcb_icccm_set_wm_transient_for(app->connection, this->window, popup_client->window);
         popup_client->wants_popup_events = true;
         popup_client->popup_info.is_popup = true;
-        app->popup_client = popup_client;
     }
     xcb_flush(app->connection);
     return popup_client;

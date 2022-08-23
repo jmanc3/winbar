@@ -920,8 +920,18 @@ void client_close(App *app, AppClient *client) {
     }
     
     if (client->popup_info.is_popup) {
-        xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
-        xcb_flush(app->connection);
+        AppClient *parent_client = nullptr;
+        for (auto c: app->clients)
+            if (c->child_popup == client)
+                parent_client = c;
+        if (parent_client) {
+            if (parent_client->popup_info.is_popup) {
+                parent_client->wants_popup_events = true;
+            } else {
+                xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
+                xcb_flush(app->connection);
+            }
+        }
     }
     
     // TODO: this will crash if there is more than one handler per window I think
@@ -1783,9 +1793,20 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         
         case XCB_FOCUS_OUT: {
             if (auto client = client_by_window(app, window_number)) {
-                if (client->popup_info.is_popup) {
-                    if (client->popup_info.close_on_focus_out) {
+                if (client->child_popup) {
+                    if (!client->child_popup->popup_info.is_popup)
                         client_close_threaded(app, client);
+                } else if (client->popup_info.is_popup) {
+                    if (client->popup_info.close_on_focus_out)
+                        client_close_threaded(app, client);
+        
+                    AppClient *parent_client = nullptr;
+                    for (auto c: app->clients)
+                        if (c->child_popup == client)
+                            parent_client = c;
+                    if (parent_client && parent_client->popup_info.is_popup &&
+                        parent_client->popup_info.close_on_focus_out) {
+                        client_close_threaded(app, parent_client);
                     }
                 }
             }

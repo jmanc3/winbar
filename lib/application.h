@@ -142,8 +142,6 @@ struct App {
     
     cairo_device_t *device = nullptr;
     
-    AppClient *popup_client = nullptr;
-    
     App();
 };
 

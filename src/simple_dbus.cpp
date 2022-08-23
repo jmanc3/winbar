@@ -923,6 +923,102 @@ void dbus_end() {
     dbus_connection = nullptr;
 }
 
+// All from: https://www.reddit.com/r/kde/comments/70hnzg/command_to_properly_shutdownreboot_kde_machine/
+void dbus_computer_shut_down() {
+    if (!dbus_connection) return;
+    
+    bool found = false;
+    for (const auto &item: running_dbus_services)
+        if (item == "org.kde.ksmserver")
+            found = true;
+    if (!found)
+        return;
+    
+    DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
+                                                         "/KSMServer",
+                                                         "org.kde.KSMServerInterface",
+                                                         "logout");
+    defer(dbus_message_unref(dbus_msg));
+    
+    const int confirm = 0;
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &confirm, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
+        return;
+    }
+    
+    const int shutdown_type = 2;
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &shutdown_type, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
+        return;
+    }
+    
+    const int shutdown_mode = 2;
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &shutdown_mode, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
+        return;
+    }
+    
+    DBusPendingCall *pending = nullptr;
+    defer(dbus_pending_call_unref(pending));
+    
+    DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection, dbus_msg, 1000, nullptr);
+    if (dbus_reply) {
+        defer(dbus_message_unref(dbus_reply));
+        
+        int dbus_result = 0;
+        if (::dbus_message_get_args(dbus_reply, nullptr, DBUS_TYPE_INT32, &dbus_result, DBUS_TYPE_INVALID))
+            return;
+    }
+}
+
+// All from: https://www.reddit.com/r/kde/comments/70hnzg/command_to_properly_shutdownreboot_kde_machine/
+void dbus_computer_restart() {
+    if (!dbus_connection) return;
+    
+    bool found = false;
+    for (const auto &item: running_dbus_services)
+        if (item == "org.kde.ksmserver")
+            found = true;
+    if (!found)
+        return;
+    
+    DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
+                                                         "/KSMServer",
+                                                         "org.kde.KSMServerInterface",
+                                                         "logout");
+    defer(dbus_message_unref(dbus_msg));
+    
+    const int confirm = 0;
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &confirm, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
+        return;
+    }
+    
+    const int shutdown_type = 1;
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &shutdown_type, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
+        return;
+    }
+    
+    const int shutdown_mode = 2;
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &shutdown_mode, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
+        return;
+    }
+    
+    DBusPendingCall *pending = nullptr;
+    defer(dbus_pending_call_unref(pending));
+    
+    DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection, dbus_msg, 1000, nullptr);
+    if (dbus_reply) {
+        defer(dbus_message_unref(dbus_reply));
+        
+        int dbus_result = 0;
+        if (::dbus_message_get_args(dbus_reply, nullptr, DBUS_TYPE_INT32, &dbus_result, DBUS_TYPE_INVALID))
+            return;
+    }
+}
+
 /*************************************************
  *
  * Implementation of StatusNotifierItem https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/
