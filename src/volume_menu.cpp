@@ -54,6 +54,11 @@ public:
     ~option_data() {}
 };
 
+class ButtonData : public IconButton {
+public:
+    std::string text;
+};
+
 static void
 rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height) {
     double radius = corner_radius;
@@ -98,29 +103,11 @@ paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto data = static_cast<option_data *>(container->parent->parent->user_data);
-    auto surfaces = static_cast<volume_surfaces *>(container->user_data);
     Audio_Client *client = data->client();
     if (!client) return;
     
-    if (surfaces->mute == nullptr || surfaces->high == nullptr || surfaces->low == nullptr ||
-        surfaces->medium == nullptr)
-        return;
-    
     double scalar = client->get_volume();
     int val = (int) (scalar * 100);
-    
-    cairo_surface_t *surface = nullptr;
-    if (client->is_muted()) {
-        surface = surfaces->mute;
-    } else if (val == 0) {
-        surface = surfaces->none;
-    } else if (val < 33) {
-        surface = surfaces->low;
-    } else if (val < 66) {
-        surface = surfaces->medium;
-    } else {
-        surface = surfaces->high;
-    }
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets", 20 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -394,23 +381,8 @@ void fill_root(Container *root) {
         volume_icon->when_scrolled = scroll;
         volume_icon->parent = hbox_volume;
         hbox_volume->children.push_back(volume_icon);
-        auto surfaces = new volume_surfaces();
-        surfaces->none = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
-        paint_surface_with_image(surfaces->none, as_resource_path("audio/none24.png"), 24 * config->dpi, nullptr);
-        surfaces->low = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
-        paint_surface_with_image(surfaces->low, as_resource_path("audio/low24.png"), 24 * config->dpi, nullptr);
-        surfaces->medium = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
-        paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium24.png"), 24 * config->dpi, nullptr);
-        surfaces->high = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
-        paint_surface_with_image(surfaces->high, as_resource_path("audio/high24.png"), 24 * config->dpi, nullptr);
-        surfaces->mute = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
-        paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute24.png"), 24 * config->dpi, nullptr);
-        volume_icon->user_data = surfaces;
-        dye_opacity(surfaces->none, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->low, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->medium, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->high, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->mute, opacity_diff, opacity_thresh);
+        auto volume_data = new ButtonData;
+        volume_icon->user_data = volume_data;
         
         auto volume_bar = new Container();
         volume_bar->wanted_bounds.h = FILL_SPACE;
@@ -453,46 +425,48 @@ void updates() {
 
 static void
 paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (IconButton *) container->user_data;
+    auto *data = (ButtonData *) container->user_data;
     
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
             set_rect(cr, container->real_bounds);
-            ArgbColor color = config->color_apps_scrollbar_pressed_button;
-            color.a = 1;
-            set_argb(cr, color);
+            set_argb(cr, config->color_apps_scrollbar_pressed_button);
             cairo_fill(cr);
         } else {
             set_rect(cr, container->real_bounds);
-            ArgbColor color = config->color_apps_scrollbar_hovered_button;
-            color.a = 1;
-            set_argb(cr, color);
+            set_argb(cr, config->color_apps_scrollbar_hovered_button);
             cairo_fill(cr);
         }
     } else {
         set_rect(cr, container->real_bounds);
-        ArgbColor color = config->color_apps_scrollbar_default_button;
-        color.a = 1;
-        set_argb(cr, color);
+        set_argb(cr, config->color_apps_scrollbar_default_button);
         cairo_fill(cr);
     }
     
-    if (data->surface) {
-        // TODO: cache the dye so we only do it once
-        if (container->state.mouse_pressing || container->state.mouse_hovering) {
-            if (container->state.mouse_pressing) {
-                dye_surface(data->surface, config->color_apps_scrollbar_pressed_button_icon);
-            } else {
-                dye_surface(data->surface, config->color_apps_scrollbar_hovered_button_icon);
-            }
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_apps_scrollbar_pressed_button_icon);
         } else {
-            dye_surface(data->surface, config->color_apps_scrollbar_default_button_icon);
+            set_argb(cr, config->color_apps_scrollbar_hovered_button_icon);
         }
-        
-        cairo_set_source_surface(
-                cr, data->surface, container->real_bounds.x, container->real_bounds.y);
-        cairo_paint_with_alpha(cr, 1);
+    } else {
+        set_argb(cr, config->color_apps_scrollbar_default_button_icon);
     }
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, data->text.data(), strlen("\uE83F"));
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -620,18 +594,13 @@ void open_volume_menu() {
         
         Container *top_arrow = scrollpane->parent->children[0]->children[0];
         top_arrow->when_paint = paint_arrow;
-        auto *top_data = new IconButton;
-        top_data->surface = accelerated_surface(app, client_entity, 12 * config->dpi, 12 * config->dpi);
-        paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12 * config->dpi, nullptr);
-        
+        auto *top_data = new ButtonData;
+        top_data->text = "\uE971";
         top_arrow->user_data = top_data;
         Container *bottom_arrow = scrollpane->parent->children[0]->children[2];
         bottom_arrow->when_paint = paint_arrow;
-        auto *bottom_data = new IconButton;
-        bottom_data->surface = accelerated_surface(app, client_entity, 12 * config->dpi, 12 * config->dpi);
-        paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12 * config->dpi,
-                                 nullptr);
-        
+        auto *bottom_data = new ButtonData;
+        bottom_data->text = "\uE972";
         bottom_arrow->user_data = bottom_data;
         
         fill_root(content);

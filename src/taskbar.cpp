@@ -192,12 +192,6 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
     container->real_bounds = start;
     
-    auto surfaces = (volume_surfaces *) container->user_data;
-    
-    if (surfaces->mute == nullptr || surfaces->high == nullptr || surfaces->low == nullptr ||
-        surfaces->medium == nullptr)
-        return;
-    
     int val = 100;
     bool mute_state = false;
     for (auto c: audio_clients) {
@@ -206,19 +200,6 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
             mute_state = c->is_muted();
             break;
         }
-    }
-    
-    cairo_surface_t *surface = nullptr;
-    if (mute_state) {
-        surface = surfaces->mute;
-    } else if (val == 0) {
-        surface = surfaces->none;
-    } else if (val < 33) {
-        surface = surfaces->low;
-    } else if (val < 66) {
-        surface = surfaces->medium;
-    } else {
-        surface = surfaces->high;
     }
     
     PangoLayout *layout =
@@ -1399,7 +1380,7 @@ clicked_battery(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_volume(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (volume_surfaces *) container->user_data;
+    auto *data = (IconButton *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->volume_command.empty()) {
             open_volume_menu();
@@ -2038,28 +2019,10 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_volume->when_scrolled = scrolled_volume;
     button_volume->when_mouse_leaves_container = mouse_leaves_volume;
     button_volume->name = "volume";
-    auto surfaces = new volume_surfaces;
-    surfaces->none = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->none, as_resource_path("audio/none16.png"), 16 * config->dpi, nullptr);
-    surfaces->low = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->low, as_resource_path("audio/low16.png"), 16 * config->dpi, nullptr);
-    surfaces->medium = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium16.png"), 16 * config->dpi, nullptr);
-    surfaces->high = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->high, as_resource_path("audio/high16.png"), 16 * config->dpi, nullptr);
-    surfaces->mute = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute16.png"), 16 * config->dpi, nullptr);
-    surfaces->invalidate_button_press_if_client_with_this_name_is_open = "volume";
+    auto volume_data = new IconButton;
+    volume_data->invalidate_button_press_if_client_with_this_name_is_open = "volume";
     button_volume->when_mouse_down = invalidate_icon_button_press_if_window_open;
-    button_volume->user_data = surfaces;
-    
-    double opacity_diff = .5;
-    double opacity_thresh = 200;
-    dye_opacity(surfaces->none, opacity_diff, opacity_thresh);
-    dye_opacity(surfaces->low, opacity_diff, opacity_thresh);
-    dye_opacity(surfaces->medium, opacity_diff, opacity_thresh);
-    dye_opacity(surfaces->high, opacity_diff, opacity_thresh);
-    dye_opacity(surfaces->mute, opacity_diff, opacity_thresh);
+    button_volume->user_data = volume_data;
     
     button_date->when_paint = paint_date;
     button_date->when_clicked = clicked_date;
