@@ -288,8 +288,6 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
 
 static void
 paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
-    auto *data = static_cast<PinnedIconInfo *>(client_entity->root->user_data);
-    
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         ArgbColor color;
         if (container->state.mouse_pressing) {
@@ -329,10 +327,9 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
         
         pango_layout_get_pixel_size(layout, &width, &height);
         cairo_save(cr);
-        double offset = (double) (cairo_image_surface_get_width(data->surface));
         cairo_move_to(cr,
-                      container->real_bounds.x + container->real_bounds.w / 2 - offset / 2,
-                      container->real_bounds.y + container->real_bounds.h / 2 - offset / 2);
+                      container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
+                      container->real_bounds.y + container->real_bounds.h / 2 - width / 2);
         pango_cairo_show_layout(cr, layout);
         cairo_restore(cr);
     }
@@ -462,8 +459,6 @@ void when_leave(AppClient *client, cairo_t *cr, Container *self) {
 static void
 fill_root(AppClient *client, Container *root) {
     auto pii = (PinnedIconInfo *) root->user_data;
-    pii->surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(pii->surface, as_resource_path("taskbar-close.png"), 16 * config->dpi, nullptr);
     root->receive_events_even_if_obstructed = true;
     root->when_mouse_enters_container = when_enter;
     root->when_mouse_leaves_container = when_leave;

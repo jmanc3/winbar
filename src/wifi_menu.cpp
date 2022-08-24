@@ -16,12 +16,6 @@
 struct RootScanAnimationData : public UserData {
     long start = get_current_time_in_ms();
     bool running = false;
-    cairo_surface_t *wifi_surface = nullptr;
-    
-    ~RootScanAnimationData() {
-        if (wifi_surface)
-            cairo_surface_destroy(wifi_surface);
-    }
 };
 
 struct WifiOptionData : public UserData {
@@ -70,13 +64,13 @@ paint_option(AppClient *client, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, layout);
     
     auto root_data = (RootScanAnimationData *) client->root->user_data;
-    dye_surface(root_data->wifi_surface, config->color_taskbar_button_icons);
+/*    dye_surface(root_data->wifi_surface, config->color_taskbar_button_icons);
     cairo_set_source_surface(
             cr,
             root_data->wifi_surface,
             (int) (container->real_bounds.x + 48 / 2 - 24 / 2),
             (int) (container->real_bounds.y + WIFI_OPTION_HEIGHT / 2 - 24 / 2));
-    cairo_paint(cr);
+    cairo_paint(cr);*/
 }
 
 static void
@@ -391,9 +385,6 @@ fill_root(AppClient *client) {
     auto root_animation_data = new RootScanAnimationData;
     root_animation_data->start = get_current_time_in_ms();
     root_animation_data->running = true;
-    root_animation_data->wifi_surface = accelerated_surface(app, client, 24, 24);
-    paint_surface_with_image(
-            root_animation_data->wifi_surface, as_resource_path("wifi/24/wireless_up.png"), 24, nullptr);
     root->user_data = root_animation_data;
 }
 

@@ -412,14 +412,8 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
         data = new OptionData();
         edit->when_clicked = option_clicked;
         
-        d = new DelayedSurfacePainting();
-        d->surface = &data->surface;
-        d->size = 16 * config->dpi;
-        
         data->text = "Edit";
-        d->path = as_resource_path("taskbar-edit.png");
         data->option_type = option_data_type::EDIT;
-        delayed->push_back(d);
         
         data->text_offset = 40 * config->dpi;
         edit->user_data = data;
@@ -430,20 +424,13 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     data = new OptionData();
     pinned->when_clicked = option_clicked;
     
-    d = new DelayedSurfacePainting();
-    d->surface = &data->surface;
-    d->size = 16 * config->dpi;
-    
     if (pinned_icon_data->pinned) {
         data->text = "Unpin from taskbar";
-        d->path = as_resource_path("taskbar-unpin.png");
         data->option_type = option_data_type::UNPIN;
     } else {
         data->text = "Pin to taskbar";
-        d->path = as_resource_path("taskbar-pin.png");
         data->option_type = option_data_type::PIN;
     }
-    delayed->push_back(d);
     
     data->text_offset = 40 * config->dpi;
     pinned->user_data = data;
@@ -459,11 +446,6 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
         } else {
             data->text = "Close all windows";
         }
-        auto *d = new DelayedSurfacePainting();
-        d->surface = &data->surface;
-        d->path = as_resource_path("taskbar-close.png");
-        d->size = 16 * config->dpi;
-        delayed->push_back(d);
         data->text_offset = 40 * config->dpi;
         close->user_data = data;
     }

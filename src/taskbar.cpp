@@ -41,19 +41,6 @@
 #include <dpi.h>
 #include <sys/inotify.h>
 
-class WorkspaceButton : public HoverableButton {
-public:
-    cairo_surface_t *surface = nullptr;
-    cairo_surface_t *surface_hover = nullptr;
-    
-    ~WorkspaceButton() {
-        if (surface)
-            cairo_surface_destroy(surface);
-        if (surface_hover)
-            cairo_surface_destroy(surface_hover);
-    }
-};
-
 static Container *active_container = nullptr;
 static xcb_window_t active_window = 0;
 static xcb_window_t backup_active_window = 0;
@@ -246,9 +233,6 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    WorkspaceButton *data = (WorkspaceButton *) container->user_data;
-    
     paint_hoverable_button_background(client, cr, container);
     
     PangoLayout *layout =
@@ -258,13 +242,9 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, config->color_taskbar_button_icons);
     
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        if (data->surface_hover) {
-            pango_layout_set_text(layout, "\uEB91", strlen("\uE83F"));
-        }
+        pango_layout_set_text(layout, "\uEB91", strlen("\uE83F"));
     } else {
-        if (data->surface) {
-            pango_layout_set_text(layout, "\uE7C4", strlen("\uE83F"));
-        }
+        pango_layout_set_text(layout, "\uE7C4", strlen("\uE83F"));
     }
     
     int width;
@@ -1172,19 +1152,14 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    if (data->surface) {
-        cairo_save(cr);
-        // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-        pango_layout_set_text(layout, "\uE91C", strlen("\uE83F"));
-        set_argb(cr, config->color_taskbar_button_icons);
-        cairo_move_to(cr,
-                      (int) (container->real_bounds.x + (12 * config->dpi)),
-                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
-        pango_cairo_show_layout(cr, layout);
-        cairo_restore(cr);
-    }
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE91C", strlen("\uE83F"));
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + (12 * config->dpi)),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
+    pango_cairo_show_layout(cr, layout);
     
-    dye_surface(data->surface_unseen_notification, config->color_taskbar_button_icons);
     if (data->slide_anim != 1) {
         cairo_push_group(cr);
         pango_layout_set_text(layout, "\uE7E7", strlen("\uE83F"));
@@ -1344,7 +1319,7 @@ clicked_date(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_wifi(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (wifi_surfaces *) container->user_data;
+    auto *data = (IconButton *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->wifi_command.empty()) {
             start_wifi_menu();
@@ -1575,32 +1550,30 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
     
     // Paint search icon
-    if (data->surface) {
-        PangoLayout *layout =
-                get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-        // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-        pango_layout_set_text(layout, "\uE721", strlen("\uE83F"));
-    
-        if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
-            if (active || container->state.mouse_pressing) {
-                set_argb(cr, config->color_taskbar_search_bar_pressed_icon);
-            } else {
-                set_argb(cr, config->color_taskbar_search_bar_hovered_icon);
-            }
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE721", strlen("\uE83F"));
+
+    if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (active || container->state.mouse_pressing) {
+            set_argb(cr, config->color_taskbar_search_bar_pressed_icon);
         } else {
-            set_argb(cr, config->color_taskbar_search_bar_default_icon);
+            set_argb(cr, config->color_taskbar_search_bar_hovered_icon);
         }
-    
-        int width;
-        int height;
-        pango_layout_get_pixel_size(layout, &width, &height);
-    
-        cairo_move_to(cr,
-                      (int) (container->real_bounds.x + 12 * config->dpi),
-                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi));
-        pango_cairo_show_layout(cr, layout);
+    } else {
+        set_argb(cr, config->color_taskbar_search_bar_default_icon);
     }
+
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + 12 * config->dpi),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi));
+    pango_cairo_show_layout(cr, layout);
     
     if (text_empty) {
         PangoLayout *layout =
@@ -1862,8 +1835,6 @@ clicked_super(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (wifi_surfaces *) container->user_data;
-    
     Bounds start = container->real_bounds;
     container->real_bounds.x += 1;
     container->real_bounds.y += 1;
@@ -1933,20 +1904,12 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_super->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_super->name = "super";
     button_super->when_clicked = clicked_super;
-    load_icon_full_path(app,
-                        client,
-                        &((IconButton *) button_super->user_data)->surface,
-                        as_resource_path("windows.png"), 16 * config->dpi);
     
     field_search->when_paint = paint_search;
     field_search->when_mouse_down = clicked_search;
     field_search->receive_events_even_if_obstructed = true;
     field_search->user_data = new IconButton;
     field_search->name = "field_search";
-    load_icon_full_path(app,
-                        client,
-                        &((IconButton *) field_search->user_data)->surface,
-                        as_resource_path("search.png"), 16 * config->dpi);
     
     TextAreaSettings settings;
     settings.font_size = 12 * config->dpi;
@@ -1965,17 +1928,9 @@ fill_root(App *app, AppClient *client, Container *root) {
     textarea->parent->alignment = ALIGN_CENTER | ALIGN_LEFT;
     
     button_workspace->when_paint = paint_workspace;
-    button_workspace->user_data = new WorkspaceButton;
+    button_workspace->user_data = new IconButton;
     button_workspace->when_scrolled = scrolled_workspace;
     button_workspace->when_clicked = clicked_workspace;
-    load_icon_full_path(app,
-                        client,
-                        &((WorkspaceButton *) button_workspace->user_data)->surface,
-                        as_resource_path("taskview.png"), 16 * config->dpi);
-    load_icon_full_path(app,
-                        client,
-                        &((WorkspaceButton *) button_workspace->user_data)->surface_hover,
-                        as_resource_path("taskview-hovered.png"), 16 * config->dpi);
     
     container_icons->spacing = 1;
     container_icons->type = hbox;
@@ -1989,27 +1944,11 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_systray->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_systray->when_clicked = clicked_systray;
     button_systray->name = "systray";
-    load_icon_full_path(app,
-                        client,
-                        &((IconButton *) button_systray->user_data)->surface,
-                        as_resource_path("arrow.png"), 16 * config->dpi);
     
     button_wifi->when_paint = paint_wifi;
     button_wifi->when_clicked = clicked_wifi;
     button_wifi->name = "wifi";
-    auto wifi_data = new wifi_surfaces;
-    wifi_data->wired_up = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(
-            wifi_data->wired_up, as_resource_path("wifi/16/wired_up.png"), 16 * config->dpi, nullptr);
-    wifi_data->wired_down = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(
-            wifi_data->wired_down, as_resource_path("wifi/16/wired_down.png"), 16 * config->dpi, nullptr);
-    wifi_data->wireless_down = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(
-            wifi_data->wireless_down, as_resource_path("wifi/16/wireless_down.png"), 16 * config->dpi, nullptr);
-    wifi_data->wireless_up = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(
-            wifi_data->wireless_up, as_resource_path("wifi/16/wireless_up.png"), 16 * config->dpi, nullptr);
+    auto wifi_data = new IconButton;
     wifi_data->invalidate_button_press_if_client_with_this_name_is_open = "wifi_menu";
     button_wifi->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_wifi->user_data = wifi_data;
@@ -2038,12 +1977,6 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_action_center->when_paint = paint_action_center;
     auto action_center_data = new ActionCenterButtonData;
     button_action_center->user_data = action_center_data;
-    load_icon_full_path(app, client, &action_center_data->surface,
-                        as_resource_path("taskbar-notification-empty.png"), 16 * config->dpi);
-    load_icon_full_path(app, client, &action_center_data->surface_unseen_notification,
-                        as_resource_path("taskbar-notification-available.png"), 16 * config->dpi);
-    load_icon_full_path(app, client, &action_center_data->surface_mask,
-                        as_resource_path("taskbar-notification-mask.png"), 16 * config->dpi);
     
     action_center_data->invalidate_button_press_if_client_with_this_name_is_open = "action_center";
     button_action_center->when_mouse_down = invalidate_icon_button_press_if_window_open;
@@ -2071,11 +2004,6 @@ when_taskbar_closed(AppClient *client) {
     inotify_capacity_fd = -1;
     update_pinned_items_file(true);
     pinned_timeout = nullptr;
-}
-
-static bool
-taskbar_event_handler(App *app, xcb_generic_event_t *event) {
-    return false;
 }
 
 static void
@@ -2530,7 +2458,6 @@ create_taskbar(App *app) {
     paint_surface_with_image(
             global->unknown_icon_64, as_resource_path("unknown-64.svg"), 64 * config->dpi, nullptr);
     
-    app_create_custom_event_handler(app, taskbar->window, taskbar_event_handler);
     app_create_custom_event_handler(app, INT_MAX, window_event_handler);
     app_timeout_create(app, taskbar, 500, screenshot_active_window, nullptr);
     

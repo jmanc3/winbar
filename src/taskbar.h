@@ -28,18 +28,8 @@ public:
 };
 
 struct ActionCenterButtonData : public IconButton {
-    cairo_surface_t *surface_unseen_notification = nullptr;
-    cairo_surface_t *surface_mask = nullptr;
-    
     bool some_unseen = false;
     double slide_anim = 0;
-    
-    ~ActionCenterButtonData() {
-        if (surface_unseen_notification)
-            cairo_surface_destroy(surface_unseen_notification);
-        if (surface_mask)
-            cairo_surface_destroy(surface_mask);
-    }
 };
 
 class WindowsData {
@@ -120,25 +110,6 @@ public:
     
     ~LaunchableButton() {
     
-    }
-};
-
-class wifi_surfaces : public IconButton {
-public:
-    cairo_surface_t *wireless_up = nullptr;
-    cairo_surface_t *wireless_down = nullptr;
-    cairo_surface_t *wired_up = nullptr;
-    cairo_surface_t *wired_down = nullptr;
-    
-    ~wifi_surfaces() {
-        if (wireless_up)
-            cairo_surface_destroy(wireless_up);
-        if (wireless_down)
-            cairo_surface_destroy(wireless_down);
-        if (wired_up)
-            cairo_surface_destroy(wired_up);
-        if (wired_down)
-            cairo_surface_destroy(wired_down);
     }
 };
 

@@ -1039,13 +1039,12 @@ fill_root(AppClient *client) {
     top_arrow->when_paint = paint_arrow;
     auto *top_data = new ButtonData;
     top_data->text = "\uE971";
-    
     top_arrow->user_data = top_data;
+    
     Container *bottom_arrow = content_area->parent->children[0]->children[2];
     bottom_arrow->when_paint = paint_arrow;
     auto *bottom_data = new ButtonData;
     bottom_data->text = "\uE972";
-    
     bottom_arrow->user_data = bottom_data;
     
     content_area->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, (settings.right_width + 1) * config->dpi,

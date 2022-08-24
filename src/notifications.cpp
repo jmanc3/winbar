@@ -242,9 +242,6 @@ static void clicked_send_to_action_center(AppClient *client, cairo_t *cr, Contai
 }
 
 static void paint_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
-    auto client_wrapper = (NotificationWrapper *) client->root->user_data;
-    auto icon_button = (IconButton *) container->user_data;
-    
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
@@ -327,10 +324,6 @@ void show_notification(App *app, NotificationInfo *ni) {
     if (auto icon_container = container_by_name("icon", notification_container)) {
         auto icon_data = (IconButton *) icon_container->user_data;
         load_icon_full_path(app, client, &icon_data->surface, ni->icon_path, 48 * config->dpi);
-    }
-    if (auto icon_container = container_by_name("send_to_action_center", notification_container)) {
-        auto icon_data = (IconButton *) icon_container->user_data;
-        load_icon_full_path(app, client, &icon_data->surface, as_resource_path("right-arrow.png"), 12 * config->dpi);
     }
     
     client->when_closed = client_closed;

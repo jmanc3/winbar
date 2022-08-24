@@ -438,10 +438,6 @@ static void fill_root(AppClient *client, Container *root) {
             auto icon_data = (IconButton *) icon_container->user_data;
             load_icon_full_path(app, client, &icon_data->surface, n->icon_path, 48 * config->dpi);
         }
-        if (auto icon_container = container_by_name("send_to_action_center", notification_container)) {
-            auto icon_data = (IconButton *) icon_container->user_data;
-            load_icon_full_path(app, client, &icon_data->surface, as_resource_path("close-12.png"), 12 * config->dpi);
-        }
     }
     
     content->wanted_bounds.h = true_height(content) + true_height(content->parent);

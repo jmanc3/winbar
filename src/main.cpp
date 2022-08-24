@@ -110,7 +110,7 @@ int main() {
     return 0;
 }
 
-static int acceptable_config_version = 4;
+static int acceptable_config_version = 5;
 
 std::string first_message;
 std::string second_message;

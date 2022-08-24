@@ -8,7 +8,7 @@
 struct Config {
     bool found_config = false;
     
-    int config_version = 4;
+    int config_version = 5;
     
     int taskbar_height = 40;
     
