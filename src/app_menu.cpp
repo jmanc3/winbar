@@ -988,9 +988,6 @@ fill_root(AppClient *client) {
         // button->when_mouse_leaves_container = leave_fade;
         auto *data = new ButtonData;
         data->text = item;
-        data->surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-        paint_surface_with_image(
-                data->surface, as_resource_path("starticons/" + item + ".png"), 16 * config->dpi, nullptr);
         button->user_data = data;
     }
     auto start_filler = new Container();
