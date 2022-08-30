@@ -161,7 +161,7 @@ paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container)
     
     double scalar = client->get_volume();
     
-    std::string text = std::to_string((int) (scalar * 100));
+    std::string text = std::to_string((int) (std::round(scalar * 100)));
     
     int width;
     int height;

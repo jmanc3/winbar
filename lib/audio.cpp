@@ -28,7 +28,7 @@ void Audio_Client::set_volume(double value) {
     if (this->type == Audio_Backend::PULSEAUDIO) {
         pa_cvolume copy = this->pulseaudio_volume;
         for (int i = 0; i < this->pulseaudio_volume.channels; i++)
-            copy.values[i] = 65535 * value;
+            copy.values[i] = std::round(65536 * value);
         
         pa_threaded_mainloop_lock(audio_backend_data->mainloop);
         pa_operation *pa_op;
