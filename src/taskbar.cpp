@@ -338,15 +338,38 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
     if (data->surface) {
+        cairo_save(cr);
+        double scale_afterwards = .89;
+        double w = cairo_image_surface_get_width(data->surface);
+        auto scale_amount = 1 - (data->animation_zoom_amount * (1 - scale_afterwards));
+        double current_w = w * scale_amount;
+        double xpos = container->real_bounds.x + container->real_bounds.w / 2 -
+                      cairo_image_surface_get_width(data->surface) / 2;
+        double ypos = container->real_bounds.y + container->real_bounds.h / 2 -
+                      cairo_image_surface_get_width(data->surface) / 2;
+        xpos += (w - current_w) / 2;
+        ypos += (w - current_w) / 2;
+    
+        cairo_scale(cr, scale_amount, scale_amount);
+        double xpostrans = (xpos * (1 - scale_amount) / scale_amount);
+        double ypostrans = (ypos * (1 - scale_amount) / scale_amount);
+        cairo_translate(cr, xpostrans, ypostrans);
         // Assumes the size of the icon to be 24x24 and tries to draw it centered
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2));
+        if (data->animation_bounce_amount == 1 || data->windows_data_list.empty()) {
+            data->animation_bounce_amount = 0;
+        }
+        double bounce_amount = data->animation_bounce_amount;
+        if (bounce_amount > .5)
+            bounce_amount = 1 - bounce_amount;
+        if (data->animation_bounce_direction == 0) {
+            bounce_amount = bounce_amount;
+        } else if (data->animation_bounce_direction == 1) {
+            bounce_amount = -bounce_amount;
+        }
+        double off = (((config->taskbar_height - w) - (2 * config->dpi)) / 2) * (bounce_amount);
+        cairo_set_source_surface(cr, data->surface, xpos, ypos + off);
         cairo_paint(cr);
+        cairo_restore(cr);
     }
 }
 
@@ -873,8 +896,13 @@ pinned_icon_drag(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
-    ZoneScoped;
+    ZoneScoped;|
 #endif
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
+    
+    client_create_animation(app, client_entity, &data->animation_zoom_amount, 85 * data->animation_zoom_amount, nullptr,
+                            0);
+    
     client_entity->motion_events_per_second = 30;
     
     container->parent->should_layout_children = true;
@@ -1035,6 +1063,8 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
+    client_create_animation(app, client, &data->animation_zoom_amount, 85 * data->animation_zoom_amount, nullptr, 0);
+    
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
         if (data->windows_data_list.empty()) {
             launch_command(data->command_launched_by);
@@ -1085,6 +1115,10 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                 if (is_active_window) {
                     update_minimize_icon_positions();
                     minimize_window(window);
+                    data->animation_bounce_amount = 0;
+                    data->animation_bounce_direction = 0;
+                    client_create_animation(app, client, &data->animation_bounce_amount,
+                                            340, nullptr, 1);
                 } else {
                     xcb_ewmh_request_change_active_window(&app->ewmh,
                                                           app->screen_number,
@@ -1100,6 +1134,10 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                                                       XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
                                                       XCB_CURRENT_TIME,
                                                       XCB_NONE);
+                data->animation_bounce_amount = 0;
+                data->animation_bounce_direction = 1;
+                client_create_animation(app, client, &data->animation_bounce_amount,
+                                        340, nullptr, 1);
             }
         }
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
@@ -1121,6 +1159,21 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
             }
         }
     }
+}
+
+static void
+pinned_icon_mouse_down(AppClient *client, cairo_t *cr, Container *container) {
+    auto data = (LaunchableButton *) container->user_data;
+    
+    client_create_animation(app, client, &data->animation_zoom_amount, 85 * (1 - data->animation_zoom_amount), nullptr,
+                            1);
+}
+
+static void
+pinned_icon_mouse_up(AppClient *client, cairo_t *cr, Container *container) {
+    auto data = (LaunchableButton *) container->user_data;
+    
+    client_create_animation(app, client, &data->animation_zoom_amount, 85 * data->animation_zoom_amount, nullptr, 0);
 }
 
 static void
@@ -2275,6 +2328,10 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                             for (auto windows_data: data->windows_data_list) {
                                 if (windows_data->id == e->window) {
                                     windows_data->mapped = true;
+                                    data->animation_bounce_amount = 0;
+                                    data->animation_bounce_direction = 1;
+                                    client_create_animation(app, client, &data->animation_bounce_amount,
+                                                            340, nullptr, 1);
                                 }
                             }
                         }
@@ -2293,6 +2350,10 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                             for (auto windows_data: data->windows_data_list) {
                                 if (windows_data->id == e->window) {
                                     windows_data->mapped = false;
+                                    data->animation_bounce_amount = 0;
+                                    data->animation_bounce_direction = 0;
+                                    client_create_animation(app, client, &data->animation_bounce_amount,
+                                                            340, nullptr, 1);
                                 }
                             }
                         }
@@ -2689,6 +2750,8 @@ void add_window(App *app, xcb_window_t window) {
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
     a->when_mouse_leaves_container = pinned_icon_mouse_leaves;
     a->when_clicked = pinned_icon_mouse_clicked;
+    a->when_mouse_down = pinned_icon_mouse_down;
+    a->when_mouse_up = pinned_icon_mouse_up;
     a->when_drag_end = pinned_icon_drag_end;
     a->when_drag_start = pinned_icon_drag_start;
     a->when_drag = pinned_icon_drag;
@@ -3151,6 +3214,8 @@ load_pinned_icons() {
         child->when_mouse_enters_container = pinned_icon_mouse_enters;
         child->when_mouse_leaves_container = pinned_icon_mouse_leaves;
         child->when_clicked = pinned_icon_mouse_clicked;
+        child->when_mouse_down = pinned_icon_mouse_down;
+        child->when_mouse_up = pinned_icon_mouse_up;
         child->when_drag_end = pinned_icon_drag_end;
         child->when_drag_start = pinned_icon_drag_start;
         child->when_drag = pinned_icon_drag;

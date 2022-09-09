@@ -471,6 +471,16 @@ bool dbus_kde_set_brightness(double percentage) {
     return true;
 }
 
+bool dbus_kde_running() {
+    for (int i = 0; i < running_dbus_services.size(); i++) {
+        if (running_dbus_services[i] == "local.org_kde_powerdevil") {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 bool dbus_gnome_running() {
     return gnome_brightness_running;
 }

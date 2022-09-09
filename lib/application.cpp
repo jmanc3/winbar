@@ -915,6 +915,11 @@ void client_close(App *app, AppClient *client) {
     if (app == nullptr || !valid_client(app, client))
         return;
     
+    if (client->name == "taskbar" && app->running) {
+        client->marked_to_close = false;
+        return;
+    }
+    
     if (client->when_closed) {
         client->when_closed(client);
     }

@@ -192,10 +192,10 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool real) {
         amount = 1;
     if (real) {
         brightness_fake = amount;
-        if (dbus_gnome_running()) {
-            dbus_set_gnome_brightness(amount);
-        } else if (dbus_get_kde_max_brightness() != 0) {
+        if (dbus_kde_running()) {
             dbus_kde_set_brightness(((double) amount) / 100.0);
+        } else if (dbus_gnome_running()) {
+            dbus_set_gnome_brightness(amount);
         } else {
             backlight_set_brightness(amount);
         }
@@ -338,10 +338,10 @@ fill_root(Container *root) {
 }
 
 static void get_brightness(App *app, AppClient *client, Timeout *, void *) {
-    if (dbus_gnome_running()) {
-        brightness = dbus_get_gnome_brightness();
-    } else if (dbus_get_kde_max_brightness() != 0) {
+    if (dbus_kde_running()) {
         brightness = (dbus_get_kde_current_brightness() / dbus_get_kde_max_brightness()) * 100;
+    } else if (dbus_gnome_running()) {
+        brightness = dbus_get_gnome_brightness();
     } else {
         brightness = backlight_get_brightness();
     }

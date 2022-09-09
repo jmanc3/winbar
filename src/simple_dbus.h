@@ -37,6 +37,8 @@ double dbus_get_kde_current_brightness();
 /// Number from 0 to 1
 bool dbus_kde_set_brightness(double percentage);
 
+bool dbus_kde_running();
+
 bool dbus_gnome_running();
 
 double dbus_get_gnome_brightness();

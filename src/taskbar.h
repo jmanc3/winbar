@@ -108,6 +108,11 @@ public:
     bool animating = false;
     double target = 0;
     
+    double animation_zoom_amount = 0;
+    
+    int animation_bounce_direction = 0; // 0 is down, 1 is up
+    double animation_bounce_amount = 0;
+    
     ~LaunchableButton() {
     
     }

@@ -2,6 +2,7 @@
 // Created by jmanc3 on 9/30/21.
 //
 
+#include <cmath>
 #include "audio.h"
 #include "application.h"
 #include "volume_mapping.h"
