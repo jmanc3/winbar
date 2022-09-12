@@ -114,7 +114,10 @@ public:
     double animation_bounce_amount = 0;
     
     ~LaunchableButton() {
-    
+        for (auto w: windows_data_list)
+            delete w;
+        windows_data_list.clear();
+        windows_data_list.shrink_to_fit();
     }
 };
 

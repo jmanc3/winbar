@@ -1235,6 +1235,9 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     
         cairo_set_source(cr, actual);
         cairo_mask(cr, mask);
+        
+        cairo_pattern_destroy(actual);
+        cairo_pattern_destroy(mask);
     } else if (data->some_unseen) {
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
         pango_layout_set_text(layout, "\uE7E7", strlen("\uE83F"));
@@ -2299,6 +2302,7 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                             }
                         }
                     }
+                    free(reply);
                 } else if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
                     // TODO: error check
                     auto r = xcb_get_property(app->connection, False, e->window,
