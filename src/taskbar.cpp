@@ -3004,6 +3004,9 @@ void remove_window(App *app, xcb_window_t window) {
                         }
                     }
                 }
+                data->animation_bounce_amount = 0;
+                data->animation_bounce_direction = 0;
+                client_create_animation(app, entity, &data->animation_bounce_amount,0, nullptr, 0);
                 
                 delete data->windows_data_list[i];
                 data->windows_data_list.erase(data->windows_data_list.begin() + i);
