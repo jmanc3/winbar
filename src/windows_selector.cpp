@@ -23,6 +23,8 @@ int option_height = 144 * 1.2;
 int option_pad = 8;
 static double close_width = 32;
 static double close_height = 32;
+static Timeout *drag_and_drop_timeout = nullptr;
+bool drag_and_dropping = false;
 
 static void
 fill_root(Container *root);
@@ -167,6 +169,25 @@ clicked_body(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 clicked_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     window_option_clicked(client_entity, cr, container->parent->parent);
+}
+
+static void option_hover_clicked(App *, AppClient *client, Timeout *, void *user_data) {
+    clicked_body(client, client->cr, (Container *) user_data);
+    drag_and_drop_timeout = nullptr;
+}
+
+static void
+option_entered(AppClient *client, cairo_t *, Container *container) {
+    if (drag_and_dropping) {
+        drag_and_drop_timeout = app_timeout_create(app, client, 300, option_hover_clicked, container);
+    }
+}
+
+static void
+option_exited(AppClient *client, cairo_t *, Container *) {
+    if (drag_and_drop_timeout != nullptr) {
+        app_timeout_stop(app, client, drag_and_drop_timeout);
+    }
 }
 
 static int get_width(LaunchableButton *data) {
@@ -511,6 +532,8 @@ fill_root(AppClient *client, Container *root) {
         option_titlebar->wanted_bounds.h = FILL_SPACE;
         option_titlebar->when_paint = paint_titlebar;
         option_titlebar->when_clicked = clicked_titlebar;
+        option_titlebar->when_mouse_enters_container = option_entered;
+        option_titlebar->when_mouse_leaves_container = option_exited;
         option_top_hbox->children.push_back(option_titlebar);
         
         Container *option_close_button = new Container();
@@ -528,6 +551,8 @@ fill_root(AppClient *client, Container *root) {
         option_body->wanted_bounds.h = FILL_SPACE;
         option_body->when_paint = paint_body;
         option_body->when_clicked = clicked_body;
+        option_body->when_mouse_enters_container = option_entered;
+        option_body->when_mouse_leaves_container = option_exited;
         auto body_data = new BodyData;
         body_data->windows_data = w;
         option_body->user_data = body_data;
@@ -545,6 +570,7 @@ static void when_closed(AppClient *client) {
     if (auto c = client_by_name(app, "taskbar")) {
         request_refresh(app, c);
     }
+    drag_and_dropping = false;
 }
 
 void start_windows_selector(Container *container, selector_type selector_state) {
@@ -592,7 +618,12 @@ void start_windows_selector(Container *container, selector_type selector_state) 
         popup_settings.name = "windows_selector";
         popup_settings.takes_input_focus = false;
         auto client = taskbar->create_popup(popup_settings, settings);
-        
+    
+    
+        uint32_t version = 5;
+        xcb_change_property(app->connection, XCB_PROP_MODE_REPLACE, client->window, get_cached_atom(app, "XdndAware"),
+                            XCB_ATOM_ATOM, 32, 1, &version);
+    
         client->root->user_data = pii;
         if (pii->data->surface) {
             std::string path;

@@ -6,6 +6,7 @@
 
 extern int option_width;
 extern int option_height;
+extern bool drag_and_dropping;
 
 class PinnedIconInfo : public IconButton {
 public:

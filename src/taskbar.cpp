@@ -339,7 +339,7 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
     
     if (data->surface) {
         cairo_save(cr);
-        double scale_afterwards = .89;
+        double scale_afterwards = .81;
         double w = cairo_image_surface_get_width(data->surface);
         auto scale_amount = 1 - (data->animation_zoom_amount * (1 - scale_afterwards));
         double current_w = w * scale_amount;
@@ -358,7 +358,9 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         if (data->animation_bounce_amount == 1 || data->windows_data_list.empty()) {
             data->animation_bounce_amount = 0;
         }
-        double bounce_amount = data->animation_bounce_amount;
+        auto easeBack = getEasingFunction(EaseOutBack);
+        auto easeIn = getEasingFunction(EaseInQuad);
+        double bounce_amount = easeBack(easeIn(data->animation_bounce_amount));
         if (bounce_amount > .5)
             bounce_amount = 1 - bounce_amount;
         if (data->animation_bounce_direction == 0) {
@@ -821,6 +823,8 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
     active_window_changed(-1);
     container->parent->should_layout_children = false;
     auto *data = static_cast<LaunchableButton *>(container->user_data);
+    client_create_animation(app, client_entity, &data->animation_zoom_amount, 55 * data->animation_zoom_amount, nullptr,
+                            0);
     data->initial_mouse_click_before_drag_offset_x =
             container->real_bounds.x - client_entity->mouse_initial_x;
     container->z_index = 1;
@@ -1118,7 +1122,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                     data->animation_bounce_amount = 0;
                     data->animation_bounce_direction = 0;
                     client_create_animation(app, client, &data->animation_bounce_amount,
-                                            340, nullptr, 1);
+                                            451.2, nullptr, 1);
                 } else {
                     xcb_ewmh_request_change_active_window(&app->ewmh,
                                                           app->screen_number,
@@ -1137,7 +1141,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                 data->animation_bounce_amount = 0;
                 data->animation_bounce_direction = 1;
                 client_create_animation(app, client, &data->animation_bounce_amount,
-                                        340, nullptr, 1);
+                                        451.2, nullptr, 1);
             }
         }
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
@@ -2280,6 +2284,7 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                     }
                                 }
                                 free(reply);
+                                reply = nullptr;
                                 break;
                             }
                         }
@@ -2302,7 +2307,8 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                             }
                         }
                     }
-                    free(reply);
+                    if (reply)
+                        free(reply);
                 } else if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
                     // TODO: error check
                     auto r = xcb_get_property(app->connection, False, e->window,
@@ -2335,7 +2341,7 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                     data->animation_bounce_amount = 0;
                                     data->animation_bounce_direction = 1;
                                     client_create_animation(app, client, &data->animation_bounce_amount,
-                                                            340, nullptr, 1);
+                                                            451.2, nullptr, 1);
                                 }
                             }
                         }
@@ -2357,11 +2363,69 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                     data->animation_bounce_amount = 0;
                                     data->animation_bounce_direction = 0;
                                     client_create_animation(app, client, &data->animation_bounce_amount,
-                                                            340, nullptr, 1);
+                                                            451.2, nullptr, 1);
                                 }
                             }
                         }
                     }
+                }
+            }
+            break;
+        }
+        case XCB_CLIENT_MESSAGE: {
+            auto *e = (xcb_client_message_event_t *) event;
+        
+            // Drag and drop stuff from: https://www.acc.umu.se/~vatten/XDND.html
+            if (e->type == get_cached_atom(app, "XdndPosition")) {
+                if (auto client = client_by_window(app, e->window)) {
+                    if (client->name == "windows_selector") {
+                        drag_and_dropping = true;
+                    }
+                    uint32_t x = e->data.data32[2] >> 16;
+                    uint32_t y = e->data.data32[2] & 0xffff;
+                
+                    auto cookie = xcb_translate_coordinates(app->connection, app->screen->root, client->window, x, y);
+                    auto reply = xcb_translate_coordinates_reply(app->connection, cookie, nullptr);
+                    if (reply) {
+                        x = reply->dst_x;
+                        y = reply->dst_y;
+                        free(reply);
+                    }
+                
+                    client->motion_event_x = (int) x;
+                    client->motion_event_y = (int) y;
+                    handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
+                    client_paint(app, client, true);
+                
+                    xcb_window_t drag_and_drop_source = e->data.data32[0];
+                
+                    xcb_client_message_event_t status_event = {};
+                    status_event.response_type = XCB_CLIENT_MESSAGE;
+                    status_event.format = 32;
+                    status_event.window = drag_and_drop_source;
+                    status_event.type = get_cached_atom(app, "XdndStatus");
+                    status_event.data.data32[0] = client->window; // drag and drop target (us)
+                    int data = 0;
+                    data |= (1 << 1);
+                    status_event.data.data32[1] = data; // if we are going to accept it
+                    status_event.data.data32[2] = ((int) client->bounds->x << 16) | (int) client->bounds->y;
+                    status_event.data.data32[3] = ((int) client->bounds->w << 16) | (int) client->bounds->h;
+                    status_event.data.data32[3] = XCB_NONE;
+                
+                    auto xcb = app->connection;
+                
+                    xcb_send_event(xcb, false, drag_and_drop_source, XCB_EVENT_MASK_NO_EVENT,
+                                   reinterpret_cast<const char *> (&status_event));
+                }
+            } else if (e->type == get_cached_atom(app, "XdndLeave")) {
+                if (auto client = client_by_window(app, e->window)) {
+                    if (client->name == "windows_selector") {
+                        drag_and_dropping = false;
+                    }
+                    client->motion_event_x = (int) -1;
+                    client->motion_event_y = (int) -1;
+                    handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
+                    client_paint(app, client, true);
                 }
             }
             break;
@@ -2536,6 +2600,10 @@ create_taskbar(App *app) {
     if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO) {
         audio_update_list_of_clients();
     }
+    
+    uint32_t version = 5;
+    xcb_change_property(app->connection, XCB_PROP_MODE_REPLACE, taskbar->window, get_cached_atom(app, "XdndAware"),
+                        XCB_ATOM_ATOM, 32, 1, &version);
     
     /*
     inotify_fd = inotify_init1(IN_NONBLOCK);
