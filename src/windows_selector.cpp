@@ -179,7 +179,7 @@ static void option_hover_clicked(App *, AppClient *client, Timeout *, void *user
 static void
 option_entered(AppClient *client, cairo_t *, Container *container) {
     if (drag_and_dropping) {
-        drag_and_drop_timeout = app_timeout_create(app, client, 300, option_hover_clicked, container);
+        drag_and_drop_timeout = app_timeout_create(app, client, 600, option_hover_clicked, container);
     }
 }
 

@@ -360,6 +360,9 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         }
         auto easeBack = getEasingFunction(EaseOutBack);
         auto easeIn = getEasingFunction(EaseInQuad);
+        if (data->animation_bounce_direction == 1) {
+            easeIn = getEasingFunction(EaseInSine);
+        }
         double bounce_amount = easeBack(easeIn(data->animation_bounce_amount));
         if (bounce_amount > .5)
             bounce_amount = 1 - bounce_amount;
@@ -1141,7 +1144,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                 data->animation_bounce_amount = 0;
                 data->animation_bounce_direction = 1;
                 client_create_animation(app, client, &data->animation_bounce_amount,
-                                        451.2, nullptr, 1);
+                                        651.2, nullptr, 1);
             }
         }
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
@@ -2341,7 +2344,7 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                     data->animation_bounce_amount = 0;
                                     data->animation_bounce_direction = 1;
                                     client_create_animation(app, client, &data->animation_bounce_amount,
-                                                            451.2, nullptr, 1);
+                                                            651.2, nullptr, 1);
                                 }
                             }
                         }
