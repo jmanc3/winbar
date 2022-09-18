@@ -210,7 +210,7 @@ struct AppClient {
     long last_repaint_time;
     
     // Variables to limit how often we handle motion notify events
-    float motion_events_per_second = 30;
+    float motion_events_per_second = 120;
     int motion_event_x = 0;
     int motion_event_y = 0;
     Timeout *motion_event_timeout = nullptr;

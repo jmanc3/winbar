@@ -816,7 +816,6 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_entity->motion_events_per_second = 0;
     for (auto c: app->clients) {
         if (c->name == "windows_selector") {
             client_close_threaded(app, c);
@@ -909,8 +908,6 @@ pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container
     
     client_create_animation(app, client_entity, &data->animation_zoom_amount, 85 * data->animation_zoom_amount, nullptr,
                             0);
-    
-    client_entity->motion_events_per_second = 30;
     
     container->parent->should_layout_children = true;
     active_window_changed(backup_active_window);
