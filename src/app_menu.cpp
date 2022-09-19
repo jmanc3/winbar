@@ -116,6 +116,21 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     container->real_bounds.x += 1;
     container->real_bounds.w -= 2;
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_apps_pressed_item);
+        } else {
+            set_argb(cr, config->color_apps_hovered_item);
+        }
+        int border = 0;
+        
+        cairo_rectangle(cr,
+                        container->real_bounds.x + border,
+                        container->real_bounds.y + border,
+                        container->real_bounds.w - border * 2,
+                        container->real_bounds.h - border * 2);
+        cairo_fill(cr);
+    }
     auto data = (ButtonData *) container->user_data;
     
     container->real_bounds.x -= 1;
