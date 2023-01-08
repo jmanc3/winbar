@@ -54,7 +54,8 @@ public:
     
     /// Type
     Audio_Backend type = Audio_Backend::PULSEAUDIO;
-    bool is_master = false;
+    bool is_master = false; // Master just means it's not a client that generates audio
+    bool default_sink = false; // Sink means it's a speaker which can play audio
     
     /// Data for use by PulseAudio
     int pulseaudio_index;
@@ -86,6 +87,7 @@ public:
     pa_threaded_mainloop *mainloop = nullptr;
     pa_mainloop_api *api = nullptr;
     pa_context *context = nullptr;
+    std::string default_sink_name;
     
     bool shutting_down = false;
     

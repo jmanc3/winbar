@@ -1040,13 +1040,18 @@ scrolled_volume(AppClient *client_entity,
     
     for (auto c: audio_clients) {
         if (c->is_master_volume()) {
+            if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO) {
+                if (!c->default_sink) {
+                    continue;
+                }
+            }
             double new_volume = c->get_volume() + (.05 * vertical_scroll) + (.05 * -horizontal_scroll);
             if (new_volume < 0) {
                 new_volume = 0;
             } else if (new_volume > 1) {
                 new_volume = 1;
             }
-            
+    
             if (new_volume != c->get_volume()) {
                 if (c->is_muted())
                     c->set_mute(false);
