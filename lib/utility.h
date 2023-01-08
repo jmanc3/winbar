@@ -65,6 +65,17 @@ struct ArgbColor {
         color.a = a;
         return color;
     }
+    
+    bool operator==(const ArgbColor &rhs) const {
+        return r == rhs.r &&
+               g == rhs.g &&
+               b == rhs.b &&
+               a == rhs.a;
+    }
+    
+    bool operator!=(const ArgbColor &rhs) const {
+        return !(rhs == *this);
+    }
 };
 
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color);

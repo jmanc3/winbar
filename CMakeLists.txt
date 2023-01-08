@@ -23,11 +23,13 @@ if (PROFILE)
     # compile with profiling enabled
     # run git clone https://github.com/wolfpld/tracy.git if you want to do this
     add_definitions(-DTRACY_ENABLE)
-    add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB} ${WPA_CTRL} ../tracy/TracyClient.cpp)
+    add_subdirectory(tracy)
+    add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB} ${WPA_CTRL} tracy/public/TracyClient.cpp)
 
     set(DL_LIB dl)
     set(PTHREAD_LIB pthread)
     target_link_libraries(${project_name} PUBLIC ${PTHREAD_LIB} ${DL_LIB})
+    target_link_libraries(${project_name} PUBLIC Tracy::TracyClient)
 else ()
     # otherwise just compile
     add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB} ${WPA_CTRL})

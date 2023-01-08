@@ -50,7 +50,7 @@ int main() {
     
     active_tab = config->starting_tab_index == 0 ? "Apps" : "Scripts";
     
-    load_icons(app);
+    set_icons_path_and_possibly_update(app);
     
     // Add listeners and grabs on the root window
     root_start(app);

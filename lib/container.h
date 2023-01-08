@@ -36,6 +36,10 @@ struct Bounds {
     Bounds(const Bounds &b);
     
     bool non_zero();
+    
+    void shrink(double amount);
+    
+    void grow(double amount);
 };
 
 enum layout_type {

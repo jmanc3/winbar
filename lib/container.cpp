@@ -566,6 +566,20 @@ bool Bounds::non_zero() {
     return (x != 0) || (y != 0) || (w == 0) || (h == 0);
 }
 
+void Bounds::shrink(double amount) {
+    this->x += amount;
+    this->y += amount;
+    this->w -= amount * 2;
+    this->h -= amount * 2;
+}
+
+void Bounds::grow(double amount) {
+    this->x -= amount;
+    this->y -= amount;
+    this->w += amount * 2;
+    this->h += amount * 2;
+}
+
 Container *
 Container::child(int wanted_width, int wanted_height) {
     Container *child_container = new Container(wanted_width, wanted_height);

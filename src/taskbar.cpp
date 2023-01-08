@@ -3,7 +3,7 @@
 
 #ifdef TRACY_ENABLE
 
-#include "../tracy/Tracy.hpp"
+#include "../tracy/public/tracy/Tracy.hpp"
 
 #endif
 
@@ -902,7 +902,7 @@ pinned_icon_drag(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
-    ZoneScoped;|
+    ZoneScoped;
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     

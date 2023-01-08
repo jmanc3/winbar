@@ -3,7 +3,7 @@
 
 #ifdef TRACY_ENABLE
 
-#include "../tracy/Tracy.hpp"
+#include "../tracy/public/tracy/Tracy.hpp"
 
 #endif
 
@@ -24,7 +24,6 @@
 
 #define explicit dont_use_cxx_explicit
 
-#include <xcb/xcb_keysyms.h>
 #include <xcb/xkb.h>
 #include <xcb/xcb_aux.h>
 
