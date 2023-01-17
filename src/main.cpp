@@ -25,11 +25,6 @@ void check_config_version();
 void load_in_fonts();
 
 int main() {
-//    char buf[102];
-//    buf[0] = '\0';
-//    int len = strlen(buf);
-//    std::string test = std::string(buf, -1);
-    
     global = new globals;
     
     // Open connection to app

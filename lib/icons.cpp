@@ -83,6 +83,78 @@ struct OptionsData {
 static std::vector<std::string> icon_search_paths;
 static auto *data = new OptionsData;
 
+void traverse_dir(const char *path) {
+    DIR *dir = opendir(path);
+    if (dir == nullptr) {
+        return;
+    }
+    
+    std::string path_as_string(path);
+    std::string theme;
+    for (const auto &item: icon_search_paths) {
+        if (path_as_string.find(item) == 0) {
+            theme = path_as_string.substr(item.size());
+            if (theme.empty()) {
+                theme = path;
+            } else {
+                // Remove the first slash
+                theme = theme.substr(1);
+                // Remove everything after slash
+                theme = theme.substr(0, theme.find('/'));
+            }
+            break;
+        }
+    }
+    unsigned short int current_theme_index = data->themeIndexOf(theme);
+    unsigned short int current_parent_index = data->parentIndexOf(path);
+    
+    struct dirent *entry;
+    struct stat entryStat;
+    while ((entry = readdir(dir)) != nullptr) {
+        size_t name_len = strlen(entry->d_name);
+        if (name_len > 5) {
+            if (entry->d_name[name_len - 4] == '.') {
+                int type;
+                if (strcmp(entry->d_name + name_len - 3, "svg") == 0) {
+                    type = 0;
+                } else if (strcmp(entry->d_name + name_len - 3, "png") == 0) {
+                    type = 1;
+                } else {
+                    continue;
+                }
+                
+                Option option = {};
+                option.parentIndexAndExtension = (current_parent_index & 0x3FFF) | (type << 14);
+                option.themeIndex = current_theme_index;
+                entry->d_name[name_len - 4] = '\0';
+                (&data->options[entry->d_name])->push_back(option);
+                
+                continue;
+            }
+        }
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+        
+        std::string full_path = std::string(path) + "/" + entry->d_name;
+        const char *file = full_path.c_str();
+        if (stat(file, &entryStat) == -1)
+            continue;
+        
+        if (S_ISDIR(entryStat.st_mode)) {
+            traverse_dir(file);
+        } else if (S_ISLNK(entryStat.st_mode)) {
+            char link[PATH_MAX];
+            ssize_t len = readlink(file, link, sizeof(link));
+            if (len != -1) {
+                link[len] = '\0';
+                traverse_dir(link);
+            }
+        }
+    }
+    closedir(dir);
+}
+
+
 void generate_data() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -101,114 +173,8 @@ void generate_data() {
     for (const auto &search_path: icon_search_paths) {
         if (stat(search_path.c_str(), &st) != 0)
             continue;
-        
-        int current_parent_index = 0;
-        int current_theme_index = 0;
-        std::filesystem::path previous_directory;
-        for (auto iterator = std::filesystem::recursive_directory_iterator(search_path,
-                                                                           std::filesystem::directory_options(
-                                                                                   searchOptions));
-             iterator != std::filesystem::recursive_directory_iterator();
-             ++iterator) {
-            
-            std::filesystem::path path;
-            std::filesystem::file_status stat;
-            std::string file_name;
-            {
-                // 1.75 s
-#ifdef TRACY_ENABLE
-                ZoneScopedN("Depth");
-#endif
-                path = iterator->path();
-                stat = status(path);
-                file_name = path.filename().string();
-                
-                if (is_directory(stat)) {
-                    if (previous_directory != path) {
-                        previous_directory = path;
-                        
-                        const std::string &path_as_string = path.string();
-                        current_parent_index = data->parentIndexOf(path_as_string);
-                        
-                        for (const auto &item: icon_search_paths) {
-                            const std::filesystem::path &parent_path = path.parent_path();
-                            if (parent_path.string() == item) {
-                                current_theme_index = data->themeIndexOf(file_name);
-                            }
-                        }
-                        continue;
-                    }
-                } else if (is_regular_file(stat)) {
-                    // and parent path != previousfile
-                    if (previous_directory != path.parent_path()) {
-                        previous_directory = path.parent_path();
-                        
-                        const std::string &path_as_string = path.parent_path().string();
-                        current_parent_index = data->parentIndexOf(path_as_string);
-                        
-                        for (const auto &item: icon_search_paths) {
-                            const std::filesystem::path &parent_path = path.parent_path();
-                            if (parent_path.string() == item) {
-                                current_theme_index = data->themeIndexOf(path.parent_path().filename());
-                            }
-                        }
-                    }
-                }
-            }
-            
-            if (is_regular_file(stat)) {
-                int type = 2;
-                {
-                    // 15 ms
-#ifdef TRACY_ENABLE
-                    ZoneScopedN("Check extension");
-#endif
-                    if (file_name.length() > 4) {
-                        const char *string = file_name.data() + file_name.length() - 4;
-                        if (strncmp(string, ".svg", 4) == 0) {
-                            type = 0;
-                        } else if (strncmp(string, ".png", 4) == 0) {
-                            type = 1;
-                        } else if (strncmp(string, ".xmp", 4) != 0) {
-                            continue;
-                        }
-                    }
-                }
-                
-                unsigned short int temp;
-                {
-                    // 15 ms
-#ifdef TRACY_ENABLE
-                    ZoneScopedN("Set parent index");
-#endif
-                    temp = current_parent_index;
-                    
-                    if (type == 0) {
-                        temp &= ~(1UL << (15));
-                        temp &= ~(1UL << (14));
-                    } else if (type == 1) {
-                        temp &= ~(1UL << (15));
-                        temp |= 1UL << (14);
-                    } else {
-                        temp |= 1UL << (15);
-                        temp &= ~(1UL << (14));
-                    }
-                }
-                
-                {
-                    // somehow substring is faster than resize probably due to some optimization
-#ifdef TRACY_ENABLE
-                    ZoneScopedN("Add option");
-#endif
-                    const auto &stripped = file_name.substr(0, file_name.length() - 4);
-                    Option option = {};
-                    option.parentIndexAndExtension = temp;
-                    option.themeIndex = current_theme_index;
-                    std::vector<Option> *options = &data->options[stripped];
-                    options->push_back(option);
-                }
-            }
-        }
+    
+        traverse_dir(search_path.data());
     }
 }
 
@@ -739,6 +705,8 @@ void pick_best(std::vector<IconTarget> &targets, int target_size) {
             // If the target is just a full path, then just return the full path
             targets[ss].best_full_path = targets[ss].name;
         } else {
+            for (auto item: targets[ss].candidates)
+                item.is_part_of_current_theme = current_theme == item.theme;
             // Sort vector based on quality and size, and current theme
             // Set best_full_path equal to best top option
             std::sort(targets[ss].candidates.begin(), targets[ss].candidates.end(),
