@@ -43,6 +43,7 @@ class option_data : UserData {
 public:
     int unique_client_id = -100;
     long last_update = get_current_time_in_ms();
+    double rolling_avg = 0;
     
     Audio_Client *client() const {
         for (auto c: audio_clients)
@@ -225,6 +226,23 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
                     container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
                     marker_position,
+                    line_height);
+    cairo_fill(cr);
+    
+    if (data->rolling_avg < client->peak.load()) {
+        data->rolling_avg = client->peak.load();
+        client_create_animation(app, client_entity, &data->rolling_avg, 380, nullptr, 0);
+    }
+    
+    if (is_light_theme(config->color_volume_background)) {
+        set_argb(cr, darken(config->color_volume_background, 30));
+    } else {
+        set_argb(cr, lighten(config->color_volume_background, 50));
+    }
+    cairo_rectangle(cr,
+                    container->real_bounds.x,
+                    container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2 + line_height,
+                    marker_position * data->rolling_avg,
                     line_height);
     cairo_fill(cr);
     
@@ -522,6 +540,14 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 }
 
+void closed_volume(AppClient *client) {
+    for (const auto &item: audio_clients)
+        if (item->stream) {
+            pa_stream_disconnect(item->stream);
+            item->stream = nullptr;
+        }
+}
+
 void open_volume_menu() {
     audio_start(app);
     if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
@@ -602,15 +628,18 @@ void open_volume_menu() {
         auto *bottom_data = new ButtonData;
         bottom_data->text = "\uE972";
         bottom_arrow->user_data = bottom_data;
-        
+    
         fill_root(content);
         if (audio_backend_data->audio_backend != Audio_Backend::NONE) {
             content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
         } else {
             content->wanted_bounds.h = 80;
         }
-        
+    
         client_show(app, client_entity);
+        client_entity->fps = 120;
+        client_entity->when_closed = closed_volume;
+        client_register_animation(app, client_entity);
     }
 }
 

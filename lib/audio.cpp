@@ -236,6 +236,27 @@ void possibly_update_default_sink() {
     }
 }
 
+void on_stream(pa_stream *stream, size_t length, void *data) {
+    Audio_Client *client = (Audio_Client *) data;
+    
+    // print out the peak sample
+    const void *buffer;
+    if (pa_stream_peek(stream, &buffer, &length) < 0) {
+        fprintf(stderr, "pa_stream_peek() failed: %s", pa_strerror(pa_context_errno(pa_stream_get_context(stream))));
+    } else {
+        const char *f = (const char *) buffer;
+        int peak = 0;
+        for (size_t i = 0; i < (length / sizeof(char) / 2); i++) {
+            int vol = f[i] + 128;
+            if (peak < vol) {
+                peak = vol;
+            }
+        }
+        client->peak.store(peak / 255.0f);
+    }
+    pa_stream_drop(stream);
+}
+
 void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void *userdata) {
     if (eol != 0) {
         pa_threaded_mainloop_signal(audio_backend_data->mainloop, 0);
@@ -261,6 +282,17 @@ void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void
     audio_client->pulseaudio_index = l->index;
     audio_client->pulseaudio_mute_state = l->mute;
     audio_client->is_master = true;
+    
+    if (!audio_client->stream) {
+        pa_sample_spec spec;
+        spec.channels = 1;
+        spec.format = PA_SAMPLE_U8;
+        spec.rate = 344;
+        
+        audio_client->stream = pa_stream_new(audio_backend_data->context, audio_client->title.c_str(), &spec, NULL);
+        pa_stream_set_read_callback(audio_client->stream, on_stream, audio_client);
+        pa_stream_connect_record(audio_client->stream, l->monitor_source_name, NULL, PA_STREAM_NOFLAGS);
+    }
     
     audio_clients.push_back(audio_client);
     possibly_update_default_sink();
@@ -293,7 +325,7 @@ void on_sink_input_info_list_response(pa_context *c,
     audio_client->pulseaudio_volume = l->volume;
     audio_client->pulseaudio_index = l->index;
     audio_client->pulseaudio_mute_state = l->mute;
-
+    
     if (l->proplist) {
         size_t nbytes;
         const void *data = nullptr;
@@ -302,6 +334,18 @@ void on_sink_input_info_list_response(pa_context *c,
             audio_client->subtitle = std::string((const char *) data, nbytes);
         }
     }
+    if (!audio_client->stream) {
+        pa_sample_spec spec;
+        spec.channels = 1;
+        spec.format = PA_SAMPLE_U8;
+        spec.rate = 344;
+        
+        audio_client->stream = pa_stream_new(audio_backend_data->context, audio_client->title.c_str(), &spec, NULL);
+        pa_stream_set_read_callback(audio_client->stream, on_stream, audio_client);
+        pa_stream_set_monitor_stream(audio_client->stream, l->index);
+        pa_stream_connect_record(audio_client->stream, NULL, NULL, PA_STREAM_NOFLAGS);
+    }
+    
     
     audio_clients.push_back(audio_client);
     possibly_update_default_sink();

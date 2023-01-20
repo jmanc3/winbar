@@ -113,33 +113,29 @@ void traverse_dir(const char *path) {
     while ((entry = readdir(dir)) != nullptr) {
         size_t name_len = strlen(entry->d_name);
         if (name_len > 5) {
-            if (entry->d_name[name_len - 4] == '.') {
-                int type;
-                if (strcmp(entry->d_name + name_len - 3, "svg") == 0) {
-                    type = 0;
-                } else if (strcmp(entry->d_name + name_len - 3, "png") == 0) {
-                    type = 1;
-                } else {
-                    continue;
-                }
-                
+            if (strcmp(entry->d_name + name_len - 3, "svg") == 0) {
                 Option option = {};
-                option.parentIndexAndExtension = (current_parent_index & 0x3FFF) | (type << 14);
+                option.parentIndexAndExtension = (current_parent_index & 0x3FFF) | (0 << 14);
                 option.themeIndex = current_theme_index;
                 entry->d_name[name_len - 4] = '\0';
                 (&data->options[entry->d_name])->push_back(option);
-                
+                continue;
+            } else if (strcmp(entry->d_name + name_len - 3, "png") == 0) {
+                Option option = {};
+                option.parentIndexAndExtension = (current_parent_index & 0x3FFF) | (1 << 14);
+                option.themeIndex = current_theme_index;
+                entry->d_name[name_len - 4] = '\0';
+                (&data->options[entry->d_name])->push_back(option);
                 continue;
             }
         }
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
-        
-        std::string full_path = std::string(path) + "/" + entry->d_name;
-        const char *file = full_path.c_str();
+    
+        char file[PATH_MAX];
+        snprintf(file, PATH_MAX, "%s/%s", path, entry->d_name);
         if (stat(file, &entryStat) == -1)
             continue;
-        
         if (S_ISDIR(entryStat.st_mode)) {
             traverse_dir(file);
         } else if (S_ISLNK(entryStat.st_mode)) {

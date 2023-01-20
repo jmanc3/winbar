@@ -12,6 +12,7 @@
 #include <pulse/volume.h>
 #include <alsa/asoundlib.h>
 #include <pulse/pulseaudio.h>
+#include <atomic>
 
 // The only reason we need [App] is so that we can poll file descriptors fired from audio servers
 void audio_start(App *app);
@@ -61,11 +62,20 @@ public:
     int pulseaudio_index;
     int pulseaudio_mute_state;
     pa_cvolume pulseaudio_volume;
+    pa_stream *stream = nullptr; // for showing uv
+    std::atomic<float> peak = 0;
     
     /// Data for use by Alsa
     double alsa_volume = 0;
     bool alsa_mute_state = false;
     int alsa_index = -1;
+    
+    ~Audio_Client() {
+        if (stream) {
+            pa_stream_disconnect(stream);
+            pa_stream_unref(stream);
+        }
+    }
 };
 
 extern std::vector<Audio_Client *> audio_clients;

@@ -254,24 +254,30 @@ clicked_grid(AppClient *client, cairo_t *cr, Container *container) {
             scroll_pane->scroll_v_real = -offset;
             scroll_pane->scroll_v_visual = scroll_pane->scroll_v_real;
             ::layout(client, cr, scroll_pane->parent, scroll_pane->real_bounds);
-            
+    
             clicked_title(client, cr, container);
         }
     }
 }
 
 static void
+right_clicked_application(AppClient *client, cairo_t *cr, Container *container);
+
+static void
 clicked_item(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    auto *data = (ItemData *) container->user_data;
-    set_textarea_inactive();
-    launch_command(data->launcher->exec);
-    client_close_threaded(app, client);
-    xcb_flush(app->connection);
-    app->grab_window = -1;
+    if (container->state.mouse_button_pressed == 3) {
+        right_clicked_application(client, cr, container);
+    } else {
+        auto *data = (ItemData *) container->user_data;
+        set_textarea_inactive();
+        launch_command(data->launcher->exec);
+        client_close_threaded(app, client);
+        xcb_flush(app->connection);
+        app->grab_window = -1;
+    }
 }
 
 static void
@@ -798,6 +804,76 @@ clicked_reload(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+right_clicked_application(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    Settings settings;
+    settings.force_position = true;
+    settings.w = 256 * config->dpi;
+    settings.h = ((48 * 1) * config->dpi) + (config->dpi * 3);
+    // TODO: get mouse position
+    settings.x = client->mouse_current_x;
+    settings.y = client->mouse_current_y;
+    settings.skip_taskbar = true;
+    settings.decorations = false;
+    settings.override_redirect = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
+    
+    if (auto app_menu = client_by_name(app, "app_menu")) {
+        PopupSettings popup_settings;
+        popup_settings.takes_input_focus = true;
+        
+        auto popup = app_menu->create_popup(popup_settings, settings);
+        
+        popup->root->when_paint = paint_power_menu;
+        popup->root->type = vbox;
+        popup->root->spacing = 1;
+        
+        auto b = popup->root->child(FILL_SPACE, FILL_SPACE);
+        b->when_clicked = clicked_shut_down;
+        b->when_paint = paint_button;
+        auto *b_data = new ButtonData;
+        b_data->text = "Shut Down";
+        b->user_data = b_data;
+        
+        auto c = popup->root->child(FILL_SPACE, FILL_SPACE);
+        c->when_clicked = clicked_restart;
+        c->when_paint = paint_button;
+        auto *c_data = new ButtonData;
+        c_data->text = "Restart";
+        c->user_data = c_data;
+        
+        auto d = popup->root->child(FILL_SPACE, FILL_SPACE);
+        d->when_clicked = clicked_reload;
+        d->when_paint = paint_button;
+        auto *d_data = new ButtonData;
+        d_data->text = "Reload";
+        d->user_data = d_data;
+        
+        auto a = popup->root->child(FILL_SPACE, FILL_SPACE);
+        a->when_clicked = clicked_off;
+        a->when_paint = paint_button;
+        auto *a_data = new ButtonData;
+        a_data->text = "Off";
+        a->user_data = a_data;
+        
+        popup->when_closed = sub_menu_closed;
+        
+        client_show(app, popup);
+        
+        xcb_set_input_focus(app->connection, XCB_NONE, popup->window, XCB_CURRENT_TIME);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+    }
+}
+
+static void
 clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -871,11 +947,6 @@ clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
         xcb_flush(app->connection);
         xcb_aux_sync(app->connection);
     }
-    
-    return;
-    
-    std::lock_guard m(app->running_mutex);
-    client->app->running = false;
 }
 
 
