@@ -59,7 +59,8 @@ public:
     bool default_sink = false; // Sink means it's a speaker which can play audio
     
     /// Data for use by PulseAudio
-    int pulseaudio_index;
+    int pulseaudio_index = PA_INVALID_INDEX;
+    std::string monitor_source_name;
     int pulseaudio_mute_state;
     pa_cvolume pulseaudio_volume;
     pa_stream *stream = nullptr; // for showing uv
@@ -124,5 +125,9 @@ public:
 extern AudioBackendData *audio_backend_data;
 
 void audio_update_list_of_clients();
+
+void hook_up_stream();
+
+void unhook_stream();
 
 #endif //WINBAR_AUDIO_H

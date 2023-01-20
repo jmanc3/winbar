@@ -281,18 +281,8 @@ void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void
     audio_client->pulseaudio_volume = l->volume;
     audio_client->pulseaudio_index = l->index;
     audio_client->pulseaudio_mute_state = l->mute;
+    audio_client->monitor_source_name = l->monitor_source_name;
     audio_client->is_master = true;
-    
-    if (!audio_client->stream) {
-        pa_sample_spec spec;
-        spec.channels = 1;
-        spec.format = PA_SAMPLE_U8;
-        spec.rate = 344;
-        
-        audio_client->stream = pa_stream_new(audio_backend_data->context, audio_client->title.c_str(), &spec, NULL);
-        pa_stream_set_read_callback(audio_client->stream, on_stream, audio_client);
-        pa_stream_connect_record(audio_client->stream, l->monitor_source_name, NULL, PA_STREAM_NOFLAGS);
-    }
     
     audio_clients.push_back(audio_client);
     possibly_update_default_sink();
@@ -334,18 +324,6 @@ void on_sink_input_info_list_response(pa_context *c,
             audio_client->subtitle = std::string((const char *) data, nbytes);
         }
     }
-    if (!audio_client->stream) {
-        pa_sample_spec spec;
-        spec.channels = 1;
-        spec.format = PA_SAMPLE_U8;
-        spec.rate = 344;
-        
-        audio_client->stream = pa_stream_new(audio_backend_data->context, audio_client->title.c_str(), &spec, NULL);
-        pa_stream_set_read_callback(audio_client->stream, on_stream, audio_client);
-        pa_stream_set_monitor_stream(audio_client->stream, l->index);
-        pa_stream_connect_record(audio_client->stream, NULL, NULL, PA_STREAM_NOFLAGS);
-    }
-    
     
     audio_clients.push_back(audio_client);
     possibly_update_default_sink();
@@ -527,6 +505,38 @@ void audio_update_list_of_clients() {
         if (client->default_sink) {
             // swap with location at zero
             std::iter_swap(audio_clients.begin(), audio_clients.begin() + i);
+        }
+    }
+}
+
+void hook_up_stream() {
+    for (const auto &audio_client: audio_clients) {
+        if (!audio_client->stream) {
+            pa_sample_spec spec;
+            spec.channels = 1;
+            spec.format = PA_SAMPLE_U8;
+            spec.rate = 344;
+            
+            audio_client->stream = pa_stream_new(audio_backend_data->context, audio_client->title.c_str(), &spec, NULL);
+            pa_stream_set_read_callback(audio_client->stream, on_stream, audio_client);
+            
+            if (audio_client->monitor_source_name.empty() && audio_client->pulseaudio_index != PA_INVALID_INDEX) {
+                pa_stream_set_monitor_stream(audio_client->stream, audio_client->pulseaudio_index);
+                pa_stream_connect_record(audio_client->stream, NULL, NULL, PA_STREAM_NOFLAGS);
+            } else {
+                pa_stream_connect_record(audio_client->stream, audio_client->monitor_source_name.c_str(), NULL,
+                                         PA_STREAM_NOFLAGS);
+            }
+        }
+    }
+}
+
+void unhook_stream() {
+    for (const auto &audio_client: audio_clients) {
+        if (audio_client->stream) {
+            pa_stream_disconnect(audio_client->stream);
+            pa_stream_unref(audio_client->stream);
+            audio_client->stream = nullptr;
         }
     }
 }

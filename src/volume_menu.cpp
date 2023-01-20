@@ -541,11 +541,7 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 void closed_volume(AppClient *client) {
-    for (const auto &item: audio_clients)
-        if (item->stream) {
-            pa_stream_disconnect(item->stream);
-            item->stream = nullptr;
-        }
+    unhook_stream();
 }
 
 void open_volume_menu() {
@@ -556,6 +552,7 @@ void open_volume_menu() {
     } else if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO ||
                audio_backend_data->audio_backend == Audio_Backend::ALSA) {
         audio_update_list_of_clients();
+        hook_up_stream();
         
         if (audio_clients.empty()) {
             connected_message = "Successfully established connection to PulseAudio but found no "
