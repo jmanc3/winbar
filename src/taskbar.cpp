@@ -2680,10 +2680,13 @@ static inline void rtrim(std::string &s) {
                          std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
 }
 
+std::string find_icon_string_from_window_properties(xcb_window_t window);
+
 void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    find_icon_string_from_window_properties(window);
     // Exit the function if the window type is not something a dock should display
     xcb_get_property_cookie_t cookie = xcb_ewmh_get_wm_window_type_unchecked(&app->ewmh, window);
     xcb_ewmh_get_atoms_reply_t atoms_reply_data;
@@ -3648,4 +3651,66 @@ void taskbar_launch_index(int index) {
             }
         }
     }
+}
+
+std::string find_icon_string_from_window_properties(xcb_window_t window) {
+    std::string wm_name;
+    std::string net_wm_name;
+    std::string icon_name;
+    std::string wm_class;
+    std::string gtk_application_id;
+    std::string kde_application_id;
+    xcb_icccm_get_text_property_reply_t reply;
+    xcb_ewmh_get_utf8_strings_reply_t data;
+    
+    const xcb_get_property_cookie_t &name_cookie = xcb_icccm_get_wm_icon_name(app->connection, window);
+    const xcb_get_property_cookie_t &net_name_cookie = xcb_ewmh_get_wm_name(&app->ewmh, window);
+    const xcb_get_property_cookie_t &icon_cookie = xcb_icccm_get_wm_icon_name(app->connection, window);
+    const xcb_get_property_cookie_t &wm_class_cookie = xcb_icccm_get_wm_class(app->connection, window);
+    xcb_get_property_cookie_t gtk_coookie = xcb_icccm_get_text_property_unchecked(app->connection, window,
+                                                                                  get_cached_atom(app,
+                                                                                                  "_GTK_APPLICATION_ID"));
+    xcb_get_property_cookie_t kde_cookie = xcb_icccm_get_text_property_unchecked(app->connection, window,
+                                                                                 get_cached_atom(app,
+                                                                                                 "_KDE_NET_WM_DESKTOP_FILE"));
+    
+    // _GTK_APPLICATION_ID
+    if (xcb_icccm_get_text_property_reply(app->connection, gtk_coookie, &reply, nullptr)) {
+        gtk_application_id = std::string(reply.name, reply.name_len);
+        xcb_icccm_get_text_property_reply_wipe(&reply);
+    }
+    
+    // _KDE_NET_WM_DESKTOP_FILE
+    if (xcb_icccm_get_text_property_reply(app->connection, kde_cookie, &reply, nullptr)) {
+        kde_application_id = std::string(reply.name, reply.name_len);
+        xcb_icccm_get_text_property_reply_wipe(&reply);
+    }
+    
+    uint8_t success = xcb_icccm_get_wm_name_reply(app->connection, net_name_cookie, &reply, nullptr);
+    if (success) {
+        net_wm_name = std::string(reply.name, reply.name_len);
+        xcb_icccm_get_text_property_reply_wipe(&reply);
+    }
+    
+    // try to use properties to find matching desktop file, and if the icon specified, has options, or is a '/' return that
+    success = xcb_ewmh_get_wm_name_reply(&app->ewmh, name_cookie, &data, nullptr);
+    if (success) {
+        wm_name = strndup(data.strings, data.strings_len);
+        xcb_ewmh_get_utf8_strings_reply_wipe(&data);
+    }
+    
+    success = xcb_icccm_get_text_property_reply(app->connection, wm_class_cookie, &reply, nullptr);
+    if (success) {
+        wm_class = strndup(reply.name, reply.name_len);
+        xcb_icccm_get_text_property_reply_wipe(&reply);
+    }
+    
+    
+    // then check each property individually to see if it has options
+    
+    // then see if we have a set icon string in text file, and if it has options, return that
+    
+    // then check if we have a raw icon saved with the wm_class name, and return that path if so
+    
+    return "";
 }

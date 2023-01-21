@@ -6,6 +6,7 @@
 #define WINBAR_AUDIO_H
 
 #include "application.h"
+#include "utility.h"
 
 #include <string>
 #include <vector>
@@ -64,7 +65,13 @@ public:
     int pulseaudio_mute_state;
     pa_cvolume pulseaudio_volume;
     pa_stream *stream = nullptr; // for showing uv
-    std::atomic<float> peak = 0;
+    std::mutex pulseaudio_mutex;
+    char buffer[44100];
+    size_t length = 0;
+    float peak = 0;
+    long last_update = get_current_time_in_ms();
+    float time_between_last_sample = 50;
+    uint32_t rate = 44100;
     
     /// Data for use by Alsa
     double alsa_volume = 0;

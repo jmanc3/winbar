@@ -6,6 +6,7 @@
 #include "audio.h"
 #include "application.h"
 #include "volume_mapping.h"
+#include "utility.h"
 
 #ifdef TRACY_ENABLE
 
@@ -237,24 +238,32 @@ void possibly_update_default_sink() {
 }
 
 void on_stream(pa_stream *stream, size_t length, void *data) {
+#if TRACY_ENABLE
+    ZoneScoped;
+#endif
+    
     Audio_Client *client = (Audio_Client *) data;
     
+    // guard with client->pulseaudio_mutex
+    std::lock_guard<std::mutex> lock(client->pulseaudio_mutex);
+    
     // print out the peak sample
-    const void *buffer;
+    const void *buffer = nullptr;
     if (pa_stream_peek(stream, &buffer, &length) < 0) {
         fprintf(stderr, "pa_stream_peek() failed: %s", pa_strerror(pa_context_errno(pa_stream_get_context(stream))));
-    } else {
-        const char *f = (const char *) buffer;
-        int peak = 0;
-        for (size_t i = 0; i < (length / sizeof(char) / 2); i++) {
-            int vol = f[i] + 128;
-            if (peak < vol) {
-                peak = vol;
-            }
-        }
-        client->peak.store(peak / 255.0f);
     }
-    pa_stream_drop(stream);
+    if (length >= 0 || buffer) {
+        pa_stream_drop(stream);
+    }
+    long current_time = get_current_time_in_ms();
+    long last_update = current_time - client->last_update;
+    if (last_update > 100) {
+        last_update = 100;
+    }
+    client->time_between_last_sample = last_update;
+    client->last_update = current_time;
+    memcpy(client->buffer, buffer, length);
+    client->length = length;
 }
 
 void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void *userdata) {
@@ -270,6 +279,7 @@ void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void
             audio_client->subtitle = l->description;
             audio_client->pulseaudio_volume = l->volume;
             audio_client->pulseaudio_mute_state = l->mute;
+            audio_client->rate = l->sample_spec.rate;
             possibly_update_default_sink();
             return;
         }
@@ -283,6 +293,7 @@ void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void
     audio_client->pulseaudio_mute_state = l->mute;
     audio_client->monitor_source_name = l->monitor_source_name;
     audio_client->is_master = true;
+    audio_client->rate = l->sample_spec.rate;
     
     audio_clients.push_back(audio_client);
     possibly_update_default_sink();
@@ -305,6 +316,7 @@ void on_sink_input_info_list_response(pa_context *c,
             audio_client->title = l->name;
             audio_client->pulseaudio_volume = l->volume;
             audio_client->pulseaudio_mute_state = l->mute;
+            audio_client->rate = l->sample_spec.rate;
             possibly_update_default_sink();
             return;
         }
@@ -315,6 +327,7 @@ void on_sink_input_info_list_response(pa_context *c,
     audio_client->pulseaudio_volume = l->volume;
     audio_client->pulseaudio_index = l->index;
     audio_client->pulseaudio_mute_state = l->mute;
+    audio_client->rate = l->sample_spec.rate;
     
     if (l->proplist) {
         size_t nbytes;
@@ -515,7 +528,7 @@ void hook_up_stream() {
             pa_sample_spec spec;
             spec.channels = 1;
             spec.format = PA_SAMPLE_U8;
-            spec.rate = 344;
+            spec.rate = audio_client->rate;
             
             audio_client->stream = pa_stream_new(audio_backend_data->context, audio_client->title.c_str(), &spec, NULL);
             pa_stream_set_read_callback(audio_client->stream, on_stream, audio_client);
@@ -533,6 +546,7 @@ void hook_up_stream() {
 
 void unhook_stream() {
     for (const auto &audio_client: audio_clients) {
+        std::lock_guard<std::mutex> lock(audio_client->pulseaudio_mutex);
         if (audio_client->stream) {
             pa_stream_disconnect(audio_client->stream);
             pa_stream_unref(audio_client->stream);
