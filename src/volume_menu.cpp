@@ -44,6 +44,7 @@ public:
     int unique_client_id = -100;
     long last_update = get_current_time_in_ms();
     double rolling_avg = 0;
+    double rolling_avg_delayed = 0;
     
     Audio_Client *client() const {
         for (auto c: audio_clients)
@@ -235,6 +236,23 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
         data->rolling_avg = client->peak.load();
         client_create_animation(app, client_entity, &data->rolling_avg, 250, nullptr, 0);
     }
+    
+    if (data->rolling_avg_delayed < client->peak.load()) {
+        data->rolling_avg_delayed = client->peak.load();
+        client_create_animation(app, client_entity, &data->rolling_avg_delayed, 1500, nullptr, 0);
+    }
+    
+    if (is_light_theme(config->color_volume_background)) {
+        set_argb(cr, darken(config->color_volume_background, 13));
+    } else {
+        set_argb(cr, lighten(config->color_volume_background, 20));
+    }
+    cairo_rectangle(cr,
+                    container->real_bounds.x,
+                    container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2 + line_height,
+                    marker_position * data->rolling_avg_delayed,
+                    line_height);
+    cairo_fill(cr);
     
     if (is_light_theme(config->color_volume_background)) {
         set_argb(cr, darken(config->color_volume_background, 30));
@@ -636,7 +654,7 @@ void open_volume_menu() {
         }
     
         client_show(app, client_entity);
-        client_entity->fps = 120;
+        client_entity->fps = 60;
         client_entity->when_closed = closed_volume;
         client_register_animation(app, client_entity);
     }
