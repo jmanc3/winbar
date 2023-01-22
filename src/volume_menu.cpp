@@ -231,33 +231,8 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
                     line_height);
     cairo_fill(cr);
     
-    std::lock_guard<std::mutex> lock(client->pulseaudio_mutex);
-    
-    long current_time = get_current_time_in_ms();
-    long time_since_last_update = current_time - client->last_update;
-    float endPercent = time_since_last_update / (client->time_between_last_sample + 1);
-    if (endPercent > 1)
-        endPercent = 1;
-    float startPercent = endPercent - 0.2;
-    if (startPercent < 0)
-        startPercent = 0;
-    if (endPercent < data->previous_end_percent) {
-        startPercent = 0;
-    }
-    data->previous_end_percent = endPercent;
-    
-    int startIndex = client->length * startPercent;
-    int endIndex = client->length * endPercent;
-    
-    double sum = 0;
-    for (int i = startIndex; i < endIndex; i++) {
-        sum += client->buffer[i] + 128;
-    }
-    float i1 = endIndex - startIndex;
-    client->peak = (sum / i1) / 255.0f;
-    
-    if (data->rolling_avg < client->peak) {
-        data->rolling_avg = client->peak;
+    if (data->rolling_avg < client->peak.load()) {
+        data->rolling_avg = client->peak.load();
         client_create_animation(app, client_entity, &data->rolling_avg, 250, nullptr, 0);
     }
     

@@ -237,33 +237,42 @@ void possibly_update_default_sink() {
     }
 }
 
-void on_stream(pa_stream *stream, size_t length, void *data) {
+static void on_stream_suspend(pa_stream *s, void *data) {
 #if TRACY_ENABLE
     ZoneScoped;
 #endif
+    auto *client = (Audio_Client *) data;
     
-    Audio_Client *client = (Audio_Client *) data;
+    if (pa_stream_is_suspended(s))
+        client->peak = 0;
+}
+
+static void on_stream_update(pa_stream *stream, size_t length, void *data) {
+#if TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *client = (Audio_Client *) data;
     
-    // guard with client->pulseaudio_mutex
-    std::lock_guard<std::mutex> lock(client->pulseaudio_mutex);
-    
-    // print out the peak sample
     const void *buffer = nullptr;
     if (pa_stream_peek(stream, &buffer, &length) < 0) {
         fprintf(stderr, "pa_stream_peek() failed: %s", pa_strerror(pa_context_errno(pa_stream_get_context(stream))));
+        return;
     }
-    if (length >= 0 || buffer) {
-        pa_stream_drop(stream);
+    if (!buffer) {
+        /* NULL data means either a hole or empty buffer.
+         * Only drop the stream when there is a hole (length > 0) */
+        if (length)
+            pa_stream_drop(stream);
+        return;
     }
-    long current_time = get_current_time_in_ms();
-    long last_update = current_time - client->last_update;
-    if (last_update > 100) {
-        last_update = 100;
-    }
-    client->time_between_last_sample = last_update;
-    client->last_update = current_time;
-    memcpy(client->buffer, buffer, length);
-    client->length = length;
+    
+    double v = ((const float*) buffer)[length / sizeof(float) -1];
+    pa_stream_drop(stream);
+    if (v < 0)
+        v = 0;
+    if (v > 1)
+        v = 1;
+    client->peak.store(v);
 }
 
 void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void *userdata) {
@@ -279,7 +288,6 @@ void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void
             audio_client->subtitle = l->description;
             audio_client->pulseaudio_volume = l->volume;
             audio_client->pulseaudio_mute_state = l->mute;
-            audio_client->rate = l->sample_spec.rate;
             possibly_update_default_sink();
             return;
         }
@@ -293,7 +301,6 @@ void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void
     audio_client->pulseaudio_mute_state = l->mute;
     audio_client->monitor_source_name = l->monitor_source_name;
     audio_client->is_master = true;
-    audio_client->rate = l->sample_spec.rate;
     
     audio_clients.push_back(audio_client);
     possibly_update_default_sink();
@@ -316,7 +323,6 @@ void on_sink_input_info_list_response(pa_context *c,
             audio_client->title = l->name;
             audio_client->pulseaudio_volume = l->volume;
             audio_client->pulseaudio_mute_state = l->mute;
-            audio_client->rate = l->sample_spec.rate;
             possibly_update_default_sink();
             return;
         }
@@ -327,7 +333,6 @@ void on_sink_input_info_list_response(pa_context *c,
     audio_client->pulseaudio_volume = l->volume;
     audio_client->pulseaudio_index = l->index;
     audio_client->pulseaudio_mute_state = l->mute;
-    audio_client->rate = l->sample_spec.rate;
     
     if (l->proplist) {
         size_t nbytes;
@@ -527,18 +532,27 @@ void hook_up_stream() {
         if (!audio_client->stream) {
             pa_sample_spec spec;
             spec.channels = 1;
-            spec.format = PA_SAMPLE_U8;
-            spec.rate = audio_client->rate;
-            
-            audio_client->stream = pa_stream_new(audio_backend_data->context, audio_client->title.c_str(), &spec, NULL);
-            pa_stream_set_read_callback(audio_client->stream, on_stream, audio_client);
-            
+            spec.format = PA_SAMPLE_FLOAT32;
+            spec.rate = 25;
+    
+            pa_buffer_attr attr;
+            memset(&attr, 0, sizeof(attr));
+            attr.fragsize = sizeof(float);
+            attr.maxlength = (uint32_t) -1;
+    
+            audio_client->stream = pa_stream_new(audio_backend_data->context,
+                                                 (audio_client->title + " Peak Detector").c_str(), &spec, NULL);
+    
+            auto flags = (pa_stream_flags_t) (10752);
+    
+            pa_stream_set_read_callback(audio_client->stream, on_stream_update, audio_client);
+            pa_stream_set_suspended_callback(audio_client->stream, on_stream_suspend, audio_client);
+    
             if (audio_client->monitor_source_name.empty() && audio_client->pulseaudio_index != PA_INVALID_INDEX) {
                 pa_stream_set_monitor_stream(audio_client->stream, audio_client->pulseaudio_index);
-                pa_stream_connect_record(audio_client->stream, NULL, NULL, PA_STREAM_NOFLAGS);
+                pa_stream_connect_record(audio_client->stream, NULL, &attr, flags);
             } else {
-                pa_stream_connect_record(audio_client->stream, audio_client->monitor_source_name.c_str(), NULL,
-                                         PA_STREAM_NOFLAGS);
+                pa_stream_connect_record(audio_client->stream, audio_client->monitor_source_name.c_str(), &attr, flags);
             }
         }
     }
@@ -546,7 +560,6 @@ void hook_up_stream() {
 
 void unhook_stream() {
     for (const auto &audio_client: audio_clients) {
-        std::lock_guard<std::mutex> lock(audio_client->pulseaudio_mutex);
         if (audio_client->stream) {
             pa_stream_disconnect(audio_client->stream);
             pa_stream_unref(audio_client->stream);
