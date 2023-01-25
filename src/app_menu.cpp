@@ -508,7 +508,7 @@ when_scrollbar_mouse_enters(AppClient *client, cairo_t *cr, Container *container
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(client->app, client, &scrollbar_openess, 100, 0, 1);
+    client_create_animation(client->app, client, &scrollbar_openess, 0, 100, 0, 1);
 }
 
 static void
@@ -516,7 +516,7 @@ when_scrollbar_container_mouse_enters(AppClient *client, cairo_t *cr, Container 
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(client->app, client, &scrollbar_visible, 100, 0, 1);
+    client_create_animation(client->app, client, &scrollbar_visible, 0, 100, 0, 1);
 }
 
 static void
@@ -524,8 +524,8 @@ when_scrollbar_mouse_leaves(AppClient *client, cairo_t *cr, Container *container
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(client->app, client, &scrollbar_openess, 100, 0, 0);
-    client_create_animation(client->app, client, &scrollbar_visible, 100, 0, 0);
+    client_create_animation(client->app, client, &scrollbar_openess, 0, 100, 0, 0);
+    client_create_animation(client->app, client, &scrollbar_visible, 0, 100, 0, 0);
 }
 
 static Timeout *scrollbar_leave_fd = nullptr;
@@ -540,7 +540,7 @@ scrollbar_leaves_timeout(App *app, AppClient *client, Timeout *, void *data) {
         if (scrollbar_openess != 0 && scrollbar_openess == 1 &&
             !bounds_contains(
                     container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
-            client_create_animation(client->app, client, &scrollbar_openess, 100, 0, 0);
+            client_create_animation(client->app, client, &scrollbar_openess, 0, 100, 0, 0);
         }
     } else {
         scrollbar_openess = 0;
@@ -573,7 +573,7 @@ left_open_timeout(App *app, AppClient *client, Timeout *, void *data) {
     if (app && app->running && valid_client(app, client) &&
         (container->state.mouse_hovering || container->state.mouse_pressing)) {
         client_create_animation(
-                app, client, &container->wanted_bounds.w, 100, nullptr, 256 * config->dpi, true);
+                app, client, &container->wanted_bounds.w, 0, 100, nullptr, 256 * config->dpi, true);
     }
     left_open_fd = nullptr;
 }
@@ -599,7 +599,7 @@ left_close(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     if (left_locked || !container)
         return;
-    client_create_animation(app, client, &container->wanted_bounds.w, 70, nullptr, 48 * config->dpi, true);
+    client_create_animation(app, client, &container->wanted_bounds.w, 0, 70, nullptr, 48 * config->dpi, true);
 }
 
 static bool
@@ -647,10 +647,10 @@ clicked_start_button(AppClient *client, cairo_t *cr, Container *container) {
         if (auto *container = container_by_name("left_buttons", client->root)) {
             if (container->real_bounds.w == 48 * config->dpi) {
                 client_create_animation(
-                        app, client, &container->wanted_bounds.w, 120, nullptr, 256 * config->dpi, true);
+                        app, client, &container->wanted_bounds.w, 0, 120, nullptr, 256 * config->dpi, true);
             } else if (container->real_bounds.w == 256 * config->dpi) {
                 client_create_animation(
-                        app, client, &container->wanted_bounds.w, 120, nullptr, 48 * config->dpi, true);
+                        app, client, &container->wanted_bounds.w, 0, 120, nullptr, 48 * config->dpi, true);
             }
         }
     }

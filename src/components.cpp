@@ -114,7 +114,7 @@ mouse_down_thread(App *app, AppClient *client, Timeout *, void *data) {
             if (mouse_info->horizontal_change != 0)
                 client_create_animation(client->app,
                                         client,
-                                        &target->scroll_h_visual,
+                                        &target->scroll_h_visual, 0,
                                         scroll_anim_time,
                                         easing_function,
                                         target->scroll_h_real,
@@ -122,7 +122,7 @@ mouse_down_thread(App *app, AppClient *client, Timeout *, void *data) {
             if (mouse_info->vertical_change != 0)
                 client_create_animation(client->app,
                                         client,
-                                        &target->scroll_v_visual,
+                                        &target->scroll_v_visual, 0,
                                         scroll_anim_time,
                                         easing_function,
                                         target->scroll_v_real,
@@ -149,14 +149,14 @@ mouse_down_arrow_up(AppClient *client, cairo_t *cr, Container *container) {
     
     client_create_animation(client->app,
                             client,
-                            &target->scroll_h_visual,
+                            &target->scroll_h_visual, 0,
                             scroll_anim_time,
                             easing_function,
                             target->scroll_h_real,
                             true);
     client_create_animation(client->app,
                             client,
-                            &target->scroll_v_visual,
+                            &target->scroll_v_visual, 0,
                             scroll_anim_time,
                             easing_function,
                             target->scroll_v_real,
@@ -183,14 +183,14 @@ mouse_down_arrow_bottom(AppClient *client, cairo_t *cr, Container *container) {
     
     client_create_animation(client->app,
                             client,
-                            &target->scroll_h_visual,
+                            &target->scroll_h_visual, 0,
                             scroll_anim_time,
                             easing_function,
                             target->scroll_h_real,
                             true);
     client_create_animation(client->app,
                             client,
-                            &target->scroll_v_visual,
+                            &target->scroll_v_visual, 0,
                             scroll_anim_time,
                             easing_function,
                             target->scroll_v_real,
@@ -217,14 +217,14 @@ mouse_down_arrow_left(AppClient *client, cairo_t *cr, Container *container) {
     
     client_create_animation(client->app,
                             client,
-                            &target->scroll_h_visual,
+                            &target->scroll_h_visual, 0,
                             scroll_anim_time,
                             easing_function,
                             target->scroll_h_real,
                             true);
     client_create_animation(client->app,
                             client,
-                            &target->scroll_v_visual,
+                            &target->scroll_v_visual, 0,
                             scroll_anim_time,
                             easing_function,
                             target->scroll_v_real,
@@ -251,14 +251,14 @@ mouse_down_arrow_right(AppClient *client, cairo_t *cr, Container *container) {
     
     client_create_animation(client->app,
                             client,
-                            &target->scroll_h_visual,
+                            &target->scroll_h_visual, 0,
                             scroll_anim_time,
                             easing_function,
                             target->scroll_h_real,
                             true);
     client_create_animation(client->app,
                             client,
-                            &target->scroll_v_visual,
+                            &target->scroll_v_visual, 0,
                             scroll_anim_time,
                             easing_function,
                             target->scroll_v_real,
@@ -385,14 +385,14 @@ clicked_right_thumb(AppClient *client, cairo_t *cr, Container *thumb_container, 
     if (animate) {
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_h_visual,
+                                &content_area->scroll_h_visual, 0,
                                 scroll_anim_time * 2,
                                 easing_function,
                                 content_area->scroll_h_real,
                                 true);
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_v_visual,
+                                &content_area->scroll_v_visual, 0,
                                 scroll_anim_time * 2,
                                 easing_function,
                                 content_area->scroll_v_real,
@@ -400,14 +400,14 @@ clicked_right_thumb(AppClient *client, cairo_t *cr, Container *thumb_container, 
     } else {
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_h_visual,
+                                &content_area->scroll_h_visual, 0,
                                 0,
                                 easing_function,
                                 content_area->scroll_h_real,
                                 true);
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_v_visual,
+                                &content_area->scroll_v_visual, 0,
                                 0,
                                 easing_function,
                                 content_area->scroll_v_real,
@@ -448,14 +448,14 @@ clicked_bottom_thumb(AppClient *client, cairo_t *cr, Container *thumb_container,
     if (animate) {
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_h_visual,
+                                &content_area->scroll_h_visual, 0,
                                 scroll_anim_time * 2,
                                 easing_function,
                                 content_area->scroll_h_real,
                                 true);
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_v_visual,
+                                &content_area->scroll_v_visual, 0,
                                 scroll_anim_time * 2,
                                 easing_function,
                                 content_area->scroll_v_real,
@@ -463,14 +463,14 @@ clicked_bottom_thumb(AppClient *client, cairo_t *cr, Container *thumb_container,
     } else {
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_h_visual,
+                                &content_area->scroll_h_visual, 0,
                                 0,
                                 easing_function,
                                 content_area->scroll_h_real,
                                 true);
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_v_visual,
+                                &content_area->scroll_v_visual, 0,
                                 0,
                                 easing_function,
                                 content_area->scroll_v_real,
@@ -682,14 +682,14 @@ put_cursor_on_screen(AppClient *client, Container *textarea) {
     
     client_create_animation(client->app,
                             client,
-                            &content_area->scroll_h_visual,
+                            &content_area->scroll_h_visual, 0,
                             scroll_anim_time,
                             easing_function,
                             content_area->scroll_h_real,
                             true);
     client_create_animation(client->app,
                             client,
-                            &content_area->scroll_v_visual,
+                            &content_area->scroll_v_visual, 0,
                             scroll_anim_time,
                             easing_function,
                             content_area->scroll_v_real,
@@ -720,17 +720,17 @@ update_bounds(AppClient *client, Container *container) {
             container->wanted_bounds.h = height;
             // ::layout(container->parent->parent, container->parent->parent->real_bounds, false);
             client_layout(client->app, client);
-            
+    
             client_create_animation(client->app,
                                     client,
-                                    &container->parent->parent->scroll_h_visual,
+                                    &container->parent->parent->scroll_h_visual, 0,
                                     scroll_anim_time,
                                     easing_function,
                                     container->parent->parent->scroll_h_real,
                                     true);
             client_create_animation(client->app,
                                     client,
-                                    &container->parent->parent->scroll_v_visual,
+                                    &container->parent->parent->scroll_v_visual, 0,
                                     scroll_anim_time,
                                     easing_function,
                                     container->parent->parent->scroll_v_real,
@@ -744,17 +744,17 @@ update_bounds(AppClient *client, Container *container) {
             container->wanted_bounds.h = height;
             client_layout(client->app, client);
             // ::layout(container->parent->parent, container->parent->parent->real_bounds, false);
-            
+    
             client_create_animation(client->app,
                                     client,
-                                    &container->parent->parent->scroll_h_visual,
+                                    &container->parent->parent->scroll_h_visual, 0,
                                     scroll_anim_time,
                                     easing_function,
                                     container->parent->parent->scroll_h_real,
                                     true);
             client_create_animation(client->app,
                                     client,
-                                    &container->parent->parent->scroll_v_visual,
+                                    &container->parent->parent->scroll_v_visual, 0,
                                     scroll_anim_time,
                                     easing_function,
                                     container->parent->parent->scroll_v_real,
@@ -1044,7 +1044,7 @@ drag_timeout(App *app, AppClient *client, Timeout *, void *data) {
         if (modified_x)
             client_create_animation(client->app,
                                     client,
-                                    &content_area->scroll_h_visual,
+                                    &content_area->scroll_h_visual, 0,
                                     scroll_anim_time,
                                     easing_function,
                                     content_area->scroll_h_real,
@@ -1052,7 +1052,7 @@ drag_timeout(App *app, AppClient *client, Timeout *, void *data) {
         if (modified_y)
             client_create_animation(client->app,
                                     client,
-                                    &content_area->scroll_v_visual,
+                                    &content_area->scroll_v_visual, 0,
                                     scroll_anim_time,
                                     easing_function,
                                     content_area->scroll_v_real,
@@ -2097,7 +2097,7 @@ void transition_same_container(AppClient *client, cairo_t *cr, Container *parent
         client->cr = main_cr;
     }
     
-    client_create_animation(client->app, client, &data->transition_scalar, 350,
+    client_create_animation(client->app, client, &data->transition_scalar, 0, 350,
                             getEasingFunction(::EaseOutQuint), 1, false);
 }
 

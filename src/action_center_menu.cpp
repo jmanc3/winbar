@@ -530,7 +530,7 @@ void start_action_center(App *app) {
             if (auto co = container_by_name("action", c->root)) {
                 auto data = (ActionCenterButtonData *) co->user_data;
                 data->some_unseen = false;
-                client_create_animation(app, c, &data->slide_anim, 220, nullptr, 0);
+                client_create_animation(app, c, &data->slide_anim, 0, 220, nullptr, 0);
                 request_refresh(app, c);
             }
         }

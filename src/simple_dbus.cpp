@@ -790,7 +790,7 @@ void notification_closed_signal(App *app, NotificationInfo *ni, NotificationReas
             if (auto co = container_by_name("action", c->root)) {
                 auto data = (ActionCenterButtonData *) co->user_data;
                 data->some_unseen = true;
-                client_create_animation(app, c, &data->slide_anim, 140, nullptr, 1);
+                client_create_animation(app, c, &data->slide_anim, 0, 140, nullptr, 1);
                 request_refresh(app, c);
             }
         }

@@ -1986,16 +1986,12 @@ void app_clean(App *app) {
     xcb_disconnect(app->connection);
 }
 
-void client_create_animation(App *app,
-                             AppClient *client,
-                             double *value,
-                             double length,
-                             easingFunction easing,
-                             double target,
-                             void (*finished)(AppClient *client),
-                             bool relayout) {
+void
+client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+                        double target, void (*finished)(AppClient *), bool relayout) {
     for (auto &animation: client->animations) {
         if (animation.value == value) {
+            animation.delay = delay;
             animation.length = length;
             animation.easing = easing;
             animation.target = target;
@@ -2008,6 +2004,7 @@ void client_create_animation(App *app,
     }
     
     ClientAnimation animation;
+    animation.delay = delay;
     animation.value = value;
     animation.length = length;
     animation.easing = easing;
@@ -2021,33 +2018,27 @@ void client_create_animation(App *app,
     client_register_animation(app, client);
 }
 
-void client_create_animation(App *app,
-                             AppClient *client,
-                             double *value,
-                             double length,
-                             easingFunction easing,
-                             double target) {
-    client_create_animation(app, client, value, length, easing, target, nullptr, false);
+void
+client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+                        double target) {
+    client_create_animation(app, client, value, delay, length, easing, target, nullptr, false);
 }
 
 void client_create_animation(App *app,
                              AppClient *client,
                              double *value,
+                             double delay,
                              double length,
                              easingFunction easing,
                              double target,
                              void (*finished)(AppClient *client)) {
-    client_create_animation(app, client, value, length, easing, target, finished, false);
+    client_create_animation(app, client, value, delay, length, easing, target, finished, false);
 }
 
-void client_create_animation(App *app,
-                             AppClient *client,
-                             double *value,
-                             double length,
-                             easingFunction easing,
-                             double target,
-                             bool relayout) {
-    client_create_animation(app, client, value, length, easing, target, nullptr, relayout);
+void
+client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+                        double target, bool relayout) {
+    client_create_animation(app, client, value, delay, length, easing, target, nullptr, relayout);
 }
 
 bool app_timeout_stop(App *app,
@@ -2219,16 +2210,18 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
         bool wants_to_relayout = false;
         
         for (auto &animation: client->animations) {
-            long elapsed_time = now - animation.start_time;
+            long elapsed_time = now - (animation.start_time + animation.delay);
+            if (elapsed_time < 0)
+                elapsed_time = 0;
             double scalar = (double) elapsed_time / animation.length;
             animation.done = scalar >= 1;
-            
+    
             if (animation.easing != nullptr)
                 scalar = animation.easing(scalar);
-            
+    
             double diff = (animation.target - animation.start_value) * scalar;
             *animation.value = animation.start_value + diff;
-            
+    
             if (animation.relayout)
                 wants_to_relayout = true;
             

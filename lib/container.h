@@ -190,6 +190,8 @@ struct ClientAnimation {
     bool done = false;
     
     void (*finished)(AppClient *client) = nullptr;
+    
+    double delay;
 };
 
 struct AppClient {

@@ -101,25 +101,25 @@ paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *con
         if (container->state.mouse_pressing) {
             if (data->previous_state != 2) {
                 data->previous_state = 2;
-                client_create_animation(app, client, &data->color.r, time, e, pressed_color.r);
-                client_create_animation(app, client, &data->color.g, time, e, pressed_color.g);
-                client_create_animation(app, client, &data->color.b, time, e, pressed_color.b);
-                client_create_animation(app, client, &data->color.a, time, e, pressed_color.a);
+                client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
+                client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
+                client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
+                client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
             }
         } else if (data->previous_state != 1) {
             data->previous_state = 1;
-            client_create_animation(app, client, &data->color.r, time, e, hovered_color.r);
-            client_create_animation(app, client, &data->color.g, time, e, hovered_color.g);
-            client_create_animation(app, client, &data->color.b, time, e, hovered_color.b);
-            client_create_animation(app, client, &data->color.a, time, e, hovered_color.a);
+            client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
+            client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
+            client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
+            client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
         }
     } else if (data->previous_state != 0) {
         data->previous_state = 0;
         e = getEasingFunction(easing_functions::EaseInQuad);
-        client_create_animation(app, client, &data->color.r, time, e, default_color.r);
-        client_create_animation(app, client, &data->color.g, time, e, default_color.g);
-        client_create_animation(app, client, &data->color.b, time, e, default_color.b);
-        client_create_animation(app, client, &data->color.a, time, e, default_color.a);
+        client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
+        client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
+        client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
+        client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
     }
     
     set_argb(cr, data->color);
@@ -613,7 +613,7 @@ pinned_icon_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     possibly_open(app, container, data);
-    client_create_animation(app, client, &data->hover_amount, 70, 0, 1);
+    client_create_animation(app, client, &data->hover_amount, 0, 70, 0, 1);
 }
 
 static void
@@ -623,7 +623,7 @@ pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     possibly_close(app, container, data);
-    client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
+    client_create_animation(app, client, &data->hover_amount, 0, 70, 0, 0);
 }
 
 std::string
@@ -728,13 +728,13 @@ void active_window_changed(xcb_window_t new_active_window) {
         if (active_container) {
             auto data = (LaunchableButton *) active_container->user_data;
             if (data)
-                client_create_animation(app, c, &data->active_amount, 45, nullptr, 0);
+                client_create_animation(app, c, &data->active_amount, 0, 45, nullptr, 0);
         }
         
         active_container = new_active_container;
         if (new_active_container) {
             auto data = (LaunchableButton *) new_active_container->user_data;
-            client_create_animation(app, c, &data->active_amount, 45, nullptr, 1);
+            client_create_animation(app, c, &data->active_amount, 0, 45, nullptr, 1);
             
             for (auto w_d: data->windows_data_list) {
                 if (w_d->id == new_active_window) {
@@ -792,7 +792,7 @@ icons_align(AppClient *client_entity, Container *icon_container, bool all_except
             if (real_data->target != laid_icon->real_bounds.x) {
                 client_create_animation(app,
                                         client_entity,
-                                        &real_icon->real_bounds.x,
+                                        &real_icon->real_bounds.x, 0,
                                         100,
                                         nullptr,
                                         laid_icon->real_bounds.x,
@@ -802,7 +802,7 @@ icons_align(AppClient *client_entity, Container *icon_container, bool all_except
             real_data->animating = true;
             client_create_animation(app,
                                     client_entity,
-                                    &real_icon->real_bounds.x,
+                                    &real_icon->real_bounds.x, 0,
                                     100,
                                     nullptr,
                                     laid_icon->real_bounds.x,
@@ -825,7 +825,8 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
     active_window_changed(-1);
     container->parent->should_layout_children = false;
     auto *data = static_cast<LaunchableButton *>(container->user_data);
-    client_create_animation(app, client_entity, &data->animation_zoom_amount, 55 * data->animation_zoom_amount, nullptr,
+    client_create_animation(app, client_entity, &data->animation_zoom_amount, 0, 55 * data->animation_zoom_amount,
+                            nullptr,
                             0);
     data->initial_mouse_click_before_drag_offset_x =
             container->real_bounds.x - client_entity->mouse_initial_x;
@@ -906,7 +907,8 @@ pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
-    client_create_animation(app, client_entity, &data->animation_zoom_amount, 85 * data->animation_zoom_amount, nullptr,
+    client_create_animation(app, client_entity, &data->animation_zoom_amount, 0, 85 * data->animation_zoom_amount,
+                            nullptr,
                             0);
     
     container->parent->should_layout_children = true;
@@ -1072,7 +1074,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
-    client_create_animation(app, client, &data->animation_zoom_amount, 85 * data->animation_zoom_amount, nullptr, 0);
+    client_create_animation(app, client, &data->animation_zoom_amount, 0, 85 * data->animation_zoom_amount, nullptr, 0);
     
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
         if (data->windows_data_list.empty()) {
@@ -1126,7 +1128,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                     minimize_window(window);
                     data->animation_bounce_amount = 0;
                     data->animation_bounce_direction = 0;
-                    client_create_animation(app, client, &data->animation_bounce_amount,
+                    client_create_animation(app, client, &data->animation_bounce_amount, 0,
                                             451.2, nullptr, 1);
                 } else {
                     xcb_ewmh_request_change_active_window(&app->ewmh,
@@ -1145,7 +1147,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                                                       XCB_NONE);
                 data->animation_bounce_amount = 0;
                 data->animation_bounce_direction = 1;
-                client_create_animation(app, client, &data->animation_bounce_amount,
+                client_create_animation(app, client, &data->animation_bounce_amount, 0,
                                         651.2, nullptr, 1);
             }
         }
@@ -1174,7 +1176,8 @@ static void
 pinned_icon_mouse_down(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LaunchableButton *) container->user_data;
     
-    client_create_animation(app, client, &data->animation_zoom_amount, 85 * (1 - data->animation_zoom_amount), nullptr,
+    client_create_animation(app, client, &data->animation_zoom_amount, 0, 85 * (1 - data->animation_zoom_amount),
+                            nullptr,
                             1);
 }
 
@@ -1182,7 +1185,7 @@ static void
 pinned_icon_mouse_up(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LaunchableButton *) container->user_data;
     
-    client_create_animation(app, client, &data->animation_zoom_amount, 85 * data->animation_zoom_amount, nullptr, 0);
+    client_create_animation(app, client, &data->animation_zoom_amount, 0, 85 * data->animation_zoom_amount, nullptr, 0);
 }
 
 static void
@@ -2279,7 +2282,8 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                                 for (auto windows_data: data->windows_data_list) {
                                                     if (windows_data->id == e->window) {
                                                         client_create_animation(app, client,
-                                                                                &data->wants_attention_amount, 10000, 0,
+                                                                                &data->wants_attention_amount, 0, 10000,
+                                                                                0,
                                                                                 1);
                                                         windows_data->wants_attention = true;
                                                     }
@@ -2301,8 +2305,9 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                             auto *data = static_cast<LaunchableButton *>(icon->user_data);
                                             for (auto windows_data: data->windows_data_list) {
                                                 if (windows_data->id == e->window) {
-                                                    client_create_animation(app, client, &data->wants_attention_amount,
-                                                                            0, 0, 0);
+                                                    client_create_animation(app, client,
+                                                                            &data->wants_attention_amount, 0, 0,
+                                                                            nullptr, 0);
                                                     windows_data->wants_attention = false;
                                                 }
                                             }
@@ -2345,7 +2350,7 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                     windows_data->mapped = true;
                                     data->animation_bounce_amount = 0;
                                     data->animation_bounce_direction = 1;
-                                    client_create_animation(app, client, &data->animation_bounce_amount,
+                                    client_create_animation(app, client, &data->animation_bounce_amount, 0,
                                                             651.2, nullptr, 1);
                                 }
                             }
@@ -2367,7 +2372,7 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                     windows_data->mapped = false;
                                     data->animation_bounce_amount = 0;
                                     data->animation_bounce_direction = 0;
-                                    client_create_animation(app, client, &data->animation_bounce_amount,
+                                    client_create_animation(app, client, &data->animation_bounce_amount, 0,
                                                             451.2, nullptr, 1);
                                 }
                             }
@@ -3014,7 +3019,7 @@ void remove_window(App *app, xcb_window_t window) {
                 }
                 data->animation_bounce_amount = 0;
                 data->animation_bounce_direction = 0;
-                client_create_animation(app, entity, &data->animation_bounce_amount,0, nullptr, 0);
+                client_create_animation(app, entity, &data->animation_bounce_amount, 0, 0, nullptr, 0);
                 
                 delete data->windows_data_list[i];
                 data->windows_data_list.erase(data->windows_data_list.begin() + i);

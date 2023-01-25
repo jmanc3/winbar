@@ -232,14 +232,15 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
                     line_height);
     cairo_fill(cr);
     
-    if (data->rolling_avg < client->peak.load()) {
-        data->rolling_avg = client->peak.load();
-        client_create_animation(app, client_entity, &data->rolling_avg, 250, nullptr, 0);
+    float peak = client->peak.load();
+    if (data->rolling_avg < peak) {
+        data->rolling_avg = peak;
+        client_create_animation(app, client_entity, &data->rolling_avg, 0, 250, nullptr, 0);
     }
     
-    if (data->rolling_avg_delayed < client->peak.load()) {
-        data->rolling_avg_delayed = client->peak.load();
-        client_create_animation(app, client_entity, &data->rolling_avg_delayed, 1500, nullptr, 0);
+    if (data->rolling_avg_delayed < peak) {
+        data->rolling_avg_delayed = peak;
+        client_create_animation(app, client_entity, &data->rolling_avg_delayed, 130, 1000, getEasingFunction(EaseInExpo), 0);
     }
     
     if (is_light_theme(config->color_volume_background)) {
@@ -654,7 +655,7 @@ void open_volume_menu() {
         }
     
         client_show(app, client_entity);
-        client_entity->fps = 60;
+        client_entity->fps = 90;
         client_entity->when_closed = closed_volume;
         client_register_animation(app, client_entity);
     }
