@@ -130,7 +130,6 @@ paint_centered_label(AppClient *client, cairo_t *cr, Container *container) {
                   container->real_bounds.x + container->real_bounds.w / 2 - ((logical.width / PANGO_SCALE) / 2),
                   container->real_bounds.y + container->real_bounds.h / 2 - ((logical.height / PANGO_SCALE) / 2));
     pango_cairo_show_layout(cr, layout);
-    
 }
 
 static void delete_container(App *app, AppClient *client, Timeout *timeout, void *user_data) {
@@ -248,7 +247,7 @@ void scan_results(std::vector<ScanResult> &results) {
             delete c;
         root->children.clear();
         
-        ScrollPaneSettings settings;
+        ScrollPaneSettings settings(config->dpi);
         Container *scrollpane = make_scrollpane(root, settings);
         Container *content = scrollpane->child(::vbox, FILL_SPACE, FILL_SPACE);
         content->name = "content";
@@ -290,6 +289,15 @@ void uncached_scan_results(std::vector<ScanResult> &results) {
 }
 
 void wifi_state(bool *up, bool *wired) {
+    // throttle the state check to once every 5 seconds
+    static std::chrono::time_point<std::chrono::system_clock> last_check;
+    static bool last_up = false;
+    static bool last_wired = false;
+    if (std::chrono::system_clock::now() - last_check < std::chrono::seconds(5)) {
+        *up = last_up;
+        *wired = last_wired;
+        return;
+    }
     std::string status = "down";
     std::ifstream status_file("/sys/class/net/" + get_default_wifi_interface() + "/operstate");
     if (status_file.is_open()) {
@@ -304,9 +312,12 @@ void wifi_state(bool *up, bool *wired) {
     
     // Wireless interfaces are prefixed with wlp
     *wired = std::string::npos == get_default_wifi_interface().find("wlp");
+    
+    last_up = *up;
+    last_wired = *wired;
 }
 
-double map(double x, double in_min, double in_max, double out_min, double out_max) {
+static double map(double x, double in_min, double in_max, double out_min, double out_max) {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 

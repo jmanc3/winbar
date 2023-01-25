@@ -415,7 +415,7 @@ static void fill_root(AppClient *client, Container *root) {
     }
     
     auto r = root->child(FILL_SPACE, FILL_SPACE);
-    ScrollPaneSettings settings;
+    ScrollPaneSettings settings(config->dpi);
     settings.right_show_amount = 2;
     auto scroll_pane = make_scrollpane(r, settings);
     scroll_pane->when_paint = paint_prompt;

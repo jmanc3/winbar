@@ -1,6 +1,7 @@
 
 #include "container.h"
 #include "application.h"
+#include "../src/components.h"
 
 #include <cassert>
 #include <cmath>
@@ -11,6 +12,8 @@ double
 reserved_height(Container *box) {
     double space = 0;
     for (auto child: box->children) {
+        if (!child->exists)
+            continue;
         if (child->wanted_bounds.h == FILL_SPACE) {
             space += child->wanted_pad.y + child->wanted_pad.h;
         } else {
@@ -26,6 +29,50 @@ reserved_height(Container *box) {
 double
 true_height(Container *box) {
     return reserved_height(box) + box->wanted_pad.y + box->wanted_pad.h - box->real_bounds.h;
+}
+
+double
+actual_true_height(Container *box) {
+    // set space to the distance between the lowest y of child and the hightest y+h of child
+    double lowest_y = 0;
+    double highest_y = 0;
+    bool lowest_y_set = false;
+    bool highest_y_set = false;
+    for (auto child: box->children) {
+        if (!child->exists)
+            continue;
+        if (!lowest_y_set || child->real_bounds.y < lowest_y) {
+            lowest_y = child->real_bounds.y;
+            lowest_y_set = true;
+        }
+        if (!highest_y_set || child->real_bounds.y + child->real_bounds.h > highest_y) {
+            highest_y = child->real_bounds.y + child->real_bounds.h;
+            highest_y_set = true;
+        }
+    }
+    return (highest_y - lowest_y) + box->wanted_pad.y + box->wanted_pad.h;
+}
+
+double
+actual_true_width(Container *box) {
+    // set space to the distance between the lowest x of child and the hightest x+w of child
+    double lowest_x = 0;
+    double highest_x = 0;
+    bool lowest_x_set = false;
+    bool highest_x_set = false;
+    for (auto child: box->children) {
+        if (!child->exists)
+            continue;
+        if (!lowest_x_set || child->real_bounds.x < lowest_x) {
+            lowest_x = child->real_bounds.x;
+            lowest_x_set = true;
+        }
+        if (!highest_x_set || child->real_bounds.x + child->real_bounds.w > highest_x) {
+            highest_x = child->real_bounds.x + child->real_bounds.w;
+            highest_x_set = true;
+        }
+    }
+    return (highest_x - lowest_x) + box->wanted_pad.x + box->wanted_pad.w;
 }
 
 // returns the height filler children should be
@@ -169,6 +216,8 @@ reserved_width(Container *box) {
     double space = 0;
     for (auto child: box->children) {
         if (child) {
+            if (!child->exists)
+                continue;
             if (child->wanted_bounds.w == FILL_SPACE) {
                 space += child->wanted_pad.x + child->wanted_pad.w;
             } else if (child->wanted_bounds.w == USE_CHILD_SIZE) {
@@ -427,6 +476,100 @@ void layout_scrollpane(AppClient *client, cairo_t *cr, Container *container, con
         layout(client, cr, b_bar, Bounds(bounds.x, bounds.y + bounds.h - b_h, bounds.w - r_w, b_h));
 }
 
+void clamp_scroll(ScrollContainer *scrollpane) {
+    double true_height = actual_true_height(scrollpane->content);
+    // add to true_height to account for bottom if it exists and not inline
+    if (scrollpane->bottom && scrollpane->bottom->exists && !scrollpane->settings.bottom_inline_track)
+        true_height += scrollpane->bottom->real_bounds.h;
+    scrollpane->scroll_v_real = -std::max(0.0, std::min(-scrollpane->scroll_v_real,
+                                                        true_height - scrollpane->real_bounds.h));
+    
+    double true_width = actual_true_width(scrollpane->content);
+    // add to true_width to account for right if it exists and not inline
+    if (scrollpane->right && scrollpane->right->exists && !scrollpane->settings.right_inline_track)
+        true_width += scrollpane->right->real_bounds.w;
+    scrollpane->scroll_h_real = -std::max(0.0,
+                                          std::min(-scrollpane->scroll_h_real, true_width - scrollpane->real_bounds.w));
+}
+
+void layout_newscrollpane_content(AppClient *client, cairo_t *cr, ScrollContainer *scroll, const Bounds &bounds,
+                                  bool right_scroll_bar_needed, bool bottom_scroll_bar_needed) {
+    double w = scroll->content->wanted_bounds.w;
+    double h = scroll->content->wanted_bounds.h;
+    ScrollPaneSettings settings = scroll->settings;
+    
+    if (w == FILL_SPACE) {
+        w = bounds.w - (settings.right_inline_track ? 0 : right_scroll_bar_needed ? settings.right_width : 0);
+        if (settings.right_show_amount == 0) {
+            w = bounds.w - settings.right_width;
+        } else if (settings.right_show_amount == 2) {
+            w = bounds.w;
+        }
+    } else {
+        w = true_width(scroll->content);
+    }
+    if (h == FILL_SPACE) {
+        h = bounds.h - (settings.bottom_inline_track ? 0 : bottom_scroll_bar_needed ? settings.bottom_height : 0);
+        if (settings.bottom_show_amount == 0) {
+            h = bounds.h - settings.bottom_height;
+        } else if (settings.bottom_show_amount == 2) {
+            h = bounds.h;
+        }
+    } else {
+        h = true_height(scroll->content);
+    }
+    
+    layout(client, cr, scroll->content,
+           Bounds(bounds.x + scroll->scroll_h_visual, bounds.y + scroll->scroll_v_visual, w, h));
+    
+    scroll->content->real_bounds.h = actual_true_height(scroll->content);
+    scroll->content->real_bounds.w = actual_true_width(scroll->content);
+}
+
+void layout_newscrollpane(AppClient *client, cairo_t *cr, ScrollContainer *scroll, const Bounds &bounds) {
+    ScrollPaneSettings settings = scroll->settings;
+    
+    // layout the content as if the scroll bars were needed, and then if the size exceeds the bounds, layout again but with only the needed scroll bars
+    layout_newscrollpane_content(client, cr, scroll, bounds, true, true);
+    
+    bool right_scroll_bar_needed = scroll->content->real_bounds.h > scroll->real_bounds.h;
+    bool bottom_scroll_bar_needed = scroll->content->real_bounds.w > scroll->real_bounds.w;
+    
+    bool create_right_scrollbar = right_scroll_bar_needed;
+    if (settings.right_show_amount == 2) {
+        create_right_scrollbar = false;
+    } else if (settings.right_show_amount == 0) {
+        create_right_scrollbar = true;
+    }
+    bool create_bottom_scrollbar = bottom_scroll_bar_needed;
+    if (settings.bottom_show_amount == 2) {
+        create_bottom_scrollbar = false;
+    } else if (settings.bottom_show_amount == 0) {
+        create_bottom_scrollbar = true;
+    }
+    
+    clamp_scroll(scroll);
+    scroll->scroll_v_visual = scroll->scroll_v_real;
+    scroll->scroll_h_visual = scroll->scroll_h_real;
+    
+    layout_newscrollpane_content(client, cr, scroll, bounds, right_scroll_bar_needed, bottom_scroll_bar_needed);
+    
+    if (create_right_scrollbar) {
+        layout(client, cr, scroll->right,
+               Bounds(bounds.x + bounds.w - settings.right_width, bounds.y, settings.right_width,
+                      bounds.h));
+    } else {
+        scroll->right->exists = false;
+    }
+    if (create_bottom_scrollbar) {
+        layout(client, cr, scroll->bottom,
+               Bounds(bounds.x, bounds.y + bounds.h - settings.bottom_height, bounds.w - settings.right_width,
+                      settings.bottom_height));
+    } else {
+        scroll->bottom->exists = false;
+    }
+}
+
 void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
     container->real_bounds.x = bounds.x;
     container->real_bounds.y = bounds.y;
@@ -443,8 +586,20 @@ void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &
     container->children_bounds.h =
             container->real_bounds.h - container->wanted_pad.y - container->wanted_pad.h;
     
-    if (container->children.empty())
+    if (container->type & layout_type::newscroll) {
+        auto s = (ScrollContainer *) container;
+        if (s->content->children.empty()) {
+            s->content->exists = false;
+            s->right->exists = false;
+            s->bottom->exists = false;
+            return;
+        }
+        s->content->exists = true;
+        s->right->exists = true;
+        s->bottom->exists = true;
+    } else if (container->children.empty()) {
         return;
+    }
     if (!container->should_layout_children)
         return;
     
@@ -466,6 +621,8 @@ void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &
                 child->exists = false;
             }
         }
+    } else if (container->type & layout_type::newscroll) {
+        layout_newscrollpane(client, cr, (ScrollContainer *) container, container->children_bounds);
     }
     
     // TODO: this only covers the first layer and not all of them
@@ -644,7 +801,11 @@ Container::Container(const Container &c) {
 
 Container::~Container() {
     for (auto child: children) {
-        delete child;
+        if (child->type == layout_type::newscroll) {
+            delete (ScrollContainer *) child;
+        } else {
+            delete child;
+        }
     }
     auto data = static_cast<UserData *>(user_data);
     delete data;
@@ -657,6 +818,10 @@ Container::Container() {
     spacing = 0;
     should_layout_children = true;
     user_data = nullptr;
+}
+
+ScrollContainer *Container::scrollchild(const ScrollPaneSettings &scroll_pane_settings) {
+    return make_newscrollpane_as_child(this, scroll_pane_settings);
 }
 
 AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client_settings) {
@@ -672,7 +837,7 @@ AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client
     }
     if (popup_client) {
         popup_client->popup_info = popup_settings;
-        
+    
         this->child_popup = popup_client;
         // TODO: is this the correct order (Why is teh comment on the function so useless!)
         xcb_icccm_set_wm_transient_for(app->connection, this->window, popup_client->window);
@@ -681,4 +846,55 @@ AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client
     }
     xcb_flush(app->connection);
     return popup_client;
+}
+
+ClientCommand *AppClient::command(const std::string &command, void (*function)(ClientCommand *)) {
+    return command_with_client(this, command, 2000, function, nullptr);
+}
+
+ClientCommand *AppClient::command(const std::string &command, int timeout_in_ms, void (*function)(ClientCommand *)) {
+    return command_with_client(this, command, timeout_in_ms, function, nullptr);
+}
+
+ClientCommand *
+AppClient::command(const std::string &command, int timeout_in_ms, void (*function)(ClientCommand *), void *user_data) {
+    return command_with_client(this, command, timeout_in_ms, function, user_data);
+}
+
+ClientCommand *AppClient::command(const std::string &command, void (*function)(ClientCommand *), void *user_data) {
+    return command_with_client(this, command, 2000, function, user_data);
+}
+
+ScrollPaneSettings::ScrollPaneSettings(float scale) {
+    this->right_width = this->right_width * scale;
+    this->bottom_height = this->bottom_height * scale;
+    this->right_arrow_height = this->right_arrow_height * scale;
+    this->bottom_arrow_width = this->bottom_arrow_width * scale;
+}
+
+void ClientCommand::kill(App *app, bool warn) {
+    if (warn) {
+        this->status = CommandStatus::ERROR;
+        if (this->function)
+            this->function(this);
+    }
+    epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, this->process_fd, NULL);
+    ::kill(this->process_fd, SIGTERM);
+    close(this->process_fd);
+    epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, this->timeout_fd, NULL);
+    close(this->timeout_fd);
+    for (int i = 0; i < app->descriptors_being_polled.size(); i++)
+        if (app->descriptors_being_polled[i].file_descriptor == this->process_fd)
+            app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
+    for (int i = 0; i < app->descriptors_being_polled.size(); i++)
+        if (app->descriptors_being_polled[i].file_descriptor == this->timeout_fd)
+            app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
+    for (int i = 0; i < this->client->commands.size(); i++) {
+        if (this->client->commands[i] == this) {
+            this->client->commands.erase(this->client->commands.begin() + i);
+            break;
+        }
+    }
+    
+    delete this;
 }

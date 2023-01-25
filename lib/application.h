@@ -1,7 +1,6 @@
 #ifndef APPLICATION_HEADER
 #define APPLICATION_HEADER
 
-#include "application.h"
 #include "container.h"
 #include "easing.h"
 
@@ -95,7 +94,15 @@ struct Timeout {
 struct PolledDescriptor {
     int file_descriptor;
     
-    void (*function)(App *, int fd);
+    void (*function)(App *, int fd, void *user_data);
+    
+    void *user_data = nullptr;
+    
+    ~PolledDescriptor() {
+//        if (user_data) {
+//            free(user_data);
+//        }
+    }
 };
 
 struct DBusConnection;
@@ -264,6 +271,11 @@ update_keymap(struct ClientKeyboard *kbd);
 
 void paint_container(App *app, AppClient *client, Container *container);
 
-bool poll_descriptor(App *app, int file_descriptor, int events, void function(App *, int fd));
+bool poll_descriptor(App *app, int file_descriptor, int events, void (*function)(App *, int, void *), void *user_data);
+
+void attach(AppClient *client, FILE *pipe);
+
+ClientCommand *
+command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, void (*function)(ClientCommand *), void *user_data);
 
 #endif

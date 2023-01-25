@@ -17,6 +17,8 @@
 AudioBackendData *audio_backend_data = new AudioBackendData;
 std::vector<Audio_Client *> audio_clients;
 
+static std::mutex change_mutex;
+
 double Audio_Client::get_volume() {
     if (this->type == Audio_Backend::PULSEAUDIO) {
         return ((double) this->pulseaudio_volume.values[0]) / ((double) 65535);
@@ -31,7 +33,8 @@ void Audio_Client::set_volume(double value) {
         pa_cvolume copy = this->pulseaudio_volume;
         for (int i = 0; i < this->pulseaudio_volume.channels; i++)
             copy.values[i] = std::round(65536 * value);
-        
+    
+        std::lock_guard lock(change_mutex);
         pa_threaded_mainloop_lock(audio_backend_data->mainloop);
         pa_operation *pa_op;
         if (this->is_master) {
@@ -65,6 +68,7 @@ static int alsa_state_change_callback(snd_mixer_elem_t *elem, unsigned int mask)
 
 void Audio_Client::set_mute(bool state) {
     if (this->type == Audio_Backend::PULSEAUDIO) {
+        std::lock_guard lock(change_mutex);
         pa_threaded_mainloop_lock(audio_backend_data->mainloop);
         pa_operation *pa_op;
         if (this->is_master) {
@@ -99,7 +103,7 @@ Audio_Client::Audio_Client(Audio_Backend backend) {
     type = backend;
 }
 
-void alsa_event_pumping_required_callback(App *app, int fd) {
+void alsa_event_pumping_required_callback(App *app, int fd, void *) {
     snd_mixer_handle_events(audio_backend_data->alsa_handle);
 }
 
@@ -176,7 +180,7 @@ bool try_establishing_connection_with_alsa(App *app) {
     if (snd_mixer_poll_descriptors(audio_backend_data->alsa_handle, pfds, nfds) < 0)
         return false;
     for (i = 0; i < nfds; i++)
-        poll_descriptor(app, pfds[i].fd, pfds[i].events, alsa_event_pumping_required_callback);
+        poll_descriptor(app, pfds[i].fd, pfds[i].events, alsa_event_pumping_required_callback, nullptr);
     
     snd_mixer_elem_set_callback(audio_backend_data->master_volume, alsa_state_change_callback);
     
@@ -276,12 +280,10 @@ static void on_stream_update(pa_stream *stream, size_t length, void *data) {
 }
 
 void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void *userdata) {
-    if (eol != 0) {
+    if (eol != 0 || l == nullptr) {
         pa_threaded_mainloop_signal(audio_backend_data->mainloop, 0);
         return;
     }
-    if (l == nullptr)
-        return;
     for (auto audio_client: audio_clients) {
         if (audio_client->pulseaudio_index == l->index) {
             audio_client->title = l->name;
@@ -302,6 +304,8 @@ void on_output_list_response(pa_context *c, const pa_sink_info *l, int eol, void
     audio_client->monitor_source_name = l->monitor_source_name;
     audio_client->is_master = true;
     
+    audio_client->icon_name = "audio-card";
+    
     audio_clients.push_back(audio_client);
     possibly_update_default_sink();
     
@@ -312,12 +316,10 @@ void on_sink_input_info_list_response(pa_context *c,
                                       const pa_sink_input_info *l,
                                       int eol,
                                       void *userdata) {
-    if (eol != 0) {
+    if (eol != 0 || l == nullptr) {
         pa_threaded_mainloop_signal(audio_backend_data->mainloop, 0);
         return;
     }
-    if (l == nullptr)
-        return;
     for (auto audio_client: audio_clients) {
         if (audio_client->pulseaudio_index == l->index && !audio_client->is_master) {
             audio_client->title = l->name;
@@ -340,6 +342,13 @@ void on_sink_input_info_list_response(pa_context *c,
         pa_proplist_get(l->proplist, PA_PROP_APPLICATION_NAME, &data, &nbytes);
         if (data) {
             audio_client->subtitle = std::string((const char *) data, nbytes);
+            data = nullptr;
+        }
+    
+        pa_proplist_get(l->proplist, PA_PROP_APPLICATION_ICON_NAME, &data, &nbytes);
+        if (data) {
+            audio_client->icon_name = std::string((const char *) data, nbytes);
+            data = nullptr;
         }
     }
     
@@ -347,7 +356,11 @@ void on_sink_input_info_list_response(pa_context *c,
     possibly_update_default_sink();
 }
 
-void on_server_info(pa_context *c, const pa_server_info *i, void *userdata) {
+// When volume_menu opens this calls us to segfault or wait forever
+// i is null, userdata is null
+void on_server_info(pa_context *c, const pa_server_info *i, void *) {
+    if (i == nullptr)
+        return;
     audio_backend_data->default_sink_name = i->default_sink_name;
     possibly_update_default_sink();
     // I can't remember why you have to do this signal, but I'm assuming it's some multi-threading thing
@@ -355,36 +368,41 @@ void on_server_info(pa_context *c, const pa_server_info *i, void *userdata) {
     pa_threaded_mainloop_signal(audio_backend_data->mainloop, 0);
 }
 
-void change_in_audio(App *, AppClient *, Timeout *, void *) {
-    pa_threaded_mainloop_lock(audio_backend_data->mainloop);
-    pa_operation *pa_op = pa_context_get_sink_input_info_list(
-            audio_backend_data->context, on_sink_input_info_list_response, NULL);
-    if (!pa_op) return;
-    while (pa_operation_get_state(pa_op) == PA_OPERATION_RUNNING)
-        pa_threaded_mainloop_wait(audio_backend_data->mainloop);
-    pa_operation_unref(pa_op);
-    pa_threaded_mainloop_unlock(audio_backend_data->mainloop);
-    
-    pa_op = nullptr;
-    pa_threaded_mainloop_lock(audio_backend_data->mainloop);
-    pa_op = pa_context_get_sink_info_list(audio_backend_data->context, on_output_list_response, NULL);
-    if (!pa_op) return;
-    while (pa_operation_get_state(pa_op) == PA_OPERATION_RUNNING)
-        pa_threaded_mainloop_wait(audio_backend_data->mainloop);
-    pa_operation_unref(pa_op);
-    pa_threaded_mainloop_unlock(audio_backend_data->mainloop);
-    
-    pa_op = nullptr;
-    pa_threaded_mainloop_lock(audio_backend_data->mainloop);
-    pa_op = pa_context_get_server_info(audio_backend_data->context, on_server_info, NULL);
-    if (!pa_op) return;
-    while (pa_operation_get_state(pa_op) == PA_OPERATION_RUNNING)
-        pa_threaded_mainloop_wait(audio_backend_data->mainloop);
-    pa_operation_unref(pa_op);
-    pa_threaded_mainloop_unlock(audio_backend_data->mainloop);
-    
-    if (audio_backend_data->callback)
-        audio_backend_data->callback();
+void change_in_audio(App *app, AppClient *, Timeout *, void *) {
+    std::thread t([] {
+        std::lock_guard lock(change_mutex);
+        
+        pa_threaded_mainloop_lock(audio_backend_data->mainloop);
+        pa_operation *pa_op = pa_context_get_sink_info_list(audio_backend_data->context, on_output_list_response, NULL);
+        if (!pa_op) return;
+        while (pa_operation_get_state(pa_op) == PA_OPERATION_RUNNING)
+            pa_threaded_mainloop_wait(audio_backend_data->mainloop);
+        pa_operation_unref(pa_op);
+        pa_threaded_mainloop_unlock(audio_backend_data->mainloop);
+        pa_op = nullptr;
+        
+        pa_threaded_mainloop_lock(audio_backend_data->mainloop);
+        pa_op = pa_context_get_sink_input_info_list(audio_backend_data->context, on_sink_input_info_list_response,
+                                                    NULL);
+        if (!pa_op) return;
+        while (pa_operation_get_state(pa_op) == PA_OPERATION_RUNNING)
+            pa_threaded_mainloop_wait(audio_backend_data->mainloop);
+        pa_operation_unref(pa_op);
+        pa_threaded_mainloop_unlock(audio_backend_data->mainloop);
+        pa_op = nullptr;
+        
+        pa_threaded_mainloop_lock(audio_backend_data->mainloop);
+        pa_op = pa_context_get_server_info(audio_backend_data->context, on_server_info, NULL);
+        if (!pa_op) return;
+        while (pa_operation_get_state(pa_op) == PA_OPERATION_RUNNING)
+            pa_threaded_mainloop_wait(audio_backend_data->mainloop);
+        pa_operation_unref(pa_op);
+        pa_threaded_mainloop_unlock(audio_backend_data->mainloop);
+        
+        if (audio_backend_data->callback)
+            audio_backend_data->callback();
+    });
+    t.detach();
 }
 
 void subscribe_cb(pa_context *c, pa_subscription_event_type_t t, uint32_t index, void *userdata) {
@@ -461,7 +479,6 @@ static bool try_establishing_connection_with_pulseaudio(App *app) {
     }
     
     pa_threaded_mainloop_lock(audio_backend_data->mainloop);
-    
     if (pa_threaded_mainloop_start(audio_backend_data->mainloop) < 0) {
         return false;
     }
@@ -487,6 +504,7 @@ static bool try_establishing_connection_with_pulseaudio(App *app) {
 }
 
 void audio_update_list_of_clients() {
+    std::lock_guard lock(change_mutex);
     for (auto c: audio_clients)
         delete c;
     audio_clients.clear();

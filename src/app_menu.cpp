@@ -35,11 +35,6 @@ public:
     Launcher *launcher = nullptr;
 };
 
-class ButtonData : public IconButton {
-public:
-    std::string text;
-};
-
 // the scrollbar should only open if the mouse is in the scrollbar
 static double scrollbar_openess = 0;
 // the scrollbar should only be visible if the mouse is in the container
@@ -782,7 +777,6 @@ when_key_event(AppClient *client,
 
 static void
 clicked_off(AppClient *client, cairo_t *cr, Container *container) {
-    std::lock_guard m(app->running_mutex);
     client->app->running = false;
 }
 
@@ -798,7 +792,6 @@ clicked_restart(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_reload(AppClient *client, cairo_t *cr, Container *container) {
-    std::lock_guard m(app->running_mutex);
     client->app->running = false;
     restart = true;
 }
@@ -1091,7 +1084,7 @@ fill_root(AppClient *client) {
     auto *g = grid->child(layout_type::vbox, (48 * 4 + (pad * 3)) * config->dpi, (48 * 8 + (pad * 7)) * config->dpi);
     g->spacing = pad * config->dpi;
     
-    ScrollPaneSettings settings;
+    ScrollPaneSettings settings(config->dpi);
     settings.right_width = 12 * config->dpi;
     settings.right_arrow_height = 12 * config->dpi;
     settings.right_inline_track = true;

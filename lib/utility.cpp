@@ -16,6 +16,8 @@
 #include <cassert>
 #include <sys/wait.h>
 #include <xcb/xcb_aux.h>
+#include <iostream>
+#include <sys/poll.h>
 
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
 #ifdef TRACY_ENABLE
@@ -675,4 +677,86 @@ bool is_light_theme(const ArgbColor &color) {
     rgb2hsluv(color.r, color.g, color.b, &h, &s, &p);
     
     return p >= 50;
+}
+
+void run(App *app, const std::string &original_command, int timeout_in_ms,
+         const std::function<void(std::string, CommandResultType, int)> &callback, AppClient *client) {
+    char *shell = getenv("SHELL");
+    if (shell == nullptr)
+        shell = (char *) "/bin/sh";
+    
+    // Set up the command to run in the shell
+    std::string command = shell + std::string(" -c '") + original_command + std::string("'");
+    
+    // Set up a pipe to read from the command
+    FILE *pipe = popen(command.c_str(), "r");
+    if (!pipe) {
+        std::cout << "Error running command" << std::endl;
+        return;
+    }
+    
+    int window = client->window;
+    attach(client, pipe);
+    
+    std::thread t([app, pipe, original_command, timeout_in_ms, callback, window]() {
+        // Set the file descriptor to be non-blocking
+        int fd = fileno(pipe);
+        
+        struct pollfd fds[1];
+        fds[0].fd = fd;
+        fds[0].events = POLLIN;
+        
+        bool skip_end = true;
+        std::string text;
+        while (true) {
+            // Use poll to wait for the command to produce output
+            int poll_result = poll(fds, 1, timeout_in_ms);
+            
+            std::lock_guard m(app->running_mutex);
+            if (poll_result == 0) {
+                callback(text, CommandResultType::TIMEOUT, window);
+                break;
+            } else if (poll_result == -1) {
+                callback(text, CommandResultType::ERROR, window);
+                break;
+            } else {
+                // Read the output of the command
+                char buffer[1024];
+                ssize_t sre = read(fd, buffer, sizeof(buffer));
+                if (sre == -1) {
+                    callback(text, CommandResultType::ERROR, window);
+                    break; // error
+                } else if (sre == 0) {
+                    skip_end = false;
+                    break; // eof
+                } else {
+                    text += std::string(buffer, sre);
+                    callback(text, CommandResultType::UPDATE, window);
+                }
+            }
+        }
+        
+        // Close the command
+        std::lock_guard m(app->running_mutex);
+        for (const auto &c: app->clients) {
+            if (c->window == window) {
+                for (int i = 0; i < c->pipes.size(); ++i) {
+                    if (c->pipes[i] == pipe) {
+                        int return_code = pclose(pipe);
+                        if (!skip_end) {
+                            if (return_code == 0) {
+                                callback(text, CommandResultType::FINISHED, window);
+                            } else {
+                                callback(text, CommandResultType::ERROR, window);
+                            }
+                        }
+                        c->pipes.erase(c->pipes.begin() + i);
+                    }
+                }
+            }
+        }
+        
+        return 0;
+    });
+    t.detach();
 }

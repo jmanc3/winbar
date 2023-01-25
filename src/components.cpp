@@ -11,12 +11,14 @@
 #endif
 
 #include "utility.h"
+#include "config.h"
 
 #include <atomic>
 #include <pango/pangocairo.h>
 
 static int scroll_amount = 30;
-static double scroll_anim_time = 30;
+static double scroll_anim_time = 105;
+static double repeat_time = 25;
 static easingFunction easing_function = 0;
 
 static std::atomic<bool> dragging = false;
@@ -31,22 +33,178 @@ void scrollpane_scrolled(AppClient *client,
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    /*
-        auto cookie = xcb_xkb_get_state(client->app->connection, client->keyboard->device_id);
-        auto reply = xcb_xkb_get_state_reply(client->app->connection, cookie, nullptr);
-
-        if (reply->mods & XKB_KEY_Shift_L || reply->mods & XKB_KEY_Control_L) {
-            container->scroll_h_real += scroll_x * scroll_amount + scroll_y * scroll_amount;
-        } else {
-    */
-    //}
-    container->scroll_v_real += scroll_y * scroll_amount;
+    auto cookie = xcb_xkb_get_state(client->app->connection, client->keyboard->device_id);
+    auto reply = xcb_xkb_get_state_reply(client->app->connection, cookie, nullptr);
     
-    container->scroll_h_real += scroll_x * scroll_amount;
+    if (reply->mods & XKB_KEY_Shift_L || reply->mods & XKB_KEY_Control_L) {
+        container->scroll_h_real += scroll_x * scroll_amount + scroll_y * scroll_amount;
+    } else {
+        container->scroll_h_real += scroll_x * scroll_amount;
+        container->scroll_v_real += scroll_y * scroll_amount;
+    }
     
     container->scroll_h_visual = container->scroll_h_real;
     container->scroll_v_visual = container->scroll_v_real;
     ::layout(client, cr, container, container->real_bounds);
+}
+
+static void
+paint_scroll_bg(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    double scrollbar_openess = 1;
+    set_rect(cr, container->real_bounds);
+    ArgbColor color = config->color_apps_scrollbar_gutter;
+    color.a = scrollbar_openess;
+    set_argb(cr, color);
+    cairo_fill(cr);
+}
+
+static void
+paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    double scrollbar_openess = 1;
+    double scrollbar_visible = 1;
+    paint_scroll_bg(client, cr, container);
+    
+    Container *scrollpane = container->parent->parent;
+    
+    auto right_bounds = right_thumb_bounds(scrollpane, container->real_bounds);
+    
+    right_bounds.x += right_bounds.w;
+    right_bounds.w = std::max(right_bounds.w * scrollbar_openess, 2.0);
+    right_bounds.x -= right_bounds.w;
+    right_bounds.x -= 2 * (1 - scrollbar_openess);
+    
+    set_rect(cr, right_bounds);
+    
+    if (container->state.mouse_pressing) {
+        ArgbColor color = config->color_apps_scrollbar_pressed_thumb;
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
+    } else if (bounds_contains(right_bounds, client->mouse_current_x, client->mouse_current_y)) {
+        ArgbColor color = config->color_apps_scrollbar_hovered_thumb;
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
+    } else if (right_bounds.w == 2.0) {
+        ArgbColor color = config->color_apps_scrollbar_default_thumb;
+        lighten(&color, 10);
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
+    } else {
+        ArgbColor color = config->color_apps_scrollbar_default_thumb;
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
+    }
+    
+    cairo_fill(cr);
+}
+
+static void
+paint_bottom_thumb(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    double scrollbar_openess = 1;
+    double scrollbar_visible = 1;
+    paint_scroll_bg(client, cr, container);
+    
+    Container *scrollpane = container->parent->parent;
+    
+    auto bottom_bounds = bottom_thumb_bounds(scrollpane, container->real_bounds);
+    
+    bottom_bounds.y += bottom_bounds.h;
+    bottom_bounds.h = std::max(bottom_bounds.h * scrollbar_openess, 2.0);
+    bottom_bounds.y -= bottom_bounds.h;
+    bottom_bounds.y -= 2 * (1 - scrollbar_openess);
+    
+    set_rect(cr, bottom_bounds);
+    
+    if (container->state.mouse_pressing) {
+        ArgbColor color = config->color_apps_scrollbar_pressed_thumb;
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
+    } else if (bounds_contains(bottom_bounds, client->mouse_current_x, client->mouse_current_y)) {
+        ArgbColor color = config->color_apps_scrollbar_hovered_thumb;
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
+    } else if (bottom_bounds.w == 2.0) {
+        ArgbColor color = config->color_apps_scrollbar_default_thumb;
+        lighten(&color, 10);
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
+    } else {
+        ArgbColor color = config->color_apps_scrollbar_default_thumb;
+        color.a = scrollbar_visible;
+        set_argb(cr, color);
+    }
+    
+    cairo_fill(cr);
+}
+
+static void
+paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    double scrollbar_openess = 1;
+    auto *data = (ButtonData *) container->user_data;
+    
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_rect(cr, container->real_bounds);
+            ArgbColor color = config->color_apps_scrollbar_pressed_button;
+            color.a = scrollbar_openess;
+            set_argb(cr, color);
+            cairo_fill(cr);
+        } else {
+            set_rect(cr, container->real_bounds);
+            ArgbColor color = config->color_apps_scrollbar_hovered_button;
+            color.a = scrollbar_openess;
+            set_argb(cr, color);
+            cairo_fill(cr);
+        }
+    } else {
+        set_rect(cr, container->real_bounds);
+        ArgbColor color = config->color_apps_scrollbar_default_button;
+        color.a = scrollbar_openess;
+        set_argb(cr, color);
+        cairo_fill(cr);
+    }
+    
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            auto c = ArgbColor(config->color_apps_scrollbar_pressed_button_icon);
+            c.a = scrollbar_openess;
+            set_argb(cr, c);
+        } else {
+            auto c = ArgbColor(config->color_apps_scrollbar_hovered_button_icon);
+            c.a = scrollbar_openess;
+            set_argb(cr, c);
+        }
+    } else {
+        auto c = ArgbColor(config->color_apps_scrollbar_default_button_icon);
+        c.a = scrollbar_openess;
+        set_argb(cr, c);
+    }
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, data->text.data(), strlen("\uE83F"));
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -92,6 +250,62 @@ paint_show(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 }
 
+static void
+paint_show_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_show(client, cr, container);
+    
+    auto right = right_thumb_bounds(container->parent->parent, container->real_bounds);
+    
+    if (container->state.mouse_hovering || container->state.mouse_pressing) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, ArgbColor(0, 0, 0, .3));
+        } else {
+            set_argb(cr, ArgbColor(0, 0, 0, .1));
+        }
+        set_rect(cr, container->real_bounds);
+        cairo_fill(cr);
+    }
+    
+    if (container->parent->active)
+        set_argb(cr, ArgbColor(1, 0, 1, 1));
+    else
+        set_argb(cr, ArgbColor(0, 1, 1, 1));
+    
+    set_rect(cr, right);
+    cairo_fill(cr);
+}
+
+static void
+paint_show_bottom_thumb(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_show(client, cr, container);
+    
+    auto bottom = bottom_thumb_bounds(container->parent->parent, container->real_bounds);
+    
+    if (container->state.mouse_hovering || container->state.mouse_pressing) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, ArgbColor(0, 0, 0, .3));
+        } else {
+            set_argb(cr, ArgbColor(0, 0, 0, .1));
+        }
+        set_rect(cr, container->real_bounds);
+        cairo_fill(cr);
+    }
+    
+    if (container->parent->active)
+        set_argb(cr, ArgbColor(1, 0, 1, 1));
+    else
+        set_argb(cr, ArgbColor(0, 1, 1, 1));
+    
+    set_rect(cr, bottom);
+    cairo_fill(cr);
+}
+
 struct MouseDownInfo {
     Container *container = nullptr;
     int horizontal_change = 0;
@@ -103,14 +317,23 @@ mouse_down_thread(App *app, AppClient *client, Timeout *, void *data) {
     auto *mouse_info = (MouseDownInfo *) data;
     
     if (mouse_down_arrow_held.load() && valid_client(app, client) && app->running) {
-        if (bounds_contains(
-                mouse_info->container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
-            Container *target = mouse_info->container->parent->parent->children[2];
+        if (bounds_contains(mouse_info->container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+            Container *target = nullptr;
+            bool clamp = false;
+            if (auto *s = dynamic_cast<ScrollContainer *>(mouse_info->container->parent->parent)) {
+                target = s;
+                clamp = true;
+            } else {
+                target = mouse_info->container->parent->parent->children[2];
+            }
+        
             target->scroll_h_real += mouse_info->horizontal_change * 1.5;
             target->scroll_v_real += mouse_info->vertical_change * 1.5;
+            if (clamp) clamp_scroll((ScrollContainer *) target);
+        
             // ::layout(target, target->real_bounds, false);
-            client_layout(client->app, client);
-            
+//            client_layout(client->app, client);
+        
             if (mouse_info->horizontal_change != 0)
                 client_create_animation(client->app,
                                         client,
@@ -127,10 +350,10 @@ mouse_down_thread(App *app, AppClient *client, Timeout *, void *data) {
                                         easing_function,
                                         target->scroll_v_real,
                                         true);
-            
-            app_timeout_create(app, client, scroll_anim_time * 3, mouse_down_thread, mouse_info);
+        
+            app_timeout_create(app, client, repeat_time * 3, mouse_down_thread, mouse_info);
         } else {
-            app_timeout_create(app, client, scroll_anim_time, mouse_down_thread, mouse_info);
+            app_timeout_create(app, client, repeat_time, mouse_down_thread, mouse_info);
         }
     } else {
         delete mouse_info;
@@ -142,8 +365,17 @@ mouse_down_arrow_up(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    Container *target = container->parent->parent->children[2];
+    Container *target = nullptr;
+    bool clamp = false;
+    if (auto *s = dynamic_cast<ScrollContainer *>(container->parent->parent)) {
+        target = s;
+        clamp = true;
+    } else {
+        target = container->parent->parent->children[2];
+    }
     target->scroll_v_real += scroll_amount;
+    if (clamp) clamp_scroll((ScrollContainer *) target);
+    
     // ::layout(target, target->real_bounds, false);
     client_layout(client->app, client);
     
@@ -176,8 +408,16 @@ mouse_down_arrow_bottom(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    Container *target = container->parent->parent->children[2];
+    Container *target = nullptr;
+    bool clamp = false;
+    if (auto *s = dynamic_cast<ScrollContainer *>(container->parent->parent)) {
+        target = s;
+        clamp = true;
+    } else {
+        target = container->parent->parent->children[2];
+    }
     target->scroll_v_real -= scroll_amount;
+    if (clamp) clamp_scroll((ScrollContainer *) target);
     // ::layout(target, target->real_bounds, false);
     client_layout(client->app, client);
     
@@ -210,8 +450,16 @@ mouse_down_arrow_left(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    Container *target = container->parent->parent->children[2];
+    Container *target = nullptr;
+    bool clamp = false;
+    if (auto *s = dynamic_cast<ScrollContainer *>(container->parent->parent)) {
+        target = s;
+        clamp = true;
+    } else {
+        target = container->parent->parent->children[2];
+    }
     target->scroll_h_real += scroll_amount;
+    if (clamp) clamp_scroll((ScrollContainer *) target);
     // ::layout(target, target->real_bounds, false);
     client_layout(client->app, client);
     
@@ -244,8 +492,16 @@ mouse_down_arrow_right(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    Container *target = container->parent->parent->children[2];
+    Container *target = nullptr;
+    bool clamp = false;
+    if (auto *s = dynamic_cast<ScrollContainer *>(container->parent->parent)) {
+        target = s;
+        clamp = true;
+    } else {
+        target = container->parent->parent->children[2];
+    }
     target->scroll_h_real -= scroll_amount;
+    if (clamp) clamp_scroll((ScrollContainer *) target);
     // ::layout(target, target->real_bounds, false);
     client_layout(client->app, client);
     
@@ -278,8 +534,25 @@ right_thumb_scrolled(AppClient *client, cairo_t *cr, Container *container, int s
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    Container *target = container->parent->children[2];
-    scrollpane_scrolled(client, cr, target, scroll_x, scroll_y);
+    if (auto *s = dynamic_cast<ScrollContainer *>(container)) {
+        scrollpane_scrolled(client, cr, container, 0, scroll_y);
+    } else {
+        Container *target = container->parent->children[2];
+        scrollpane_scrolled(client, cr, target, 0, scroll_y);
+    }
+}
+
+static void
+bottom_thumb_scrolled(AppClient *client, cairo_t *cr, Container *container, int scroll_x, int scroll_y) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (auto *s = dynamic_cast<ScrollContainer *>(container)) {
+        scrollpane_scrolled(client, cr, container, scroll_x, 0);
+    } else {
+        Container *target = container->parent->children[2];
+        scrollpane_scrolled(client, cr, target, scroll_x, 0);
+    }
 }
 
 static void
@@ -295,6 +568,19 @@ right_thumb_bounds(Container *scrollpane, Bounds thumb_area) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (auto *s = dynamic_cast<ScrollContainer *>(scrollpane)) {
+        double true_height = actual_true_height(s->content);
+        if (s->bottom && s->bottom->exists && !s->settings.bottom_inline_track)
+            true_height += s->bottom->real_bounds.h;
+        
+        double start_scalar = -s->scroll_v_visual / true_height;
+        double thumb_height = thumb_area.h * (s->real_bounds.h / true_height);
+        double start_off = thumb_area.y + thumb_area.h * start_scalar;
+        double avail = thumb_area.h - (start_off - thumb_area.y);
+        
+        return {thumb_area.x, start_off, thumb_area.w, std::min(thumb_height, avail)};
+    }
+    
     auto content_area = scrollpane->children[2];
     double total_height = content_area->children[0]->real_bounds.h;
     
@@ -324,6 +610,19 @@ bottom_thumb_bounds(Container *scrollpane, Bounds thumb_area) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (auto *s = dynamic_cast<ScrollContainer *>(scrollpane)) {
+        double true_width = actual_true_width(s->content);
+        if (s->right && s->right->exists && !s->settings.right_inline_track)
+            true_width += s->right->real_bounds.w;
+        
+        double start_scalar = -s->scroll_h_visual / true_width;
+        double thumb_width = thumb_area.w * (s->real_bounds.w / true_width);
+        double start_off = thumb_area.x + thumb_area.w * start_scalar;
+        double avail = thumb_area.w - (start_off - thumb_area.x);
+        
+        return {thumb_area.x + thumb_area.w * start_scalar, thumb_area.y, std::min(thumb_width, avail), thumb_area.h};
+    }
+    
     auto content_area = scrollpane->children[2];
     double total_width = content_area->children[0]->real_bounds.w;
     
@@ -354,11 +653,41 @@ bottom_thumb_bounds(Container *scrollpane, Bounds thumb_area) {
 
 static void
 clicked_right_thumb(AppClient *client, cairo_t *cr, Container *thumb_container, bool animate) {
+    if (auto *s = dynamic_cast<ScrollContainer *>(thumb_container->parent->parent)) {
+        auto *content = s->content;
+        
+        double thumb_height = right_thumb_bounds(s, thumb_container->real_bounds).h;
+        double mouse_y = client->mouse_current_y;
+        if (mouse_y < thumb_container->real_bounds.y) {
+            mouse_y = thumb_container->real_bounds.y;
+        } else if (mouse_y > thumb_container->real_bounds.y + thumb_container->real_bounds.h) {
+            mouse_y = thumb_container->real_bounds.y + thumb_container->real_bounds.h;
+        }
+        
+        mouse_y -= thumb_container->real_bounds.y;
+        mouse_y -= thumb_height / 2;
+        double scalar = mouse_y / thumb_container->real_bounds.h;
+        
+        // why the fuck do I have to add the real...h to true height to actually get
+        // the true height
+        double true_height = actual_true_height(s->content);
+        if (s->bottom && s->bottom->exists && !s->settings.bottom_inline_track)
+            true_height += s->bottom->real_bounds.h;
+        
+        double y = true_height * scalar;
+        
+        s->scroll_v_real = -y;
+        s->scroll_v_visual = -y;
+        ::layout(client, cr, s, s->real_bounds);
+        
+        return;
+    }
+    
     auto *scrollpane = thumb_container->parent->parent;
     auto *content = scrollpane->children[2];
     
     double thumb_height =
-            right_thumb_bounds(thumb_container->parent->parent, thumb_container->real_bounds).h;
+            right_thumb_bounds(scrollpane, thumb_container->real_bounds).h;
     double mouse_y = client->mouse_current_y;
     if (mouse_y < thumb_container->real_bounds.y) {
         mouse_y = thumb_container->real_bounds.y;
@@ -375,48 +704,76 @@ clicked_right_thumb(AppClient *client, cairo_t *cr, Container *thumb_container, 
     double content_height = true_height(content) + content->real_bounds.h;
     double y = content_height * scalar;
     
-    Container *content_area = thumb_container->parent->parent->children[2];
-    content_area->scroll_v_real = -y;
+    content->scroll_v_real = -y;
     if (!animate)
-        content_area->scroll_v_visual = -y;
+        content->scroll_v_visual = -y;
     // ::layout(content_area, content_area->real_bounds, false);
     client_layout(client->app, client);
     
     if (animate) {
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_h_visual, 0,
+                                &content->scroll_h_visual, 0,
                                 scroll_anim_time * 2,
                                 easing_function,
-                                content_area->scroll_h_real,
+                                content->scroll_h_real,
                                 true);
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_v_visual, 0,
+                                &content->scroll_v_visual, 0,
                                 scroll_anim_time * 2,
                                 easing_function,
-                                content_area->scroll_v_real,
+                                content->scroll_v_real,
                                 true);
     } else {
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_h_visual, 0,
+                                &content->scroll_h_visual, 0,
                                 0,
                                 easing_function,
-                                content_area->scroll_h_real,
+                                content->scroll_h_real,
                                 true);
         client_create_animation(client->app,
                                 client,
-                                &content_area->scroll_v_visual, 0,
+                                &content->scroll_v_visual, 0,
                                 0,
                                 easing_function,
-                                content_area->scroll_v_real,
+                                content->scroll_v_real,
                                 true);
     }
 }
 
 static void
 clicked_bottom_thumb(AppClient *client, cairo_t *cr, Container *thumb_container, bool animate) {
+    if (auto *s = dynamic_cast<ScrollContainer *>(thumb_container->parent->parent)) {
+        auto *content = s->content;
+        
+        double thumb_width =
+                bottom_thumb_bounds(thumb_container->parent->parent, thumb_container->real_bounds).w;
+        double mouse_x = client->mouse_current_x;
+        if (mouse_x < thumb_container->real_bounds.x) {
+            mouse_x = thumb_container->real_bounds.x;
+        } else if (mouse_x > thumb_container->real_bounds.x + thumb_container->real_bounds.w) {
+            mouse_x = thumb_container->real_bounds.x + thumb_container->real_bounds.w;
+        }
+        
+        mouse_x -= thumb_container->real_bounds.x;
+        mouse_x -= thumb_width / 2;
+        double scalar = mouse_x / thumb_container->real_bounds.w;
+        
+        double true_width = actual_true_width(s->content);
+        if (s->right && s->right->exists && !s->settings.right_inline_track)
+            true_width += s->right->real_bounds.w;
+        
+        double x = true_width * scalar;
+        
+        s->scroll_h_real = -x;
+        s->scroll_h_visual = -x;
+        ::layout(client, cr, s, s->real_bounds);
+        
+        return;
+    }
+    
     auto *scrollpane = thumb_container->parent->parent;
     auto *content = scrollpane->children[2];
     
@@ -542,6 +899,34 @@ bottom_scrollbar_drag_end(AppClient *client_entity, cairo_t *cr, Container *cont
     clicked_bottom_thumb(client_entity, cr, container, false);
 }
 
+static void
+paint_content(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    cairo_save(cr);
+    cairo_push_group(cr);
+    
+    for (auto *c: container->children) {
+        if (overlaps(c->real_bounds, c->parent->parent->real_bounds)) {
+            if (c->when_paint) {
+                c->when_paint(client, cr, c);
+            }
+        }
+    }
+    
+    cairo_pop_group_to_source(cr);
+    
+    cairo_rectangle(cr,
+                    container->parent->real_bounds.x,
+                    container->parent->real_bounds.y,
+                    container->parent->real_bounds.w,
+                    container->parent->real_bounds.h);
+    cairo_clip(cr);
+    cairo_paint(cr);
+    cairo_restore(cr);
+}
+
 Container *
 make_scrollpane(Container *parent, ScrollPaneSettings settings) {
 #ifdef TRACY_ENABLE
@@ -610,7 +995,155 @@ make_scrollpane(Container *parent, ScrollPaneSettings settings) {
     content_container->when_scrolled = scrollpane_scrolled;
     content_container->receive_events_even_if_obstructed = true;
     
+    if (settings.make_content) {
+        // scroll_pane->children[2]->chilren[0]
+        auto content = content_container->child(FILL_SPACE, FILL_SPACE);
+        content->spacing = 0;
+        content->when_paint = paint_content;
+        content->clip_children = false; // We have to do custom clipping so don't waste calls on this
+        content->automatically_paint_children = false;
+        content->name = "content";
+    }
+    
     return content_container;
+}
+
+ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPaneSettings &settings) {
+    auto scrollpane = new ScrollContainer(settings);
+    // setup as child of root
+    scrollpane->parent = parent;
+    scrollpane->when_scrolled = scrollpane_scrolled;
+    scrollpane->receive_events_even_if_obstructed = true;
+    parent->children.push_back(scrollpane);
+    
+    auto content = new Container(::vbox, FILL_SPACE, FILL_SPACE);
+    // setup as content of scrollpane
+    content->parent = scrollpane;
+    scrollpane->content = content;
+    
+    auto right_vbox = new Container(settings.right_width, FILL_SPACE);
+    scrollpane->right = right_vbox;
+    right_vbox->parent = scrollpane;
+    right_vbox->type = ::vbox;
+    right_vbox->when_scrolled = right_thumb_scrolled;
+    
+    auto right_top_arrow = right_vbox->child(FILL_SPACE, settings.right_arrow_height);
+    right_top_arrow->user_data = new ButtonData;
+    ((ButtonData *) right_top_arrow->user_data)->text = "\uE971";
+    right_top_arrow->when_paint = paint_arrow;
+    right_top_arrow->when_mouse_down = mouse_down_arrow_up;
+    right_top_arrow->when_mouse_up = mouse_arrow_up;
+    right_top_arrow->when_clicked = mouse_arrow_up;
+    right_top_arrow->when_drag_end = mouse_arrow_up;
+    auto right_thumb = right_vbox->child(FILL_SPACE, FILL_SPACE);
+    right_thumb->when_paint = paint_right_thumb;
+    right_thumb->when_drag_start = right_scrollbar_drag_start;
+    right_thumb->when_drag = right_scrollbar_drag;
+    right_thumb->when_drag_end = right_scrollbar_drag_end;
+    right_thumb->when_mouse_down = right_scrollbar_mouse_down;
+    
+    auto right_bottom_arrow = right_vbox->child(FILL_SPACE, settings.right_arrow_height);
+    right_bottom_arrow->user_data = new ButtonData;
+    ((ButtonData *) right_bottom_arrow->user_data)->text = "\uE972";
+    right_bottom_arrow->when_paint = paint_arrow;
+    right_bottom_arrow->when_mouse_down = mouse_down_arrow_bottom;
+    right_bottom_arrow->when_mouse_up = mouse_arrow_up;
+    right_bottom_arrow->when_clicked = mouse_arrow_up;
+    right_bottom_arrow->when_drag_end = mouse_arrow_up;
+    right_vbox->z_index += 1;
+    
+    auto bottom_hbox = new Container(FILL_SPACE, settings.bottom_height);
+    scrollpane->bottom = bottom_hbox;
+    bottom_hbox->parent = scrollpane;
+    bottom_hbox->type = ::hbox;
+    bottom_hbox->when_scrolled = bottom_thumb_scrolled;
+    auto bottom_left_arrow = bottom_hbox->child(settings.bottom_arrow_width, FILL_SPACE);
+    bottom_left_arrow->user_data = new ButtonData;
+    ((ButtonData *) bottom_left_arrow->user_data)->text = "\uE973";
+    bottom_left_arrow->when_paint = paint_arrow;
+    bottom_left_arrow->when_mouse_down = mouse_down_arrow_left;
+    bottom_left_arrow->when_mouse_up = mouse_arrow_up;
+    bottom_left_arrow->when_clicked = mouse_arrow_up;
+    bottom_left_arrow->when_drag_end = mouse_arrow_up;
+    auto bottom_thumb = bottom_hbox->child(FILL_SPACE, FILL_SPACE);
+    bottom_thumb->when_paint = paint_bottom_thumb;
+    bottom_thumb->when_drag_start = bottom_scrollbar_drag_start;
+    bottom_thumb->when_drag = bottom_scrollbar_drag;
+    bottom_thumb->when_drag_end = bottom_scrollbar_drag_end;
+    bottom_thumb->when_mouse_down = bottom_scrollbar_mouse_down;
+    
+    auto bottom_right_arrow = bottom_hbox->child(settings.bottom_arrow_width, FILL_SPACE);
+    bottom_right_arrow->user_data = new ButtonData;
+    ((ButtonData *) bottom_right_arrow->user_data)->text = "\uE974";
+    bottom_right_arrow->when_paint = paint_arrow;
+    bottom_right_arrow->when_mouse_down = mouse_down_arrow_right;
+    bottom_right_arrow->when_mouse_up = mouse_arrow_up;
+    bottom_right_arrow->when_clicked = mouse_arrow_up;
+    bottom_right_arrow->when_drag_end = mouse_arrow_up;
+    bottom_hbox->z_index += 1;
+    
+    return scrollpane;
+}
+
+void combobox_key_event(AppClient *client, cairo_t *cr, Container *self, bool is_string, xkb_keysym_t keysym,
+                        char string[64],
+                        uint16_t mods, xkb_key_direction direction) {
+    if (!self->active)
+        return;
+    if (is_string) {
+        // append to text
+    } else {
+        // handle backspace
+        
+    }
+    printf("is_string: %b\n", is_string);
+    printf("keysym: %d\n", keysym);
+    printf("string: %s\n", string);
+    printf("mods: %d\n", mods);
+    printf("direction: %d\n", direction);
+}
+
+void combobox_popup_pressed(AppClient *client, cairo_t *cr, Container *self) {
+    client_close_threaded(client->app, client);
+}
+
+struct ComboboxPopupData : UserData {
+    Container *parent;
+};
+
+void combobox_popup_key_event(AppClient *client, cairo_t *cr, Container *self, bool is_string, xkb_keysym_t keysym,
+                              char string[64],
+                              uint16_t mods, xkb_key_direction direction) {
+    auto c = (ComboboxPopupData *) self->user_data;
+    if (c->parent->when_key_event)
+        c->parent->when_key_event(client, cr, c->parent, is_string, keysym, string, mods, direction);
+}
+
+void combobox_pressed(AppClient *client, cairo_t *cr, Container *self) {
+    Settings settings;
+    PopupSettings popup_settings;
+    popup_settings.name = client->name + "_combobox_popup";
+    popup_settings.ignore_scroll = true;
+    popup_settings.takes_input_focus = true;
+    popup_settings.transparent_mouse_grab = false;
+    auto menu = client->create_popup(popup_settings, settings);
+    menu->root->when_mouse_down = combobox_popup_pressed;
+    menu->root->when_key_event = combobox_popup_key_event;
+    menu->root->user_data = new ComboboxPopupData;
+    ((ComboboxPopupData *) menu->root->user_data)->parent = self;
+//    menu->root->user_data = self;
+    client_show(client->app, menu);
+}
+
+Container *make_combobox(Container *parent, const std::vector<std::string> &items) {
+    auto *combobox = parent->child(::vbox, FILL_SPACE, FILL_SPACE);
+    
+    // instead of re-using textarea, just make a new simple area meant just for combobox
+    combobox->when_key_event = combobox_key_event;
+    combobox->when_paint = paint_show;
+    combobox->when_mouse_down = combobox_pressed;
+    
+    return combobox;
 }
 
 static void
@@ -1811,7 +2344,6 @@ textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string,
         }
     }
 }
-
 static void
 textarea_key_release(AppClient *client,
                      cairo_t *cr,
@@ -1822,7 +2354,7 @@ textarea_key_release(AppClient *client,
     if (direction == XKB_KEY_UP) {
         return;
     }
-    if (container->parent->active) {
+    if (container->parent->active || container->active) {
         textarea_handle_keypress(client, container, is_string, keysym, string, mods, XKB_KEY_DOWN);
     }
 }

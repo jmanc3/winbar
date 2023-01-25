@@ -26,6 +26,7 @@
 
 #include <xcb/xkb.h>
 #include <xcb/xcb_aux.h>
+#include <sys/wait.h>
 
 #undef explicit
 
@@ -271,13 +272,14 @@ void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keybo
     }
 }
 
-bool poll_descriptor(App *app, int file_descriptor, int events, void function(App *, int fd)) {
+bool poll_descriptor(App *app, int file_descriptor, int events, void function(App *, int fd, void *user_data),
+                     void *user_data) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     if (!app || !app->running) return false;
     
-    PolledDescriptor polled = {file_descriptor, function};
+    PolledDescriptor polled = {file_descriptor, function, user_data};
     app->descriptors_being_polled.push_back(polled);
     
     epoll_event event = {};
@@ -329,9 +331,9 @@ get_visualtype(xcb_screen_t *s) {
     return NULL;
 }
 
-void xcb_poll_wakeup(App *app, int fd);
+void xcb_poll_wakeup(App *app, int fd, void *);
 
-void timeout_poll_wakeup(App *app, int fd) {
+void timeout_poll_wakeup(App *app, int fd, void *) {
     std::lock_guard lock(app->thread_mutex);
     
     bool keep_running = false;
@@ -403,7 +405,7 @@ App *app_new() {
     
     xcb_flush(app->connection);
     
-    poll_descriptor(app, xcb_get_file_descriptor(app->connection), EPOLLIN, xcb_poll_wakeup);
+    poll_descriptor(app, xcb_get_file_descriptor(app->connection), EPOLLIN, xcb_poll_wakeup, nullptr);
     
     auto atom_cookie = xcb_intern_atom(app->connection, 1, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
     xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(app->connection, atom_cookie, NULL);
@@ -919,10 +921,18 @@ void client_close(App *app, AppClient *client) {
         return;
     }
     
+    for (auto pipe: client->pipes)
+        pclose(pipe);
+    client->pipes.clear();
+    
+    for (int i = client->commands.size() - 1; i >= 0; i--)
+        client->commands[i]->kill(app, false);
+    client->commands.clear();
+    
     if (client->when_closed) {
         client->when_closed(client);
     }
-    
+    int w = 0;
     if (client->popup_info.is_popup) {
         AppClient *parent_client = nullptr;
         for (auto c: app->clients)
@@ -931,6 +941,18 @@ void client_close(App *app, AppClient *client) {
         if (parent_client) {
             if (parent_client->popup_info.is_popup) {
                 parent_client->wants_popup_events = true;
+                if (parent_client->popup_info.takes_input_focus) {
+                    w = parent_client->window;
+                    xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, parent_client->window,
+                                        XCB_CURRENT_TIME);
+                    xcb_ewmh_request_change_active_window(&app->ewmh,
+                                                          app->screen_number,
+                                                          parent_client->window,
+                                                          XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                                          XCB_CURRENT_TIME,
+                                                          XCB_NONE);
+                    xcb_flush(app->connection);
+                }
             } else {
                 xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
                 xcb_flush(app->connection);
@@ -953,9 +975,9 @@ void client_close(App *app, AppClient *client) {
                                            bool remove = timeout_client == client;
         
                                            if (remove) {
+                                               close(timeout->file_descriptor);
                                                epoll_ctl(client->app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor,
                                                          NULL);
-                                               close(timeout->file_descriptor);
                                                delete timeout;
                                            }
                                            if (remove != (timeout_client == client)) {
@@ -980,8 +1002,19 @@ void client_close(App *app, AppClient *client) {
     destroy_client(app, client);
     
     if (app->clients.empty()) {
-        std::lock_guard m(app->running_mutex);
         app->running = false;
+    }
+    if (w != 0) {
+        xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, w,
+                            XCB_CURRENT_TIME);
+        xcb_ewmh_request_change_active_window(&app->ewmh,
+                                              app->screen_number,
+                                              w,
+                                              XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                              XCB_CURRENT_TIME,
+                                              XCB_NONE);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
     }
     
     delete client;
@@ -1018,25 +1051,57 @@ void paint_container(App *app, AppClient *client, Container *container) {
         if (container->when_paint && client->cr) {
             container->when_paint(client, client->cr, container);
         }
-        
+    
         if (!container->automatically_paint_children) {
             return;
         }
+    
+        if (container->type == ::newscroll) {
+            auto s = (ScrollContainer *) container;
+            // only render content children which overlap with the scroll container
+            for (auto child: s->content->children) {
+                cairo_save(client->cr);
+                set_rect(client->cr, container->real_bounds);
+                cairo_clip(client->cr);
         
-        // TODO: check if any childrens z_index is non zero first as an optimization
-        // so we don't have to sort if we don't need it Only sort render_order
-        // indexes by z_index rather than the actual children list themselves
-        std::vector<int> render_order;
-        for (int i = 0; i < container->children.size(); i++) {
-            render_order.push_back(i);
-        }
-        std::sort(render_order.begin(), render_order.end(), [container](int a, int b) -> bool {
-            return container->children[a]->z_index < container->children[b]->z_index;
-        });
+                if (overlaps(child->real_bounds, s->real_bounds)) {
+                    paint_container(app, client, child);
+                }
+                cairo_restore(client->cr);
+            }
+            if (s->right && s->right->exists)
+                paint_container(app, client, s->right);
+            if (s->bottom && s->bottom->exists)
+                paint_container(app, client, s->bottom);
+        } else {
+            // What we already do
+            // TODO: check if any childrens z_index is non zero first as an optimization
+            // so we don't have to sort if we don't need it Only sort render_order
+            // indexes by z_index rather than the actual children list themselves
+            std::vector<int> render_order;
+            for (int i = 0; i < container->children.size(); i++) {
+                render_order.push_back(i);
+            }
+            std::sort(render_order.begin(), render_order.end(), [container](int a, int b) -> bool {
+                return container->children[a]->z_index < container->children[b]->z_index;
+            });
         
-        if (container->clip_children) {
-            for (auto index: render_order) {
-                if (overlaps(container->children[index]->real_bounds, container->real_bounds)) {
+            if (container->clip_children) {
+                for (auto index: render_order) {
+                    if (overlaps(container->children[index]->real_bounds, container->real_bounds)) {
+                        if (container->clip) {
+                            cairo_save(client->cr);
+                            set_rect(client->cr, container->real_bounds);
+                            cairo_clip(client->cr);
+                        }
+                        paint_container(app, client, container->children[index]);
+                        if (container->clip) {
+                            cairo_restore(client->cr);
+                        }
+                    }
+                }
+            } else {
+                for (auto index: render_order) {
                     if (container->clip) {
                         cairo_save(client->cr);
                         set_rect(client->cr, container->real_bounds);
@@ -1046,18 +1111,6 @@ void paint_container(App *app, AppClient *client, Container *container) {
                     if (container->clip) {
                         cairo_restore(client->cr);
                     }
-                }
-            }
-        } else {
-            for (auto index: render_order) {
-                if (container->clip) {
-                    cairo_save(client->cr);
-                    set_rect(client->cr, container->real_bounds);
-                    cairo_clip(client->cr);
-                }
-                paint_container(app, client, container->children[index]);
-                if (container->clip) {
-                    cairo_restore(client->cr);
                 }
             }
         }
@@ -1101,37 +1154,23 @@ void client_paint(App *app, AppClient *client) {
     client_paint(app, client, false);
 }
 
-Container *
-hovered_container(App *app, Container *root, int x, int y) {
-    if (root == nullptr)
-        return nullptr;
-    
-    for (Container *child: root->children) {
-        if (child) {
-            if (auto real = hovered_container(app, child, x, y)) {
-                return real;
-            }
-        }
-    }
-    
-    bool also_in_parent =
-            root->parent == nullptr ? true : bounds_contains(root->parent->real_bounds, x, y);
-    if (root->interactable && bounds_contains(root->real_bounds, x, y) && also_in_parent &&
-        root->exists) {
-        return root;
-    }
-    
-    return nullptr;
-}
-
 static xcb_generic_event_t *event;
 
 void fill_list_with_concerned(std::vector<Container *> &containers, Container *parent) {
-    for (auto child: parent->children) {
-        fill_list_with_concerned(containers, child);
+    if (parent->type == ::newscroll) {
+        auto s = (ScrollContainer *) parent;
+        for (auto child: s->content->children)
+            fill_list_with_concerned(containers, child);
+        if (s->right)
+            fill_list_with_concerned(containers, s->right);
+        if (s->bottom)
+            fill_list_with_concerned(containers, s->bottom);
+    } else {
+        for (auto child: parent->children)
+            fill_list_with_concerned(containers, child);
     }
     
-    if (parent->state.concerned) {
+    if (parent->state.concerned && parent->exists) {
         containers.push_back(parent);
     }
 }
@@ -1146,17 +1185,41 @@ concerned_containers(App *app, AppClient *client) {
 }
 
 void fill_list_with_pierced(std::vector<Container *> &containers, Container *parent, int x, int y) {
-    for (auto child: parent->children) {
-        if (child->interactable) {
-            fill_list_with_pierced(containers, child, x, y);
+    if (parent->type == ::newscroll) {
+        auto s = (ScrollContainer *) parent;
+        for (auto child: s->content->children) {
+            if (child->interactable) {
+                // parent->real_bounds w and h need to be subtracted by right and bottom if they exist
+                auto real_bounds_copy = parent->real_bounds;
+                if (s->right && s->right->exists)
+                    real_bounds_copy.w -= s->right->real_bounds.w;
+                if (s->bottom && s->bottom->exists)
+                    real_bounds_copy.h -= s->bottom->real_bounds.h;
+                if (!bounds_contains(real_bounds_copy, x, y))
+                    continue;
+                fill_list_with_pierced(containers, child, x, y);
+            }
+        }
+        if (s->right && s->right->exists)
+            fill_list_with_pierced(containers, s->right, x, y);
+        if (s->bottom && s->bottom->exists)
+            fill_list_with_pierced(containers, s->bottom, x, y);
+    } else {
+        for (auto child: parent->children) {
+            if (child->interactable) {
+                // check if parent is scrollpane and if so, check if the child is in bounds before calling
+                if (parent->type >= ::scrollpane && parent->type <= ::scrollpane_b_never)
+                    if (!bounds_contains(parent->real_bounds, x, y))
+                        continue;
+                fill_list_with_pierced(containers, child, x, y);
+            }
         }
     }
     
     if (parent->exists) {
         if (parent->handles_pierced) {
-            if (parent->handles_pierced(parent, x, y)) {
+            if (parent->handles_pierced(parent, x, y))
                 containers.push_back(parent);
-            }
         } else if (bounds_contains(parent->real_bounds, x, y)) {
             containers.push_back(parent);
         }
@@ -1610,6 +1673,17 @@ send_key(App *app, AppClient *client, Container *container) {
     }
 }
 
+//static void
+//send_key_to_wants_keys(App *app, AppClient *client, Container *container) {
+//    for (auto c: container->children) {
+//        send_key_to_wants_keys(app, client, c);
+//    }
+//
+//    if (container->when_key_event) {
+//       send_key(app, client, container);
+//    }
+//}
+
 void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event, bool change_event_source) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -1834,12 +1908,14 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
                     }
                 }
             }
-            
+    
             break;
         }
     }
     
-    client_paint(app, client_by_window(app, window_number), true);
+    if (auto client = client_by_window(app, window_number)) {
+        client_paint(app, client, true);
+    }
 }
 
 void handle_xcb_event(App *app) {
@@ -1897,7 +1973,7 @@ void handle_xcb_event(App *app) {
     }
 }
 
-void xcb_poll_wakeup(App *app, int fd) {
+void xcb_poll_wakeup(App *app, int fd, void *) {
     handle_xcb_event(app);
 }
 
@@ -1914,6 +1990,7 @@ void app_main(App *app) {
     app->running = true;
     while (app->running) {
         int event_count = epoll_wait(app->epoll_fd, events, MAX_POLLING_EVENTS_AT_THE_SAME_TIME, -1);
+        std::lock_guard m(app->running_mutex);
         app->loop++;
         
         for (int event_index = 0; event_index < event_count; event_index++) {
@@ -1922,7 +1999,7 @@ void app_main(App *app) {
                 if (events[event_index].data.fd == polled.file_descriptor) {
                     found = true;
                     if (polled.function) {
-                        polled.function(app, polled.file_descriptor);
+                        polled.function(app, polled.file_descriptor, polled.user_data);
                     }
                 }
             }
@@ -2099,7 +2176,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
         return nullptr;
     }
     
-    bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup);
+    bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup, nullptr);
     if (!success) { // error with poll_descriptor
         epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout_file_descriptor, NULL);
         close(timeout_file_descriptor);
@@ -2264,4 +2341,87 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
 #ifdef TRACY_ENABLE
     FrameMarkEnd("Animation Paint");
 #endif
+}
+
+void attach(AppClient *client, FILE *pipe) {
+    client->pipes.push_back(pipe);
+}
+
+void command_wakeup(App *app, int fd, void *userdata) {
+    auto cc = (ClientCommand *) userdata;
+    std::size_t buffer_size = 131072; // (128 kB).
+    char output[buffer_size];
+    
+    ssize_t read_size = read(fd, output, buffer_size);
+    if (read_size == -1) {
+        cc->status = CommandStatus::ERROR;
+        goto finish;
+    } else if (read_size == 0) {
+        cc->status = CommandStatus::FINISHED;
+        goto finish;
+    } else {
+        cc->status = CommandStatus::UPDATE;
+        cc->output += std::string(output, read_size);
+        if (cc->function)
+            cc->function(cc);
+        return;
+    }
+    
+    finish:
+    if (cc->function)
+        cc->function(cc);
+    cc->kill(app, false);
+}
+
+void command_timeout(App *app, int fd, void *userdata) {
+    auto cc = (ClientCommand *) userdata;
+    cc->status = CommandStatus::TIMEOUT;
+    if (cc->function)
+        cc->function(cc);
+    cc->kill(app, false);
+}
+
+ClientCommand *
+command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, void (*function)(ClientCommand *), void *user_data) {
+    char *shell = getenv("SHELL");
+    if (shell == nullptr)
+        shell = (char *) "/bin/sh";
+    
+    std::string command = shell + std::string(" -c '") + c + std::string("'");
+    
+    FILE *fp = popen(command.c_str(), "w");
+    if (fp == NULL) {
+        printf("Failed to run command: %s\n", c.c_str());
+        return nullptr;
+    }
+    
+    struct itimerspec its;
+    int timerfd = timerfd_create(CLOCK_MONOTONIC, 0);
+    if (timerfd == -1) {
+        printf("Error creating timer for command: %s\n", c.c_str());
+        return nullptr;
+    }
+    memset(&its, 0, sizeof(its));
+    its.it_value.tv_sec = timeout_in_ms / 1000;
+    its.it_value.tv_nsec = (timeout_in_ms % 1000) * 1000000;
+    if (timerfd_settime(timerfd, 0, &its, NULL) == -1) {
+        printf("Error setting timer for command: %s\n", c.c_str());
+        kill(fileno(fp), SIGKILL);
+        close(fileno(fp));
+        return nullptr;
+    }
+    
+    auto cc = new ClientCommand;
+    cc->command = c;
+    cc->process = fp;
+    cc->process_fd = fileno(fp);
+    cc->timeout_fd = timerfd;
+    cc->function = function;
+    cc->client = client;
+    cc->user_data = user_data;
+    client->commands.push_back(cc);
+    
+    poll_descriptor(client->app, cc->process_fd, EPOLLIN, command_wakeup, cc);
+    poll_descriptor(client->app, cc->timeout_fd, EPOLLIN, command_timeout, cc);
+    return cc;
 }

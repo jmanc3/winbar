@@ -57,6 +57,7 @@ void config_load() {
     
     success = cfg.lookupValue("volume_command", config->volume_command);
     success = cfg.lookupValue("wifi_command", config->wifi_command);
+    success = cfg.lookupValue("vpn_command", config->wifi_command);
     success = cfg.lookupValue("date_command", config->date_command);
     success = cfg.lookupValue("battery_command", config->battery_command);
     success = cfg.lookupValue("systray_command", config->systray_command);

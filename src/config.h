@@ -8,7 +8,7 @@
 struct Config {
     bool found_config = false;
     
-    int config_version = 5;
+    int config_version = 6;
     
     int taskbar_height = 40;
     
@@ -22,6 +22,7 @@ struct Config {
     
     std::string volume_command;
     std::string wifi_command;
+    std::string vpn_command;
     std::string date_command;
     std::string battery_command;
     std::string systray_command;

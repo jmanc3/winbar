@@ -9,6 +9,7 @@
 #include "utility.h"
 #include "icons.h"
 #include "simple_dbus.h"
+#include "main.h"
 
 #include <pango/pangocairo.h>
 
@@ -290,7 +291,7 @@ static void client_closed(AppClient *client) {
 
 static Container *create_notification_container(App *app, NotificationInfo *notification_info, int width);
 
-void show_notification(App *app, NotificationInfo *ni) {
+void show_notification(NotificationInfo *ni) {
     auto notification_container = create_notification_container(app, ni, 356 * config->dpi);
     
     Settings settings;

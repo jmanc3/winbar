@@ -49,7 +49,7 @@ extern std::vector<NotificationInfo *> notifications;
 
 extern std::vector<AppClient *> displaying_notifications;
 
-void show_notification(App *app, NotificationInfo *ni);
+void show_notification(NotificationInfo *ni);
 
 void close_notification(int id);
 

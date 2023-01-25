@@ -8,6 +8,7 @@
 #include "main.h"
 #include "taskbar.h"
 #include "components.h"
+#include "icons.h"
 
 #ifdef TRACY_ENABLE
 
@@ -45,22 +46,22 @@ public:
     long last_update = get_current_time_in_ms();
     double rolling_avg = 0;
     double rolling_avg_delayed = 0;
+    cairo_surface_t *icon = nullptr;
     
-    Audio_Client *client() const {
+    Audio_Client *client() {
         for (auto c: audio_clients)
             if (c->unique_id() == unique_client_id)
                 return c;
+        if (icon) {
+            cairo_surface_destroy(icon);
+            icon = nullptr;
+        }
         return nullptr;
     };
     
     ~option_data() {}
     
     float previous_end_percent = 0;
-};
-
-class ButtonData : public IconButton {
-public:
-    std::string text;
 };
 
 static void
@@ -77,7 +78,7 @@ rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width
 }
 
 static void
-fill_root(Container *root);
+fill_root(AppClient *client, Container *root);
 
 static void
 paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
@@ -197,8 +198,17 @@ paint_label(AppClient *client_entity, cairo_t *cr, Container *container) {
     pango_layout_get_pixel_size(layout, &width, &height);
     pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
     
+    double icon_width = 0;
+    if (data->icon) {
+        icon_width = 34 * config->dpi;
+        cairo_set_source_surface(cr, data->icon,
+                                 container->real_bounds.x + 8 * config->dpi,
+                                 container->real_bounds.y + 8 * config->dpi);
+        cairo_paint(cr);
+    }
+    
     set_argb(cr, config->color_volume_text);
-    cairo_move_to(cr, container->real_bounds.x + 13, container->real_bounds.y + 12);
+    cairo_move_to(cr, container->real_bounds.x + 13 + icon_width, container->real_bounds.y + 12);
     
     pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
     pango_cairo_show_layout(cr, layout);
@@ -385,7 +395,7 @@ retry_audio_connection(AppClient *client_entity, cairo_t *cr, Container *contain
     }
 }
 
-void fill_root(Container *root) {
+void fill_root(AppClient *client, Container *root) {
     root->when_paint = paint_root;
     root->type = vbox;
     
@@ -398,7 +408,31 @@ void fill_root(Container *root) {
         vbox_container->wanted_bounds.h = 96 * config->dpi;
         vbox_container->wanted_bounds.w = FILL_SPACE;
         auto data = new option_data();
-        auto uid = audio_clients[i]->unique_id();
+        Audio_Client *audio_c = audio_clients[i];
+        std::string icon_name;
+        if (has_option(audio_c->icon_name)) {
+            icon_name = audio_c->icon_name;
+        } else if (has_option(audio_c->title)) {
+            icon_name = audio_c->title;
+        } else if (has_option(audio_c->subtitle)) {
+            icon_name = audio_c->subtitle;
+        }
+        if (!icon_name.empty()) {
+            std::vector<IconTarget> targets;
+            targets.emplace_back(IconTarget(icon_name));
+            search_icons(targets);
+            double size = 24;
+            pick_best(targets, size * config->dpi);
+            std::string icon_path = targets[0].best_full_path;
+            if (!icon_path.empty()) {
+                if (data->icon) {
+                    cairo_surface_destroy(data->icon);
+                    data->icon = nullptr;
+                }
+                load_icon_full_path(app, client, &data->icon, icon_path, size * config->dpi);
+            }
+        }
+        auto uid = audio_c->unique_id();
         data->unique_client_id = uid;
         vbox_container->user_data = data;
         
@@ -625,7 +659,7 @@ void open_volume_menu() {
         client_entity = taskbar->create_popup(popup_settings, settings);
         
         Container *root = client_entity->root;
-        ScrollPaneSettings s;
+        ScrollPaneSettings s(config->dpi);
         s.right_width = 12 * config->dpi;
         s.right_arrow_height = 12 * config->dpi;
         Container *scrollpane = make_scrollpane(root, s);
@@ -647,7 +681,7 @@ void open_volume_menu() {
         bottom_data->text = "\uE972";
         bottom_arrow->user_data = bottom_data;
     
-        fill_root(content);
+        fill_root(client_entity, content);
         if (audio_backend_data->audio_backend != Audio_Backend::NONE) {
             content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
         } else {

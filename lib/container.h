@@ -4,6 +4,7 @@
 #include <X11/keysym.h>
 #include <cairo.h>
 #include <string>
+#include <utility>
 #include <vector>
 #include <xcb/xcb_event.h>
 #include <xcb/xproto.h>
@@ -60,6 +61,8 @@ enum layout_type {
     scrollpane_b_never = 1 << 10,
     
     transition = 1 << 11,
+    
+    newscroll = 1 << 12,
 };
 
 enum container_alignment {
@@ -194,6 +197,30 @@ struct ClientAnimation {
     double delay;
 };
 
+enum struct CommandStatus {
+    NONE,
+    UPDATE, // For commands that don't finish right away
+    ERROR, // When command fails
+    TIMEOUT, // When command times out
+    FINISHED, // When command finishes
+};
+
+struct ClientCommand {
+    std::string command;
+    std::string output;
+    FILE *process = nullptr;
+    int process_fd = -1;
+    int timeout_fd = -1;
+    CommandStatus status = CommandStatus::NONE; // UPDATE, FINISHED, ERROR, TIMEOUT
+    void *user_data = nullptr;
+    
+    void (*function)(ClientCommand *);
+    
+    AppClient *client;
+    
+    void kill(App *app, bool warn);
+};
+
 struct AppClient {
     App *app = nullptr;
     
@@ -266,7 +293,22 @@ struct AppClient {
     bool wants_popup_events = false;
     
     AppClient *create_popup(PopupSettings popup_settings, Settings client_settings);
+    
+    std::vector<FILE *> pipes;
+    
+    std::vector<ClientCommand *> commands;
+    
+    ClientCommand *command(const std::string &command, void (*function)(ClientCommand *));
+    
+    ClientCommand *command(const std::string &command, int timeout_in_ms, void (*function)(ClientCommand *));
+    
+    ClientCommand *command(const std::string &command, void (*function)(ClientCommand *), void *user_data);
+    
+    ClientCommand *command(const std::string &command, int timeout_in_ms, void (*function)(ClientCommand *), void *user_data);
 };
+
+struct ScrollContainer;
+struct ScrollPaneSettings;
 
 struct Container {
     // The parent of this container which must be set by the user whenever a
@@ -432,7 +474,56 @@ struct Container {
     
     Container(const Container &c);
     
-    ~Container();
+    virtual ~Container();
+    
+    ScrollContainer *scrollchild(const ScrollPaneSettings &scroll_pane_settings);
+};
+
+enum ScrollShow {
+    SAlways,
+    SWhenNeeded,
+    SNever
+};
+
+class ScrollPaneSettings : public UserData {
+public:
+    ScrollPaneSettings(float scale);
+    
+    int right_width = 15;
+    int right_arrow_height = 15;
+    
+    int bottom_height = 15;
+    int bottom_arrow_width = 15;
+    
+    bool right_inline_track = false;
+    bool bottom_inline_track = false;
+    
+    // 0 is always show, 1 is when needed, 2 is never show
+    int right_show_amount = ScrollShow::SWhenNeeded;
+    int bottom_show_amount = ScrollShow::SWhenNeeded;
+    
+    bool make_content = false;
+    
+    // paint functions
+};
+
+struct ScrollContainer : public Container {
+    Container *content = nullptr;
+    Container *right = nullptr;
+    Container *bottom = nullptr;
+    ScrollPaneSettings settings;
+    
+    explicit ScrollContainer(ScrollPaneSettings settings) : settings(std::move(settings)) {
+        type = ::newscroll;
+        wanted_bounds.w = FILL_SPACE;
+        wanted_bounds.h = FILL_SPACE;
+    }
+    
+    ~ScrollContainer() {
+        delete content;
+        delete right;
+        delete bottom;
+    }
 };
 
 Bounds
@@ -461,5 +552,13 @@ true_height(Container *box);
 
 double
 true_width(Container *box);
+
+double
+actual_true_height(Container *box);
+
+double
+actual_true_width(Container *box);
+
+void clamp_scroll(ScrollContainer *scrollpane);
 
 #endif

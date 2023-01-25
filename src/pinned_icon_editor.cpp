@@ -338,7 +338,7 @@ void fill_root(AppClient *client) {
     root->type = vbox;
     root->when_paint = paint_background;
     
-    TextAreaSettings textarea_settings = TextAreaSettings();
+    TextAreaSettings textarea_settings = TextAreaSettings(config->dpi);
     textarea_settings.single_line = true;
     textarea_settings.bottom_show_amount = 2;
     textarea_settings.right_show_amount = 2;

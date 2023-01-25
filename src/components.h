@@ -8,27 +8,13 @@
 #include <application.h>
 #include <stack>
 #include <utility.h>
-
-class ScrollPaneSettings : public UserData {
-public:
-    int right_width = 15;
-    int right_arrow_height = 15;
-    
-    int bottom_height = 15;
-    int bottom_arrow_width = 15;
-    
-    bool right_inline_track = false;
-    bool bottom_inline_track = false;
-    
-    // 0 is always show, 1 is when needed, 2 is never show
-    int right_show_amount = 1;
-    int bottom_show_amount = 1;
-    
-    // paint functions
-};
+#include "taskbar.h"
 
 Container *
 make_scrollpane(Container *parent, ScrollPaneSettings settings);
+
+ScrollContainer *
+make_newscrollpane_as_child(Container *parent, const ScrollPaneSettings &settings);
 
 Bounds
 right_thumb_bounds(Container *scrollpane, Bounds thumb_area);
@@ -118,6 +104,9 @@ public:
 
 class TextAreaSettings : public ScrollPaneSettings {
 public:
+    explicit TextAreaSettings(float scale);
+
+public:
     std::string font = "Arial";
     int font_size = 15;
     bool single_line = false;
@@ -133,6 +122,11 @@ public:
     ArgbColor color_cursor = ArgbColor(0, 1, 1, 1);
     double cursor_width = 1;
     Bounds pad = Bounds(0, 0, 0, 0);
+};
+
+class ButtonData : public IconButton {
+public:
+    std::string text;
 };
 
 Container *
@@ -167,5 +161,7 @@ void transition_same_container(AppClient *client, cairo_t *cr, Container *parent
                                int original_anim, int replacement_anim);
 
 int get_offset(Container *target, Container *scroll_pane);
+
+Container *make_combobox(Container *parent, const std::vector<std::string> &items);
 
 #endif// SCROLL_COMPONENTS_H

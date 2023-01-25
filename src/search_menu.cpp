@@ -1140,7 +1140,7 @@ void sort_and_add(std::vector<T> *sortables,
         right_fg->when_paint = paint_right_fg;
         right_fg->name = "right_fg";
         
-        ScrollPaneSettings settings;
+        ScrollPaneSettings settings(config->dpi);
         settings.right_inline_track = true;
         settings.right_show_amount = 2;
         Container *content_area = make_scrollpane(left, settings);

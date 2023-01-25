@@ -56,13 +56,14 @@ int main() {
     // We need to register as the systray
     register_as_systray();
     
+    load_scripts();// The scripts are reloaded every time the search_menu window closes
+    
     // Open our windows
     AppClient *taskbar = create_taskbar(app);
     
     // We only want to load the desktop files once at the start of the program
     //std::thread(load_desktop_files).detach();
     load_all_desktop_files();
-    load_scripts();// The scripts are reloaded every time the search_menu window closes
     load_historic_scripts();
     load_historic_apps();
     
@@ -71,7 +72,11 @@ int main() {
     
     on_meta_key_pressed = meta_pressed;
     
-    dbus_start();
+    static int first = 0;
+    if (first++ == 0) {
+        dbus_start(DBUS_BUS_SESSION);
+        dbus_start(DBUS_BUS_SYSTEM);
+    }
     
     wifi_start(app);
     
@@ -79,8 +84,6 @@ int main() {
     app_main(app);
     
     unload_icons();
-    
-    dbus_end();
     
     // Clean up
     app_clean(app);
@@ -100,12 +103,14 @@ int main() {
     if (restart) {
         restart = false;
         main();
+    } else {
+        dbus_end();
     }
     
     return 0;
 }
 
-static int acceptable_config_version = 5;
+static int acceptable_config_version = 6;
 
 std::string first_message;
 std::string second_message;

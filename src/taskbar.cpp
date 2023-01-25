@@ -29,6 +29,7 @@
 #include "simple_dbus.h"
 #include "audio.h"
 #include "defer.h"
+#include "bluetooth_menu.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -1340,6 +1341,33 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+paint_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_hoverable_button_background(client, cr, container);
+    
+    IconButton *data = (IconButton *) container->user_data;
+    
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE702", strlen("\uE702"));
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
+}
+
+static void
 paint_date(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -1406,6 +1434,14 @@ clicked_systray(AppClient *client, cairo_t *cr, Container *container) {
         } else {
             launch_command(config->systray_command);
         }
+    }
+}
+
+static void
+clicked_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
+    auto *data = (IconButton *) container->user_data;
+    if (!data->invalid_button_down) {
+        open_bluetooth_menu();
     }
 }
 
@@ -1477,7 +1513,7 @@ clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
         }
     }
     
-    if (dbus_connection) {
+    if (dbus_connection_session) {
         for (const auto &s: running_dbus_services) {
             if (s == "org.kde.kglobalaccel") {
                 // On KDE try to show the desktop
@@ -1869,7 +1905,7 @@ void gnome_stuck_mouse_state_fix(App *app, AppClient *client, Timeout *, void *)
 
 static void
 clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
-    if (dbus_connection) {
+    if (dbus_connection_session) {
         for (const auto &s: running_dbus_services) {
             if (s == "org.kde.kglobalaccel") {
                 // On KDE try to show the desktop grid
@@ -1958,6 +1994,9 @@ fill_root(App *app, AppClient *client, Container *root) {
     Container *button_workspace = root->child(48 * config->dpi, FILL_SPACE);
     Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
     Container *button_systray = root->child(24 * config->dpi, FILL_SPACE);
+    Container *button_bluetooth = nullptr;
+    if (script_exists("bluetoothctl"))
+        button_bluetooth = root->child(24 * config->dpi, FILL_SPACE);
     make_battery_button(root, client);
     Container *button_wifi = root->child(24 * config->dpi, FILL_SPACE);
     Container *button_volume = root->child(24 * config->dpi, FILL_SPACE);
@@ -1979,7 +2018,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     field_search->user_data = new IconButton;
     field_search->name = "field_search";
     
-    TextAreaSettings settings;
+    TextAreaSettings settings(config->dpi);
     settings.font_size = 12 * config->dpi;
     settings.font = config->font;
     settings.color = ArgbColor(0, 0, 0, 1);
@@ -2012,6 +2051,17 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_systray->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_systray->when_clicked = clicked_systray;
     button_systray->name = "systray";
+    
+    if (button_bluetooth) {
+        button_bluetooth->exists = false;
+        button_bluetooth->when_paint = paint_bluetooth;
+        auto button_bluetooth_data = new IconButton;
+        button_bluetooth_data->invalidate_button_press_if_client_with_this_name_is_open = "bluetooth_menu";
+        button_bluetooth->user_data = button_bluetooth_data;
+        button_bluetooth->when_mouse_down = invalidate_icon_button_press_if_window_open;
+        button_bluetooth->when_clicked = clicked_bluetooth;
+        button_bluetooth->name = "bluetooth";
+    }
     
     button_wifi->when_paint = paint_wifi;
     button_wifi->when_clicked = clicked_wifi;
@@ -3719,3 +3769,5 @@ std::string find_icon_string_from_window_properties(xcb_window_t window) {
     
     return "";
 }
+
+TextAreaSettings::TextAreaSettings(float scale) : ScrollPaneSettings(scale) {}

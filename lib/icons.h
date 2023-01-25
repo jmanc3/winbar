@@ -60,6 +60,8 @@ void pick_best(std::vector<IconTarget> &targets, int size);
 
 bool has_options(const std::string &name);
 
+bool has_option(const std::string &name);
+
 std::string
 c3ic_fix_desktop_file_icon(const std::string &given_name,
                            const std::string &given_wm_class,

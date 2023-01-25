@@ -113,20 +113,38 @@ void traverse_dir(const char *path) {
     while ((entry = readdir(dir)) != nullptr) {
         size_t name_len = strlen(entry->d_name);
         if (name_len > 5) {
-            if (strcmp(entry->d_name + name_len - 3, "svg") == 0) {
-                Option option = {};
-                option.parentIndexAndExtension = (current_parent_index & 0x3FFF) | (0 << 14);
-                option.themeIndex = current_theme_index;
-                entry->d_name[name_len - 4] = '\0';
-                (&data->options[entry->d_name])->push_back(option);
-                continue;
-            } else if (strcmp(entry->d_name + name_len - 3, "png") == 0) {
-                Option option = {};
-                option.parentIndexAndExtension = (current_parent_index & 0x3FFF) | (1 << 14);
-                option.themeIndex = current_theme_index;
-                entry->d_name[name_len - 4] = '\0';
-                (&data->options[entry->d_name])->push_back(option);
-                continue;
+            if (entry->d_name[name_len - 4] == '.') {
+                size_t first = name_len - 3;
+                size_t second = name_len - 2;
+                size_t third = name_len - 1;
+        
+                int svgs = entry->d_name[first] == 's';
+                int svgv = entry->d_name[second] == 'v';
+                int svgg = entry->d_name[third] == 'g';
+                int svgsvg = svgs + svgv + svgg;
+        
+                if (svgsvg == 3) {
+                    Option option = {};
+                    option.parentIndexAndExtension = (current_parent_index & 0x3FFF) | (0 << 14);
+                    option.themeIndex = current_theme_index;
+                    entry->d_name[name_len - 4] = '\0';
+                    (&data->options[entry->d_name])->push_back(option);
+                    continue;
+                }
+        
+                int pngp = entry->d_name[first] == 'p';
+                int pngv = entry->d_name[second] == 'n';
+                int pngg = entry->d_name[third] == 'g';
+                int pngpng = pngg + pngv + pngp;
+        
+                if (pngpng == 3) {
+                    Option option = {};
+                    option.parentIndexAndExtension = (current_parent_index & 0x3FFF) | (1 << 14);
+                    option.themeIndex = current_theme_index;
+                    entry->d_name[name_len - 4] = '\0';
+                    (&data->options[entry->d_name])->push_back(option);
+                    continue;
+                }
             }
         }
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
@@ -384,6 +402,8 @@ void set_icons_path_and_possibly_update(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (data == nullptr)
+        data = new OptionsData();
     icon_search_paths.clear();
     
     // Setup search paths for icons
@@ -727,11 +747,12 @@ void pick_best(std::vector<IconTarget> &targets, int target_size) {
     }
 }
 
-void check_if_cache_needs_update(App *, AppClient *, Timeout *timeout, void *) {
-    std::thread t([]() -> void {
+void check_if_cache_needs_update(App *app, AppClient *, Timeout *timeout, void *) {
+    std::thread t([app]() -> void {
 #ifdef TRACY_ENABLE
         ZoneScopedN("icon directory timeout");
 #endif
+        // TODO: this is crashin in some cases
         const char *home_directory = getenv("HOME");
         std::string icon_cache_path(home_directory);
         icon_cache_path += "/.cache/winbar_icon_cache/icon.cache";
@@ -775,6 +796,7 @@ void check_if_cache_needs_update(App *, AppClient *, Timeout *timeout, void *) {
             }
             
             if (found_newer_folder_than_cache_file) {
+                std::lock_guard lock(app->running_mutex);
                 generate_data();
                 save_data();
             }
@@ -959,4 +981,11 @@ c3ic_fix_wm_class(const std::string &given_wm_class) {
 
 bool has_options(const std::string &name) {
     return !data->options[name].empty();
+}
+
+bool has_option(const std::string &name) {
+    // fails on firefox for some reason
+    std::vector<Option> vector = data->options[name];
+    
+    return !vector.empty();
 }

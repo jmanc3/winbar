@@ -31,7 +31,7 @@ std::string_view trim(std::string_view s) {
 
 static void wifi_wpa_parse_scan_results();
 
-void wifi_wpa_has_message(App *app, int fd) {
+void wifi_wpa_has_message(App *app, int fd, void *) {
     if (wifi_data->type != 1)
         return;
     char buf[1000];
@@ -71,7 +71,7 @@ bool wifi_wpa_start(App *app) {
     
     int fd;
     if ((fd = wpa_ctrl_get_fd(wifi_data->wpa_message_listener)) != -1)
-        return poll_descriptor(app, fd, EPOLLIN, wifi_wpa_has_message);
+        return poll_descriptor(app, fd, EPOLLIN, wifi_wpa_has_message, nullptr);
     return false;
 }
 

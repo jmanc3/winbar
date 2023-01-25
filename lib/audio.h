@@ -33,6 +33,7 @@ public:
     
     std::string title;
     std::string subtitle;
+    std::string icon_name;
     
     double get_volume();
     

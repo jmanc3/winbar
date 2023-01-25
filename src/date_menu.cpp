@@ -32,11 +32,6 @@ public:
     int year = 0;
 };
 
-class ButtonData : public IconButton {
-public:
-    std::string text;
-};
-
 static int view_month = 0;
 static int view_year = 0;
 
@@ -767,7 +762,7 @@ fill_root(AppClient *client) {
     events->wanted_pad = Bounds(24 * config->dpi, 58 * config->dpi, 24 * config->dpi, 0);
     events->when_paint = paint_events;
     
-    TextAreaSettings settings;
+    TextAreaSettings settings(config->dpi);
     settings.color = config->color_date_text;
     settings.color_cursor = config->color_date_cursor;
     settings.font = config->font;
