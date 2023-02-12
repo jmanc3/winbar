@@ -15,12 +15,12 @@
 #include <pango/pangocairo.h>
 #include <xbacklight.h>
 
-double marker_position_scalar = .5;
+double marker_position_scalar = 1;
 
 static AppClient *battery_entity = nullptr;
 
-static int brightness = -1;
-static int brightness_fake = -1;
+static int brightness = 100;
+static int brightness_fake = 100;
 
 static void
 paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {

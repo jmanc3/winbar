@@ -10,9 +10,13 @@
 #include <dbus/dbus.h>
 #include <pango/pango-font.h>
 
+struct NotificationInfo;
+
 struct NotificationAction {
     std::string id;
     std::string label;
+    
+    void (*callback)(NotificationInfo *) = nullptr;
 };
 
 enum NotificationReasonClosed {
@@ -29,6 +33,11 @@ struct NotificationInfo {
     std::string calling_dbus_client;
     bool sent_to_action_center = false;
     bool removed_from_action_center = false;
+    bool sent_by_winbar = false;
+    
+    void (*on_ignore)(NotificationInfo *) = nullptr;
+    
+    void *user_data = nullptr;
     
     std::string app_name;
     std::string app_icon;

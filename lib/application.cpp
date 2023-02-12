@@ -1480,9 +1480,11 @@ void handle_mouse_button_press(App *app) {
         p->state.mouse_pressing = true;
         p->state.mouse_button_pressed = e->detail;
         
-        if (p->when_mouse_down) {
+        if (p->when_mouse_down || p->when_key_event) {
             mouse_downed.push_back(p);
-            p->when_mouse_down(client, client->cr, p);
+            if (p->when_mouse_down) {
+                p->when_mouse_down(client, client->cr, p);
+            }
         }
     }
     set_active(client, mouse_downed, client->root, false);

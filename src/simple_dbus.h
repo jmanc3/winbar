@@ -18,7 +18,6 @@ extern DBusConnection *dbus_connection_session;
 extern DBusConnection *dbus_connection_system;
 
 extern std::vector<std::string> running_dbus_services;
-extern std::mutex bluetooth_interfaces_mutex;
 struct BluetoothInterface;
 extern std::vector<BluetoothInterface *> bluetooth_interfaces;
 

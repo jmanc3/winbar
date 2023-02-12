@@ -2638,14 +2638,106 @@ int get_offset(Container *target, Container *scroll_pane) {
     
     for (int i = 0; i < scroll_pane->children[0]->children.size(); i++) {
         auto possible = scroll_pane->children[0]->children[i];
-        
+    
         if (possible == target) {
             return offset;
         }
-        
+    
         offset += possible->real_bounds.h;
         offset += scroll_pane->children[0]->spacing;
     }
     
     return offset;
+}
+
+static void
+paint_textfield(AppClient *client, cairo_t *cr, Container *container) {
+    // paint blue border
+    auto *data = (FieldData *) container->user_data;
+    set_rect(cr, container->real_bounds);
+    set_argb(cr, config->color_taskbar_search_bar_pressed_background);
+    cairo_fill(cr);
+    
+    // clip text
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    pango_layout_set_width(layout, -1); // disable wrapping
+    
+    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
+    if (!data->text.empty() || container->active) {
+        pango_layout_set_text(layout, data->text.c_str(), data->text.size());
+    } else {
+        auto watered_down = ArgbColor(config->color_pinned_icon_editor_field_default_text);
+        watered_down.a = 0.6;
+        set_argb(cr, watered_down);
+        pango_layout_set_text(layout, data->settings.when_empty_text.c_str(), data->settings.when_empty_text.size());
+    }
+    PangoRectangle ink;
+    PangoRectangle logical;
+    pango_layout_get_extents(layout, &ink, &logical);
+    
+    auto text_off_x = 10 * config->dpi;
+    auto text_off_y = container->real_bounds.h / 2 - ((logical.height / PANGO_SCALE) / 2);
+    
+    cairo_move_to(cr,
+                  container->real_bounds.x + text_off_x,
+                  container->real_bounds.y + text_off_y);
+    pango_cairo_show_layout(cr, layout);
+    
+    PangoRectangle cursor_strong_pos;
+    PangoRectangle cursor_weak_pos;
+    pango_layout_get_cursor_pos(layout, data->text.size(), &cursor_strong_pos, &cursor_weak_pos);
+    
+    if (container->active) {
+        set_argb(cr, ArgbColor(0, 0, 0, 1));
+        int offset = cursor_strong_pos.x != 0 ? -1 : 0;
+        cairo_rectangle(cr,
+                        cursor_strong_pos.x / PANGO_SCALE + container->real_bounds.x + offset + text_off_x,
+                        cursor_strong_pos.y / PANGO_SCALE + container->real_bounds.y + text_off_y,
+                        1 * config->dpi,
+                        cursor_strong_pos.height / PANGO_SCALE);
+        cairo_fill(cr);
+    }
+    
+    set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
+    paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+}
+
+static void
+key_event_textfield(AppClient *client,
+                    cairo_t *cr,
+                    Container *container,
+                    bool is_string, xkb_keysym_t keysym, char string[64],
+                    uint16_t mods,
+                    xkb_key_direction direction) {
+    if (!container->active)
+        return;
+    auto *data = (FieldData *) container->user_data;
+    if (direction == XKB_KEY_UP)
+        return;
+    if (is_string) {
+        if (data->settings.only_numbers) {
+            if (string[0] >= '0' && string[0] <= '9') {
+                data->text += string[0];
+            }
+        } else {
+            data->text += string;
+        }
+    } else {
+        if (keysym == XKB_KEY_BackSpace) {
+            if (!data->text.empty()) {
+                data->text.pop_back();
+            }
+        }
+    }
+}
+
+Container *make_textfield(Container *parent, FieldSettings settings, int w, int h) {
+    auto *field = parent->child(w, h);
+    auto data = new FieldData;
+    data->settings = settings;
+    field->user_data = data;
+    field->when_paint = paint_textfield;
+    field->when_key_event = key_event_textfield;
+    
+    return field;
 }

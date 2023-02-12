@@ -27,7 +27,6 @@ DBusConnection *dbus_connection_session = nullptr;
 DBusConnection *dbus_connection_system = nullptr;
 
 std::vector<std::string> running_dbus_services;
-std::mutex bluetooth_interfaces_mutex;
 std::vector<BluetoothInterface *> bluetooth_interfaces;
 
 bool registered_object_path = false;
@@ -165,7 +164,6 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
             char *object_path;
             dbus_message_iter_get_basic(&args, &object_path);
             
-            std::lock_guard lock(bluetooth_interfaces_mutex);
             for (int i = 0; i < bluetooth_interfaces.size(); i++) {
                 if (bluetooth_interfaces[i]->object_path == object_path) {
                     DBusError error;
@@ -198,7 +196,6 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
     
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_signal(message, "org.freedesktop.DBus.Properties", "PropertiesChanged")) {
-        std::lock_guard lock(bluetooth_interfaces_mutex);
         for (auto *interface: bluetooth_interfaces) {
             if (dbus_message_has_path(message, interface->object_path.c_str())) {
                 DBusMessageIter args;
@@ -829,10 +826,7 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
         int result = 0;
         DBusError error = DBUS_ERROR_INIT;
         if (dbus_message_get_args(message, &error, DBUS_TYPE_UINT32, &result, DBUS_TYPE_INVALID)) {
-            std::thread([=] {
-                std::lock_guard lock(app->running_mutex);
-                close_notification(result);
-            }).detach();
+            close_notification(result);
             return DBUS_HANDLER_RESULT_HANDLED;
         } else if (dbus_error_is_set(&error)) {
             fprintf(stderr, "CloseNotification called but couldn't parse arg. Error message: (%s)\n",
@@ -900,16 +894,13 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
         ss << std::put_time(std::localtime(&in_time_t), "%I:%M %p");
         notification_info->time_started = ss.str();
         notification_info->calling_dbus_client = dbus_message_get_sender(message);
-        
-        std::thread([=] {
-            std::lock_guard lock(app->running_mutex);
-            notifications.push_back(notification_info);
-            show_notification(notification_info);
-        }).detach();
-        
+    
+        notifications.push_back(notification_info);
+        show_notification(notification_info);
+    
         DBusMessage *reply = dbus_message_new_method_return(message);
         defer(dbus_message_unref(reply));
-        
+    
         dbus_message_iter_init_append(reply, &args);
         const dbus_uint32_t current_id = notification_info->id;
         if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &current_id) ||
@@ -926,42 +917,38 @@ void notification_closed_signal(App *app, NotificationInfo *ni, NotificationReas
     if (!dbus_connection_session || !ni)
         return;
     
-    std::thread([=] {
-        std::lock_guard lock(app->running_mutex);
-        
-        DBusMessage *dmsg = dbus_message_new_signal("/org/freedesktop/Notifications",
-                                                    "org.freedesktop.Notifications",
-                                                    "NotificationClosed");
-        defer(dbus_message_unref(dmsg));
-        
-        DBusMessageIter args;
-        dbus_message_iter_init_append(dmsg, &args);
-        int id = ni->id;
-        dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &id);
-        dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &reason);
-        
-        dbus_message_set_destination(dmsg, NULL);
-        
-        dbus_connection_send(dbus_connection_session, dmsg, NULL);
-        
-        bool action_center_icon_needs_change = true;
-        for (auto n: notifications) {
-            if (n->sent_to_action_center) {
-                action_center_icon_needs_change = false;
+    DBusMessage *dmsg = dbus_message_new_signal("/org/freedesktop/Notifications",
+                                                "org.freedesktop.Notifications",
+                                                "NotificationClosed");
+    defer(dbus_message_unref(dmsg));
+    
+    DBusMessageIter args;
+    dbus_message_iter_init_append(dmsg, &args);
+    int id = ni->id;
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &id);
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &reason);
+    
+    dbus_message_set_destination(dmsg, NULL);
+    
+    dbus_connection_send(dbus_connection_session, dmsg, NULL);
+    
+    bool action_center_icon_needs_change = true;
+    for (auto n: notifications) {
+        if (n->sent_to_action_center) {
+            action_center_icon_needs_change = false;
+        }
+    }
+    ni->sent_to_action_center = true;
+    if (action_center_icon_needs_change) {
+        if (auto c = client_by_name(app, "taskbar")) {
+            if (auto co = container_by_name("action", c->root)) {
+                auto data = (ActionCenterButtonData *) co->user_data;
+                data->some_unseen = true;
+                client_create_animation(app, c, &data->slide_anim, 0, 140, nullptr, 1);
+                request_refresh(app, c);
             }
         }
-        ni->sent_to_action_center = true;
-        if (action_center_icon_needs_change) {
-            if (auto c = client_by_name(app, "taskbar")) {
-                if (auto co = container_by_name("action", c->root)) {
-                    auto data = (ActionCenterButtonData *) co->user_data;
-                    data->some_unseen = true;
-                    client_create_animation(app, c, &data->slide_anim, 0, 140, nullptr, 1);
-                    request_refresh(app, c);
-                }
-            }
-        }
-    }).detach();
+    }
 }
 
 void notification_action_invoked_signal(App *app, NotificationInfo *ni, NotificationAction action) {
@@ -992,7 +979,7 @@ void notification_action_invoked_signal(App *app, NotificationInfo *ni, Notifica
  *************************************************/
 
 
-void dbus_poll_wakeup(void *user_data) {
+void dbus_poll_wakeup(App *, int, void *user_data) {
     auto dbus_connection = (DBusConnection *) user_data;
     DBusDispatchStatus status;
     do {
@@ -1002,51 +989,38 @@ void dbus_poll_wakeup(void *user_data) {
 }
 
 void dbus_start(DBusBusType dbusType) {
-    std::thread t([dbusType] {
-        // Open DBus connection
-        //
-        DBusError error = DBUS_ERROR_INIT;
-        defer(dbus_error_free(&error));
-        
-        auto *dbus_connection = dbus_bus_get(dbusType, &error);
-        if (dbus_error_is_set(&error)) {
-            fprintf(stderr, "DBus Error: %s\n%s\n", error.name, error.message);
-            dbus_connection = nullptr;
-            return;
-        }
-        
-        if (!dbus_connection) return;
-        
-        // Weave the DBus file descriptor into our main event loop
-        //
-        int file_descriptor = -1;
-        if (dbus_connection_get_unix_fd(dbus_connection, &file_descriptor) != TRUE) {
-            fprintf(stderr, "%s\n", "Couldn't get the file descriptor for the DBus Connection");
-            dbus_connection_unref(dbus_connection);
-            dbus_connection = nullptr;
-            return;
-        }
-        
-        // create epoll_create
-        int epoll_fd = epoll_create(4);
-        if (epoll_fd == -1) {
-            fprintf(stderr, "%s\n", "Couldn't create epoll file descriptor");
-            dbus_connection_unref(dbus_connection);
-            dbus_connection = nullptr;
-            return;
-        }
-        
-        // add the dbus file descriptor to the epoll
-        struct epoll_event event;
-        event.events = EPOLLIN;
-        event.data.fd = file_descriptor;
-        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, file_descriptor, &event) == -1) {
-            fprintf(stderr, "%s\n", "Couldn't add the dbus file descriptor to the epoll");
-            dbus_connection_unref(dbus_connection);
-            dbus_connection = nullptr;
-            return;
-        }
-        
+    // Open DBus connection
+    //
+    DBusError error = DBUS_ERROR_INIT;
+    defer(dbus_error_free(&error));
+    
+    auto *dbus_connection = dbus_bus_get(dbusType, &error);
+    if (dbus_error_is_set(&error)) {
+        fprintf(stderr, "DBus Error: %s\n%s\n", error.name, error.message);
+        dbus_connection = nullptr;
+        return;
+    }
+    
+    if (!dbus_connection) return;
+    
+    // Weave the DBus file descriptor into our main event loop
+    //
+    int file_descriptor = -1;
+    if (dbus_connection_get_unix_fd(dbus_connection, &file_descriptor) != TRUE) {
+        fprintf(stderr, "%s\n", "Couldn't get the file descriptor for the DBus Connection");
+        dbus_connection_unref(dbus_connection);
+        dbus_connection = nullptr;
+        return;
+    }
+    
+    if (dbusType == DBUS_BUS_SESSION) {
+        dbus_connection_session = dbus_connection;
+    } else {
+        dbus_connection_system = dbus_connection;
+    }
+    
+    if (poll_descriptor(app, file_descriptor, EPOLLIN | EPOLLPRI | EPOLLHUP | EPOLLERR, dbus_poll_wakeup,
+                        dbus_connection)) {
         // Get the names of all the services running
         //
         request_name_of_every_service_running(dbus_connection);
@@ -1065,32 +1039,8 @@ void dbus_start(DBusBusType dbusType) {
             }
         }
         
-        dbus_poll_wakeup(dbus_connection);
-        
-        if (dbusType == DBUS_BUS_SESSION) {
-            dbus_connection_session = dbus_connection;
-        } else {
-            dbus_connection_system = dbus_connection;
-        }
-        
-        while (true) {
-            struct epoll_event events[4];
-            int nfds = epoll_wait(epoll_fd, events, 4, -1);
-            if (nfds == -1) {
-                fprintf(stderr, "%s\n", "epoll_wait failed");
-                dbus_connection_unref(dbus_connection);
-                dbus_connection = nullptr;
-                return;
-            }
-            
-            for (int i = 0; i < nfds; i++) {
-                if (events[i].data.fd == file_descriptor) {
-                    dbus_poll_wakeup(dbus_connection);
-                }
-            }
-        }
-    });
-    t.detach();
+        dbus_poll_wakeup(nullptr, 0, dbus_connection);
+    }
 }
 
 void dbus_end() {
@@ -1304,74 +1254,178 @@ bool become_default_bluetooth_agent() {
     return true;
 }
 
-DBusHandlerResult bluetooth_agent_message(DBusConnection *conn, DBusMessage *message, void *user_data) {
-    // print message here
-    printf("on_pair_response: %s\n", dbus_message_get_member(message));
+#include <sys/select.h>
+#include <unistd.h>
+#include <cerrno>
+#include <atomic>
+
+ssize_t read_with_timeout(int fd, void *buf, size_t count, int timeout_ms) {
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(fd, &readfds);
     
+    struct timeval timeout;
+    timeout.tv_sec = timeout_ms / 1000;
+    timeout.tv_usec = (timeout_ms % 1000) * 1000;
+    
+    int ret = select(fd + 1, &readfds, NULL, NULL, &timeout);
+    if (ret == -1) {
+        // select failed
+        return -1;
+    } else if (ret == 0) {
+        // timeout occurred
+        errno = ETIMEDOUT;
+        return -1;
+    } else {
+        // pipe is readable, perform the read
+        return read(fd, buf, count);
+    }
+}
+
+DBusHandlerResult bluetooth_agent_message(DBusConnection *conn, DBusMessage *message, void *user_data) {
     if (dbus_message_is_method_call(message, "org.bluez.Agent1", "Release")) {
-        printf("Release\n");
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.bluez.Agent1", "RequestPinCode")) {
-        printf("RequestPinCode\n");
-        // TODO: we don't handle devices that require a pin code yet.
+        DBusMessageIter args;
+        dbus_message_iter_init(message, &args);
+        
+        if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_OBJECT_PATH)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        
+        char const *device_object_path;
+        dbus_message_iter_get_basic(&args, &device_object_path);
+        
+        auto br = new BluetoothRequest(conn, message, "RequestPinCode");
+        br->object_path = device_object_path;
+        bluetooth_wants_response_from_user(br);
+        
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.bluez.Agent1", "DisplayPinCode")) {
-        printf("DisplayPinCode\n");
+        DBusMessageIter args;
+        dbus_message_iter_init(message, &args);
+        
+        if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_OBJECT_PATH)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        
+        char const *device_object_path;
+        dbus_message_iter_get_basic(&args, &device_object_path);
+        
+        dbus_message_iter_next(&args);
+        
+        if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_STRING)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        
+        char const *pin_code;
+        dbus_message_iter_get_basic(&args, &pin_code);
+        
+        auto br = new BluetoothRequest(conn, message, "DisplayPinCode");
+        br->object_path = device_object_path;
+        br->pin = pin_code;
+        bluetooth_wants_response_from_user(br);
+        
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.bluez.Agent1", "RequestPasskey")) {
-        printf("RequestPasskey\n");
+        DBusMessageIter args;
+        dbus_message_iter_init(message, &args);
         
-        // TODO: since this is called on the same thread as the main loop, we'll end up blocking here,
-        //  we can start another thread, but then what happens if we reply with handled or not handled?
-        //  one solution would be to block, but start a whole other app instance which opens a window requesting the info
-        uint32_t n;
-        std::cin >> n;
-        printf("n: %d\n", n);
-        DBusMessage *reply = dbus_message_new_method_return(message);
+        if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_OBJECT_PATH)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
         
-        dbus_message_append_args(reply, DBUS_TYPE_UINT32, &n, DBUS_TYPE_INVALID);
-        dbus_connection_send(conn, reply, NULL);
-        dbus_connection_flush(conn);
-        dbus_message_unref(reply);
+        char const *device_object_path;
+        dbus_message_iter_get_basic(&args, &device_object_path);
         
-        printf("done\n");
+        auto br = new BluetoothRequest(conn, message, "RequestPasskey");
+        br->object_path = device_object_path;
+        bluetooth_wants_response_from_user(br);
         
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.bluez.Agent1", "DisplayPasskey")) {
-        printf("DisplayPasskey\n");
+        DBusMessageIter args;
+        dbus_message_iter_init(message, &args);
         
+        if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_OBJECT_PATH)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        
+        char const *device_object_path;
+        dbus_message_iter_get_basic(&args, &device_object_path);
+        dbus_message_iter_next(&args);
+        
+        if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_UINT32)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        
+        uint32_t passkey = 0;
+        dbus_message_iter_get_basic(&args, &passkey);
+        dbus_message_iter_next(&args);
+        
+        if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_UINT16)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        
+        uint16_t entered = 0;
+        dbus_message_iter_get_basic(&args, &entered);
+        
+        auto br = new BluetoothRequest(conn, message, "DisplayPasskey");
+        br->object_path = device_object_path;
+        br->pin = std::to_string(passkey);
+        br->pin.insert(0, 6 - br->pin.length(), '0');
+        
+        bluetooth_wants_response_from_user(br);
         
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.bluez.Agent1", "RequestConfirmation")) {
-        // TODO: we should probably prompt the user to verify the passkey matches.
-        printf("RequestConfirmation\n");
-        DBusMessage *reply = dbus_message_new_method_return(message);
-        dbus_connection_send(conn, reply, nullptr);
-        dbus_connection_flush(conn);
-        dbus_message_unref(reply);
+        DBusMessageIter args;
+        dbus_message_iter_init(message, &args);
+        
+        if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_OBJECT_PATH)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        
+        char const *device_object_path;
+        dbus_message_iter_get_basic(&args, &device_object_path);
+        dbus_message_iter_next(&args);
+        
+        if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_UINT32)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        
+        uint32_t passkey = 0;
+        dbus_message_iter_get_basic(&args, &passkey);
+        
+        auto br = new BluetoothRequest(conn, message, "RequestConfirmation");
+        br->object_path = device_object_path;
+        br->pin = std::to_string(passkey);
+        br->pin.insert(0, 6 - br->pin.length(), '0');
+        
+        bluetooth_wants_response_from_user(br);
+        
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.bluez.Agent1", "RequestAuthorization")) {
-        printf("RequestAuthorization\n");
-        // TODO: not absolutely certain this is what we should do here, but we'll change it when people complain.
-        //  it seems like this gets called when a device tries to pair with bluetooth, when it's already connected via wire.
-        //  (which) sounds not like what people expect and so therefore we do nothing for now. (But we should technically promt the user)
+        DBusMessageIter args;
+        dbus_message_iter_init(message, &args);
+        
+        if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_OBJECT_PATH)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        
+        char const *device_object_path;
+        dbus_message_iter_get_basic(&args, &device_object_path);
+        
+        auto br = new BluetoothRequest(conn, message, "RequestAuthorization");
+        br->object_path = device_object_path;
+        bluetooth_wants_response_from_user(br);
+        
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.bluez.Agent1", "AuthorizeService")) {
-        printf("AuthorizeService\n");
         DBusMessage *reply = dbus_message_new_method_return(message);
         dbus_connection_send(conn, reply, nullptr);
         dbus_connection_flush(conn);
         dbus_message_unref(reply);
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.bluez.Agent1", "Cancel")) {
-        printf("Cancel\n");
+        auto br = new BluetoothRequest(conn, message, "Cancelled");
+        
+        bluetooth_wants_response_from_user(br);
+        
         return DBUS_HANDLER_RESULT_HANDLED;
     }
     
-    // print the method call name
-    printf("Unhandled method call: %s\n", dbus_message_get_member(message));
-    
-    return DBUS_HANDLER_RESULT_HANDLED;
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
 void register_agent_if_needed() {
@@ -1402,7 +1456,7 @@ void register_agent_if_needed() {
         defer(dbus_message_unref(dbus_msg));
         
         // TODO: we might want to make it KeyboardDisplay later
-        const char *capability = "KeyboardOnly";
+        const char *capability = "KeyboardDisplay";
         dbus_message_append_args(dbus_msg, DBUS_TYPE_OBJECT_PATH, &agent_path, DBUS_TYPE_STRING, &capability,
                                  DBUS_TYPE_INVALID);
         
@@ -1452,8 +1506,6 @@ void unregister_agent_if_needed() {
             // UnregisterAgent
             unregister_agent_with_bluez();
             
-            std::lock_guard lock(bluetooth_interfaces_mutex);
-            
             // remove interfaces
             for (auto &interface: bluetooth_interfaces) {
                 DBusError error;
@@ -1473,8 +1525,6 @@ void unregister_agent_if_needed() {
 }
 
 void parse_and_add_or_update_interface(DBusMessageIter iter2) {
-    std::lock_guard<std::mutex> lock(bluetooth_interfaces_mutex);
-    
     char *object_path;
     if (dbus_message_iter_get_arg_type(&iter2) == DBUS_TYPE_OBJECT_PATH) {
         dbus_message_iter_get_basic(&iter2, &object_path);
@@ -1686,7 +1736,6 @@ static void general_response(DBusPendingCall *call, void *user_data) {
     DBusMessage *dbus_reply = dbus_pending_call_steal_reply(call);
     defer(dbus_message_unref(dbus_reply));
     
-    std::lock_guard lock(app->running_mutex);
     if (dbus_message_get_type(dbus_reply) == DBUS_MESSAGE_TYPE_ERROR) {
         fprintf(stderr, "Error setting power: %s\n", dbus_message_get_error_name(dbus_reply));
         if (callback_info->function) {
@@ -1808,7 +1857,6 @@ void Device::cancel_pair(void (*function)(BluetoothCallbackInfo *)) {
 }
 
 void Device::unpair(void (*function)(BluetoothCallbackInfo *)) {
-    std::lock_guard lock(bluetooth_interfaces_mutex);
     for (auto &interface: bluetooth_interfaces) {
         if (interface->object_path == this->adapter) {
             // Unpair message

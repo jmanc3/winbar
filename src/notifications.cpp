@@ -33,6 +33,8 @@ struct LabelData : UserData {
 
 static void close_notification_timeout(App *app, AppClient *client, Timeout *, void *data) {
     auto root_data = (NotificationWrapper *) client->root->user_data;
+    if (root_data->ni->on_ignore)
+        root_data->ni->on_ignore(root_data->ni);
     notification_closed_signal(app, root_data->ni, NotificationReasonClosed::EXPIRED);
     client_close_threaded(app, client);
 }
@@ -47,6 +49,8 @@ static void paint_root(AppClient *client, cairo_t *cr, Container *container) {
 
 static void clicked_root(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationWrapper *) container->user_data;
+    if (data->ni->on_ignore)
+        data->ni->on_ignore(data->ni);
     // TODO I think this should invoke "default" action
     notification_closed_signal(client->app, data->ni, NotificationReasonClosed::DISMISSED_BY_USER);
     client_close_threaded(client->app, client);
@@ -223,7 +227,11 @@ static void paint_action(AppClient *client, cairo_t *cr, Container *container) {
 static void clicked_action(AppClient *client, cairo_t *cr, Container *container) {
     auto client_wrapper = (NotificationWrapper *) client->root->user_data;
     auto action_wrapper = (NotificationActionWrapper *) container->user_data;
-    notification_action_invoked_signal(client->app, client_wrapper->ni, action_wrapper->action);
+    if (action_wrapper->action.callback) {
+        action_wrapper->action.callback(client_wrapper->ni);
+    } else {
+        notification_action_invoked_signal(client->app, client_wrapper->ni, action_wrapper->action);
+    }
     
     app_timeout_create(client->app, client, 300, close_notification_timeout, nullptr);
 //    notification_closed_signal(client->app, client_wrapper->ni, NotificationReasonClosed::DISMISSED_BY_USER);
@@ -240,6 +248,8 @@ static bool send_to_action_pierced_handler(Container *container, int mouse_x, in
 static void clicked_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
     auto client_wrapper = (NotificationWrapper *) client->root->user_data;
     auto icon_button = (IconButton *) container->user_data;
+    if (client_wrapper->ni->on_ignore)
+        client_wrapper->ni->on_ignore(client_wrapper->ni);
 }
 
 static void paint_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
@@ -338,7 +348,7 @@ void show_notification(NotificationInfo *ni) {
     displaying_notifications.push_back(client);
     
     
-    if (ni->expire_timeout_in_milliseconds <= 0) {
+    if (ni->expire_timeout_in_milliseconds < 0) {
         int text_length = ni->summary.length() + ni->body.length();
         int timeout = 60000 * text_length / 6 / 200;
         timeout += 2000;
@@ -350,7 +360,7 @@ void show_notification(NotificationInfo *ni) {
         }
         
         app_timeout_create(app, client, timeout, close_notification_timeout, nullptr);
-    } else {
+    } else if (ni->expire_timeout_in_milliseconds != 0) {
         app_timeout_create(app, client, ni->expire_timeout_in_milliseconds, close_notification_timeout, nullptr);
     }
 }
