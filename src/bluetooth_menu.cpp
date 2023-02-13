@@ -82,7 +82,7 @@ struct BlueData : DataOfLabelButton {
     }
 };
 
-static float option_height = 56;
+static float option_height = 62;
 int button_height = 34;
 
 static void
@@ -403,14 +403,14 @@ paint_option_name(AppClient *, cairo_t *cr, Container *container) {
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string title(data->option->text);
+    bool show_mac = false;
     if (device) {
         if (device->paired) {
             if (container->parent->state.mouse_hovering ||
                 (container->parent->real_bounds.h - (option_height * config->dpi) > 1)) {
-                title = device->name + " (" + device->mac_address + ")";
-            } else {
-                title = device->name;
+                show_mac = true;
             }
+            title = device->name;
         } else {
             if (!device->alias.empty()) {
                 title = device->alias;
@@ -426,20 +426,34 @@ paint_option_name(AppClient *, cairo_t *cr, Container *container) {
     pango_layout_get_extents(layout, &ink, &logical);
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
-                  container->real_bounds.x + (10 + 24 + 10) * config->dpi,
+                  container->real_bounds.x + (10 + 24 + 20) * config->dpi,
                   container->real_bounds.y + (option_height * config->dpi) / 2 - ((logical.height / PANGO_SCALE) / 2) -
                   (option_height / 4));
     pango_cairo_show_layout(cr, layout);
+    
+    ArgbColor watered_down = config->color_volume_text;
+    watered_down.a = 0.5;
+    set_argb(cr, watered_down);
+    
+    if (show_mac) {
+        std::string mac = " (" + device->mac_address + ")";
+        pango_layout_set_text(layout, mac.c_str(), mac.size());
+        pango_layout_get_extents(layout, &ink, &logical);
+        set_argb(cr, watered_down);
+        cairo_move_to(cr,
+                      container->real_bounds.x + (10 + 24 + 20) * config->dpi + (logical.width / PANGO_SCALE),
+                      container->real_bounds.y + (option_height * config->dpi) / 2 -
+                      ((logical.height / PANGO_SCALE) / 2) -
+                      (option_height / 4));
+        pango_cairo_show_layout(cr, layout);
+    }
     
     layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     pango_layout_set_text(layout, subtitle.data(), subtitle.length());
     pango_layout_get_extents(layout, &ink, &logical);
-    ArgbColor watered_down = config->color_volume_text;
-    watered_down.a = 0.5;
-    set_argb(cr, watered_down);
     cairo_move_to(cr,
-                  container->real_bounds.x + (10 + 24 + 10) * config->dpi,
+                  container->real_bounds.x + (10 + 24 + 20) * config->dpi,
                   container->real_bounds.y + (option_height * config->dpi) / 2 - ((logical.height / PANGO_SCALE) / 2) +
                   (option_height / 4));
     pango_cairo_show_layout(cr, layout);
