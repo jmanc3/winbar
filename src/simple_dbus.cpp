@@ -54,6 +54,8 @@ void remove_service(const std::string &service) {
                 gnome_brightness_running = false;
             if (running_dbus_services[i] == "org.bluez")
                 bluetooth_service_ended();
+            if (running_dbus_services[i] == "org.freedesktop.UPower")
+                upower_service_ended();
             running_dbus_services.erase(running_dbus_services.begin() + i);
             return;
         }
@@ -91,6 +93,8 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
                 gnome_brightness_running = true;
             if (std::string(name) == "org.bluez")
                 bluetooth_service_started();
+            if (std::string(name) == "org.freedesktop.UPower")
+                upower_service_started();
         } else if (strcmp(new_owner, "") == 0) {
             remove_service(name);
         }
@@ -106,14 +110,16 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
             fprintf(stderr, "Error getting NameAcquired args");
             return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
         }
-        
+    
         if (std::string(name) == "local.org_kde_powerdevil")
             dbus_kde_max_brightness();
         if (std::string(name) == "org.gnome.SettingsDaemon.Power")
             gnome_brightness_running = true;
         if (std::string(name) == "org.bluez")
             bluetooth_service_started();
-        
+        if (std::string(name) == "org.freedesktop.UPower")
+            upower_service_started();
+    
         if (std::string(name) == "org.freedesktop.Notifications") {
             static const DBusObjectPathVTable vtable = {
                     .message_function = handle_message_cb,
@@ -315,6 +321,8 @@ static void dbus_reply_to_list_names_request(DBusPendingCall *call, void *data) 
             gnome_brightness_running = true;
         if (std::string(name) == "org.bluez")
             bluetooth_service_started();
+        if (std::string(name) == "org.freedesktop.UPower")
+            upower_service_started();
     }
     
     // Register some signals that we are interested in hearing about "NameOwnerChanged", "NameAcquired", "NameLost"
@@ -1524,6 +1532,8 @@ void unregister_agent_if_needed() {
     }
 }
 
+void update_upower_battery();
+
 void parse_and_add_or_update_interface(DBusMessageIter iter2) {
     char *object_path;
     if (dbus_message_iter_get_arg_type(&iter2) == DBUS_TYPE_OBJECT_PATH) {
@@ -1581,8 +1591,14 @@ void parse_and_add_or_update_interface(DBusMessageIter iter2) {
                     fprintf(stderr, "Couldn't watch signal PropertiesChanged because: %s\n%s\n",
                             error.name, error.message);
                 }
-                
+    
                 bluetooth_interfaces.push_back(interface);
+    
+                for (const auto &service: running_dbus_services) {
+                    if (service == "org.freedesktop.UPower") {
+                        update_upower_battery();
+                    }
+                }
             }
             
             dbus_message_iter_next(&iter4);
@@ -1911,4 +1927,260 @@ BluetoothCallbackInfo::BluetoothCallbackInfo(BluetoothInterface *blue_interface,
     this->mac_address = blue_interface->mac_address;
     this->command = command;
     this->function = function;
+}
+
+/*************************************************
+ *
+ * Talking with org.freedesktop.UPower
+ *
+ *************************************************/
+
+bool iequals(const std::string &a, const std::string &b) {
+    unsigned int sz = a.size();
+    if (b.size() != sz)
+        return false;
+    for (unsigned int i = 0; i < sz; ++i)
+        if (tolower(a[i]) != tolower(b[i]))
+            return false;
+    return true;
+}
+
+void update_object_path(const std::string &object_path) {
+    DBusMessage *get_serial_msg = dbus_message_new_method_call("org.freedesktop.UPower",
+                                                               object_path.c_str(),
+                                                               "org.freedesktop.DBus.Properties",
+                                                               "Get");
+    defer(dbus_message_unref(get_serial_msg));
+    
+    // Append String
+    DBusMessageIter iter3;
+    dbus_message_iter_init_append(get_serial_msg, &iter3);
+    const char *interface_name = "org.freedesktop.UPower.Device";
+    dbus_message_iter_append_basic(&iter3, DBUS_TYPE_STRING, &interface_name);
+    const char *serial_property = "Serial";
+    dbus_message_iter_append_basic(&iter3, DBUS_TYPE_STRING, &serial_property);
+    
+    // Send the message
+    DBusMessage *serial_reply = dbus_connection_send_with_reply_and_block(dbus_connection_system,
+                                                                          get_serial_msg, 500, NULL);
+    defer(dbus_message_unref(serial_reply));
+    
+    // Get the serial in serial_reply
+    DBusMessageIter iter4;
+    dbus_message_iter_init(serial_reply, &iter4);
+    
+    DBusMessageIter iter5;
+    dbus_message_iter_recurse(&iter4, &iter5);
+    
+    const char *serial;
+    dbus_message_iter_get_basic(&iter5, &serial);
+    
+    for (auto interface: bluetooth_interfaces) {
+        if (interface->type == BluetoothInterfaceType::Device) {
+            auto device = (Device *) interface;
+            if (device->mac_address.empty())
+                continue;
+            if (iequals(device->mac_address, serial)) {
+                if (device->upower_path.empty()) {
+                    // Watch signal PropertiesChanged
+                    dbus_bus_add_match(dbus_connection_system, std::string("type='signal',"
+                                                                           "interface='org.freedesktop.DBus.Properties',"
+                                                                           "member='PropertiesChanged',"
+                                                                           "path='" + std::string(object_path) +
+                                                                           "'").c_str(), NULL);
+                }
+                device->upower_path = object_path;
+                
+                // Get the battery level
+                DBusMessage *something = dbus_message_new_method_call("org.freedesktop.UPower",
+                                                                      object_path.c_str(),
+                                                                      "org.freedesktop.DBus.Properties",
+                                                                      "Get");
+                defer(dbus_message_unref(something));
+                
+                // Append String
+                DBusMessageIter iter6;
+                dbus_message_iter_init_append(something, &iter6);
+                dbus_message_iter_append_basic(&iter6, DBUS_TYPE_STRING, &interface_name);
+                const char *percentage_property = "Percentage";
+                dbus_message_iter_append_basic(&iter6, DBUS_TYPE_STRING, &percentage_property);
+                
+                // Send the message
+                DBusMessage *reply = dbus_connection_send_with_reply_and_block(dbus_connection_system,
+                                                                               something,
+                                                                               500, NULL);
+                
+                // Get the battery level
+                DBusMessageIter iter7;
+                dbus_message_iter_init(reply, &iter7);
+                DBusMessageIter iter8;
+                dbus_message_iter_recurse(&iter7, &iter8);
+                double battery_level;
+                dbus_message_iter_get_basic(&iter8, &battery_level);
+                
+                device->percentage = std::to_string(battery_level);
+            }
+        }
+    }
+}
+
+static DBusHandlerResult upower_device_signal_filter(DBusConnection *dbus_connection,
+                                                     DBusMessage *message, void *user_data) {
+    // Check if it's added signal or removed signal
+    if (dbus_message_is_signal(message, "org.freedesktop.UPower", "DeviceAdded")) {
+        // Get the object path
+        DBusMessageIter iter;
+        dbus_message_iter_init(message, &iter);
+        const char *object_path;
+        dbus_message_iter_get_basic(&iter, &object_path);
+        
+        update_object_path(object_path);
+        return DBUS_HANDLER_RESULT_HANDLED;
+    } else if (dbus_message_is_signal(message, "org.freedesktop.UPower", "DeviceRemoved")) {
+        // Get the object path
+        DBusMessageIter iter;
+        dbus_message_iter_init(message, &iter);
+        const char *object_path;
+        dbus_message_iter_get_basic(&iter, &object_path);
+        
+        for (auto interface: bluetooth_interfaces) {
+            if (interface->type == BluetoothInterfaceType::Device) {
+                auto device = (Device *) interface;
+                if (device->upower_path == object_path) {
+                    device->upower_path = "";
+                    device->percentage = "";
+                }
+            }
+        }
+        
+        dbus_bus_remove_match(dbus_connection_system, std::string("type='signal',"
+                                                                  "interface='org.freedesktop.DBus.Properties',"
+                                                                  "member='PropertiesChanged',"
+                                                                  "path='" + std::string(object_path) +
+                                                                  "'").c_str(), NULL);
+        
+        return DBUS_HANDLER_RESULT_HANDLED;
+    } else if (dbus_message_is_signal(message, "org.freedesktop.DBus.Properties", "PropertiesChanged")) {
+        for (auto *interface: bluetooth_interfaces) {
+            if (dbus_message_has_path(message, interface->upower_path.c_str())) {
+                DBusMessageIter args;
+                dbus_message_iter_init(message, &args);
+                
+                if (dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_STRING) {
+                    dbus_message_iter_next(&args);
+                    
+                    while (dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_ARRAY) {
+                        DBusMessageIter array;
+                        dbus_message_iter_recurse(&args, &array);
+                        
+                        while (dbus_message_iter_get_arg_type(&array) == DBUS_TYPE_DICT_ENTRY) {
+                            DBusMessageIter dict;
+                            dbus_message_iter_recurse(&array, &dict);
+                            
+                            char *key = nullptr;
+                            if (dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_STRING)
+                                dbus_message_iter_get_basic(&dict, &key);
+                            dbus_message_iter_next(&dict);
+                            
+                            if (dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_VARIANT) {
+                                DBusMessageIter variant;
+                                dbus_message_iter_recurse(&dict, &variant);
+                                
+                                if (strcmp(key, "Percentage") == 0) {
+                                    if (interface->type == BluetoothInterfaceType::Device) {
+                                        auto device = (Device *) interface;
+                                        if (dbus_message_iter_get_arg_type(&variant) == DBUS_TYPE_DOUBLE) {
+                                            double percentage;
+                                            dbus_message_iter_get_basic(&variant, &percentage);
+                                            device->percentage = std::to_string(percentage);
+                                        } else if (dbus_message_iter_get_arg_type(&variant) == DBUS_TYPE_STRING) {
+                                            const char *percentage;
+                                            dbus_message_iter_get_basic(&variant, &percentage);
+                                            device->percentage = percentage;
+                                        }
+                                    }
+                                }
+                            }
+                            dbus_message_iter_next(&array);
+                        }
+                        dbus_message_iter_next(&args);
+                    }
+                }
+                
+                return DBUS_HANDLER_RESULT_HANDLED;
+            }
+        }
+    }
+    
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+}
+
+void upower_service_ended() {
+    for (auto *interface: bluetooth_interfaces) {
+        if (interface->type == BluetoothInterfaceType::Device) {
+            ((Device *) interface)->percentage = "";
+        }
+    }
+    
+    // remove deviced added/removed
+    dbus_bus_remove_match(dbus_connection_system, "type='signal',"
+                                                  "interface='org.freedesktop.UPower',"
+                                                  "member='DeviceAdded'", NULL);
+    dbus_bus_remove_match(dbus_connection_system, "type='signal',"
+                                                  "interface='org.freedesktop.UPower',"
+                                                  "member='DeviceRemoved'", NULL);
+    
+    // remove match
+    for (auto *device: bluetooth_interfaces) {
+        if (device->upower_path.empty())
+            continue;
+        dbus_bus_remove_match(dbus_connection_system, std::string("type='signal',"
+                                                                  "interface='org.freedesktop.DBus.Properties',"
+                                                                  "member='PropertiesChanged',"
+                                                                  "path='" + device->upower_path +
+                                                                  "'").c_str(), NULL);
+    }
+}
+
+void update_upower_battery() {
+    DBusMessage *get_devices_msg = dbus_message_new_method_call("org.freedesktop.UPower",
+                                                                "/org/freedesktop/UPower",
+                                                                "org.freedesktop.UPower",
+                                                                "EnumerateDevices");
+    defer(dbus_message_unref(get_devices_msg));
+    
+    DBusMessage *devices_reply = dbus_connection_send_with_reply_and_block(dbus_connection_system, get_devices_msg, 500,
+                                                                           NULL);
+    defer(dbus_message_unref(devices_reply));
+    
+    DBusMessageIter iter0;
+    dbus_message_iter_init(devices_reply, &iter0);
+    
+    if (dbus_message_iter_get_arg_type(&iter0) == DBUS_TYPE_ARRAY) {
+        DBusMessageIter iter1;
+        dbus_message_iter_recurse(&iter0, &iter1);
+        
+        while (dbus_message_iter_get_arg_type(&iter1) == DBUS_TYPE_OBJECT_PATH) {
+            const char *object_path;
+            dbus_message_iter_get_basic(&iter1, &object_path);
+            
+            update_object_path(object_path);
+            
+            dbus_message_iter_next(&iter1);
+        }
+        
+    }
+}
+
+void upower_service_started() {
+    update_upower_battery();
+    
+    // Register upower device added signal and device removed signal
+    dbus_bus_add_match(dbus_connection_system,
+                       "type='signal',interface='org.freedesktop.UPower',member='DeviceAdded'",
+                       NULL);
+    dbus_bus_add_match(dbus_connection_system,
+                       "type='signal',interface='org.freedesktop.UPower',member='DeviceRemoved'",
+                       NULL);
+    dbus_connection_add_filter(dbus_connection_system, upower_device_signal_filter, NULL, NULL);
 }

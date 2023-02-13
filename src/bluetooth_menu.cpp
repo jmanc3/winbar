@@ -82,7 +82,7 @@ struct BlueData : DataOfLabelButton {
     }
 };
 
-static float option_height = 40;
+static float option_height = 56;
 int button_height = 34;
 
 static void
@@ -375,17 +375,73 @@ static void
 paint_option_name(AppClient *, cairo_t *cr, Container *container) {
     auto *data = (OptionButton *) container->user_data;
     
+    std::string subtitle = "Paired";
+    Device *device = nullptr;
+    for (auto *interface: bluetooth_interfaces) {
+        if (interface->mac_address == data->option->mac_address) {
+            device = (Device *) interface;
+            if (!((Device *) interface)->paired) {
+                subtitle = "Unpaired";
+                break;
+            }
+            if (((Device *) interface)->connected) {
+                subtitle = "Connected";
+                
+                std::string &percentage = ((Device *) interface)->percentage;
+                if (!percentage.empty()) {
+                    // If percentage has '.' in it remove everything that comes after it
+                    if (percentage.find('.') != std::string::npos) {
+                        percentage = percentage.substr(0, percentage.find('.'));
+                    }
+                    subtitle += ", Battery " + ((Device *) interface)->percentage + "%";
+                }
+                break;
+            }
+        }
+    }
+    
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    std::string message(data->option->text);
-    pango_layout_set_text(layout, message.data(), message.length());
+    std::string title(data->option->text);
+    if (device) {
+        if (device->paired) {
+            if (container->parent->state.mouse_hovering ||
+                (container->parent->real_bounds.h - (option_height * config->dpi) > 1)) {
+                title = device->name + " (" + device->mac_address + ")";
+            } else {
+                title = device->name;
+            }
+        } else {
+            if (!device->alias.empty()) {
+                title = device->alias;
+            } else {
+                title = device->name;
+            }
+            subtitle = device->mac_address;
+        }
+    }
+    pango_layout_set_text(layout, title.data(), title.length());
     PangoRectangle ink;
     PangoRectangle logical;
     pango_layout_get_extents(layout, &ink, &logical);
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
                   container->real_bounds.x + (10 + 24 + 10) * config->dpi,
-                  container->real_bounds.y + (option_height * config->dpi) / 2 - ((logical.height / PANGO_SCALE) / 2));
+                  container->real_bounds.y + (option_height * config->dpi) / 2 - ((logical.height / PANGO_SCALE) / 2) -
+                  (option_height / 4));
+    pango_cairo_show_layout(cr, layout);
+    
+    layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    pango_layout_set_text(layout, subtitle.data(), subtitle.length());
+    pango_layout_get_extents(layout, &ink, &logical);
+    ArgbColor watered_down = config->color_volume_text;
+    watered_down.a = 0.5;
+    set_argb(cr, watered_down);
+    cairo_move_to(cr,
+                  container->real_bounds.x + (10 + 24 + 10) * config->dpi,
+                  container->real_bounds.y + (option_height * config->dpi) / 2 - ((logical.height / PANGO_SCALE) / 2) +
+                  (option_height / 4));
     pango_cairo_show_layout(cr, layout);
     
     if (data->option->icon) {

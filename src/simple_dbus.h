@@ -59,6 +59,10 @@ void register_agent_if_needed();
 
 void unregister_agent_if_needed();
 
+void upower_service_started();
+
+void upower_service_ended();
+
 enum struct BluetoothInterfaceType {
     Error = 0,
     Device = 1,
@@ -70,6 +74,7 @@ struct BluetoothInterface {
     std::string mac_address;
     std::string name;
     std::string alias;
+    std::string upower_path;
     BluetoothInterfaceType type = BluetoothInterfaceType::Error;
 };
 
@@ -91,6 +96,7 @@ struct Device : BluetoothInterface {
     bool connected = false;
     bool bonded = false;
     bool trusted = false;
+    std::string percentage;
     
     Device(std::string string) {
         object_path = std::move(string);
