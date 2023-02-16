@@ -160,6 +160,8 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
             pango_layout_set_text(icon_layout, "\uE7E8", strlen("\uE83F"));
         } else if (data->text == "Off") {
             pango_layout_set_text(icon_layout, "\uE947", strlen("\uE83F"));
+        } else if (data->text == "Sign Out") {
+            pango_layout_set_text(icon_layout, "\uE77B", strlen("\uE83F"));
         } else if (data->text == "Shut Down") {
             pango_layout_set_text(icon_layout, "\uE7E8", strlen("\uE83F"));
         } else if (data->text == "Restart") {
@@ -786,6 +788,11 @@ clicked_shut_down(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+clicked_logoff(AppClient *client, cairo_t *cr, Container *container) {
+    dbus_computer_logoff();
+}
+
+static void
 clicked_restart(AppClient *client, cairo_t *cr, Container *container) {
     dbus_computer_restart();
 }
@@ -827,7 +834,16 @@ right_clicked_application(AppClient *client, cairo_t *cr, Container *container) 
         popup->root->when_paint = paint_power_menu;
         popup->root->type = vbox;
         popup->root->spacing = 1;
-        
+        popup->root->wanted_pad.y = 8 * config->dpi;
+        popup->root->wanted_pad.h = 8 * config->dpi;
+    
+        auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
+        l->when_clicked = clicked_logoff;
+        l->when_paint = paint_button;
+        auto *l_data = new ButtonData;
+        l_data->text = "Sign Out";
+        l->user_data = l_data;
+    
         auto b = popup->root->child(FILL_SPACE, FILL_SPACE);
         b->when_clicked = clicked_shut_down;
         b->when_paint = paint_button;
@@ -903,7 +919,16 @@ clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
         popup->root->when_paint = paint_power_menu;
         popup->root->type = vbox;
         popup->root->spacing = 1;
-        
+        popup->root->wanted_pad.y = 8 * config->dpi;
+        popup->root->wanted_pad.h = 8 * config->dpi;
+    
+        auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
+        l->when_clicked = clicked_logoff;
+        l->when_paint = paint_button;
+        auto *l_data = new ButtonData;
+        l_data->text = "Sign Out";
+        l->user_data = l_data;
+    
         auto b = popup->root->child(FILL_SPACE, FILL_SPACE);
         b->when_clicked = clicked_shut_down;
         b->when_paint = paint_button;

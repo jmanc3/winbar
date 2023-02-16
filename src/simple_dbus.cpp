@@ -821,8 +821,10 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
         
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.freedesktop.Notifications", "GetCapabilities")) {
-        std::vector<std::string> strings = {"actions", "body", "persistence", "body-markup"};
-        
+        std::vector<std::string> strings = {"actions", "body", "body-hyperlinks", "body-markup", "body-images",
+                                            "icon-static", "inline-reply", "x-kde-urls", "persistence",
+                                            "x-kde-origin-name", "x-kde-display-appname", "inhibitions"};
+    
         if (dbus_array_reply(connection, message, strings))
             return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.freedesktop.Notifications", "GetServerInformation")) {
@@ -886,7 +888,47 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
             }
         }
         dbus_message_iter_next(&args);  // actions of type ARRAY
-        dbus_message_iter_next(&args);  // hints of type DICT
+    
+        while (dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_ARRAY) {
+            DBusMessageIter arr;
+            dbus_message_iter_recurse(&args, &arr);
+        
+            while (dbus_message_iter_get_arg_type(&arr) == DBUS_TYPE_DICT_ENTRY) {
+                DBusMessageIter dict;
+                dbus_message_iter_recurse(&arr, &dict);
+            
+                const char *hint_name = nullptr;
+                if (dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_STRING) {
+                    dbus_message_iter_get_basic(&dict, &hint_name);
+                    dbus_message_iter_next(&dict);
+                }
+                if (hint_name) {
+                    printf("hint_name: %s, type: %d %c\n", hint_name, dbus_message_iter_get_arg_type(&dict),
+                           dbus_message_iter_get_arg_type(&dict));
+                
+                    if (dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_VARIANT) {
+                        DBusMessageIter var;
+                        dbus_message_iter_recurse(&dict, &var);
+                        if (dbus_message_iter_get_arg_type(&var) == DBUS_TYPE_STRING) {
+                            const char *hint_value = nullptr;
+                            dbus_message_iter_get_basic(&var, &hint_value);
+                            printf("hint_value: %s\n", hint_value);
+                        }
+                    }
+                }
+                dbus_message_iter_next(&arr);  // hints of type DICT
+            }
+        
+            dbus_message_iter_next(&args);  // hints of type DICT
+        }
+    
+        if (strcmp(summary, "Widget Removed") == 0) {
+            NotificationAction notification_action;
+            notification_action.id = std::to_string(1);
+            notification_action.label = "Undo";
+            notification_info->actions.push_back(notification_action);
+        }
+    
         dbus_message_iter_get_basic(&args, &expire_timeout_in_milliseconds);
         
         // TODO: handle replacing
@@ -1108,6 +1150,54 @@ void dbus_end() {
     }
     dbus_connection_session = nullptr;
     dbus_connection_system = nullptr;
+}
+
+void dbus_computer_logoff() {
+    if (!dbus_connection_session) return;
+    
+    bool found = false;
+    for (const auto &item: running_dbus_services)
+        if (item == "org.kde.ksmserver")
+            found = true;
+    if (!found)
+        return;
+    
+    DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
+                                                         "/KSMServer",
+                                                         "org.kde.KSMServerInterface",
+                                                         "logout");
+    defer(dbus_message_unref(dbus_msg));
+    
+    const int confirm = 0;
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &confirm, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
+        return;
+    }
+    
+    const int shutdown_type = 0; // Logout
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &shutdown_type, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
+        return;
+    }
+    
+    const int shutdown_mode = 2;
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &shutdown_mode, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
+        return;
+    }
+    
+    DBusPendingCall *pending = nullptr;
+    defer(dbus_pending_call_unref(pending));
+    
+    DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection_session, dbus_msg, 1000,
+                                                                        nullptr);
+    if (dbus_reply) {
+        defer(dbus_message_unref(dbus_reply));
+        
+        int dbus_result = 0;
+        if (::dbus_message_get_args(dbus_reply, nullptr, DBUS_TYPE_INT32, &dbus_result, DBUS_TYPE_INVALID))
+            return;
+    }
 }
 
 // All from: https://www.reddit.com/r/kde/comments/70hnzg/command_to_properly_shutdownreboot_kde_machine/

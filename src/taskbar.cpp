@@ -1347,7 +1347,7 @@ paint_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     paint_hoverable_button_background(client, cr, container);
     
-    IconButton *data = (IconButton *) container->user_data;
+    auto *data = (IconButton *) container->user_data;
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
