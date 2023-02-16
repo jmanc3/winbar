@@ -1994,9 +1994,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     Container *button_workspace = root->child(48 * config->dpi, FILL_SPACE);
     Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
     Container *button_systray = root->child(24 * config->dpi, FILL_SPACE);
-    Container *button_bluetooth = nullptr;
-    if (script_exists("bluetoothctl"))
-        button_bluetooth = root->child(24 * config->dpi, FILL_SPACE);
+    Container *button_bluetooth = root->child(24 * config->dpi, FILL_SPACE);
     make_battery_button(root, client);
     Container *button_wifi = root->child(24 * config->dpi, FILL_SPACE);
     Container *button_volume = root->child(24 * config->dpi, FILL_SPACE);
@@ -2052,16 +2050,14 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_systray->when_clicked = clicked_systray;
     button_systray->name = "systray";
     
-    if (button_bluetooth) {
-        button_bluetooth->exists = false;
-        button_bluetooth->when_paint = paint_bluetooth;
-        auto button_bluetooth_data = new IconButton;
-        button_bluetooth_data->invalidate_button_press_if_client_with_this_name_is_open = "bluetooth_menu";
-        button_bluetooth->user_data = button_bluetooth_data;
-        button_bluetooth->when_mouse_down = invalidate_icon_button_press_if_window_open;
-        button_bluetooth->when_clicked = clicked_bluetooth;
-        button_bluetooth->name = "bluetooth";
-    }
+    button_bluetooth->exists = false;
+    button_bluetooth->when_paint = paint_bluetooth;
+    auto button_bluetooth_data = new IconButton;
+    button_bluetooth_data->invalidate_button_press_if_client_with_this_name_is_open = "bluetooth_menu";
+    button_bluetooth->user_data = button_bluetooth_data;
+    button_bluetooth->when_mouse_down = invalidate_icon_button_press_if_window_open;
+    button_bluetooth->when_clicked = clicked_bluetooth;
+    button_bluetooth->name = "bluetooth";
     
     button_wifi->when_paint = paint_wifi;
     button_wifi->when_clicked = clicked_wifi;
