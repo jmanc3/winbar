@@ -453,7 +453,7 @@ void paint_warning(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, correct_opaqueness(client, config->color_volume_background));
     cairo_fill(cr);
     
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 14, PangoWeight::PANGO_WEIGHT_BOLD);
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
     int width;
     int height;
     pango_layout_set_text(layout, first_message.data(), first_message.size());
@@ -461,32 +461,32 @@ void paint_warning(AppClient *client, cairo_t *cr, Container *container) {
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  10);
+                  ((int) ((container->real_bounds.x + container->real_bounds.w / 2 - width / 2))),
+                  10 * config->dpi);
     pango_cairo_show_layout(cr, layout);
     
     
-    layout = get_cached_pango_font(cr, config->font, 12, PangoWeight::PANGO_WEIGHT_NORMAL);
+    layout = get_cached_pango_font(cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     int second_height;
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
-    pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
+    pango_layout_set_width(layout, (container->real_bounds.w - (20 * config->dpi)) * PANGO_SCALE);
     pango_layout_set_text(layout, second_message.data(), second_message.size());
     pango_layout_get_pixel_size(layout, &width, &second_height);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
-                  10,
-                  10 + height + 10);
+                  10 * config->dpi,
+                  (10 + height + 10) * config->dpi);
     pango_cairo_show_layout(cr, layout);
     
     pango_layout_set_text(layout, third_message.data(), third_message.size());
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
-    pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
+    pango_layout_set_width(layout, (container->real_bounds.w - (20 * config->dpi)) * PANGO_SCALE);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
-                  10,
-                  10 + height + 10 + second_height + 5);
+                  10 * config->dpi,
+                  (10 + height + 10 + second_height + 10) * config->dpi);
     pango_cairo_show_layout(cr, layout);
 }
 
@@ -526,8 +526,8 @@ void check_cache_file() {
             App *temp_app = app_new();
             std::thread t2([&temp_app]() -> void {
                 Settings settings;
-                settings.w = 400;
-                settings.h = 200;
+                settings.w = 400 * config->dpi;
+                settings.h = 200 * config->dpi;
                 auto c = client_new(temp_app, settings, "winbar_temp_warning");
                 c->root->when_paint = paint_warning;
                 first_message = "Icon cache version file out of date";
@@ -555,8 +555,8 @@ void check_cache_file() {
         App *temp_app = app_new();
         std::thread t2([&temp_app]() -> void {
             Settings settings;
-            settings.w = 400;
-            settings.h = 200;
+            settings.w = 400 * config->dpi;
+            settings.h = 200 * config->dpi;
             auto c = client_new(temp_app, settings, "winbar_temp_warning");
             c->root->when_paint = paint_warning;
             first_message = "First time launching WinBar";

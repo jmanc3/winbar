@@ -16,6 +16,15 @@ reserved_height(Container *box) {
             continue;
         if (child->wanted_bounds.h == FILL_SPACE) {
             space += child->wanted_pad.y + child->wanted_pad.h;
+        } else if (child->wanted_bounds.h == USE_CHILD_SIZE) {
+            double child_height = 0;
+            for (auto grandchild: child->children) {
+                if (!grandchild->exists)
+                    continue;
+                if (grandchild->wanted_bounds.h > child_height)
+                    child_height = grandchild->wanted_bounds.h;
+            }
+            space += child_height;
         } else {
             space += child->wanted_bounds.h;
         }
@@ -848,21 +857,21 @@ AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client
     return popup_client;
 }
 
-ClientCommand *AppClient::command(const std::string &command, void (*function)(ClientCommand *)) {
-    return command_with_client(this, command, 2000, function, nullptr);
+Subprocess *AppClient::command(const std::string &command, void (*function)(Subprocess *)) {
+    return command_with_client(this, command, 1000, function, nullptr);
 }
 
-ClientCommand *AppClient::command(const std::string &command, int timeout_in_ms, void (*function)(ClientCommand *)) {
+Subprocess *AppClient::command(const std::string &command, int timeout_in_ms, void (*function)(Subprocess *)) {
     return command_with_client(this, command, timeout_in_ms, function, nullptr);
 }
 
-ClientCommand *
-AppClient::command(const std::string &command, int timeout_in_ms, void (*function)(ClientCommand *), void *user_data) {
-    return command_with_client(this, command, timeout_in_ms, function, user_data);
+Subprocess *AppClient::command(const std::string &command, void (*function)(Subprocess *), void *user_data) {
+    return command_with_client(this, command, 1000, function, user_data);
 }
 
-ClientCommand *AppClient::command(const std::string &command, void (*function)(ClientCommand *), void *user_data) {
-    return command_with_client(this, command, 2000, function, user_data);
+Subprocess *
+AppClient::command(const std::string &command, int timeout_in_ms, void (*function)(Subprocess *), void *user_data) {
+    return command_with_client(this, command, timeout_in_ms, function, user_data);
 }
 
 ScrollPaneSettings::ScrollPaneSettings(float scale) {
@@ -872,23 +881,19 @@ ScrollPaneSettings::ScrollPaneSettings(float scale) {
     this->bottom_arrow_width = this->bottom_arrow_width * scale;
 }
 
-void ClientCommand::kill(App *app, bool warn) {
+void Subprocess::kill(bool warn) {
     if (warn) {
         this->status = CommandStatus::ERROR;
         if (this->function)
             this->function(this);
     }
-    epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, this->process_fd, NULL);
-    ::kill(this->process_fd, SIGTERM);
-    close(this->process_fd);
-    epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, this->timeout_fd, NULL);
-    close(this->timeout_fd);
     for (int i = 0; i < app->descriptors_being_polled.size(); i++)
-        if (app->descriptors_being_polled[i].file_descriptor == this->process_fd)
+        if (app->descriptors_being_polled[i].file_descriptor == outpipe[0])
             app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
-    for (int i = 0; i < app->descriptors_being_polled.size(); i++)
-        if (app->descriptors_being_polled[i].file_descriptor == this->timeout_fd)
-            app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
+    if (this->timeout_fd != -1)
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++)
+            if (app->descriptors_being_polled[i].file_descriptor == this->timeout_fd)
+                app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
     for (int i = 0; i < this->client->commands.size(); i++) {
         if (this->client->commands[i] == this) {
             this->client->commands.erase(this->client->commands.begin() + i);
@@ -896,5 +901,52 @@ void ClientCommand::kill(App *app, bool warn) {
         }
     }
     
+    epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, outpipe[0], NULL);
+    close(inpipe[1]);
+    close(outpipe[0]);
+    if (::kill(pid, SIGTERM) == -1) {
+        std::cerr << "Error killing child process\n";
+    }
+    
+    if (this->timeout_fd != -1) {
+        epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, this->timeout_fd, NULL);
+        close(this->timeout_fd);
+    }
+    
     delete this;
+}
+
+void Subprocess::write(const std::string &message) {
+    std::string message_with_newline = message;
+    if (message_with_newline[message_with_newline.size() - 1] != '\n')
+        message_with_newline += '\n';
+    
+    if (::write(inpipe[1], message_with_newline.c_str(), message_with_newline.size()) == -1) {
+        std::cerr << "Error writing to pipe\n";
+    }
+}
+
+Subprocess::Subprocess(App *app, const std::string &command) {
+    this->app = app;
+    this->command = command;
+    if (pipe(inpipe) == -1 || pipe(outpipe) == -1) {
+        std::cerr << "Error creating pipes\n";
+    }
+    
+    pid = fork();
+    if (pid == -1) {
+        std::cerr << "Error forking child process\n";
+    } else if (pid == 0) {
+        close(inpipe[1]);
+        close(outpipe[0]);
+        dup2(inpipe[0], STDIN_FILENO);
+        dup2(outpipe[1], STDOUT_FILENO);
+        close(inpipe[0]);
+        close(outpipe[1]);
+        execl(command.c_str(), "", nullptr);
+        std::cerr << "Error executing command\n";
+    }
+    
+    close(inpipe[0]);
+    close(outpipe[1]);
 }

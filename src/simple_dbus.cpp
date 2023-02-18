@@ -903,16 +903,16 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
                     dbus_message_iter_next(&dict);
                 }
                 if (hint_name) {
-                    printf("hint_name: %s, type: %d %c\n", hint_name, dbus_message_iter_get_arg_type(&dict),
-                           dbus_message_iter_get_arg_type(&dict));
-                
+//                    printf("hint_name: %s, type: %d %c\n", hint_name, dbus_message_iter_get_arg_type(&dict),
+//                           dbus_message_iter_get_arg_type(&dict));
+    
                     if (dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_VARIANT) {
                         DBusMessageIter var;
                         dbus_message_iter_recurse(&dict, &var);
                         if (dbus_message_iter_get_arg_type(&var) == DBUS_TYPE_STRING) {
                             const char *hint_value = nullptr;
                             dbus_message_iter_get_basic(&var, &hint_value);
-                            printf("hint_value: %s\n", hint_value);
+//                            printf("hint_value: %s\n", hint_value);
                         }
                     }
                 }

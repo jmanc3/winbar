@@ -1,6 +1,7 @@
 
 
 #include <pango/pangocairo.h>
+#include <cmath>
 #include "main.h"
 #include "app_menu.h"
 #include "application.h"
@@ -15,6 +16,7 @@
 #include "wifi_backend.h"
 #include "simple_dbus.h"
 #include "icons.h"
+#include "dpi.h"
 
 App *app;
 
@@ -37,6 +39,21 @@ int main() {
     
     // Load the config
     config_load();
+    
+    // Set DPI if auto
+    if (config->dpi_auto) {
+        for (auto &i: screens) {
+            auto *screen = (ScreenInformation *) i;
+            if (screen->is_primary) {
+                config->dpi = screen->height_in_pixels / 1080.0;
+                config->dpi = std::round(config->dpi * 2) / 2;
+                if (config->dpi < 1)
+                    config->dpi = 1;
+                break;
+            }
+        }
+    }
+    
     config->taskbar_height = config->taskbar_height * config->dpi;
     
     check_config_version();
@@ -110,7 +127,7 @@ int main() {
     return 0;
 }
 
-static int acceptable_config_version = 6;
+static int acceptable_config_version = 7;
 
 std::string first_message;
 std::string second_message;
@@ -121,7 +138,7 @@ void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, correct_opaqueness(client, config->color_volume_background));
     cairo_fill(cr);
     
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 14, PangoWeight::PANGO_WEIGHT_BOLD);
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
     int width;
     int height;
     pango_layout_set_text(layout, first_message.data(), first_message.size());
@@ -130,11 +147,11 @@ void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  10);
+                  10 * config->dpi);
     pango_cairo_show_layout(cr, layout);
     
     
-    layout = get_cached_pango_font(cr, config->font, 12, PangoWeight::PANGO_WEIGHT_NORMAL);
+    layout = get_cached_pango_font(cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     int second_height;
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
@@ -143,18 +160,18 @@ void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
-                  10,
-                  10 + height + 10);
+                  10 * config->dpi,
+                  (10 + height + 10) * config->dpi);
     pango_cairo_show_layout(cr, layout);
     
     pango_layout_set_text(layout, third_message.data(), third_message.size());
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
-    pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
+    pango_layout_set_width(layout, (container->real_bounds.w - (20 * config->dpi)) * PANGO_SCALE);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
-                  10,
-                  10 + height + 10 + second_height + 5);
+                  10 * config->dpi,
+                  (10 + height + 10 + second_height + 5) * config->dpi);
     pango_cairo_show_layout(cr, layout);
 }
 
@@ -164,16 +181,16 @@ void check_config_version() {
         config->config_version < acceptable_config_version ||
         !config->found_config) {
         Settings settings;
-        settings.w = 400;
-        settings.h = 200;
+        settings.w = 400 * config->dpi;
+        settings.h = 200 * config->dpi;
         auto client = client_new(app, settings, "winbar_version_check");
         client->root->when_paint = paint_wrong_version;
-        
+    
         first_message = "Couldn't start WinBar";
         char *home = getenv("HOME");
         std::string config_directory(home);
         config_directory += "/.config/winbar/winbar.cfg";
-        
+    
         if (!config->found_config) {
             second_message = "We didn't find a Winbar config at: " + config_directory;
             third_message = "To fix this, head over to https://github.com/jmanc3/winbar, "

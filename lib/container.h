@@ -205,20 +205,28 @@ enum struct CommandStatus {
     FINISHED, // When command finishes
 };
 
-struct ClientCommand {
+struct Subprocess {
+    int inpipe[2]{};
+    int outpipe[2]{};
+    int timeout_fd = -1;
+    pid_t pid;
+    App *app = nullptr;
+    
     std::string command;
     std::string output;
-    FILE *process = nullptr;
-    int process_fd = -1;
-    int timeout_fd = -1;
+    std::string recent;
     CommandStatus status = CommandStatus::NONE; // UPDATE, FINISHED, ERROR, TIMEOUT
     void *user_data = nullptr;
     
-    void (*function)(ClientCommand *);
+    void (*function)(Subprocess *){};
     
-    AppClient *client;
+    AppClient *client{};
     
-    void kill(App *app, bool warn);
+    Subprocess(App *app, const std::string &command);
+    
+    void write(const std::string &message);
+    
+    void kill(bool warn);
 };
 
 struct AppClient {
@@ -234,6 +242,8 @@ struct AppClient {
     Bounds *bounds;
     
     Container *root;
+    
+    bool auto_delete_root = true;
     
     int mouse_initial_x = -1;
     int mouse_initial_y = -1;
@@ -294,17 +304,15 @@ struct AppClient {
     
     AppClient *create_popup(PopupSettings popup_settings, Settings client_settings);
     
-    std::vector<FILE *> pipes;
+    std::vector<Subprocess *> commands;
     
-    std::vector<ClientCommand *> commands;
+    Subprocess *command(const std::string &command, void (*function)(Subprocess *));
     
-    ClientCommand *command(const std::string &command, void (*function)(ClientCommand *));
+    Subprocess *command(const std::string &command, int timeout_in_ms, void (*function)(Subprocess *));
     
-    ClientCommand *command(const std::string &command, int timeout_in_ms, void (*function)(ClientCommand *));
+    Subprocess *command(const std::string &command, void (*function)(Subprocess *), void *user_data);
     
-    ClientCommand *command(const std::string &command, void (*function)(ClientCommand *), void *user_data);
-    
-    ClientCommand *command(const std::string &command, int timeout_in_ms, void (*function)(ClientCommand *), void *user_data);
+    Subprocess *command(const std::string &command, int timeout_in_ms, void (*function)(Subprocess *), void *user_data);
 };
 
 struct ScrollContainer;

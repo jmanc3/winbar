@@ -49,6 +49,8 @@ void config_load() {
     
     success = cfg.lookupValue("starting_tab_index", config->starting_tab_index);
     
+    success = cfg.lookupValue("dpi_auto", config->dpi_auto);
+    
     success = cfg.lookupValue("dpi", config->dpi);
     
     success = cfg.lookupValue("font", config->font);
@@ -393,8 +395,8 @@ bool config_parse(libconfig::Config &cfg) {
         std::cout << "IO error:  " << config_file << std::endl;
         return false;
     } catch (const libconfig::ParseException &pex) {
-        
-        std::cout << "Parsing error:  " << config_file << " Line: " << pex.getLine() << " Error: " << pex.getError()
+    
+        std::cout << "NoError error:  " << config_file << " Line: " << pex.getLine() << " Error: " << pex.getError()
                   << std::endl;
         return false;
     }

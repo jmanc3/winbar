@@ -8,11 +8,13 @@
 struct Config {
     bool found_config = false;
     
-    int config_version = 6;
+    int config_version = 7;
     
     int taskbar_height = 40;
     
     int starting_tab_index = 0;
+    
+    bool dpi_auto = true;
     
     float dpi = 1;
     

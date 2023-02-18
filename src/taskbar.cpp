@@ -30,6 +30,7 @@
 #include "audio.h"
 #include "defer.h"
 #include "bluetooth_menu.h"
+#include "plugins_menu.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -1828,7 +1829,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     pango_cairo_show_layout(cr, layout);
 }
 
-void invalidate_icon_button_press_if_window_open(AppClient *client, cairo_t *cr, Container *container) {
+static void invalidate_icon_button_press_if_window_open(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (IconButton *) container->user_data;
     
     if (get_current_time_in_ms() - data->timestamp > 100) {
@@ -1994,6 +1995,9 @@ fill_root(App *app, AppClient *client, Container *root) {
     Container *button_workspace = root->child(48 * config->dpi, FILL_SPACE);
     Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
     Container *button_systray = root->child(24 * config->dpi, FILL_SPACE);
+    
+    make_plugins(app, client, root);
+    
     Container *button_bluetooth = root->child(24 * config->dpi, FILL_SPACE);
     make_battery_button(root, client);
     Container *button_wifi = root->child(24 * config->dpi, FILL_SPACE);

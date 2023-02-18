@@ -764,7 +764,8 @@ void destroy_client(App *app, AppClient *client) {
     ZoneScoped;
 #endif
     delete client->bounds;
-    delete client->root;
+    if (client->auto_delete_root)
+        delete client->root;
     cairo_destroy(client->cr);
     xcb_free_colormap(app->connection, client->colormap);
     xcb_cursor_context_free(client->ctx);
@@ -921,12 +922,8 @@ void client_close(App *app, AppClient *client) {
         return;
     }
     
-    for (auto pipe: client->pipes)
-        pclose(pipe);
-    client->pipes.clear();
-    
     for (int i = client->commands.size() - 1; i >= 0; i--)
-        client->commands[i]->kill(app, false);
+        client->commands[i]->kill(false);
     client->commands.clear();
     
     if (client->when_closed) {
@@ -2345,12 +2342,8 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
 #endif
 }
 
-void attach(AppClient *client, FILE *pipe) {
-    client->pipes.push_back(pipe);
-}
-
 void command_wakeup(App *app, int fd, void *userdata) {
-    auto cc = (ClientCommand *) userdata;
+    auto cc = (Subprocess *) userdata;
     std::size_t buffer_size = 131072; // (128 kB).
     char output[buffer_size];
     
@@ -2364,6 +2357,7 @@ void command_wakeup(App *app, int fd, void *userdata) {
     } else {
         cc->status = CommandStatus::UPDATE;
         cc->output += std::string(output, read_size);
+        cc->recent = std::string(output, read_size);
         if (cc->function)
             cc->function(cc);
         return;
@@ -2372,58 +2366,48 @@ void command_wakeup(App *app, int fd, void *userdata) {
     finish:
     if (cc->function)
         cc->function(cc);
-    cc->kill(app, false);
+    cc->kill(false);
 }
 
 void command_timeout(App *app, int fd, void *userdata) {
-    auto cc = (ClientCommand *) userdata;
+    auto cc = (Subprocess *) userdata;
     cc->status = CommandStatus::TIMEOUT;
     if (cc->function)
         cc->function(cc);
-    cc->kill(app, false);
+    cc->kill(false);
 }
 
-ClientCommand *
-command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, void (*function)(ClientCommand *), void *user_data) {
-    char *shell = getenv("SHELL");
-    if (shell == nullptr)
-        shell = (char *) "/bin/sh";
-    
-    std::string command = shell + std::string(" -c '") + c + std::string("'");
-    
-    FILE *fp = popen(command.c_str(), "w");
-    if (fp == NULL) {
-        printf("Failed to run command: %s\n", c.c_str());
-        return nullptr;
+Subprocess *
+command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, void (*function)(Subprocess *),
+                    void *user_data) {
+    int timerfd = 0;
+    if (timeout_in_ms != 0) {
+        struct itimerspec its;
+        timerfd = timerfd_create(CLOCK_MONOTONIC, 0);
+        if (timerfd == -1) {
+            printf("Error creating timer for command: %s\n", c.c_str());
+            return nullptr;
+        }
+        memset(&its, 0, sizeof(its));
+        its.it_value.tv_sec = timeout_in_ms / 1000;
+        its.it_value.tv_nsec = (timeout_in_ms % 1000) * 1000000;
+        if (timerfd_settime(timerfd, 0, &its, NULL) == -1) {
+            printf("Error setting timer for command: %s\n", c.c_str());
+            return nullptr;
+        }
     }
     
-    struct itimerspec its;
-    int timerfd = timerfd_create(CLOCK_MONOTONIC, 0);
-    if (timerfd == -1) {
-        printf("Error creating timer for command: %s\n", c.c_str());
-        return nullptr;
-    }
-    memset(&its, 0, sizeof(its));
-    its.it_value.tv_sec = timeout_in_ms / 1000;
-    its.it_value.tv_nsec = (timeout_in_ms % 1000) * 1000000;
-    if (timerfd_settime(timerfd, 0, &its, NULL) == -1) {
-        printf("Error setting timer for command: %s\n", c.c_str());
-        kill(fileno(fp), SIGKILL);
-        close(fileno(fp));
-        return nullptr;
-    }
-    
-    auto cc = new ClientCommand;
-    cc->command = c;
-    cc->process = fp;
-    cc->process_fd = fileno(fp);
-    cc->timeout_fd = timerfd;
+    auto cc = new Subprocess(client->app, c);
+    if (timeout_in_ms != 0)
+        cc->timeout_fd = timerfd;
     cc->function = function;
     cc->client = client;
     cc->user_data = user_data;
     client->commands.push_back(cc);
     
-    poll_descriptor(client->app, cc->process_fd, EPOLLIN, command_wakeup, cc);
-    poll_descriptor(client->app, cc->timeout_fd, EPOLLIN, command_timeout, cc);
+    poll_descriptor(client->app, cc->outpipe[0], EPOLLIN, command_wakeup, cc);
+    if (timeout_in_ms != 0) {
+        poll_descriptor(client->app, cc->timeout_fd, EPOLLIN, command_timeout, cc);
+    }
     return cc;
 }

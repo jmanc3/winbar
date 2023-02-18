@@ -273,9 +273,8 @@ void paint_container(App *app, AppClient *client, Container *container);
 
 bool poll_descriptor(App *app, int file_descriptor, int events, void (*function)(App *, int, void *), void *user_data);
 
-void attach(AppClient *client, FILE *pipe);
-
-ClientCommand *
-command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, void (*function)(ClientCommand *), void *user_data);
+Subprocess *
+command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, void (*function)(Subprocess *),
+                    void *user_data);
 
 #endif

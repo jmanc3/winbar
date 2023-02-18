@@ -8,16 +8,6 @@
 #include <regex>
 #include <utility>
 
-enum CommandResultType {
-    UPDATE, // For commands that don't finish right away
-    ERROR, // When command fails
-    TIMEOUT, // When command times out
-    FINISHED, // When command finishes
-};
-
-void run(App *app, const std::string &original_command, int timeout_in_ms,
-         const std::function<void(std::string, CommandResultType, int window)> &callback, AppClient *client);
-
 static bool parse_hex(std::string hex, double *a, double *r, double *g, double *b) {
     while (hex[0] == '#') { // remove leading pound sign
         hex.erase(0, 1);
