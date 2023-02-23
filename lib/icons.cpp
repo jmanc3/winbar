@@ -585,7 +585,7 @@ void search_icons(std::vector<IconTarget> &targets) {
     
     for (int i = 0; i < targets.size(); ++i) {
         auto target = targets[i];
-        auto options = data->options[target.name];
+        auto options = data->options[target.name.c_str()];
         
         std::vector<Candidate> candidates;
         for (const auto &item: options) {
@@ -978,14 +978,6 @@ c3ic_fix_wm_class(const std::string &given_wm_class) {
     return c3ic_fix_desktop_file_icon(given_wm_class, given_wm_class, given_wm_class, given_wm_class);
 }
 
-
 bool has_options(const std::string &name) {
-    return !data->options[name].empty();
-}
-
-bool has_option(const std::string &name) {
-    // fails on firefox for some reason
-    std::vector<Option> vector = data->options[name];
-    
-    return !vector.empty();
+    return !data->options[name.c_str()].empty();
 }

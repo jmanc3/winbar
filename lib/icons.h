@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <algorithm>
 
 // Load icons into memory
 void set_icons_path_and_possibly_update(App *app);
@@ -26,14 +27,16 @@ struct Candidate {
     int scale;
     
     [[nodiscard]] std::string full_path() const {
-        std::string temp = parent_path + "/" + filename;
+        std::string temp = std::string(parent_path).append("/").append(filename);
         if (extension == 0) {
-            temp += ".svg";
+            temp.append(".svg");
         } else if (extension == 1) {
-            temp += ".png";
+            temp.append(".png");
         } else if (extension == 2) {
-            temp += ".xmp";
+            temp.append(".xmp");
         }
+        temp.erase(std::remove(temp.begin(), temp.end(), '\0'), temp.end());
+    
         return temp;
     }
     
@@ -59,8 +62,6 @@ void search_icons(std::vector<IconTarget> &targets);
 void pick_best(std::vector<IconTarget> &targets, int size);
 
 bool has_options(const std::string &name);
-
-bool has_option(const std::string &name);
 
 std::string
 c3ic_fix_desktop_file_icon(const std::string &given_name,

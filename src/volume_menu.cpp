@@ -410,16 +410,16 @@ void fill_root(AppClient *client, Container *root) {
         auto data = new option_data();
         Audio_Client *audio_c = audio_clients[i];
         std::string icon_name;
-        if (has_option(audio_c->icon_name)) {
+        if (has_options(audio_c->icon_name)) {
             icon_name = audio_c->icon_name;
-        } else if (has_option(audio_c->title)) {
+        } else if (has_options(audio_c->title)) {
             icon_name = audio_c->title;
-        } else if (has_option(audio_c->subtitle)) {
+        } else if (has_options(audio_c->subtitle)) {
             icon_name = audio_c->subtitle;
         }
         if (!icon_name.empty()) {
             std::vector<IconTarget> targets;
-            targets.emplace_back(IconTarget(icon_name));
+            targets.emplace_back(icon_name);
             search_icons(targets);
             double size = 24;
             pick_best(targets, size * config->dpi);
