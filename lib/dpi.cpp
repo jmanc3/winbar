@@ -17,8 +17,6 @@ static int get_dpi_scale(int height_of_screen_in_pixels, int height_of_screen_in
     return MAX(round(dpi / 96), 1);
 }
 
-static void update_information_of_all_screens(App *app);
-
 static void
 check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(App *app, AppClient *client,
                                                                        bool came_from_movement) {
@@ -144,7 +142,7 @@ void dpi_setup(App *app) {
 }
 
 // TODO we should probably us "monitors" instead even if they don't have a concept of rotation
-static void update_information_of_all_screens(App *app) {
+void update_information_of_all_screens(App *app) {
     //
     // update the screens array
     //

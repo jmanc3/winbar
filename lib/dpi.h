@@ -8,6 +8,8 @@
 
 extern std::vector<ScreenInformation *> screens;
 
+void update_information_of_all_screens(App *app);
+
 void dpi_setup(App *app);
 
 #endif //DPI_H

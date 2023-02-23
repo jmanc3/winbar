@@ -41,18 +41,28 @@ int main() {
     config_load();
     
     // Set DPI if auto
+    double total_time_waiting_for_primary_screen = 6500;
+    int reattempt_time = 200;
+    int amount_of_times = total_time_waiting_for_primary_screen / reattempt_time;
+    
+    dpi_setup(app);
     if (config->dpi_auto) {
-        for (auto &i: screens) {
-            auto *screen = (ScreenInformation *) i;
-            if (screen->is_primary) {
-                config->dpi = screen->height_in_pixels / 1080.0;
-                config->dpi = std::round(config->dpi * 2) / 2;
-                if (config->dpi < 1)
-                    config->dpi = 1;
-                break;
+        for (int oj = 0; oj < amount_of_times; oj++) {
+            for (auto &i: screens) {
+                auto *screen = (ScreenInformation *) i;
+                if (screen->is_primary) {
+                    config->dpi = screen->height_in_pixels / 1080.0;
+                    config->dpi = std::round(config->dpi * 2) / 2;
+                    if (config->dpi < 1)
+                        config->dpi = 1;
+                    goto out;
+                }
             }
+            std::this_thread::sleep_for(std::chrono::milliseconds(reattempt_time));
+            update_information_of_all_screens(app);
         }
     }
+    out:
     
     config->taskbar_height = config->taskbar_height * config->dpi;
     
