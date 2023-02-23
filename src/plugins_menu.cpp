@@ -51,6 +51,12 @@ struct ComboBoxChildData : PluginContainerData {
     unsigned long i = std::string::npos;
 };
 
+struct ComboBoxPopup : UserData {
+    std::string filter_text;
+    long last_keypress_time = get_current_time_in_ms();
+    Bounds start_bounds;
+};
+
 void paint_root(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (PluginData *) container->user_data;
     set_rect(cr, container->real_bounds);
@@ -58,17 +64,37 @@ void paint_root(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 }
 
+
+static void
+paint_centered_label(AppClient *client, cairo_t *cr, Container *container, std::string text, bool disabled);
+
 void paint_combo_box_popup(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (PluginData *) container->user_data;
+    auto *data = (ComboBoxPopup *) container->user_data;
     set_rect(cr, container->real_bounds);
     set_argb(cr, correct_opaqueness(client, config->color_search_accent));
     cairo_fill(cr);
+    
+    
+    if (auto *scroll = (ScrollContainer *) container_by_name("scroll", container)) {
+        for (auto *child: scroll->content->children)
+            if (child->exists)
+                return;
+    }
+    
+    paint_centered_label(client, cr, container, "No results for: \"" + data->filter_text + "\"", false);
 }
+
+void add_plugin(const std::string &path);
 
 static void
 clicked_plugin(AppClient *, cairo_t *cr, Container *container) {
     auto *data = (PluginData *) container->user_data;
     if (!data->invalid_button_down) {
+        if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+//            add_plugin(data->path);
+            return;
+        }
+        
         Settings settings;
         settings.decorations = false;
         settings.skip_taskbar = true;
@@ -176,7 +202,7 @@ paint_centered_label(AppClient *client, cairo_t *cr, Container *container) {
 static void
 paint_combobox_item(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (ComboBoxChildData *) container->user_data;
-    if (container->parent->children[0] == container) {
+    if (container->parent->children[container->parent->children.size() - 1] == container) {
         set_rect(cr, container->real_bounds);
         set_argb(cr, config->color_wifi_hovered_button);
         cairo_fill(cr);
@@ -313,12 +339,6 @@ void plugin_error(Tokenizer &tokenizer, const char *buffer) {
             tokenizer.text.c_str(), buffer);
 }
 
-struct ComboBoxPopup : UserData {
-    std::string filter_text;
-    long last_keypress_time = get_current_time_in_ms();
-    
-};
-
 static void
 key_event_combo_box(AppClient *client,
                     cairo_t *cr,
@@ -346,7 +366,7 @@ key_event_combo_box(AppClient *client,
         
         if (auto *scroll = (ScrollContainer *) container_by_name("scroll", container)) {
             if (!scroll->content->children.empty()) {
-                auto *container = scroll->content->children[0];
+                auto *container = scroll->content->children[scroll->content->children.size() - 1];
                 
                 auto *data = (ComboBoxChildData *) container->user_data;
                 if (auto plugin_menu = client_by_name(app, "plugin_menu")) {
@@ -392,6 +412,9 @@ key_event_combo_box(AppClient *client,
     
     // make exist
     if (auto *scroll = (ScrollContainer *) container_by_name("scroll", container)) {
+        scroll->scroll_v_real = -1000000;
+        scroll->scroll_v_visual = -1000000;
+        
         for (auto *child: scroll->content->children) {
             auto *child_data = (ComboBoxChildData *) child->user_data;
             
@@ -407,14 +430,39 @@ key_event_combo_box(AppClient *client,
                 child->exists = true;
             }
         }
+    
+        if (keysym != XKB_KEY_BackSpace && keysym != XKB_KEY_Delete && keysym != XKB_KEY_Escape) {
+            // sort scroll->content->children by i
+            std::sort(scroll->content->children.begin(), scroll->content->children.end(),
+                      [](Container *a, Container *b) {
+                          auto *a_data = (ComboBoxChildData *) a->user_data;
+                          auto *b_data = (ComboBoxChildData *) b->user_data;
+                          return a_data->i > b_data->i;
+                      });
         
-        // sort scroll->content->children by i
-        std::sort(scroll->content->children.begin(), scroll->content->children.end(),
-                  [](Container *a, Container *b) {
-                      auto *a_data = (ComboBoxChildData *) a->user_data;
-                      auto *b_data = (ComboBoxChildData *) b->user_data;
-                      return a_data->i < b_data->i;
-                  });
+        }
+    
+        uint32_t target_height = 0;
+        for (auto *child: scroll->content->children)
+            if (child->exists)
+                target_height += 35 * config->dpi;
+    
+        if (target_height == 0)
+            target_height = 35 * config->dpi;
+    
+        if (target_height > data->start_bounds.h)
+            target_height = data->start_bounds.h;
+    
+        uint32_t value_mask =
+                XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
+    
+        uint32_t value_list_resize[] = {
+                (uint32_t) (data->start_bounds.x),
+                (uint32_t) (data->start_bounds.y + (data->start_bounds.h - target_height)),
+                (uint32_t) (data->start_bounds.w),
+                (uint32_t) (target_height),
+        };
+        xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
     }
     client_layout(client->app, client);
     client_paint(client->app, client);
@@ -430,7 +478,7 @@ void clicked_combo_box(AppClient *client, cairo_t *cr, Container *container) {
         if (screen->is_primary) {
             height = screen->height_in_pixels;
             height -= (screen->height_in_pixels - client->bounds->y);
-            height -= 100;
+            height -= option_height * 6;
         }
     }
     
@@ -465,9 +513,11 @@ void clicked_combo_box(AppClient *client, cairo_t *cr, Container *container) {
     popup->root->when_key_event = key_event_combo_box;
     popup->root->receive_events_even_if_obstructed = true;
     popup->root->user_data = new ComboBoxPopup;
+    ((ComboBoxPopup *) popup->root->user_data)->start_bounds = *popup->bounds;
     
     ScrollPaneSettings scroll_settings(config->dpi);
     scroll_settings.right_inline_track = true;
+    scroll_settings.start_at_end = true;
     auto scroll = make_newscrollpane_as_child(popup->root, scroll_settings);
     scroll->name = "scroll";
     for (const auto &item: data->items) {

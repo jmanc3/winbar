@@ -1014,6 +1014,10 @@ ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPane
     scrollpane->parent = parent;
     scrollpane->when_scrolled = scrollpane_scrolled;
     scrollpane->receive_events_even_if_obstructed = true;
+    if (settings.start_at_end) {
+        scrollpane->scroll_v_real = -1000000;
+        scrollpane->scroll_v_visual = -1000000;
+    }
     parent->children.push_back(scrollpane);
     
     auto content = new Container(::vbox, FILL_SPACE, FILL_SPACE);

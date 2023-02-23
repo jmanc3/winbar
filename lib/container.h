@@ -103,10 +103,10 @@ struct MouseState {
     // it will be set to the events e->detail so test it against
     // XCB_BUTTON_INDEX_[0-9] left XCB_BUTTON_INDEX_1 = 1,
     //
-    // right
+    // middle
     // XCB_BUTTON_INDEX_2 = 2,
     //
-    // middle
+    // right
     // XCB_BUTTON_INDEX_3 = 3,
     int mouse_button_pressed = 0;
     
@@ -511,6 +511,8 @@ public:
     int bottom_show_amount = ScrollShow::SWhenNeeded;
     
     bool make_content = false;
+    
+    bool start_at_end = false;
     
     // paint functions
 };
