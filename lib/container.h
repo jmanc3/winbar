@@ -446,6 +446,14 @@ struct Container {
                           int scroll_x,
                           int scroll_y) = nullptr;
     
+    // Called when this container was scrolled on
+    void (*when_fine_scrolled)(AppClient *client,
+                               cairo_t *cr,
+                               Container *self,
+                               int scroll_x,
+                               int scroll_y,
+                               bool came_from_touchpad) = nullptr;
+    
     // Called once when after mouse_downing a container, there was a mouse_motion
     // event
     void (*when_drag_start)(AppClient *client, cairo_t *cr, Container *self) = nullptr;
@@ -497,11 +505,11 @@ class ScrollPaneSettings : public UserData {
 public:
     ScrollPaneSettings(float scale);
     
-    int right_width = 15;
-    int right_arrow_height = 15;
+    int right_width = 12;
+    int right_arrow_height = 12;
     
-    int bottom_height = 15;
-    int bottom_arrow_width = 15;
+    int bottom_height = 12;
+    int bottom_arrow_width = 12;
     
     bool right_inline_track = false;
     bool bottom_inline_track = false;
@@ -521,6 +529,7 @@ struct ScrollContainer : public Container {
     Container *content = nullptr;
     Container *right = nullptr;
     Container *bottom = nullptr;
+    long previous_time_scrolled = 0;
     ScrollPaneSettings settings;
     
     explicit ScrollContainer(ScrollPaneSettings settings) : settings(std::move(settings)) {

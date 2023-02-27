@@ -16,6 +16,12 @@
 #include <utility>
 #include <cassert>
 
+#ifdef TRACY_ENABLE
+
+#include "../tracy/public/tracy/Tracy.hpp"
+
+#endif
+
 enum struct PluginContainerType {
     LABEL,
     BUTTON,
@@ -29,11 +35,13 @@ struct PluginData : IconButton {
     Subprocess *cc = nullptr;
     std::string icon;
     std::string icon_text;
+    std::string path;
     ArgbColor icon_text_color = config->color_taskbar_button_icons;
     bool tried_to_load = false;
     
     ~PluginData() {
-        delete root;
+        if (root)
+            delete root;
     }
 };
 
@@ -963,6 +971,54 @@ static void invalidate_icon_button_press_if_window_open(AppClient *client, cairo
     }
 }
 
+void add_plugin(const std::string &path) {
+    if (auto *client = client_by_name(app, "taskbar")) {
+        Container *button_plugin = nullptr;
+        // remove .plugin from path
+        std::string name_without_extension = path.substr(0, path.length() - 7);
+        if (auto *button = container_by_name(name_without_extension, client->root)) {
+            auto *plugin_data = (PluginData *) button->user_data;
+            plugin_data->cc->kill(false);
+            
+            for (int i = 0; i < button->parent->children.size(); i++) {
+                if (button->parent->children[i] == button) {
+                    button_plugin = new Container(::vbox, 24 * config->dpi, FILL_SPACE);
+                    button_plugin->parent = button->parent;
+                    button->parent->children.erase(button->parent->children.begin() + i);
+                    button->parent->children.insert(button->parent->children.begin() + i, button_plugin);
+                    
+                    delete button;
+                    
+                    break;
+                }
+            }
+            
+            client_layout(app, client);
+            client_paint(app, client);
+        } else {
+            button_plugin = client->root->child(24 * config->dpi, FILL_SPACE);
+        }
+        if (!button_plugin)
+            return;
+        
+        auto cc = client->command(path, 0, on_plugin_sent_text, button_plugin);
+        
+        button_plugin->exists = false; // only show when plugin does set_icon
+        button_plugin->when_paint = paint_plugin;
+        auto button_plugin_data = new PluginData;
+        button_plugin_data->icon_text_color = config->color_taskbar_button_icons;
+        button_plugin_data->cc = cc;
+        button_plugin_data->path = path;
+        button_plugin_data->invalidate_button_press_if_client_with_this_name_is_open = "plugin_menu";
+        button_plugin->user_data = button_plugin_data;
+        button_plugin->when_mouse_down = invalidate_icon_button_press_if_window_open;
+        button_plugin->name = name_without_extension;
+        button_plugin->when_clicked = clicked_plugin;
+        
+        cc->write("program_start");
+    }
+}
+
 void make_plugins(App *app, AppClient *client, Container *root) {
     char *string = getenv("HOME");
     std::string plugins_path(string);
@@ -975,23 +1031,7 @@ void make_plugins(App *app, AppClient *client, Container *root) {
             if (path.size() > 7 && path.substr(path.size() - 7) == ".plugin") {
                 // check if file is executable
                 if (access(path.c_str(), X_OK) != -1) {
-                    std::filesystem::path fullname = entry.path().filename();
-                    std::filesystem::path name_without_extension = entry.path().filename().replace_extension("");
-                    Container *button_plugin = root->child(24 * config->dpi, FILL_SPACE);
-                    auto cc = client->command(entry.path(), 0, on_plugin_sent_text, button_plugin);
-                    
-                    button_plugin->exists = false; // only show when plugin does set_icon
-                    button_plugin->when_paint = paint_plugin;
-                    auto button_plugin_data = new PluginData;
-                    button_plugin_data->icon_text_color = config->color_taskbar_button_icons;
-                    button_plugin_data->cc = cc;
-                    button_plugin_data->invalidate_button_press_if_client_with_this_name_is_open = "plugin_menu";
-                    button_plugin->user_data = button_plugin_data;
-                    button_plugin->when_mouse_down = invalidate_icon_button_press_if_window_open;
-                    button_plugin->name = name_without_extension;
-                    button_plugin->when_clicked = clicked_plugin;
-                    
-                    cc->write("program_start");
+                    add_plugin(path);
                 }
             }
         }

@@ -28,6 +28,13 @@ void scrollpane_scrolled(AppClient *client,
                          int scroll_x,
                          int scroll_y);
 
+void fine_scrollpane_scrolled(AppClient *client,
+                              cairo_t *cr,
+                              Container *container,
+                              int scroll_x,
+                              int scroll_y,
+                              bool came_from_touchpad);
+
 enum UndoType {
     INSERT,
     DELETE,
@@ -173,7 +180,7 @@ enum Transition {
 void transition_same_container(AppClient *client, cairo_t *cr, Container *parent,
                                int original_anim, int replacement_anim);
 
-int get_offset(Container *target, Container *scroll_pane);
+int get_offset(Container *target, ScrollContainer *scroll_pane);
 
 Container *make_combobox(Container *parent, const std::vector<std::string> &items);
 

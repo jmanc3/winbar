@@ -492,6 +492,8 @@ void clamp_scroll(ScrollContainer *scrollpane) {
         true_height += scrollpane->bottom->real_bounds.h;
     scrollpane->scroll_v_real = -std::max(0.0, std::min(-scrollpane->scroll_v_real,
                                                         true_height - scrollpane->real_bounds.h));
+    scrollpane->scroll_v_visual = -std::max(0.0, std::min(-scrollpane->scroll_v_visual,
+                                                          true_height - scrollpane->real_bounds.h));
     
     double true_width = actual_true_width(scrollpane->content);
     // add to true_width to account for right if it exists and not inline
@@ -499,6 +501,9 @@ void clamp_scroll(ScrollContainer *scrollpane) {
         true_width += scrollpane->right->real_bounds.w;
     scrollpane->scroll_h_real = -std::max(0.0,
                                           std::min(-scrollpane->scroll_h_real, true_width - scrollpane->real_bounds.w));
+    scrollpane->scroll_h_visual = -std::max(0.0,
+                                            std::min(-scrollpane->scroll_h_visual,
+                                                     true_width - scrollpane->real_bounds.w));
 }
 
 void layout_newscrollpane_content(AppClient *client, cairo_t *cr, ScrollContainer *scroll, const Bounds &bounds,
@@ -558,8 +563,6 @@ void layout_newscrollpane(AppClient *client, cairo_t *cr, ScrollContainer *scrol
     }
     
     clamp_scroll(scroll);
-    scroll->scroll_v_visual = scroll->scroll_v_real;
-    scroll->scroll_h_visual = scroll->scroll_h_real;
     
     layout_newscrollpane_content(client, cr, scroll, bounds, right_scroll_bar_needed, bottom_scroll_bar_needed);
     
@@ -667,11 +670,30 @@ container_by_name(std::string name, Container *root) {
         return root;;
     }
     
-    for (auto child: root->children) {
-        auto possible = container_by_name(name, child);
+    if (root->type == layout_type::newscroll) {
+        auto scroll = (ScrollContainer *) root;
+        auto possible = container_by_name(name, scroll->content);
         if (possible)
             return possible;
+        possible = container_by_name(name, scroll->right);
+        if (possible)
+            return possible;
+        possible = container_by_name(name, scroll->bottom);
+        if (possible)
+            return possible;
+        for (auto child: scroll->children) {
+            possible = container_by_name(name, child);
+            if (possible)
+                return possible;
+        }
+    } else {
+        for (auto child: root->children) {
+            auto possible = container_by_name(name, child);
+            if (possible)
+                return possible;
+        }
     }
+    
     
     return nullptr;
 }
@@ -682,10 +704,28 @@ container_by_container(Container *target, Container *root) {
         return root;;
     }
     
-    for (auto child: root->children) {
-        auto possible = container_by_container(target, child);
+    if (root->type == layout_type::newscroll) {
+        auto scroll = (ScrollContainer *) root;
+        auto possible = container_by_container(target, scroll->content);
         if (possible)
             return possible;
+        possible = container_by_container(target, scroll->right);
+        if (possible)
+            return possible;
+        possible = container_by_container(target, scroll->bottom);
+        if (possible)
+            return possible;
+        for (auto child: scroll->children) {
+            possible = container_by_container(target, child);
+            if (possible)
+                return possible;
+        }
+    } else {
+        for (auto child: root->children) {
+            auto possible = container_by_container(target, child);
+            if (possible)
+                return possible;
+        }
     }
     
     return nullptr;
@@ -901,7 +941,6 @@ void Subprocess::kill(bool warn) {
         }
     }
     
-    epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, outpipe[0], NULL);
     close(inpipe[1]);
     close(outpipe[0]);
     if (::kill(pid, SIGTERM) == -1) {
@@ -909,7 +948,6 @@ void Subprocess::kill(bool warn) {
     }
     
     if (this->timeout_fd != -1) {
-        epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, this->timeout_fd, NULL);
         close(this->timeout_fd);
     }
     

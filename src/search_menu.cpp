@@ -1141,14 +1141,13 @@ void sort_and_add(std::vector<T> *sortables,
         right_fg->name = "right_fg";
         
         ScrollPaneSettings settings(config->dpi);
-        settings.right_inline_track = true;
         settings.right_show_amount = 2;
-        Container *content_area = make_scrollpane(left, settings);
-        content_area->name = "content_area";
-        content_area->scroll_v_real = scroll_amount;
-        content_area->scroll_v_visual = scroll_amount;
+        ScrollContainer *scroll = make_newscrollpane_as_child(left, settings);
+        scroll->name = "scroll";
+        scroll->scroll_v_real = scroll_amount;
+        scroll->scroll_v_visual = scroll_amount;
         
-        Container *content = content_area->child(::vbox, FILL_SPACE, 0);
+        Container *content = scroll->content;
         content->spacing = 0;
         content->when_paint = paint_content;
         content->clip_children =
@@ -1211,8 +1210,6 @@ void sort_and_add(std::vector<T> *sortables,
             open->when_clicked = clicked_open;
             
             right_fg->child(FILL_SPACE, 12 * config->dpi);
-            
-            content->wanted_bounds.h = true_height(content_area) + true_height(content);
             return;
         }
         
@@ -1275,8 +1272,6 @@ void sort_and_add(std::vector<T> *sortables,
             data->item_number = i;
             hbox->user_data = data;
         }
-        
-        content->wanted_bounds.h = true_height(content_area) + true_height(content);
     }
 }
 

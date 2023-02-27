@@ -417,13 +417,14 @@ static void fill_root(AppClient *client, Container *root) {
     auto r = root->child(FILL_SPACE, FILL_SPACE);
     ScrollPaneSettings settings(config->dpi);
     settings.right_show_amount = 2;
-    auto scroll_pane = make_scrollpane(r, settings);
+    auto scroll_pane = make_newscrollpane_as_child(r, settings);
     scroll_pane->when_paint = paint_prompt;
     scroll_pane->clip = true;
     scroll_pane->name = "scroll_pane";
-    auto content = scroll_pane->child(::vbox, FILL_SPACE, 0);
+    auto content = scroll_pane->content;
     content->name = "content";
     content->spacing = 8 * config->dpi;
+    content->wanted_pad.h = 16 * config->dpi;
     
     for (int i = notifications.size(); i--;) {
         NotificationInfo *n = notifications[i];
@@ -439,8 +440,6 @@ static void fill_root(AppClient *client, Container *root) {
             load_icon_full_path(app, client, &icon_data->surface, n->icon_path, 48 * config->dpi);
         }
     }
-    
-    content->wanted_bounds.h = true_height(content) + true_height(content->parent);
 }
 
 static bool

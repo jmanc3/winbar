@@ -9,6 +9,8 @@
 
 #include "utility.h"
 #include "dpi.h"
+#include "defer.h"
+#include "../src/root.h"
 
 #include <algorithm>
 #include <iostream>
@@ -21,6 +23,9 @@
 #include <sys/timerfd.h>
 #include <cassert>
 #include <cmath>
+#include <xcb/xinput.h>
+#include <xcb/xcb.h>
+#include <poll.h>
 
 #define explicit dont_use_cxx_explicit
 
@@ -72,7 +77,13 @@ void timeout_stop_and_remove_timeout(App *app, Timeout *timeout) {
                 // printf("Timeout Removed: noclient, fd = %d\n", t->file_descriptor);
             }
             app->timeouts.erase(app->timeouts.begin() + timeout_index);
-            epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor, NULL);
+            // remove from polled_descriptors
+            for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+                if (app->descriptors_being_polled[i].file_descriptor == timeout->file_descriptor) {
+                    app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
+                    break;
+                }
+            }
             close(timeout->file_descriptor);
             delete timeout;
             return;
@@ -282,16 +293,6 @@ bool poll_descriptor(App *app, int file_descriptor, int events, void function(Ap
     PolledDescriptor polled = {file_descriptor, function, user_data};
     app->descriptors_being_polled.push_back(polled);
     
-    epoll_event event = {};
-    event.events = events;
-    event.data.fd = file_descriptor;
-    
-    if (epoll_ctl(app->epoll_fd, EPOLL_CTL_ADD, file_descriptor, &event) != 0) {
-        printf("Failed to add file descriptor: %d\n", file_descriptor);
-        close(app->epoll_fd);
-        return false;
-    }
-    
     return true;
 }
 
@@ -375,6 +376,222 @@ void timeout_poll_wakeup(App *app, int fd, void *) {
 App::App() {
 }
 
+const xcb_query_extension_reply_t *input_query = nullptr;
+
+std::map<xcb_input_device_id_t, int> devices_type;
+
+std::vector<Container *>
+pierced_containers(App *app, AppClient *client, int x, int y);
+
+std::vector<Container *>
+concerned_containers(App *app, AppClient *client);
+
+void set_active(AppClient *client, const std::vector<Container *> &active_containers, Container *c, bool state);
+
+static void deliver_fine_scroll_event(App *app, int horizontal, int vertical, bool came_from_touchpad) {
+    xcb_query_pointer_cookie_t pointer_cookie = xcb_query_pointer(app->connection, app->screen->root);
+    xcb_query_pointer_reply_t *pointer_reply = xcb_query_pointer_reply(app->connection, pointer_cookie, nullptr);
+    
+    if (!pointer_reply)
+        return;
+    
+    for (auto *client: app->clients) {
+        if (client->root) {
+//            if (client->root->children.empty())
+//                continue;
+        } else {
+            continue;
+        }
+        
+        if (bounds_contains(*client->bounds, pointer_reply->root_x, pointer_reply->root_y)) {
+            double x = pointer_reply->root_x - client->bounds->x;
+            double y = pointer_reply->root_y - client->bounds->y;
+            
+            client->mouse_initial_x = x;
+            client->mouse_initial_y = y;
+            client->mouse_current_x = x;
+            client->mouse_current_y = y;
+            std::vector<Container *> pierced = pierced_containers(app, client, x, y);
+            std::vector<Container *> concerned = concerned_containers(app, client);
+            
+            // pierced   are ALL the containers under the mouse
+            // concerned are all the containers which have concerned state on
+            // handle_mouse_button can be the catalyst for sending out when_mouse_down and
+            // when_scrolled
+            
+            std::vector<Container *> mouse_downed;
+            
+            for (int i = 0; i < pierced.size(); i++) {
+                auto p = pierced[i];
+                
+                // pierced[0] will always be the top or "real" container we are actually
+                // clicking on therefore everyone else in the list needs to set
+                // receive_events_even_if_obstructed to true to receive events
+                if (i != 0 && (!p->receive_events_even_if_obstructed_by_one &&
+                               !p->receive_events_even_if_obstructed)) {
+                    continue;
+                }
+                if (i != 0) {
+                    if (p->receive_events_even_if_obstructed) {
+                    
+                    } else if (p->receive_events_even_if_obstructed_by_one && p != pierced[0]->parent) {
+                        continue;
+                    }
+                }
+                
+                p->state.concerned = true;// Make sure this container is concerned
+                
+                if (p->when_fine_scrolled) {
+                    p->when_fine_scrolled(client, client->cr, p, -horizontal, -vertical, came_from_touchpad);
+                }
+                
+                handle_mouse_motion(app, client, x, y);
+            }
+            set_active(client, mouse_downed, client->root, false);
+            
+            client_paint(app, client);
+        }
+    }
+}
+
+static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event) {
+    if (!app->key_symbols)
+        app->key_symbols = xcb_key_symbols_alloc(app->connection);
+    
+    static int keys_down_count = 0;
+    static bool clean = true;
+    static bool num = true;
+    
+    if (event->response_type == XCB_GE_GENERIC) {
+        auto *generic_event = (xcb_ge_generic_event_t *) event;
+        if (generic_event->event_type == XCB_INPUT_KEY_PRESS) {
+            auto *press = (xcb_input_key_press_event_t *) event;
+            
+            xcb_keysym_t keysym = xcb_key_symbols_get_keysym(app->key_symbols, press->detail, 0);
+            
+            if (clean && (press->detail >= 10 && press->detail <= 19)) {
+                num = true;
+                meta_pressed(press->detail);
+            }
+            num = false;
+            clean = keysym == XK_Super_L || keysym == XK_Super_R;
+        } else if (generic_event->event_type == XCB_INPUT_KEY_RELEASE) {
+            auto *release = (xcb_input_key_release_event_t *) event;
+            
+            app->key_symbols = xcb_key_symbols_alloc(app->connection);
+            xcb_keysym_t keysym = xcb_key_symbols_get_keysym(app->key_symbols, release->detail, 0);
+            
+            bool is_meta = keysym == XK_Super_L || keysym == XK_Super_R;
+            if (is_meta && clean && !num) {
+                meta_pressed(0);
+                clean = false;
+            }
+        } else if (generic_event->event_type == XCB_INPUT_RAW_MOTION) {
+            auto *rmt_event = (xcb_input_raw_motion_event_t *) event;
+            int axis_len = xcb_input_raw_button_press_axisvalues_length(rmt_event);
+            if (axis_len) {
+                // from: https://github.com/MatthewZelriche/NamelessWindow/blob/3168145bdd168a37be783acfd1bfd0ba4cbcb1e2/src/X11/X11GenericMouse.cpp#L31
+                // > Ignore other raw motions, based on the valuator indices they contain. This is the best way
+                // > I can think of for disregarding raw motion events and only doing scroll. Indices 0 and 1 appear to be
+                // > real mouse motion events, while 2 and 3 appear to be horz/vertical valuators for scroll.
+                
+                auto mask = xcb_input_raw_button_press_valuator_mask(rmt_event);
+                bool is_scroll_event = (mask[0] & (1 << 2)) || (mask[0] & (1 << 3));
+                bool is_mouse_event = (mask[0] & (1 << 0)) || (mask[0] & (1 << 1));
+                if (is_mouse_event) {
+                
+                } else if (is_scroll_event) {
+                    auto raw_values = xcb_input_raw_button_press_axisvalues(
+                            (xcb_input_raw_button_press_event_t *) event);
+                    
+                    // Get the horizontal and vertical scroll values
+                    int horizontal = raw_values[0].integral;
+                    int vertical = raw_values[1].integral;
+                    
+                    // check devices_type map for device type
+                    int &cached_device_pointer_type = devices_type[rmt_event->deviceid];
+                    if (cached_device_pointer_type != 0) {
+                        if (cached_device_pointer_type == 1) {
+                            deliver_fine_scroll_event(app, vertical, horizontal, false);
+                            return true;
+                        } else if (cached_device_pointer_type == 2) {
+                            deliver_fine_scroll_event(app, horizontal, vertical, true);
+                            return true;
+                        }
+                    } else {
+                        // We want to know if the event came from a mouse or a touchpad
+                        xcb_input_list_input_devices_cookie_t devices_cookie = xcb_input_list_input_devices(
+                                app->connection);
+                        xcb_input_list_input_devices_reply_t *devices_reply = xcb_input_list_input_devices_reply(
+                                app->connection, devices_cookie, NULL);
+                        if (devices_reply != nullptr) {
+                            defer(free(devices_reply));
+                            
+                            int len = xcb_input_list_input_devices_devices_length(devices_reply);
+                            xcb_input_device_info_t *devices = xcb_input_list_input_devices_devices(devices_reply);
+                            // iterate through devices using len
+                            
+                            for (int i = 0; i < len; i++) {
+                                xcb_input_device_info_t *device = &devices[i];
+                                if (device->device_id == rmt_event->deviceid) {
+                                    if (device->device_type != 0) {
+                                        // get name of atom device_type
+                                        auto cookie = xcb_get_atom_name(app->connection, device->device_type);
+                                        auto reply = xcb_get_atom_name_reply(app->connection, cookie, NULL);
+                                        if (reply == nullptr)
+                                            continue;
+                                        
+                                        defer(free(reply));
+                                        std::string name(xcb_get_atom_name_name(reply),
+                                                         xcb_get_atom_name_name_length(reply));
+                                        if (name == "MOUSE") {
+                                            devices_type[rmt_event->deviceid] = 1;
+                                            deliver_fine_scroll_event(app, vertical, horizontal, false);
+                                            return true;
+                                        } else if (name == "TOUCHPAD") {
+                                            devices_type[rmt_event->deviceid] = 2;
+                                            deliver_fine_scroll_event(app, horizontal, vertical, true);
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                }
+            }
+        }
+    }
+    
+    return false; // Returning false here means this event handler does not consume the event
+}
+
+void get_raw_motion_and_scroll_events(App *app) {
+    // check if xinput is present on server
+    input_query = xcb_get_extension_data(app->connection, &xcb_input_id);
+    if (!input_query->present) {
+        perror("XInput was not present on Xorg server.\n");
+        return;
+    }
+    
+    // PASS US ALL EVENTS
+    app_create_custom_event_handler(app, INT_MAX, listen_for_raw_input_events);
+    
+    // select for raw motion events on the root window
+    struct {
+        xcb_input_event_mask_t iem;
+        xcb_input_xi_event_mask_t xiem;
+    } se_mask;
+    se_mask.iem.deviceid = XCB_INPUT_DEVICE_ALL;
+    se_mask.iem.mask_len = 1;
+    se_mask.xiem = (xcb_input_xi_event_mask_t) (XCB_INPUT_XI_EVENT_MASK_KEY_PRESS |
+                                                XCB_INPUT_XI_EVENT_MASK_KEY_RELEASE |
+                                                XCB_INPUT_XI_EVENT_MASK_RAW_MOTION);
+    xcb_input_xi_select_events(app->connection, app->screen->root, 1, &se_mask.iem);
+}
+
+
 App *app_new() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -391,7 +608,6 @@ App *app_new() {
     app->connection = connection;
     app->screen_number = screen_number;
     app->screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
-    app->epoll_fd = epoll_create(40);
     app->argb_visualtype = get_alpha_visualtype(app->screen);
     app->root_visualtype = get_visualtype(app->screen);
     app->bounds.x = 0;
@@ -405,7 +621,7 @@ App *app_new() {
     
     xcb_flush(app->connection);
     
-    poll_descriptor(app, xcb_get_file_descriptor(app->connection), EPOLLIN, xcb_poll_wakeup, nullptr);
+    poll_descriptor(app, xcb_get_file_descriptor(app->connection), POLLIN, xcb_poll_wakeup, nullptr);
     
     auto atom_cookie = xcb_intern_atom(app->connection, 1, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
     xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(app->connection, atom_cookie, NULL);
@@ -424,6 +640,8 @@ App *app_new() {
     free(reply);
     
     dpi_setup(app);
+    
+    get_raw_motion_and_scroll_events(app);
     
     return app;
 }
@@ -877,15 +1095,11 @@ void request_refresh(App *app, AppClient *client) {
     if (app == nullptr || !valid_client(app, client))
         return;
     
-    auto *event = new xcb_expose_event_t;
-    
-    event->response_type = XCB_EXPOSE;
-    event->window = client->window;
-    
-    xcb_send_event(app->connection, true, event->window, XCB_EVENT_MASK_EXPOSURE, (char *) event);
-    xcb_flush(app->connection);
-    
-    delete event;
+    std::thread t([app, client]() {
+        std::lock_guard lock(app->running_mutex);
+        client_paint(app, client);
+    });
+    t.detach();
 }
 
 void client_animation_paint(App *app, AppClient *client, Timeout *, void *user_data);
@@ -973,8 +1187,14 @@ void client_close(App *app, AppClient *client) {
         
                                            if (remove) {
                                                close(timeout->file_descriptor);
-                                               epoll_ctl(client->app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor,
-                                                         NULL);
+                                               for (int i = 0; i < client->app->descriptors_being_polled.size(); i++) {
+                                                   if (client->app->descriptors_being_polled[i].file_descriptor ==
+                                                       timeout->file_descriptor) {
+                                                       client->app->descriptors_being_polled.erase(
+                                                               client->app->descriptors_being_polled.begin() + i);
+                                                       break;
+                                                   }
+                                               }
                                                delete timeout;
                                            }
                                            if (remove != (timeout_client == client)) {
@@ -1280,9 +1500,9 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
         if (c->state.mouse_pressing || c->state.mouse_dragging) {
             if (c->state.mouse_dragging) {
                 // handle when_drag
-                if (c->when_drag) {
-                    c->when_drag(client, client->cr, c);
-                }
+//                if (c->when_drag) {
+//                    c->when_drag(client, client->cr, c);
+//                }
             } else if (c->state.mouse_pressing) {
                 auto move_distance = abs(client->mouse_initial_x - client->mouse_current_x);
                 if (move_distance >= c->minimum_x_distance_to_move_before_drag_begins) {
@@ -1925,7 +2145,7 @@ void handle_xcb_event(App *app) {
     
     std::lock_guard lock(app->thread_mutex);
     
-    while ((event = xcb_poll_for_event(app->connection)) != nullptr) {
+    while ((event = xcb_poll_for_event(app->connection))) {
         if (auto window = get_window(event)) {
             bool event_consumed_by_custom_handler = false;
             for (auto handler: app->handlers) {
@@ -1983,29 +2203,70 @@ void app_main(App *app) {
         return;
     }
     
-    int MAX_POLLING_EVENTS_AT_THE_SAME_TIME = 40;
-    epoll_event events[MAX_POLLING_EVENTS_AT_THE_SAME_TIME];
+    int MAX_POLLING_EVENTS_AT_THE_SAME_TIME = 100;
+    pollfd fds[MAX_POLLING_EVENTS_AT_THE_SAME_TIME];
     
     app->running = true;
     while (app->running) {
-        int event_count = epoll_wait(app->epoll_fd, events, MAX_POLLING_EVENTS_AT_THE_SAME_TIME, -1);
+        // set all fds to 0
+        memset(fds, 0, sizeof(fds));
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+            fds[i].fd = app->descriptors_being_polled[i].file_descriptor;
+            fds[i].events = POLLIN | POLLPRI;
+        }
+        
+        int num_ready = poll(fds, app->descriptors_being_polled.size(), -1);
+        if (num_ready < 0) {
+            perror("poll");
+            exit(1);
+        }
+        
         std::lock_guard m(app->running_mutex);
         app->loop++;
         
-        for (int event_index = 0; event_index < event_count; event_index++) {
-            bool found = false;
-            for (auto polled: app->descriptors_being_polled) {
-                if (events[event_index].data.fd == polled.file_descriptor) {
-                    found = true;
-                    if (polled.function) {
-                        polled.function(app, polled.file_descriptor, polled.user_data);
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+            if (fds[i].revents & POLLPRI) {
+                bool found = false;
+                for (const auto &polled: app->descriptors_being_polled) {
+                    if (fds[i].fd == polled.file_descriptor) {
+                        found = true;
+                        if (polled.function) {
+                            polled.function(app, polled.file_descriptor, polled.user_data);
+                        }
                     }
                 }
+                if (!found) {
+                    for (int x = 0; x < app->descriptors_being_polled.size(); x++) {
+                        if (app->descriptors_being_polled[x].file_descriptor == fds[x].fd) {
+                            app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + x);
+                            break;
+                        }
+                    }
+                    close(fds[i].fd);
+                }
             }
-            if (!found) {
-                // printf("Epoll was awoke by a file descriptor that is not in our descriptors_being_polled anymore\n");
-                epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, events[event_index].data.fd, NULL);
-                close(events[event_index].data.fd);
+        }
+        
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+            if (fds[i].revents & POLLIN) {
+                bool found = false;
+                for (const auto &polled: app->descriptors_being_polled) {
+                    if (fds[i].fd == polled.file_descriptor) {
+                        found = true;
+                        if (polled.function) {
+                            polled.function(app, polled.file_descriptor, polled.user_data);
+                        }
+                    }
+                }
+                if (!found) {
+                    for (int x = 0; x < app->descriptors_being_polled.size(); x++) {
+                        if (app->descriptors_being_polled[x].file_descriptor == fds[x].fd) {
+                            app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + x);
+                            break;
+                        }
+                    }
+                    close(fds[i].fd);
+                }
             }
         }
         
@@ -2028,6 +2289,13 @@ void app_clean(App *app) {
         client_close(app, client);
     }
     
+    if (app->key_symbols) {
+        xcb_key_symbols_free(app->key_symbols);
+    }
+    
+    input_query = nullptr;
+    devices_type.clear();
+    
     for (auto c: app->clients) {
         delete c;
     }
@@ -2042,7 +2310,12 @@ void app_clean(App *app) {
     cleanup_cached_atoms();
     
     for (auto t: app->timeouts) {
-        epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, t->file_descriptor, NULL);
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+            if (app->descriptors_being_polled[i].file_descriptor == t->file_descriptor) {
+                app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
+                break;
+            }
+        }
         close(t->file_descriptor);
         delete t;
     }
@@ -2051,8 +2324,6 @@ void app_clean(App *app) {
     
     app->descriptors_being_polled.clear();
     app->descriptors_being_polled.shrink_to_fit();
-    
-    close(app->epoll_fd);
     
     if (app->device) {
         cairo_device_finish(app->device);
@@ -2177,7 +2448,12 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
     
     bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup, nullptr);
     if (!success) { // error with poll_descriptor
-        epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout_file_descriptor, NULL);
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+            if (app->descriptors_being_polled[i].file_descriptor == timeout_file_descriptor) {
+                app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
+                break;
+            }
+        }
         close(timeout_file_descriptor);
         return nullptr;
     }

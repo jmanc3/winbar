@@ -5,7 +5,6 @@
 #include "root.h"
 #include "app_menu.h"
 #include "application.h"
-#include "bind_meta.h"
 #include "components.h"
 #include "main.h"
 #include "taskbar.h"
@@ -91,9 +90,12 @@ root_event_handler(App *app, xcb_generic_event_t *event) {
     return false;
 }
 
-void meta_pressed(int num) {
+void meta_pressed(unsigned int num) {
     if (num == 0) {
-        std::lock_guard lock(app->thread_mutex);
+        xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
+        
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
         
         if (auto client = client_by_name(app, "app_menu")) {
             client_close(app, client);
@@ -106,8 +108,6 @@ void meta_pressed(int num) {
     }
 }
 
-std::thread *t = nullptr;
-
 void root_start(App *app) {
     auto *handler = new Handler;
     handler->event_handler = root_event_handler;
@@ -116,12 +116,6 @@ void root_start(App *app) {
     
     const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
     xcb_change_window_attributes(app->connection, app->screen->root, XCB_CW_EVENT_MASK, values);
-    
-    // If not on another thread, will block this one
-    if (t == nullptr) {
-        t = new std::thread(watch_meta_key);
-        t->detach();
-    }
     
     xcb_flush(app->connection);
 }

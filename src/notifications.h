@@ -46,6 +46,16 @@ struct NotificationInfo {
     dbus_int32_t expire_timeout_in_milliseconds = -1; // 0 means never, -1 means the server (us) decides
     
     std::vector<NotificationAction> actions;
+    
+    std::string x_kde_appname;
+    std::string x_kde_origin_name;
+    std::string x_kde_display_appname;
+    std::string desktop_entry;
+    std::string x_kde_eventId;
+    std::string x_kde_reply_placeholder_text = "Reply...";
+    std::string x_kde_reply_submit_button_text = "Send";
+    std::string x_kde_reply_submit_button_icon_name = "document-send";
+    std::vector<std::string> x_kde_urls;
 };
 
 struct Container;

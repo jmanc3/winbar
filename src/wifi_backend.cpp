@@ -59,7 +59,8 @@ void wifi_wpa_has_message(App *app, int fd, void *) {
 }
 
 bool wifi_wpa_start(App *app) {
-    std::string wpa_supplicant_path = "/var/run/wpa_supplicant/" + get_default_wifi_interface();
+    std::string wpa_supplicant_path =
+            "/var/run/wpa_supplicant/" + get_default_wifi_interface(client_by_name(app, "taskbar"));
     wifi_data->wpa_message_sender = wpa_ctrl_open(wpa_supplicant_path.data());
     if (!wifi_data->wpa_message_sender)
         return false;
@@ -284,10 +285,14 @@ std::string exec(const char *cmd) {
     return result;
 }
 
-std::string get_default_wifi_interface() {
+std::string get_default_wifi_interface(AppClient *client) {
+    static std::string cached_interface;
+    
+    if (!client)
+        return cached_interface;
+    
     static long program_start_time = get_current_time_in_ms();
     static long previous_cache_time = 0; // only set to 0 the first time this function is called because of: "static"
-    static std::string cached_interface;
     
     long current_time = get_current_time_in_ms();
     int cache_timeout = 1000 * 60;

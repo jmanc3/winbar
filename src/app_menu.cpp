@@ -111,22 +111,52 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     container->real_bounds.x += 1;
     container->real_bounds.w -= 2;
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_apps_pressed_item);
-        } else {
-            set_argb(cr, config->color_apps_hovered_item);
+    
+    auto data = (ButtonData *) container->user_data;
+    {
+        auto default_color = config->color_taskbar_button_default;
+        auto hovered_color = config->color_taskbar_button_hovered;
+        auto pressed_color = config->color_taskbar_button_pressed;
+        
+        auto e = getEasingFunction(easing_functions::EaseOutQuad);
+        double time = 0;
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                if (data->previous_state != 2) {
+                    time = 40;
+                    data->previous_state = 2;
+                    client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
+                    client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
+                    client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
+                    client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
+                }
+            } else if (data->previous_state != 1) {
+                time = 70;
+                data->previous_state = 1;
+                client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
+                client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
+                client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
+                client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
+            }
+        } else if (data->previous_state != 0) {
+            time = 100;
+            data->previous_state = 0;
+            e = getEasingFunction(easing_functions::EaseInCirc);
+            client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
+            client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
+            client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
+            client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
         }
-        int border = 0;
+        
+        set_argb(cr, data->color);
         
         cairo_rectangle(cr,
-                        container->real_bounds.x + border,
-                        container->real_bounds.y + border,
-                        container->real_bounds.w - border * 2,
-                        container->real_bounds.h - border * 2);
+                        container->real_bounds.x,
+                        container->real_bounds.y,
+                        container->real_bounds.w,
+                        container->real_bounds.h);
         cairo_fill(cr);
     }
-    auto data = (ButtonData *) container->user_data;
     
     container->real_bounds.x -= 1;
     container->real_bounds.w += 2;
@@ -246,12 +276,13 @@ clicked_grid(AppClient *client, cairo_t *cr, Container *container) {
     // Set the correct scroll offset
     auto data = (ButtonData *) container->user_data;
     if (auto c = container_by_name(data->text, client->root)) {
-        if (auto scroll_pane = container_by_name("scroll_pane", client->root)) {
-            int offset = get_offset(c, scroll_pane) + scroll_pane->children_bounds.y;
+        if (auto scroll_pane = (ScrollContainer *) container_by_name("scroll_pane", client->root)) {
+            int offset = -scroll_pane->scroll_v_real + c->real_bounds.y;
+            offset -= 5 * config->dpi;
             scroll_pane->scroll_v_real = -offset;
             scroll_pane->scroll_v_visual = scroll_pane->scroll_v_real;
-            ::layout(client, cr, scroll_pane->parent, scroll_pane->real_bounds);
-    
+            ::layout(client, cr, scroll_pane, scroll_pane->real_bounds);
+        
             clicked_title(client, cr, container);
         }
     }
@@ -288,19 +319,48 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     
     auto *data = (ItemData *) container->user_data;
     
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_apps_pressed_item);
-        } else {
-            set_argb(cr, config->color_apps_hovered_item);
+    {
+        auto default_color = config->color_taskbar_button_default;
+        auto hovered_color = config->color_taskbar_button_hovered;
+        auto pressed_color = config->color_taskbar_button_pressed;
+        
+        auto e = getEasingFunction(easing_functions::EaseOutQuad);
+        double time = 0;
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                if (data->previous_state != 2) {
+                    time = 20;
+                    data->previous_state = 2;
+                    client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
+                    client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
+                    client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
+                    client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
+                }
+            } else if (data->previous_state != 1) {
+                time = 30;
+                data->previous_state = 1;
+                client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
+                client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
+                client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
+                client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
+            }
+        } else if (data->previous_state != 0) {
+            time = 50;
+            data->previous_state = 0;
+            e = getEasingFunction(easing_functions::EaseInCirc);
+            client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
+            client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
+            client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
+            client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
         }
-        int border = 0;
+        
+        set_argb(cr, data->color);
         
         cairo_rectangle(cr,
-                        container->real_bounds.x + border,
-                        container->real_bounds.y + border,
-                        container->real_bounds.w - border * 2,
-                        container->real_bounds.h - border * 2);
+                        container->real_bounds.x,
+                        container->real_bounds.y,
+                        container->real_bounds.w,
+                        container->real_bounds.h);
         cairo_fill(cr);
     }
     
@@ -618,7 +678,8 @@ void scrolled_content_area(AppClient *client,
                            cairo_t *cr,
                            Container *container,
                            int scroll_x,
-                           int scroll_y) {
+                           int scroll_y,
+                           bool came_from_touchpad) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -631,7 +692,7 @@ void scrolled_content_area(AppClient *client,
         }
     }
     
-    scrollpane_scrolled(client, cr, container, scroll_x, scroll_y);
+    fine_scrollpane_scrolled(client, cr, container, scroll_x, scroll_y, came_from_touchpad);
 }
 
 static void
@@ -830,6 +891,7 @@ right_clicked_application(AppClient *client, cairo_t *cr, Container *container) 
         popup_settings.takes_input_focus = true;
         
         auto popup = app_menu->create_popup(popup_settings, settings);
+        popup->fps = 165;
         
         popup->root->when_paint = paint_power_menu;
         popup->root->type = vbox;
@@ -973,17 +1035,46 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_apps_pressed_item);
-        } else {
-            set_argb(cr, config->color_apps_hovered_item);
+    auto data = (ButtonData *) container->user_data;
+    {
+        auto default_color = config->color_taskbar_button_default;
+        auto hovered_color = config->color_taskbar_button_hovered;
+        auto pressed_color = config->color_taskbar_button_pressed;
+        
+        auto e = getEasingFunction(easing_functions::EaseOutQuad);
+        double time = 0;
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                if (data->previous_state != 2) {
+                    time = 40;
+                    data->previous_state = 2;
+                    client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
+                    client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
+                    client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
+                    client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
+                }
+            } else if (data->previous_state != 1) {
+                time = 70;
+                data->previous_state = 1;
+                client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
+                client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
+                client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
+                client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
+            }
+        } else if (data->previous_state != 0) {
+            time = 100;
+            data->previous_state = 0;
+            e = getEasingFunction(easing_functions::EaseInCirc);
+            client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
+            client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
+            client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
+            client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
         }
+        
+        set_argb(cr, data->color);
         int pad = 2;
         paint_margins_rect(client, cr, container->real_bounds, pad, 0);
     }
-    
-    auto *data = (ButtonData *) container->user_data;
     
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -1110,34 +1201,31 @@ fill_root(AppClient *client) {
     g->spacing = pad * config->dpi;
     
     ScrollPaneSettings settings(config->dpi);
-    settings.right_width = 12 * config->dpi;
-    settings.right_arrow_height = 12 * config->dpi;
-    settings.right_inline_track = true;
-    Container *content_area = make_scrollpane(app_list_container, settings);
-    content_area->when_scrolled = scrolled_content_area;
-    content_area->name = "scroll_pane";
-    Container *right_thumb_container = content_area->parent->children[0]->children[1];
+    ScrollContainer *scroll = make_newscrollpane_as_child(app_list_container, settings);
+    scroll->when_fine_scrolled = scrolled_content_area;
+    scroll->name = "scroll_pane";
+    Container *right_thumb_container = scroll->right->children[1];
     right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
     right_thumb_container->parent->when_mouse_enters_container = when_scrollbar_mouse_enters;
     right_thumb_container->parent->when_mouse_leaves_container = when_scrollbar_mouse_leaves_slow;
     
     right_thumb_container->when_paint = paint_right_thumb;
-    Container *top_arrow = content_area->parent->children[0]->children[0];
+    Container *top_arrow = scroll->right->children[0];
     top_arrow->when_paint = paint_arrow;
     auto *top_data = new ButtonData;
     top_data->text = "\uE971";
     top_arrow->user_data = top_data;
     
-    Container *bottom_arrow = content_area->parent->children[0]->children[2];
+    Container *bottom_arrow = scroll->right->children[2];
     bottom_arrow->when_paint = paint_arrow;
     auto *bottom_data = new ButtonData;
     bottom_data->text = "\uE972";
     bottom_arrow->user_data = bottom_data;
     
-    content_area->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, (settings.right_width + 1) * config->dpi,
-                                      54 * config->dpi);
+    scroll->content->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, (settings.right_width / 2) * config->dpi,
+                                         54 * config->dpi);
     
-    Container *content = content_area->child(FILL_SPACE, 0);
+    Container *content = scroll->content;
     content->spacing = 2 * config->dpi;
     
     char previous_char = '\0';
@@ -1161,8 +1249,9 @@ fill_root(AppClient *client) {
                 title->wanted_bounds.h = 34 * config->dpi;
                 title->when_paint = paint_item_title;
                 title->when_clicked = clicked_title;
-                
+    
                 title->user_data = data;
+                title->name = data->text;
             }
         } else if (previous_priority != l->app_menu_priority) {
             previous_priority = l->app_menu_priority;
@@ -1188,6 +1277,7 @@ fill_root(AppClient *client) {
                 data->text = "#";
             }
             title->user_data = data;
+            title->name = data->text;
         }
         
         auto *child = content->child(FILL_SPACE, 36 * config->dpi);
@@ -1196,6 +1286,7 @@ fill_root(AppClient *client) {
         child->user_data = data;
         child->when_paint = paint_item;
         child->when_clicked = clicked_item;
+        child->name = l->name;
     }
     
     int count = 0;
@@ -1233,12 +1324,9 @@ fill_root(AppClient *client) {
                     c->interactable = false;
                 }
             }
-            
         }
     }
     grid->child(FILL_SPACE, FILL_SPACE);
-    
-    content->wanted_bounds.h = true_height(content_area) + true_height(content);
 }
 
 static void

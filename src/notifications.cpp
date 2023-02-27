@@ -348,7 +348,7 @@ void show_notification(NotificationInfo *ni) {
     displaying_notifications.push_back(client);
     
     
-    if (ni->expire_timeout_in_milliseconds < 0) {
+    if (ni->expire_timeout_in_milliseconds <= 0) {
         int text_length = ni->summary.length() + ni->body.length();
         int timeout = 60000 * text_length / 6 / 200;
         timeout += 2000;

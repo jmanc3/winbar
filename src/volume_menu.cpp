@@ -46,6 +46,9 @@ public:
     long last_update = get_current_time_in_ms();
     double rolling_avg = 0;
     double rolling_avg_delayed = 0;
+    double volume_amount = -1;
+    bool animating = false;
+    long previous_time_animating = 0;
     cairo_surface_t *icon = nullptr;
     
     Audio_Client *client() {
@@ -60,8 +63,6 @@ public:
     };
     
     ~option_data() {}
-    
-    float previous_end_percent = 0;
 };
 
 static void
@@ -164,7 +165,7 @@ paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container)
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    double scalar = client->get_volume();
+    double scalar = data->volume_amount;
     
     std::string text = std::to_string((int) (std::round(scalar * 100)));
     
@@ -224,7 +225,26 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     double marker_height = 24 * config->dpi;
     double marker_width = 8 * config->dpi;
-    double marker_position = client->get_volume() * container->real_bounds.w;
+    double volume = client->get_volume();
+    long current_time = get_current_time_in_ms();
+    long diff = current_time - data->previous_time_animating;
+    
+    if (data->volume_amount == -1)
+        data->volume_amount = volume;
+    if (volume != data->volume_amount && !data->animating) {
+        data->previous_time_animating = current_time;
+        data->animating = true;
+        if (diff > 90) {
+            diff = 90;
+        } else if (diff < 20) {
+            diff = 20;
+        }
+        client_create_animation(app, client_entity, &data->volume_amount, 0, diff, getEasingFunction(EaseOutQuad),
+                                volume);
+    } else {
+        data->animating = false;
+    }
+    double marker_position = data->volume_amount * container->real_bounds.w;
     
     double line_height = 2 * config->dpi;
     set_argb(cr, config->color_volume_slider_background);
@@ -358,8 +378,9 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool force) {
     if (new_volume != client->get_volume()) {
         if (client->is_muted())
             client->set_mute(false);
-        
+    
         client->set_volume(new_volume);
+        data->volume_amount = new_volume;
         if (client->is_master_volume())
             update_taskbar_volume_icon();
     }
@@ -461,6 +482,7 @@ void fill_root(AppClient *client, Container *root) {
         volume_bar->wanted_bounds.h = FILL_SPACE;
         volume_bar->wanted_bounds.w = FILL_SPACE;
         volume_bar->when_paint = paint_option;
+        volume_bar->z_index = 1;
         volume_bar->when_drag_start = drag_force;
         volume_bar->when_drag = drag_whenever;
         volume_bar->when_drag_end = drag_force;
@@ -657,34 +679,31 @@ void open_volume_menu() {
         popup_settings.name = "volume";
         popup_settings.ignore_scroll = true;
         client_entity = taskbar->create_popup(popup_settings, settings);
-        
+    
         Container *root = client_entity->root;
         ScrollPaneSettings s(config->dpi);
-        s.right_width = 12 * config->dpi;
-        s.right_arrow_height = 12 * config->dpi;
-        Container *scrollpane = make_scrollpane(root, s);
-        scrollpane->when_scrolled = nullptr;
-        Container *content = scrollpane->child(::vbox, FILL_SPACE, FILL_SPACE);
-        
-        Container *right_thumb_container = scrollpane->parent->children[0]->children[1];
+        ScrollContainer *scrollpane = make_newscrollpane_as_child(root, s);
+        scrollpane->when_fine_scrolled = nullptr;
+        Container *content = scrollpane->content;
+    
+        Container *right_thumb_container = scrollpane->right->children[1];
         right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
         right_thumb_container->when_paint = paint_right_thumb;
-        
-        Container *top_arrow = scrollpane->parent->children[0]->children[0];
+    
+        Container *top_arrow = scrollpane->right->children[0];
         top_arrow->when_paint = paint_arrow;
         auto *top_data = new ButtonData;
         top_data->text = "\uE971";
         top_arrow->user_data = top_data;
-        Container *bottom_arrow = scrollpane->parent->children[0]->children[2];
+        Container *bottom_arrow = scrollpane->right->children[2];
         bottom_arrow->when_paint = paint_arrow;
         auto *bottom_data = new ButtonData;
         bottom_data->text = "\uE972";
         bottom_arrow->user_data = bottom_data;
     
+        scrollpane->when_paint = paint_root;
         fill_root(client_entity, content);
-        if (audio_backend_data->audio_backend != Audio_Backend::NONE) {
-            content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
-        } else {
+        if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
             content->wanted_bounds.h = 80;
         }
     

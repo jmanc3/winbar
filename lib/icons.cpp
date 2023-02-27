@@ -717,15 +717,18 @@ void pick_best(std::vector<IconTarget> &targets, int target_size) {
     std::vector<int> strict_sizes;
     c3ic_generate_sizes(target_size, strict_sizes);
     for (int ss = 0; ss < targets.size(); ss++) {
-        if (!targets[ss].name.empty() && targets[ss].name[0] == '/') {
+        IconTarget *target = &targets[ss];
+        if (!target->name.empty() && target->name[0] == '/') {
             // If the target is just a full path, then just return the full path
-            targets[ss].best_full_path = targets[ss].name;
+            target->best_full_path = target->name;
         } else {
-            for (auto item: targets[ss].candidates)
-                item.is_part_of_current_theme = current_theme == item.theme;
+            for (int i = 0; i < target->candidates.size(); i++) {
+                Candidate *candidate = &target->candidates[i];
+                candidate->is_part_of_current_theme = current_theme == candidate->theme;
+            }
             // Sort vector based on quality and size, and current theme
             // Set best_full_path equal to best top option
-            std::sort(targets[ss].candidates.begin(), targets[ss].candidates.end(),
+            std::sort(target->candidates.begin(), target->candidates.end(),
                       [current_theme](Candidate lhs, Candidate rhs) {
                           if (lhs.is_part_of_current_theme == rhs.is_part_of_current_theme) {
                               if (lhs.size_index == rhs.size_index) {
@@ -740,9 +743,9 @@ void pick_best(std::vector<IconTarget> &targets, int target_size) {
                           }
                           return lhs.is_part_of_current_theme > rhs.is_part_of_current_theme;
                       });
-    
-            if (!targets[ss].candidates.empty())
-                targets[ss].best_full_path = targets[ss].candidates[0].full_path();
+        
+            if (!target->candidates.empty())
+                target->best_full_path = target->candidates[0].full_path();
         }
     }
 }

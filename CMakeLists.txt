@@ -70,6 +70,8 @@ set(
         xcb-randr # to gain brightness control
         xcb-aux # to force the Xorg server to really finish with all the events before xcb_sync_aux called
         xcb-record # to open the app_menu when the windows key is pressed
+        xcb-xinput # to receive fine grained mouse events for scrolling
+        xcb-keysyms # to be able to translate key presses to actual text
         libpulse # to be able to modify audio volume and mute state
         xcb-ewmh # to make it easier to handle extended windows manager hints requests
         xcb-icccm # to make it easier to handle icccm request

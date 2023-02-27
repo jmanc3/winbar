@@ -35,7 +35,7 @@ void wifi_forget_network(ScanResult scanResult);
 
 void wifi_stop();
 
-std::string get_default_wifi_interface();
+std::string get_default_wifi_interface(AppClient *client);
 
 
 #endif //WINBAR_WIFI_BACKEND_H

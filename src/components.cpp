@@ -16,9 +16,9 @@
 #include <atomic>
 #include <pango/pangocairo.h>
 
-static int scroll_amount = 30;
-static double scroll_anim_time = 105;
-static double repeat_time = 25;
+static int scroll_amount = 120;
+static double scroll_anim_time = 120;
+static double repeat_time = scroll_anim_time * .9;
 static easingFunction easing_function = 0;
 
 static std::atomic<bool> dragging = false;
@@ -46,6 +46,50 @@ void scrollpane_scrolled(AppClient *client,
     container->scroll_h_visual = container->scroll_h_real;
     container->scroll_v_visual = container->scroll_v_real;
     ::layout(client, cr, container, container->real_bounds);
+}
+
+void fine_scrollpane_scrolled(AppClient *client,
+                              cairo_t *cr,
+                              Container *container,
+                              int scroll_x,
+                              int scroll_y,
+                              bool came_from_touchpad) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto cookie = xcb_xkb_get_state(client->app->connection, client->keyboard->device_id);
+    auto reply = xcb_xkb_get_state_reply(client->app->connection, cookie, nullptr);
+    
+    if (reply->mods & XKB_KEY_Shift_L || reply->mods & XKB_KEY_Control_L) {
+        container->scroll_h_real += scroll_x + scroll_y;
+    } else {
+        container->scroll_h_real += scroll_x;
+        container->scroll_v_real += scroll_y;
+    }
+    
+    if (container->type == newscroll && !came_from_touchpad) {
+        auto *scroll = (ScrollContainer *) container;
+        
+        long current_time = get_current_time_in_ms();
+        auto diff = current_time - scroll->previous_time_scrolled;
+        scroll->previous_time_scrolled = current_time;
+        if (diff > 140) {
+            diff = 140;
+        } else if (diff < 100) {
+            diff = 100;
+        }
+        
+        client_create_animation(client->app, client, &container->scroll_v_visual, 0, diff,
+                                getEasingFunction(EaseOutQuad),
+                                container->scroll_v_real, true);
+        client_create_animation(client->app, client, &container->scroll_h_visual, 0, diff,
+                                getEasingFunction(EaseOutQuad),
+                                container->scroll_h_real, true);
+    } else {
+        container->scroll_h_visual = container->scroll_h_real;
+        container->scroll_v_visual = container->scroll_v_real;
+        ::layout(client, cr, container, container->real_bounds);
+    }
 }
 
 static void
@@ -350,8 +394,8 @@ mouse_down_thread(App *app, AppClient *client, Timeout *, void *data) {
                                         easing_function,
                                         target->scroll_v_real,
                                         true);
-        
-            app_timeout_create(app, client, repeat_time * 3, mouse_down_thread, mouse_info);
+    
+            app_timeout_create(app, client, repeat_time, mouse_down_thread, mouse_info);
         } else {
             app_timeout_create(app, client, repeat_time, mouse_down_thread, mouse_info);
         }
@@ -400,7 +444,7 @@ mouse_down_arrow_up(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = new MouseDownInfo;
     data->container = container;
     data->vertical_change = scroll_amount;
-    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
+    app_timeout_create(client->app, client, scroll_anim_time * 1.56, mouse_down_thread, data);
 }
 
 static void
@@ -442,7 +486,7 @@ mouse_down_arrow_bottom(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = new MouseDownInfo;
     data->container = container;
     data->vertical_change = -scroll_amount;
-    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
+    app_timeout_create(client->app, client, scroll_anim_time * 1.56, mouse_down_thread, data);
 }
 
 static void
@@ -484,7 +528,7 @@ mouse_down_arrow_left(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = new MouseDownInfo;
     data->container = container;
     data->horizontal_change = scroll_amount;
-    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
+    app_timeout_create(client->app, client, scroll_anim_time * 1.56, mouse_down_thread, data);
 }
 
 static void
@@ -526,7 +570,7 @@ mouse_down_arrow_right(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = new MouseDownInfo;
     data->container = container;
     data->horizontal_change = -scroll_amount;
-    app_timeout_create(client->app, client, 400, mouse_down_thread, data);
+    app_timeout_create(client->app, client, scroll_anim_time * 1.56, mouse_down_thread, data);
 }
 
 static void
@@ -535,7 +579,7 @@ right_thumb_scrolled(AppClient *client, cairo_t *cr, Container *container, int s
     ZoneScoped;
 #endif
     if (auto *s = dynamic_cast<ScrollContainer *>(container)) {
-        scrollpane_scrolled(client, cr, container, 0, scroll_y);
+        fine_scrollpane_scrolled(client, cr, container, 0, scroll_y * 120, false);
     } else {
         Container *target = container->parent->children[2];
         scrollpane_scrolled(client, cr, target, 0, scroll_y);
@@ -548,10 +592,32 @@ bottom_thumb_scrolled(AppClient *client, cairo_t *cr, Container *container, int 
     ZoneScoped;
 #endif
     if (auto *s = dynamic_cast<ScrollContainer *>(container)) {
-        scrollpane_scrolled(client, cr, container, scroll_x, 0);
+        fine_scrollpane_scrolled(client, cr, container, scroll_x * 120, 0, false);
     } else {
         Container *target = container->parent->children[2];
         scrollpane_scrolled(client, cr, target, scroll_x, 0);
+    }
+}
+
+static void
+fine_right_thumb_scrolled(AppClient *client, cairo_t *cr, Container *container, int scroll_x, int scroll_y,
+                          bool came_from_touchpad) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (auto *s = dynamic_cast<ScrollContainer *>(container->parent)) {
+        fine_scrollpane_scrolled(client, cr, container->parent, scroll_x, scroll_y, came_from_touchpad);
+    }
+}
+
+static void
+fine_bottom_thumb_scrolled(AppClient *client, cairo_t *cr, Container *container, int scroll_x, int scroll_y,
+                           bool came_from_touchpad) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (auto *s = dynamic_cast<ScrollContainer *>(container->parent)) {
+        fine_scrollpane_scrolled(client, cr, container->parent, scroll_x, scroll_y, came_from_touchpad);
     }
 }
 
@@ -1012,7 +1078,8 @@ ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPane
     auto scrollpane = new ScrollContainer(settings);
     // setup as child of root
     scrollpane->parent = parent;
-    scrollpane->when_scrolled = scrollpane_scrolled;
+//    scrollpane->when_scrolled = scrollpane_scrolled;
+    scrollpane->when_fine_scrolled = fine_scrollpane_scrolled;
     scrollpane->receive_events_even_if_obstructed = true;
     if (settings.start_at_end) {
         scrollpane->scroll_v_real = -1000000;
@@ -1029,7 +1096,7 @@ ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPane
     scrollpane->right = right_vbox;
     right_vbox->parent = scrollpane;
     right_vbox->type = ::vbox;
-    right_vbox->when_scrolled = right_thumb_scrolled;
+    right_vbox->when_fine_scrolled = fine_right_thumb_scrolled;
     
     auto right_top_arrow = right_vbox->child(FILL_SPACE, settings.right_arrow_height);
     right_top_arrow->user_data = new ButtonData;
@@ -1060,7 +1127,7 @@ ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPane
     scrollpane->bottom = bottom_hbox;
     bottom_hbox->parent = scrollpane;
     bottom_hbox->type = ::hbox;
-    bottom_hbox->when_scrolled = bottom_thumb_scrolled;
+    bottom_hbox->when_fine_scrolled = fine_bottom_thumb_scrolled;
     auto bottom_left_arrow = bottom_hbox->child(settings.bottom_arrow_width, FILL_SPACE);
     bottom_left_arrow->user_data = new ButtonData;
     ((ButtonData *) bottom_left_arrow->user_data)->text = "\uE973";
@@ -2637,18 +2704,18 @@ void transition_same_container(AppClient *client, cairo_t *cr, Container *parent
                             getEasingFunction(::EaseOutQuint), 1, false);
 }
 
-int get_offset(Container *target, Container *scroll_pane) {
-    int offset = 0;
+int get_offset(Container *target, ScrollContainer *scroll_pane) {
+    int offset = scroll_pane->content->wanted_pad.h;
     
-    for (int i = 0; i < scroll_pane->children[0]->children.size(); i++) {
-        auto possible = scroll_pane->children[0]->children[i];
-    
+    for (int i = 0; i < scroll_pane->content->children.size(); i++) {
+        auto possible = scroll_pane->content->children[i];
+        
         if (possible == target) {
             return offset;
         }
-    
+        
         offset += possible->real_bounds.h;
-        offset += scroll_pane->children[0]->spacing;
+        offset += scroll_pane->content->spacing;
     }
     
     return offset;

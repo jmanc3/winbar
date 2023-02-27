@@ -27,12 +27,12 @@ DBusConnection *dbus_connection_session = nullptr;
 DBusConnection *dbus_connection_system = nullptr;
 
 std::vector<std::string> running_dbus_services;
+std::vector<std::string> status_notifier_items;
 std::vector<BluetoothInterface *> bluetooth_interfaces;
 
 bool registered_object_path = false;
 bool registered_bluetooth_agent = false;
 bool registered_with_bluez = false;
-
 
 /*************************************************
  *
@@ -45,6 +45,12 @@ bool registered_with_bluez = false;
 static double max_kde_brightness = 0;
 static bool gnome_brightness_running = false;
 
+void StatusNotifierItemRegistered(const std::string &service);
+
+void StatusNotifierItemUnregistered(const std::string &service);
+
+void StatusNotifierHostRegistered();
+
 void remove_service(const std::string &service) {
     for (int i = 0; i < running_dbus_services.size(); i++) {
         if (running_dbus_services[i] == service) {
@@ -56,6 +62,16 @@ void remove_service(const std::string &service) {
                 bluetooth_service_ended();
             if (running_dbus_services[i] == "org.freedesktop.UPower")
                 upower_service_ended();
+            
+            for (int x = 0; x < status_notifier_items.size(); x++) {
+                const std::string &sni = status_notifier_items[x];
+                if (sni == service) {
+                    StatusNotifierItemUnregistered(service);
+                    
+                    status_notifier_items.erase(status_notifier_items.begin() + x);
+                }
+            }
+            
             running_dbus_services.erase(running_dbus_services.begin() + i);
             return;
         }
@@ -63,6 +79,8 @@ void remove_service(const std::string &service) {
 }
 
 DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *message, void *userdata);
+
+void create_status_notifier_watcher();
 
 static bool dbus_kde_max_brightness();
 
@@ -903,16 +921,44 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
                     dbus_message_iter_next(&dict);
                 }
                 if (hint_name) {
-//                    printf("hint_name: %s, type: %d %c\n", hint_name, dbus_message_iter_get_arg_type(&dict),
-//                           dbus_message_iter_get_arg_type(&dict));
-    
                     if (dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_VARIANT) {
                         DBusMessageIter var;
                         dbus_message_iter_recurse(&dict, &var);
+//                        printf("hint_name: %s, type: %d, %c\n", hint_name, dbus_message_iter_get_arg_type(&var), dbus_message_iter_get_arg_type(&var));
                         if (dbus_message_iter_get_arg_type(&var) == DBUS_TYPE_STRING) {
                             const char *hint_value = nullptr;
                             dbus_message_iter_get_basic(&var, &hint_value);
-//                            printf("hint_value: %s\n", hint_value);
+        
+                            if (strcmp("x-kde-appname", hint_name) == 0) {
+                                notification_info->x_kde_appname = hint_value;
+                            } else if (strcmp("x-kde-origin-name", hint_name) == 0) {
+                                notification_info->x_kde_origin_name = hint_value;
+                            } else if (strcmp("x-kde-display-appname", hint_name) == 0) {
+                                notification_info->x_kde_display_appname = hint_value;
+                            } else if (strcmp("desktop-entry", hint_name) == 0) {
+                                notification_info->desktop_entry = hint_value;
+                            } else if (strcmp("x-kde-eventId", hint_name) == 0) {
+                                notification_info->x_kde_eventId = hint_value;
+                            } else if (strcmp("x-kde-reply-placeholder-text", hint_name) == 0) {
+                                notification_info->x_kde_reply_placeholder_text = hint_value;
+                            } else if (strcmp("x-kde-reply-submit-button-text", hint_name) == 0) {
+                                notification_info->x_kde_reply_submit_button_text = hint_value;
+                            } else if (strcmp("x-kde-reply-submit-button-icon-name", hint_name) == 0) {
+                                notification_info->x_kde_reply_submit_button_icon_name = hint_value;
+                            }
+                        } else if (strcmp("x-kde-urls", hint_name) == 0) {
+                            if (dbus_message_iter_get_arg_type(&var) == DBUS_TYPE_ARRAY) {
+                                DBusMessageIter arrs;
+                                dbus_message_iter_recurse(&var, &arrs);
+            
+                                while (dbus_message_iter_get_arg_type(&arrs) == DBUS_TYPE_STRING) {
+                                    const char *url = nullptr;
+                                    dbus_message_iter_get_basic(&arrs, &url);
+                                    dbus_message_iter_next(&arrs);
+                
+                                    notification_info->x_kde_urls.emplace_back(url);
+                                }
+                            }
                         }
                     }
                 }
@@ -1080,13 +1126,15 @@ void dbus_start(DBusBusType dbusType) {
             //
             int result = dbus_bus_request_name(dbus_connection, "org.freedesktop.Notifications",
                                                DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
-            
+    
             if (dbus_error_is_set(&error)) {
                 fprintf(stderr, "Ran into error when trying to become the sessions notification manager (%s)\n",
                         error.message);
                 dbus_error_free(&error);
                 return;
             }
+    
+            create_status_notifier_watcher();
         }
         
         dbus_poll_wakeup(nullptr, 0, dbus_connection);
@@ -1553,7 +1601,6 @@ void register_agent_if_needed() {
                                                              "RegisterAgent");
         defer(dbus_message_unref(dbus_msg));
         
-        // TODO: we might want to make it KeyboardDisplay later
         const char *capability = "KeyboardDisplay";
         dbus_message_append_args(dbus_msg, DBUS_TYPE_OBJECT_PATH, &agent_path, DBUS_TYPE_STRING, &capability,
                                  DBUS_TYPE_INVALID);
@@ -2273,4 +2320,236 @@ void upower_service_started() {
                        "type='signal',interface='org.freedesktop.UPower',member='DeviceRemoved'",
                        NULL);
     dbus_connection_add_filter(dbus_connection_system, upower_device_signal_filter, NULL, NULL);
+}
+
+
+/*************************************************
+ *
+ * Talking with org.kde.StatusNotifierItem since org.freedesktop.StatusNotifierItem is not ACTUALLY USED by anyone
+ *
+ *************************************************/
+
+static const char *status_notifier_watcher_xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<node name=\"/StatusNotifierWatcher\">\n"
+        "<interface name=\"org.kde.StatusNotifierWatcher\">\n"
+        "\n"
+        "    <!-- methods -->\n"
+        "    <method name=\"RegisterStatusNotifierItem\">\n"
+        "        <arg name=\"service\" type=\"s\" direction=\"in\"/>\n"
+        "    </method>\n"
+        "\n"
+        "    <method name=\"RegisterStatusNotifierHost\">\n"
+        "        <arg name=\"service\" type=\"s\" direction=\"in\"/>\n"
+        "    </method>\n"
+        "\n"
+        "\n"
+        "    <!-- properties -->\n"
+        "\n"
+        "    <property name=\"RegisteredStatusNotifierItems\" type=\"as\" access=\"read\">\n"
+        "        <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QStringList\"/>\n"
+        "    </property>\n"
+        "\n"
+        "    <property name=\"IsStatusNotifierHostRegistered\" type=\"b\" access=\"read\"/>\n"
+        "\n"
+        "    <property name=\"ProtocolVersion\" type=\"i\" access=\"read\"/>\n"
+        "\n"
+        "\n"
+        "    <!-- signals -->\n"
+        "\n"
+        "    <signal name=\"StatusNotifierItemRegistered\">\n"
+        "        <arg type=\"s\"/>\n"
+        "    </signal>\n"
+        "\n"
+        "    <signal name=\"StatusNotifierItemUnregistered\">\n"
+        "        <arg type=\"s\"/>\n"
+        "    </signal>\n"
+        "\n"
+        "    <signal name=\"StatusNotifierHostRegistered\">\n"
+        "    </signal>\n"
+        "\n"
+        "    <signal name=\"StatusNotifierHostUnregistered\">\n"
+        "    </signal>\n"
+        "</interface>\n"
+        "</node>";
+
+DBusHandlerResult sni_message(DBusConnection *conn, DBusMessage *message, void *user_data) {
+    printf("SNI message: %s, %s, %s\n", dbus_message_get_interface(message), dbus_message_get_member(message),
+           dbus_message_get_path(message));
+    if (dbus_message_is_method_call(message, "org.freedesktop.DBus.Introspectable", "Introspect")) {
+        DBusMessage *reply = dbus_message_new_method_return(message);
+        defer(dbus_message_unref(reply));
+        
+        dbus_message_append_args(reply, DBUS_TYPE_STRING, &status_notifier_watcher_xml, DBUS_TYPE_INVALID);
+        dbus_connection_send(conn, reply, NULL);
+        
+        return DBUS_HANDLER_RESULT_HANDLED;
+    } else if (dbus_message_is_method_call(message, "org.freedesktop.DBus.Properties", "Get")) {
+        const char *interface_name_char;
+        const char *property_name_char;
+        dbus_message_get_args(message, NULL, DBUS_TYPE_STRING, &interface_name_char, DBUS_TYPE_STRING,
+                              &property_name_char, DBUS_TYPE_INVALID);
+        std::string property_name = property_name_char;
+        printf("Property: %s\n", property_name.c_str());
+        
+        if (property_name == "ProtocolVersion" || property_name == "IsStatusNotifierHostRegistered" ||
+            property_name == "RegisteredStatusNotifierItems") {
+            if (property_name == "ProtocolVersion") {
+                DBusMessage *reply = dbus_message_new_method_return(message);
+                defer(dbus_message_unref(reply));
+                
+                dbus_int32_t version = 42;
+                
+                dbus_message_append_args(reply, DBUS_TYPE_UINT32, &version, DBUS_TYPE_INVALID);
+                dbus_connection_send(conn, reply, NULL);
+            } else if (property_name == "IsStatusNotifierHostRegistered") {
+                // Since Winbar is a StatusNotifierHost, this is always true if we are running
+                // reply boolean true
+                DBusMessage *reply = dbus_message_new_method_return(message);
+                defer(dbus_message_unref(reply));
+                
+                dbus_bool_t is_registered = true;
+                dbus_message_append_args(reply, DBUS_TYPE_BOOLEAN, &is_registered, DBUS_TYPE_INVALID);
+                dbus_connection_send(conn, reply, NULL);
+            } else if (property_name == "RegisteredStatusNotifierItems") {
+                // reply with array of strings
+                DBusMessage *reply = dbus_message_new_method_return(message);
+                
+                DBusMessageIter iter;
+                dbus_message_iter_init_append(reply, &iter);
+                
+                DBusMessageIter array_iter;
+                dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "s", &array_iter);
+                
+                for (auto &item: status_notifier_items) {
+                    dbus_message_iter_append_basic(&array_iter, DBUS_TYPE_STRING, &item);
+                }
+                
+                dbus_message_iter_close_container(&iter, &array_iter);
+                
+                dbus_connection_send(conn, reply, NULL);
+                dbus_message_unref(reply);
+            }
+            
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
+    } else if (dbus_message_is_method_call(message, "org.kde.StatusNotifierWatcher", "RegisterStatusNotifierItem")) {
+        const char *service_name;
+        dbus_message_get_args(message, NULL, DBUS_TYPE_STRING, &service_name, DBUS_TYPE_INVALID);
+        
+        std::string fixed_name(service_name);
+        
+        if (fixed_name[0] == '/') {
+            // Get the name of the service or the bus address of the remote method call.
+            const char *sender = dbus_message_get_sender(message);
+            if (sender) {
+                fixed_name = sender;
+            }
+        }
+        
+        // TODO: we need the below code to know how to call the services
+//        if (serviceOrPath.startsWith('/')) {
+//            service = message().service();
+//            path = serviceOrPath;
+//        } else {
+//            service = serviceOrPath;
+//            path = "/StatusNotifierItem";
+//        }
+        
+        status_notifier_items.emplace_back(fixed_name);
+        StatusNotifierItemRegistered(fixed_name);
+        
+        DBusMessage *reply = dbus_message_new_method_return(message);
+        defer(dbus_message_unref(reply));
+        
+        dbus_connection_send(conn, reply, NULL);
+        
+        return DBUS_HANDLER_RESULT_HANDLED;
+    } else if (dbus_message_is_method_call(message, "org.kde.StatusNotifierWatcher", "RegisterStatusNotifierHost")) {
+        // We don't care about watching other StatusNotifierHost's come online since Winbar is one.
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+}
+
+void create_status_notifier_watcher() {
+    static const DBusObjectPathVTable notifier_watcher_vtable = {
+            .message_function = &sni_message,
+    };
+    
+    std::string status_notifier_watcher_service = std::string("/StatusNotifierWatcher");
+    
+    if (!dbus_connection_register_object_path(dbus_connection_session, status_notifier_watcher_service.c_str(),
+                                              &notifier_watcher_vtable,
+                                              nullptr)) {
+        fprintf(stdout, "%s\n",
+                "Error registering object path /StatusNotifierWatcher on NameAcquired signal");
+        return;
+    }
+    
+    DBusError error;
+    dbus_error_init(&error);
+    int result = dbus_bus_request_name(dbus_connection_session, "org.kde.StatusNotifierWatcher",
+                                       DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
+    
+    if (dbus_error_is_set(&error)) {
+        fprintf(stderr, "Ran into error when trying to become \"org.kde.StatusNotifierWatcher\" (%s)\n",
+                error.message);
+        dbus_error_free(&error);
+        return;
+    }
+    
+    if (result != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) {
+        fprintf(stderr, "Failed to become StatusNotifierWatcher\n");
+        return;
+    }
+    
+    StatusNotifierHostRegistered();
+}
+
+void StatusNotifierItemRegistered(const std::string &service) {
+    if (!dbus_connection_session)
+        return;
+    
+    printf("Registering SNI: %s\n", service.c_str());
+    
+    DBusMessage *dmsg = dbus_message_new_signal("/StatusNotifierWatcher",
+                                                "org.kde.StatusNotifierWatcher",
+                                                "StatusNotifierItemRegistered");
+    defer(dbus_message_unref(dmsg));
+    dbus_message_set_destination(dmsg, NULL);
+    dbus_message_append_args(dmsg, DBUS_TYPE_STRING, &service, DBUS_TYPE_INVALID);
+    dbus_connection_send(dbus_connection_session, dmsg, NULL);
+    dbus_connection_flush(dbus_connection_session);
+}
+
+void StatusNotifierItemUnregistered(const std::string &service) {
+    if (!dbus_connection_session)
+        return;
+    
+    printf("Unregistering SNI: %s\n", service.c_str());
+    
+    DBusMessage *dmsg = dbus_message_new_signal("/StatusNotifierWatcher",
+                                                "org.kde.StatusNotifierWatcher",
+                                                "StatusNotifierItemUnregistered");
+    defer(dbus_message_unref(dmsg));
+    dbus_message_set_destination(dmsg, NULL);
+    dbus_message_append_args(dmsg, DBUS_TYPE_STRING, &service, DBUS_TYPE_INVALID);
+    dbus_connection_send(dbus_connection_session, dmsg, NULL);
+    dbus_connection_flush(dbus_connection_session);
+}
+
+void StatusNotifierHostRegistered() {
+    if (!dbus_connection_session)
+        return;
+    
+    DBusMessage *dmsg = dbus_message_new_signal("/StatusNotifierWatcher",
+                                                "org.kde.StatusNotifierWatcher",
+                                                "StatusNotifierHostRegistered");
+    defer(dbus_message_unref(dmsg));
+    
+    dbus_message_set_destination(dmsg, NULL);
+    dbus_connection_send(dbus_connection_session, dmsg, NULL);
+    dbus_connection_flush(dbus_connection_session);
 }

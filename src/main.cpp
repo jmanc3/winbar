@@ -6,7 +6,6 @@
 #include "app_menu.h"
 #include "application.h"
 #include "audio.h"
-#include "bind_meta.h"
 #include "root.h"
 #include "systray.h"
 #include "taskbar.h"
@@ -41,7 +40,7 @@ int main() {
     config_load();
     
     // Set DPI if auto
-    double total_time_waiting_for_primary_screen = 6500;
+    double total_time_waiting_for_primary_screen = 4000;
     int reattempt_time = 200;
     int amount_of_times = total_time_waiting_for_primary_screen / reattempt_time;
     
@@ -96,8 +95,6 @@ int main() {
     
     client_show(app, taskbar);
     xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, taskbar->window, XCB_CURRENT_TIME);
-    
-    on_meta_key_pressed = meta_pressed;
     
     static int first = 0;
     if (first++ == 0) {

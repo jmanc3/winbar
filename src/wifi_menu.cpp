@@ -242,18 +242,18 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
 void scan_results(std::vector<ScanResult> &results) {
     if (auto client = client_by_name(app, "wifi_menu")) {
         auto root = client->root;
-        
+    
         for (auto c: root->children)
             delete c;
         root->children.clear();
-        
+    
         ScrollPaneSettings settings(config->dpi);
-        Container *scrollpane = make_scrollpane(root, settings);
-        Container *content = scrollpane->child(::vbox, FILL_SPACE, FILL_SPACE);
+        ScrollContainer *scrollpane = make_newscrollpane_as_child(root, settings);
+        Container *content = scrollpane->content;
         content->name = "content";
         content->wanted_pad.y = 12;
         content->wanted_pad.h = 12;
-        
+    
         for (const auto &r: results) {
             auto c = content->child(FILL_SPACE, WIFI_OPTION_HEIGHT);
             c->name = r.network_name;
@@ -263,13 +263,11 @@ void scan_results(std::vector<ScanResult> &results) {
             wifi_option_data->info = r;
             c->user_data = wifi_option_data;
         }
-        
-        if (!results.empty()) {
-            content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
-        } else {
+    
+        if (results.empty()) {
             content->wanted_bounds.h = 80;
         }
-        
+    
         client_layout(app, client);
         client_paint(app, client);
     }
@@ -288,7 +286,7 @@ void uncached_scan_results(std::vector<ScanResult> &results) {
     }
 }
 
-void wifi_state(bool *up, bool *wired) {
+void wifi_state(AppClient *client, bool *up, bool *wired) {
     // throttle the state check to once every 5 seconds
     static std::chrono::time_point<std::chrono::system_clock> last_check;
     static bool last_up = false;
@@ -299,7 +297,8 @@ void wifi_state(bool *up, bool *wired) {
         return;
     }
     std::string status = "down";
-    std::ifstream status_file("/sys/class/net/" + get_default_wifi_interface() + "/operstate");
+    const std::string &default_interface = get_default_wifi_interface(client);
+    std::ifstream status_file("/sys/class/net/" + default_interface + "/operstate");
     if (status_file.is_open()) {
         std::string line;
         if (getline(status_file, line)) {
@@ -311,7 +310,7 @@ void wifi_state(bool *up, bool *wired) {
     *up = status == "up";
     
     // Wireless interfaces are prefixed with wlp
-    *wired = std::string::npos == get_default_wifi_interface().find("wlp");
+    *wired = std::string::npos == default_interface.find("wlp");
     
     last_up = *up;
     last_wired = *wired;

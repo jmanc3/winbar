@@ -125,6 +125,8 @@ struct App {
     
     xcb_connection_t *connection = nullptr;
     
+    xcb_key_symbols_t *key_symbols = nullptr;
+    
     xcb_visualtype_t *argb_visualtype = nullptr;
     
     xcb_visualtype_t *root_visualtype = nullptr;
@@ -132,8 +134,8 @@ struct App {
     int screen_number = 0;
     
     xcb_screen_t *screen = nullptr;
-    
-    int epoll_fd = -1;
+
+//    int epoll_fd = -1;
     std::vector<PolledDescriptor> descriptors_being_polled;
     
     std::vector<Timeout *> timeouts;
