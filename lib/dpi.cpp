@@ -82,7 +82,7 @@ check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(App *app,
     }
 }
 
-static bool listen_to_randr_and_client_configured_events(App *app, xcb_generic_event_t *event) {
+static bool listen_to_randr_and_client_configured_events(App *app, xcb_generic_event_t *event, xcb_window_t) {
     if (event->response_type == randr_query->first_event + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
         update_information_of_all_screens(app);
         for (auto c: app->clients) {

@@ -52,7 +52,7 @@ void update_active_window() {
 }
 
 static bool
-root_event_handler(App *app, xcb_generic_event_t *event) {
+root_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t) {
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
         case XCB_PROPERTY_NOTIFY: {
             auto *e = (xcb_property_notify_event_t *) event;

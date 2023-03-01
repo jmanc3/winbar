@@ -2446,7 +2446,7 @@ void remove_window(App *app, xcb_window_t window);
 void add_window(App *app, xcb_window_t window);
 
 static bool
-window_event_handler(App *app, xcb_generic_event_t *event) {
+window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t) {
     // This will listen to configure notify events and check if it's about a
     // window we need a thumbnail of and update its size if so.
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {

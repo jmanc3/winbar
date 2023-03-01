@@ -454,7 +454,7 @@ static void deliver_fine_scroll_event(App *app, int horizontal, int vertical, bo
     }
 }
 
-static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event) {
+static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xcb_window_t) {
     if (!app->key_symbols)
         app->key_symbols = xcb_key_symbols_alloc(app->connection);
     
@@ -1021,7 +1021,7 @@ bool valid_client(App *app, AppClient *target_client) {
 
 void client_add_handler(App *app,
                         AppClient *client_entity,
-                        bool (*event_handler)(App *app, xcb_generic_event_t *)) {
+                        bool (*event_handler)(App *app, xcb_generic_event_t *, xcb_window_t)) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1500,9 +1500,9 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
         if (c->state.mouse_pressing || c->state.mouse_dragging) {
             if (c->state.mouse_dragging) {
                 // handle when_drag
-//                if (c->when_drag) {
-//                    c->when_drag(client, client->cr, c);
-//                }
+                if (c->when_drag) {
+                    c->when_drag(client, client->cr, c);
+                }
             } else if (c->state.mouse_pressing) {
                 auto move_distance = abs(client->mouse_initial_x - client->mouse_current_x);
                 if (move_distance >= c->minimum_x_distance_to_move_before_drag_begins) {
@@ -2151,14 +2151,14 @@ void handle_xcb_event(App *app) {
             for (auto handler: app->handlers) {
                 // If the handler's target window is INT_MAX that means it wants to see every event
                 if (handler->target_window == INT_MAX) {
-                    if (handler->event_handler(app, event)) {
+                    if (handler->event_handler(app, event, handler->target_window)) {
                         // TODO: is this supposed to be called twice? I doubt it
 //                        handler->event_handler(app, event);
                         event_consumed_by_custom_handler = true;
                     }
                 } else if (handler->target_window ==
                            window) { // If the target window and the window of this event matches, then send the handler the
-                    if (handler->event_handler(app, event)) {
+                    if (handler->event_handler(app, event, handler->target_window)) {
                         event_consumed_by_custom_handler = true;
                     }
                 }
@@ -2181,8 +2181,8 @@ void handle_xcb_event(App *app) {
             for (auto handler: app->handlers) {
                 // If the handler's target window is INT_MAX that means it wants to see every event
                 if (handler->target_window == INT_MAX) {
-                    if (handler->event_handler(app, event)) {
-                    
+                    if (handler->event_handler(app, event, handler->target_window)) {
+        
                     }
                 }
             }
@@ -2493,7 +2493,8 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
 }
 
 void app_create_custom_event_handler(App *app, xcb_window_t window,
-                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event)) {
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event,
+                                                            xcb_window_t target_window)) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -2504,7 +2505,8 @@ void app_create_custom_event_handler(App *app, xcb_window_t window,
 }
 
 void app_remove_custom_event_handler(App *app, xcb_window_t window,
-                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event)) {
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event,
+                                                            xcb_window_t target_window)) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif

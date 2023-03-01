@@ -158,7 +158,7 @@ struct Handler {
     xcb_window_t target_window = 0;
     
     // returning false from this callback means don't consume the event
-    bool (*event_handler)(App *app, xcb_generic_event_t *) = nullptr;
+    bool (*event_handler)(App *app, xcb_generic_event_t *, xcb_window_t target_window) = nullptr;
 };
 
 void init_client(AppClient *client);
@@ -251,10 +251,12 @@ bool app_timeout_stop(App *app,
                       Timeout *timeout);
 
 void app_create_custom_event_handler(App *app, xcb_window_t window,
-                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event));
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event,
+                                                            xcb_window_t target_window));
 
 void app_remove_custom_event_handler(App *app, xcb_window_t window,
-                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event));
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event,
+                                                            xcb_window_t target_window));
 
 bool client_set_position(App *app, AppClient *client, int x, int y);
 
