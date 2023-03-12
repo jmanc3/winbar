@@ -17,11 +17,11 @@ cd build
 cmake -DCMAKE_BUILD_TYPE=Release ../
 
 #actually compile
-make
+make -j 12
 
 # install
 if [[ -f /usr/bin/dpkg ]]; then                 # debian based distro
   checkinstall --default --install=yes
 else
-  make -j 4 install
+  make -j 12 install
 fi

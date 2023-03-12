@@ -31,6 +31,7 @@
 #include "defer.h"
 #include "bluetooth_menu.h"
 #include "plugins_menu.h"
+#include "chatgpt.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -43,6 +44,8 @@
 #include <dpi.h>
 #include <sys/inotify.h>
 #include <functional>
+
+#define WIN7 false
 
 static Container *active_container = nullptr;
 static xcb_window_t active_window = 0;
@@ -85,6 +88,13 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
     set_argb(cr, correct_opaqueness(client, config->color_taskbar_background));
     cairo_fill(cr);
+    
+    if (WIN7) {
+        set_rect(cr, Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
+                            1 * std::floor(config->dpi)));
+        set_argb(cr, correct_opaqueness(client, config->color_taskbar_search_bar_default_border));
+        cairo_fill(cr);
+    }
 }
 
 static void
@@ -262,6 +272,30 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+paint_chatgpt(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *data = (IconButton *) container->user_data;
+    paint_hoverable_button_background(client, cr, container);
+    
+    if (data->surface) {
+        double w = cairo_image_surface_get_width(data->surface);
+        double h = cairo_image_surface_get_height(data->surface);
+        cairo_set_source_surface(cr, data->surface,
+                                 container->real_bounds.x + container->real_bounds.w / 2 - w / 2,
+                                 container->real_bounds.y + container->real_bounds.h / 2 - h / 2);
+        cairo_paint(cr);
+    }
+}
+
+
+static void
+clicked_chatgpt(AppClient *client, cairo_t *cr, Container *container) {
+    start_chatgpt_menu();
+}
+
+static void
 paint_double_bar(cairo_t *cr, Container *container, ArgbColor bar_l_c, ArgbColor bar_m_c, ArgbColor bar_r_c,
                  int windows_count) {
 #ifdef TRACY_ENABLE
@@ -386,9 +420,6 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
-#define WIN7 true
-
-
 static void
 rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height) {
     double radius = corner_radius;
@@ -402,50 +433,204 @@ rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width
     cairo_close_path(cr);
 }
 
+
+static void animate_color_change(App *app, AppClient *client, ArgbColor *current_color, ArgbColor target_color) {
+    if (current_color->a == 0) {
+        // If the target_color is going to be lerping from invisible, then we should just immediately set chroma and just let the opacity animate
+        current_color->r = target_color.r;
+        current_color->g = target_color.g;
+        current_color->b = target_color.b;
+    } else if (target_color.a != 0) { // If the target color is invisible, then we shouldn't change our rgb values
+        client_create_animation(app, client, &current_color->r, 0, 16.67 * 5.8, nullptr, target_color.r);
+        client_create_animation(app, client, &current_color->g, 0, 16.67 * 5.8, nullptr, target_color.g);
+        client_create_animation(app, client, &current_color->b, 0, 16.67 * 5.8, nullptr, target_color.b);
+    }
+    client_create_animation(app, client, &current_color->a, 0, 16.67 * 5.8, nullptr, target_color.a);
+}
+
+static void paint_pinnned_icon_border(cairo_t *cr, Bounds bounds, double radius, double width, ArgbColor color) {
+    cairo_push_group(cr);
+    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    rounded_rect(cr, radius, bounds.x, bounds.y, bounds.w, bounds.h);
+    cairo_fill(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
+    bounds.shrink(width);
+    set_argb(cr, ArgbColor(0, 0, 0, 0));
+    rounded_rect(cr, radius, bounds.x, bounds.y, bounds.w, bounds.h);
+    cairo_fill(cr);
+    bounds.grow(width);
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+    cairo_set_antialias(cr, CAIRO_ANTIALIAS_DEFAULT);
+    cairo_pattern_t *outline_mask = cairo_pop_group(cr);
+    defer(cairo_pattern_destroy(outline_mask));
+    
+    cairo_push_group(cr);
+    set_argb(cr, color);
+    rounded_rect(cr, radius, bounds.x, bounds.y, bounds.w, bounds.h);
+    cairo_fill(cr);
+    cairo_pattern_t *outline_no_gradient = cairo_pop_group(cr);
+    defer(cairo_pattern_destroy(outline_no_gradient));
+    cairo_set_source(cr, outline_no_gradient);
+    cairo_mask(cr, outline_mask);
+}
+
+static void paint_pinnned_icon_gradient(cairo_t *cr, Bounds bounds, double radius, double width, ArgbColor color) {
+    cairo_push_group(cr);
+    set_argb(cr, ArgbColor(1, 1, 1, 1));
+    rounded_rect(cr, radius, bounds.x, bounds.y, bounds.w, bounds.h);
+    cairo_fill(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
+    bounds.shrink(width);
+    set_argb(cr, ArgbColor(0, 0, 0, 0));
+    rounded_rect(cr, radius, bounds.x, bounds.y, bounds.w, bounds.h);
+    cairo_fill(cr);
+    bounds.grow(width);
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+    cairo_set_antialias(cr, CAIRO_ANTIALIAS_DEFAULT);
+    cairo_pattern_t *outline_mask = cairo_pop_group(cr);
+    defer(cairo_pattern_destroy(outline_mask));
+    
+    cairo_push_group(cr);
+    {
+        cairo_push_group(cr);
+        set_argb(cr, color);
+        rounded_rect(cr, radius, bounds.x, bounds.y, bounds.w, bounds.h);
+        cairo_fill(cr);
+        cairo_pattern_t *outline_cast_pattern = cairo_pop_group(cr);
+        defer(cairo_pattern_destroy(outline_cast_pattern));
+        
+        // Paint the outline with the outline mask
+        cairo_set_source(cr, outline_cast_pattern);
+        cairo_mask(cr, outline_mask);
+    }
+    cairo_pattern_t *outline_pattern = cairo_pop_group(cr);
+    defer(cairo_pattern_destroy(outline_pattern));
+    
+    cairo_push_group(cr);
+    cairo_pattern_t *pat3 = cairo_pattern_create_linear(bounds.x, bounds.y, bounds.x,
+                                                        bounds.y + radius * 1.5);
+    defer(cairo_pattern_destroy(pat3));
+    cairo_pattern_add_color_stop_rgba(pat3, 0, 0, 0, 0, 1);
+    cairo_pattern_add_color_stop_rgba(pat3, 1, 0, 0, 0, 0);
+    cairo_rectangle(cr, bounds.x, bounds.y, bounds.w, bounds.h);
+    cairo_set_source(cr, pat3);
+    cairo_fill(cr);
+    cairo_pattern_t *mask_pattern = cairo_pop_group(cr);
+    defer(cairo_pattern_destroy(mask_pattern));
+    
+    cairo_set_source(cr, outline_pattern);
+    cairo_mask(cr, mask_pattern);
+}
+
+static void paint_pinnned_icon_pane(cairo_t *cr, Bounds bounds, double radius, double width, ArgbColor color) {
+    bounds.shrink(width);
+    
+    cairo_save(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
+    set_argb(cr, color);
+    rounded_rect(cr, radius, bounds.x, bounds.y, bounds.w, bounds.h);
+    cairo_fill(cr);
+    cairo_restore(cr);
+    
+    bounds.grow(width);
+}
+
 static void
 paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container) {
-    
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     auto *data = (LaunchableButton *) container->user_data;
-    // This is the real underlying color
-    // is_light_theme determines if generated secondary colors should go up or down in brightness
-    bool is_light_theme = false;
+    Bounds bounds = container->real_bounds;
+    
+    double corner_radius = 0;
+    double outline_width = 1 * std::floor(config->dpi);
+    
+    double p; // perceived brightness
     {
         double h; // hue
         double s; // saturation
-        double p; // perceived brightness
-        ArgbColor real = config->color_taskbar_application_icons_background;
+        ArgbColor real = config->color_taskbar_background;
         rgb2hsluv(real.r, real.g, real.b, &h, &s, &p);
-        is_light_theme = p > 50; // if the perceived perceived brightness is greater than that we are a light theme
     }
     
     int windows_count = data->windows_data_list.size();
-    bool active = active_container == container || (data->type == selector_type::OPEN_CLICKED);
+    bool active = active_container == container;
     bool pressed = container->state.mouse_pressing;
     bool hovered = container->state.mouse_hovering || (data->type != selector_type::CLOSED);
+    
     bool dragging = container->state.mouse_dragging;
-    double active_amount = data->active_amount;
-    if (data->type == selector_type::OPEN_CLICKED) active_amount = 1;
-    
-    int highlight_height = 2;
-    
-    double bar_amount = std::max(data->hover_amount, active_amount);
-    if (data->type != selector_type::CLOSED)
-        bar_amount = 1;
-    if (data->wants_attention_amount != 0)
-        bar_amount = 1;
-    double highlight_inset = 4 * (1 - bar_amount);
-    
-    double bg_openess = highlight_inset;
-    double right_size = 0;
-    
-    ArgbColor original_color_taskbar_application_icons_background = config->color_taskbar_application_icons_background;
-    // The pinned icon is composed of three sections;
-    // The background pane, the foreground pane, and the accent bar.
-    //
     ArgbColor accent = config->color_taskbar_application_icons_accent;
-    ArgbColor background = config->color_taskbar_application_icons_background;
+    ArgbColor accent_dark = p < 50 ? ArgbColor(.604, .604, .604, 1) : ArgbColor(.524, .524, .524, 1);
+    ArgbColor background = ArgbColor(1, 1, 1, 0);
     
-    if (data->wants_attention_amount != 0) {
+    ArgbColor border_color = background;
+    ArgbColor gradient_color = background;
+    ArgbColor pane_color = background;
+    
+    int current_color_option = 1;
+    
+    // Maximum boost should be times 5 since the maximum alpha value is .2
+    double boost = 4 * (p / 100);
+    
+    if (active) {
+        if (pressed) {
+            if (!dragging) {
+                current_color_option = 6;
+                border_color.a = .08 + (.08 * boost);
+                gradient_color.a = .08 + (.08 * boost);
+                pane_color.a = .08 + (.08 * boost);
+            }
+        } else if (hovered) {
+            current_color_option = 5;
+            border_color.a = .13 + (.13 * boost);
+            gradient_color.a = .2 + (.2 * boost);
+            pane_color.a = .15 + (.15 * boost);
+        } else {
+            current_color_option = 4;
+            border_color.a = .13 + (.13 * boost);
+            gradient_color.a = .13 + (.13 * boost);
+            pane_color.a = .1 + (.1 * boost);
+        }
+    } else if (pressed) {
+        if (!dragging) {
+            current_color_option = 3;
+            border_color.a = .1 + (.1 * boost);
+            gradient_color.a = .1 + (.1 * boost);
+            pane_color.a = .1 + (.1 * boost);
+        }
+    } else if (hovered) {
+        current_color_option = 2;
+        border_color.a = .1 + (.1 * boost);
+        gradient_color.a = .14 + (.14 * boost);
+        pane_color.a = .1 + (.1 * boost);
+    }
+    
+    bool just_finished = data->wants_attention_just_finished;
+    if (current_color_option != 1) {
+        if (current_color_option != data->color_option || just_finished) {
+            data->wants_attention_just_finished = false;
+            
+            int previous_color_option = data->color_option;
+            data->color_option = current_color_option;
+            
+            if (current_color_option == 2 ||
+                current_color_option == 1) { // In certain cases we want the border and gradient to be instant
+                data->actual_border_color = border_color;
+                data->actual_gradient_color = gradient_color;
+            } else {
+                animate_color_change(app, client, &data->actual_border_color, border_color);
+                animate_color_change(app, client, &data->actual_gradient_color, gradient_color);
+            }
+            
+            animate_color_change(app, client, &data->actual_pane_color, pane_color);
+        }
+    }
+    
+    if (data->wants_attention_amount != 0 && !just_finished) {
         double blinks = 10.5;
         double scalar = fmod(data->wants_attention_amount, (1.0 / blinks)); // get N blinks
         scalar *= blinks;
@@ -454,159 +639,48 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
         scalar *= 2;
         if (data->wants_attention_amount == 1)
             scalar = 1;
-        accent = lerp_argb(scalar, accent, config->color_taskbar_attention_accent);
-        background = lerp_argb(scalar, background, config->color_taskbar_attention_background);
-        active_amount = 1;
-    }
-    
-    // The following colors are used on the accent bar
-    ArgbColor color_accent_bar_left = accent;
-    ArgbColor color_accent_bar_middle = darken(accent, 20);
-    ArgbColor color_accent_bar_right = darken(accent, 15);
-    
-    if (screen_has_transparency(app)) {
-        background.a = config->color_taskbar_background.a;
-    }
-    
-    // The following colors are used for the background pane
-    ArgbColor color_background_pane_hovered_left = darken(background, 15);
-    ArgbColor color_background_pane_hovered_middle = darken(background, 22 * 1.14);
-    ArgbColor color_background_pane_hovered_right = darken(background, 17 * 1.2);
-    
-    ArgbColor color_background_pane_pressed_left = darken(background, 20);
-    ArgbColor color_background_pane_pressed_middle = darken(background, 27 * 1.3);
-    ArgbColor color_background_pane_pressed_right = darken(background, 22 * 1.2);
-    
-    // The following colors are used for the foreground pane
-    ArgbColor color_foreground_pane_default_left = darken(background, 10);
-    ArgbColor color_foreground_pane_default_middle = darken(background, 17 * 1.3);
-    ArgbColor color_foreground_pane_default_right = darken(background, 12 * 1.2);
-    
-    ArgbColor color_foreground_pane_hovered_left = darken(background, 0);
-    ArgbColor color_foreground_pane_hovered_middle = darken(background, 7 * 1.14);
-    ArgbColor color_foreground_pane_hovered_right = darken(background, 2 * 1.2);
-    
-    ArgbColor color_foreground_pane_pressed_left = darken(background, 2);
-    ArgbColor color_foreground_pane_pressed_middle = darken(background, 9 * 1.3);
-    ArgbColor color_foreground_pane_pressed_right = darken(background, 4 * 1.2);
-    
-    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-    
-    { // Background pane
-        if (windows_count > 1) {
-            if (pressed || hovered) {
-                if (pressed) {
-                    paint_double_bg(cr,
-                                    container->real_bounds,
-                                    color_background_pane_pressed_left,
-                                    color_background_pane_pressed_middle,
-                                    color_background_pane_pressed_right, windows_count);
-                } else {
-                    paint_double_bg(cr,
-                                    container->real_bounds,
-                                    color_background_pane_hovered_left,
-                                    color_background_pane_hovered_middle,
-                                    color_background_pane_hovered_right, windows_count);
-                }
-            }
-        } else {
-            if (pressed || hovered) {
-                if (pressed) {
-                    paint_double_bg(cr,
-                                    container->real_bounds,
-                                    color_background_pane_pressed_left,
-                                    color_background_pane_pressed_left,
-                                    color_background_pane_pressed_left, windows_count);
-                } else {
-                    paint_double_bg(cr,
-                                    container->real_bounds,
-                                    color_background_pane_hovered_left,
-                                    color_background_pane_hovered_left,
-                                    color_background_pane_hovered_left, windows_count);
-                }
-            }
-        }
-    }
-    
-    { // Foreground pane
-        // make the bounds
-        double back_x = container->real_bounds.x + highlight_inset;
-        double back_w = container->real_bounds.w - highlight_inset * 2;
         
-        if (active_amount) {
-            double height = container->real_bounds.h * active_amount;
-            Bounds bounds = Bounds(back_x, container->real_bounds.y + container->real_bounds.h - height, back_w,
-                                   height);
-            
-            if (windows_count > 1) {
-                if (pressed || hovered) {
-                    if (pressed) {
-                        paint_double_bg(cr,
-                                        bounds,
-                                        color_foreground_pane_pressed_left,
-                                        color_foreground_pane_pressed_middle,
-                                        color_foreground_pane_pressed_right, windows_count);
-                    } else {
-                        paint_double_bg(cr,
-                                        bounds,
-                                        color_foreground_pane_hovered_left,
-                                        color_foreground_pane_hovered_middle,
-                                        color_foreground_pane_hovered_right, windows_count);
-                    }
-                } else {
-                    paint_double_bg(cr,
-                                    bounds,
-                                    color_foreground_pane_default_left,
-                                    color_foreground_pane_default_middle,
-                                    color_foreground_pane_default_right, windows_count);
-                }
-            } else {
-                if (pressed || hovered) {
-                    if (pressed) {
-                        paint_double_bg(cr,
-                                        bounds,
-                                        color_foreground_pane_pressed_left,
-                                        color_foreground_pane_pressed_left,
-                                        color_foreground_pane_pressed_left, windows_count);
-                    } else {
-                        paint_double_bg(cr,
-                                        bounds,
-                                        color_foreground_pane_hovered_left,
-                                        color_foreground_pane_hovered_left,
-                                        color_foreground_pane_hovered_left, windows_count);
-                    }
-                } else {
-                    paint_double_bg(cr,
-                                    bounds,
-                                    color_foreground_pane_default_left,
-                                    color_foreground_pane_default_left,
-                                    color_foreground_pane_default_left, windows_count);
-                }
-            }
-        }
+        accent = lerp_argb(scalar, accent_dark, config->color_taskbar_attention_accent);
+        accent_dark = accent;
+        
+        pane_color = config->color_taskbar_attention_background;
+        pane_color.a = 0;
+        data->actual_gradient_color.a = 0;
+        data->actual_pane_color = lerp_argb(scalar, pane_color, config->color_taskbar_attention_background);
+        data->actual_border_color = data->actual_pane_color;
     }
     
-    { // Accent bar
-        if (windows_count > 0) {
-            paint_double_bar(cr,
-                             container,
-                             color_accent_bar_left,
-                             color_accent_bar_left,
-                             color_accent_bar_left, windows_count);
-            
-            // paint the right side
-            if (windows_count > 1) {
-                paint_double_bar(cr,
-                                 container,
-                                 color_accent_bar_left,
-                                 color_accent_bar_middle,
-                                 color_accent_bar_right, windows_count);
-            }
-        }
+    if (current_color_option != 1) {
+        cairo_push_group(cr);
+        cairo_save(cr);
+        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+        if (data->actual_border_color.a != 0)
+            paint_pinnned_icon_border(cr, bounds, corner_radius, outline_width, data->actual_border_color);
+        if (data->actual_gradient_color.a != 0)
+            paint_pinnned_icon_gradient(cr, bounds, corner_radius, outline_width, data->actual_gradient_color);
+        if (data->actual_pane_color.a != 0)
+            paint_pinnned_icon_pane(cr, bounds, corner_radius, outline_width, data->actual_pane_color);
+        cairo_restore(cr);
+        cairo_pop_group_to_source(cr);
+        cairo_paint(cr);
     }
-    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
     
-    config->color_taskbar_application_icons_background = original_color_taskbar_application_icons_background;
+    if (windows_count >= 1) {
+        double w = 6;
+        if (data->active_amount != 0) {
+            w += getEasingFunction(EaseOutQuad)(data->active_amount) * 10;
+        }
+        w *= config->dpi;
+        
+        if (active) {
+            set_argb(cr, accent);
+        } else {
+            set_argb(cr, accent_dark);
+        }
+        double h = 3 * config->dpi;
+        rounded_rect(cr, h / 2, bounds.x + bounds.w / 2 - w / 2, bounds.y + bounds.h - h + .5 - 1, w, h);
+        cairo_fill(cr);
+    }
 }
 
 static void
@@ -964,13 +1038,13 @@ void active_window_changed(xcb_window_t new_active_window) {
         if (active_container) {
             auto data = (LaunchableButton *) active_container->user_data;
             if (data)
-                client_create_animation(app, c, &data->active_amount, 0, 45, nullptr, 0);
+                client_create_animation(app, c, &data->active_amount, 0, 80, nullptr, 0);
         }
         
         active_container = new_active_container;
         if (new_active_container) {
             auto data = (LaunchableButton *) new_active_container->user_data;
-            client_create_animation(app, c, &data->active_amount, 0, 45, nullptr, 1);
+            client_create_animation(app, c, &data->active_amount, 0, 120, nullptr, 1);
             
             for (auto w_d: data->windows_data_list) {
                 if (w_d->id == new_active_window) {
@@ -1347,37 +1421,46 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
             if (state == XCB_ICCCM_WM_STATE_NORMAL) {
                 bool is_active_window = false;
                 if (active_container) {
-                    LaunchableButton *button_data = (LaunchableButton *) active_container->user_data;
+                    auto *button_data = (LaunchableButton *) active_container->user_data;
                     if (button_data) {
                         for (auto window_data: button_data->windows_data_list) {
-                            auto active_window = window_data->id;
-                            if (active_window == window)
+                            if (window_data->id == window)
                                 is_active_window = true;
                         }
                     }
                 }
                 if (is_active_window) {
-                    update_minimize_icon_positions();
-                    minimize_window(window);
+                    std::thread t([window]() -> void {
+                        update_minimize_icon_positions();
+                        minimize_window(window);
+                    });
+                    t.detach();
                     data->animation_bounce_amount = 0;
                     data->animation_bounce_direction = 0;
                     client_create_animation(app, client, &data->animation_bounce_amount, 0,
                                             451.2, nullptr, 1);
                 } else {
+                    std::thread t([window]() -> void {
+                        xcb_ewmh_request_change_active_window(&app->ewmh,
+                                                              app->screen_number,
+                                                              window,
+                                                              XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                                              XCB_CURRENT_TIME,
+                                                              XCB_NONE);
+                        xcb_flush(app->connection);
+                    });
+                    t.detach();
+                }
+            } else {
+                std::thread t([window]() -> void {
                     xcb_ewmh_request_change_active_window(&app->ewmh,
                                                           app->screen_number,
                                                           window,
                                                           XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
                                                           XCB_CURRENT_TIME,
                                                           XCB_NONE);
-                }
-            } else {
-                xcb_ewmh_request_change_active_window(&app->ewmh,
-                                                      app->screen_number,
-                                                      window,
-                                                      XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
-                                                      XCB_CURRENT_TIME,
-                                                      XCB_NONE);
+                });
+                t.detach();
                 data->animation_bounce_amount = 0;
                 data->animation_bounce_direction = 1;
                 client_create_animation(app, client, &data->animation_bounce_amount, 0,
@@ -2226,6 +2309,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     
     Container *button_super = root->child(48 * config->dpi, FILL_SPACE);
     Container *field_search = root->child(344 * config->dpi, FILL_SPACE);
+    Container *button_chatgpt = root->child(48 * config->dpi, FILL_SPACE);
     Container *button_workspace = root->child(48 * config->dpi, FILL_SPACE);
     Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
     Container *button_systray = root->child(24 * config->dpi, FILL_SPACE);
@@ -2275,7 +2359,16 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_workspace->when_scrolled = scrolled_workspace;
     button_workspace->when_clicked = clicked_workspace;
     
-    container_icons->spacing = 2 * std::floor(config->dpi);
+    button_chatgpt->when_paint = paint_chatgpt;
+    auto button_chatgpt_data = new IconButton;
+    button_chatgpt_data->surface = accelerated_surface(app, client, 24 * config->dpi, 24 * config->dpi);
+    paint_surface_with_image(button_chatgpt_data->surface, as_resource_path("chatgpt.svg"),
+                             24 * config->dpi, nullptr);
+    button_chatgpt->user_data = button_chatgpt_data;
+    button_chatgpt->when_clicked = clicked_chatgpt;
+    button_chatgpt->name = "chatgpt";
+    
+    container_icons->spacing = 1;
     container_icons->type = hbox;
     container_icons->name = "icons";
     container_icons->when_paint = paint_all_icons;
@@ -3112,7 +3205,7 @@ void add_window(App *app, xcb_window_t window) {
     xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
     xcb_flush(app->connection);
     
-    Container *a = icons->child(60 * config->dpi, FILL_SPACE);
+    Container *a = icons->child(50 * config->dpi, FILL_SPACE);
     a->when_drag_end_is_click = false;
     a->minimum_x_distance_to_move_before_drag_begins = 15;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
@@ -3578,7 +3671,7 @@ load_pinned_icons() {
         auto *child = new Container();
         child->parent = icons;
         child->wanted_bounds.h = FILL_SPACE;
-        child->wanted_bounds.w = 60 * config->dpi;
+        child->wanted_bounds.w = 50 * config->dpi;
         
         child->when_drag_end_is_click = false;
         child->minimum_x_distance_to_move_before_drag_begins = 15;
@@ -3936,6 +4029,10 @@ void taskbar_launch_index(int index) {
             }
         }
     }
+}
+
+xcb_window_t get_active_window() {
+    return active_window;
 }
 
 std::string find_icon_string_from_window_properties(xcb_window_t window) {

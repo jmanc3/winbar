@@ -2,6 +2,7 @@
 #include "container.h"
 #include "application.h"
 #include "../src/components.h"
+#include "../src/config.h"
 
 #include <cassert>
 #include <cmath>

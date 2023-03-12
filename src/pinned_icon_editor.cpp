@@ -328,7 +328,7 @@ icon_name_key_event(AppClient *client,
     }
 }
 
-void fill_root(AppClient *client) {
+static void fill_root(AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif

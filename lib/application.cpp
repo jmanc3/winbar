@@ -944,6 +944,7 @@ client_new(App *app, Settings settings, const std::string &name) {
     client->bounds->w = settings.w;
     client->bounds->h = settings.h;
     client->colormap = colormap;
+    client->on_close_is_unmap = settings.on_close_is_unmap;
     client->cr = cr;
     
     uint8_t XC_left_ptr = 68; // from: https://tronche.com/gui/x/xlib/appendix/b/
@@ -1940,7 +1941,12 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
                 return;
             
             if (e->data.data32[0] == app->delete_window_atom) {
-                client_close_threaded(app, client);
+                if (client->on_close_is_unmap) {
+                    xcb_unmap_window(app->connection, client->window);
+                    xcb_flush(app->connection);
+                } else {
+                    client_close_threaded(app, client);
+                }
             }
             return;
             break;
@@ -2048,13 +2054,22 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
                 e->event_x -= client->bounds->x;
                 e->event_y -= client->bounds->y;
             }
-            
+    
             send_key(app, client, client->root);
             break;
         }
-        
+    
+        case XCB_UNMAP_NOTIFY: {
+            if (auto client = client_by_window(app, window_number)) {
+                client->mapped = false;
+            }
+            break;
+        }
+    
         case XCB_MAP_NOTIFY: {
             if (auto client = client_by_window(app, window_number)) {
+                client->mapped = true;
+            
                 if (client->popup_info.is_popup) {
                     // TODO why don't we grab the pointer instead?
                     xcb_void_cookie_t grab_cookie =

@@ -56,6 +56,7 @@ struct Settings {
     bool window_transparent = true;
     bool override_redirect = false;
     bool keep_above = false;
+    bool on_close_is_unmap = false;
     
     Settings() { reserve_side = false; }
 };

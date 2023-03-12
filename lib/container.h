@@ -244,6 +244,7 @@ struct AppClient {
     Container *root;
     
     bool auto_delete_root = true;
+    bool on_close_is_unmap = false;
     
     int mouse_initial_x = -1;
     int mouse_initial_y = -1;
@@ -313,6 +314,8 @@ struct AppClient {
     Subprocess *command(const std::string &command, void (*function)(Subprocess *), void *user_data);
     
     Subprocess *command(const std::string &command, int timeout_in_ms, void (*function)(Subprocess *), void *user_data);
+    
+    bool mapped = true;
 };
 
 struct ScrollContainer;
@@ -543,6 +546,13 @@ struct ScrollContainer : public Container {
         delete right;
         delete bottom;
     }
+};
+
+struct EditableSelectableLabel : public Container {
+    std::string text;
+    int size = 12;
+    bool editable = true; // draws a cursor, and key presses work
+    bool selectable = true;
 };
 
 Bounds

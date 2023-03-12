@@ -13,6 +13,11 @@ public:
     double hover_amount = 0;
     ArgbColor color = ArgbColor(0, 0, 0, 0);
     int previous_state = -1;
+    
+    int color_option = 0;
+    ArgbColor actual_border_color = ArgbColor(0, 0, 0, 0);
+    ArgbColor actual_gradient_color = ArgbColor(0, 0, 0, 0);
+    ArgbColor actual_pane_color = ArgbColor(0, 0, 0, 0);
 };
 
 class IconButton : public HoverableButton {
@@ -98,7 +103,14 @@ public:
     
     double active_amount = 0;
     double hover_amount = 0;
+    double double_window_amount = 0;
     double wants_attention_amount = 0;
+    bool wants_attention_just_finished = false;
+    
+    int color_option = 0;
+    ArgbColor actual_border_color = ArgbColor(0, 0, 0, 0);
+    ArgbColor actual_gradient_color = ArgbColor(0, 0, 0, 0);
+    ArgbColor actual_pane_color = ArgbColor(0, 0, 0, 0);
     
     selector_type type = selector_type::CLOSED;
     Timeout *possibly_open_timeout = nullptr;
@@ -146,5 +158,7 @@ void set_textarea_inactive();
 void register_popup(xcb_window_t window);
 
 void taskbar_launch_index(int index);
+
+xcb_window_t get_active_window();
 
 #endif// TASKBAR_H

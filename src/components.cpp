@@ -1077,7 +1077,8 @@ make_scrollpane(Container *parent, ScrollPaneSettings settings) {
 ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPaneSettings &settings) {
     auto scrollpane = new ScrollContainer(settings);
     // setup as child of root
-    scrollpane->parent = parent;
+    if (parent)
+        scrollpane->parent = parent;
 //    scrollpane->when_scrolled = scrollpane_scrolled;
     scrollpane->when_fine_scrolled = fine_scrollpane_scrolled;
     scrollpane->receive_events_even_if_obstructed = true;
@@ -1085,7 +1086,8 @@ ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPane
         scrollpane->scroll_v_real = -1000000;
         scrollpane->scroll_v_visual = -1000000;
     }
-    parent->children.push_back(scrollpane);
+    if (parent)
+        parent->children.push_back(scrollpane);
     
     auto content = new Container(::vbox, FILL_SPACE, FILL_SPACE);
     // setup as content of scrollpane
