@@ -1,11 +1,11 @@
 
 
 #include <pango/pangocairo.h>
+#include <cmath>
 #include "main.h"
 #include "app_menu.h"
 #include "application.h"
 #include "audio.h"
-#include "bind_meta.h"
 #include "root.h"
 #include "systray.h"
 #include "taskbar.h"
@@ -15,6 +15,7 @@
 #include "wifi_backend.h"
 #include "simple_dbus.h"
 #include "icons.h"
+#include "dpi.h"
 
 App *app;
 
@@ -22,12 +23,9 @@ bool restart = false;
 
 void check_config_version();
 
+void load_in_fonts();
+
 int main() {
-//    char buf[102];
-//    buf[0] = '\0';
-//    int len = strlen(buf);
-//    std::string test = std::string(buf, -1);
-    
     global = new globals;
     
     // Open connection to app
@@ -40,13 +38,40 @@ int main() {
     
     // Load the config
     config_load();
+    
+    // Set DPI if auto
+    double total_time_waiting_for_primary_screen = 4000;
+    int reattempt_time = 200;
+    int amount_of_times = total_time_waiting_for_primary_screen / reattempt_time;
+    
+    dpi_setup(app);
+    if (config->dpi_auto) {
+        for (int oj = 0; oj < amount_of_times; oj++) {
+            for (auto &i: screens) {
+                auto *screen = (ScreenInformation *) i;
+                if (screen->is_primary) {
+                    config->dpi = screen->height_in_pixels / 1080.0;
+                    config->dpi = std::round(config->dpi * 2) / 2;
+                    if (config->dpi < 1)
+                        config->dpi = 1;
+                    goto out;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(reattempt_time));
+            update_information_of_all_screens(app);
+        }
+    }
+    out:
+    
     config->taskbar_height = config->taskbar_height * config->dpi;
     
     check_config_version();
     
+    load_in_fonts();
+    
     active_tab = config->starting_tab_index == 0 ? "Apps" : "Scripts";
     
-    load_icons(app);
+    set_icons_path_and_possibly_update(app);
     
     // Add listeners and grabs on the root window
     root_start(app);
@@ -57,22 +82,25 @@ int main() {
     // We need to register as the systray
     register_as_systray();
     
+    load_scripts();// The scripts are reloaded every time the search_menu window closes
+    
     // Open our windows
     AppClient *taskbar = create_taskbar(app);
     
     // We only want to load the desktop files once at the start of the program
     //std::thread(load_desktop_files).detach();
     load_all_desktop_files();
-    load_scripts();// The scripts are reloaded every time the search_menu window closes
     load_historic_scripts();
     load_historic_apps();
     
     client_show(app, taskbar);
     xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, taskbar->window, XCB_CURRENT_TIME);
     
-    on_meta_key_pressed = meta_pressed;
-    
-    dbus_start();
+    static int first = 0;
+    if (first++ == 0) {
+        dbus_start(DBUS_BUS_SESSION);
+        dbus_start(DBUS_BUS_SYSTEM);
+    }
     
     wifi_start(app);
     
@@ -80,8 +108,6 @@ int main() {
     app_main(app);
     
     unload_icons();
-    
-    dbus_end();
     
     // Clean up
     app_clean(app);
@@ -101,12 +127,14 @@ int main() {
     if (restart) {
         restart = false;
         main();
+    } else {
+        dbus_end();
     }
     
     return 0;
 }
 
-static int acceptable_config_version = 2;
+static int acceptable_config_version = 7;
 
 std::string first_message;
 std::string second_message;
@@ -117,7 +145,7 @@ void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, correct_opaqueness(client, config->color_volume_background));
     cairo_fill(cr);
     
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 14, PangoWeight::PANGO_WEIGHT_BOLD);
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
     int width;
     int height;
     pango_layout_set_text(layout, first_message.data(), first_message.size());
@@ -126,11 +154,11 @@ void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  10);
+                  10 * config->dpi);
     pango_cairo_show_layout(cr, layout);
     
     
-    layout = get_cached_pango_font(cr, config->font, 12, PangoWeight::PANGO_WEIGHT_NORMAL);
+    layout = get_cached_pango_font(cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     int second_height;
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
@@ -139,18 +167,18 @@ void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
-                  10,
-                  10 + height + 10);
+                  10 * config->dpi,
+                  (10 + height + 10) * config->dpi);
     pango_cairo_show_layout(cr, layout);
     
     pango_layout_set_text(layout, third_message.data(), third_message.size());
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
-    pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
+    pango_layout_set_width(layout, (container->real_bounds.w - (20 * config->dpi)) * PANGO_SCALE);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
-                  10,
-                  10 + height + 10 + second_height + 5);
+                  10 * config->dpi,
+                  (10 + height + 10 + second_height + 5) * config->dpi);
     pango_cairo_show_layout(cr, layout);
 }
 
@@ -160,16 +188,16 @@ void check_config_version() {
         config->config_version < acceptable_config_version ||
         !config->found_config) {
         Settings settings;
-        settings.w = 400;
-        settings.h = 200;
+        settings.w = 400 * config->dpi;
+        settings.h = 200 * config->dpi;
         auto client = client_new(app, settings, "winbar_version_check");
         client->root->when_paint = paint_wrong_version;
-        
+    
         first_message = "Couldn't start WinBar";
         char *home = getenv("HOME");
         std::string config_directory(home);
         config_directory += "/.config/winbar/winbar.cfg";
-        
+    
         if (!config->found_config) {
             second_message = "We didn't find a Winbar config at: " + config_directory;
             third_message = "To fix this, head over to https://github.com/jmanc3/winbar, "
@@ -197,11 +225,24 @@ void check_config_version() {
                             "download the resources: \"winbar.zip\", "
                             "and unzip them into the correct place (as you have already done once) overriding the old files.";
         }
-        
+    
         client_layout(app, client);
         request_refresh(app, client);
         client_show(app, client);
         app_main(app);
         app_clean(app);
     }
+}
+
+#include <fontconfig/fontconfig.h>
+
+void load_in_fonts() {
+    char *home = getenv("HOME");
+    std::string font_directory(home);
+    font_directory += "/.config/winbar/fonts";
+    
+    auto fc_config = FcConfigCreate();
+    FcConfigSetCurrent(fc_config);
+    const FcChar8 *file = (const FcChar8 *) font_directory.c_str();
+    FcBool fontAddStatus = FcConfigAppFontAddDir(FcConfigGetCurrent(), file);
 }

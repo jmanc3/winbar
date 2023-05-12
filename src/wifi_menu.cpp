@@ -16,12 +16,6 @@
 struct RootScanAnimationData : public UserData {
     long start = get_current_time_in_ms();
     bool running = false;
-    cairo_surface_t *wifi_surface = nullptr;
-    
-    ~RootScanAnimationData() {
-        if (wifi_surface)
-            cairo_surface_destroy(wifi_surface);
-    }
 };
 
 struct WifiOptionData : public UserData {
@@ -70,13 +64,13 @@ paint_option(AppClient *client, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, layout);
     
     auto root_data = (RootScanAnimationData *) client->root->user_data;
-    dye_surface(root_data->wifi_surface, config->color_taskbar_button_icons);
+/*    dye_surface(root_data->wifi_surface, config->color_taskbar_button_icons);
     cairo_set_source_surface(
             cr,
             root_data->wifi_surface,
             (int) (container->real_bounds.x + 48 / 2 - 24 / 2),
             (int) (container->real_bounds.y + WIFI_OPTION_HEIGHT / 2 - 24 / 2));
-    cairo_paint(cr);
+    cairo_paint(cr);*/
 }
 
 static void
@@ -136,7 +130,6 @@ paint_centered_label(AppClient *client, cairo_t *cr, Container *container) {
                   container->real_bounds.x + container->real_bounds.w / 2 - ((logical.width / PANGO_SCALE) / 2),
                   container->real_bounds.y + container->real_bounds.h / 2 - ((logical.height / PANGO_SCALE) / 2));
     pango_cairo_show_layout(cr, layout);
-    
 }
 
 static void delete_container(App *app, AppClient *client, Timeout *timeout, void *user_data) {
@@ -249,18 +242,18 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
 void scan_results(std::vector<ScanResult> &results) {
     if (auto client = client_by_name(app, "wifi_menu")) {
         auto root = client->root;
-        
+    
         for (auto c: root->children)
             delete c;
         root->children.clear();
-        
-        ScrollPaneSettings settings;
-        Container *scrollpane = make_scrollpane(root, settings);
-        Container *content = scrollpane->child(::vbox, FILL_SPACE, FILL_SPACE);
+    
+        ScrollPaneSettings settings(config->dpi);
+        ScrollContainer *scrollpane = make_newscrollpane_as_child(root, settings);
+        Container *content = scrollpane->content;
         content->name = "content";
         content->wanted_pad.y = 12;
         content->wanted_pad.h = 12;
-        
+    
         for (const auto &r: results) {
             auto c = content->child(FILL_SPACE, WIFI_OPTION_HEIGHT);
             c->name = r.network_name;
@@ -270,13 +263,11 @@ void scan_results(std::vector<ScanResult> &results) {
             wifi_option_data->info = r;
             c->user_data = wifi_option_data;
         }
-        
-        if (!results.empty()) {
-            content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
-        } else {
+    
+        if (results.empty()) {
             content->wanted_bounds.h = 80;
         }
-        
+    
         client_layout(app, client);
         client_paint(app, client);
     }
@@ -295,9 +286,19 @@ void uncached_scan_results(std::vector<ScanResult> &results) {
     }
 }
 
-void wifi_state(bool *up, bool *wired) {
+void wifi_state(AppClient *client, bool *up, bool *wired) {
+    // throttle the state check to once every 5 seconds
+    static std::chrono::time_point<std::chrono::system_clock> last_check;
+    static bool last_up = false;
+    static bool last_wired = false;
+    if (std::chrono::system_clock::now() - last_check < std::chrono::seconds(5)) {
+        *up = last_up;
+        *wired = last_wired;
+        return;
+    }
     std::string status = "down";
-    std::ifstream status_file("/sys/class/net/" + get_default_wifi_interface() + "/operstate");
+    const std::string &default_interface = get_default_wifi_interface(client);
+    std::ifstream status_file("/sys/class/net/" + default_interface + "/operstate");
     if (status_file.is_open()) {
         std::string line;
         if (getline(status_file, line)) {
@@ -309,10 +310,13 @@ void wifi_state(bool *up, bool *wired) {
     *up = status == "up";
     
     // Wireless interfaces are prefixed with wlp
-    *wired = std::string::npos == get_default_wifi_interface().find("wlp");
+    *wired = std::string::npos == default_interface.find("wlp");
+    
+    last_up = *up;
+    last_wired = *wired;
 }
 
-double map(double x, double in_min, double in_max, double out_min, double out_max) {
+static double map(double x, double in_min, double in_max, double out_min, double out_max) {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
@@ -391,9 +395,6 @@ fill_root(AppClient *client) {
     auto root_animation_data = new RootScanAnimationData;
     root_animation_data->start = get_current_time_in_ms();
     root_animation_data->running = true;
-    root_animation_data->wifi_surface = accelerated_surface(app, client, 24, 24);
-    paint_surface_with_image(
-            root_animation_data->wifi_surface, as_resource_path("wifi/24/wireless_up.png"), 24, nullptr);
     root->user_data = root_animation_data;
 }
 

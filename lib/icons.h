@@ -10,29 +10,43 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <algorithm>
 
 // Load icons into memory
-void load_icons(App *app);
+void set_icons_path_and_possibly_update(App *app);
 
 // Remove all icons from memory
 void unload_icons();
 
-struct IndexResult {
-    std::string pre_path;
-    int size = 0;
-    int scale = 1;
+struct Candidate {
+    std::string parent_path;
+    std::string filename;
     std::string theme;
-    std::string name;
-    int extension = 0;
+    int extension;
+    int size;
+    int scale;
     
-    IndexResult(std::string prePath, int size, int scale, std::string theme, std::string name, int extension)
-            : pre_path(std::move(prePath)), size(size), scale(scale), theme(std::move(theme)), name(std::move(name)),
-              extension(extension) {}
+    [[nodiscard]] std::string full_path() const {
+        std::string temp = std::string(parent_path).append("/").append(filename);
+        if (extension == 0) {
+            temp.append(".svg");
+        } else if (extension == 1) {
+            temp.append(".png");
+        } else if (extension == 2) {
+            temp.append(".xmp");
+        }
+        temp.erase(std::remove(temp.begin(), temp.end(), '\0'), temp.end());
+    
+        return temp;
+    }
+    
+    int size_index = 10;
+    bool is_part_of_current_theme = false;
 };
 
 struct IconTarget {
     std::string name;
-    std::vector<IndexResult> indexes_of_results;
+    std::vector<Candidate> candidates;
     
     std::string best_full_path;
     
@@ -46,6 +60,8 @@ struct IconTarget {
 void search_icons(std::vector<IconTarget> &targets);
 
 void pick_best(std::vector<IconTarget> &targets, int size);
+
+bool has_options(const std::string &name);
 
 std::string
 c3ic_fix_desktop_file_icon(const std::string &given_name,

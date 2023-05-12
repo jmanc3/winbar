@@ -4,7 +4,7 @@
 
 #ifdef TRACY_ENABLE
 
-#include "../tracy/Tracy.hpp"
+#include "../tracy/public/tracy/Tracy.hpp"
 
 #endif
 
@@ -26,6 +26,7 @@
 #include <hsluv.h>
 #include <sys/stat.h>
 #include "functional"
+#include "simple_dbus.h"
 
 std::vector<Launcher *> launchers;
 
@@ -34,15 +35,12 @@ public:
     Launcher *launcher = nullptr;
 };
 
-class ButtonData : public IconButton {
-public:
-    std::string text;
-};
-
 // the scrollbar should only open if the mouse is in the scrollbar
 static double scrollbar_openess = 0;
 // the scrollbar should only be visible if the mouse is in the container
 static double scrollbar_visible = 0;
+// when we open the power sub menu, the left sliding menu needs to be locked
+static bool left_locked = false;
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
@@ -51,6 +49,20 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     set_rect(cr, container->real_bounds);
     set_argb(cr, correct_opaqueness(client, config->color_apps_background));
+    cairo_fill(cr);
+}
+
+static void
+paint_power_menu(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    set_rect(cr, container->real_bounds);
+    if (is_light_theme(config->color_apps_background)) {
+        set_argb(cr, correct_opaqueness(client, darken(config->color_apps_background, 8)));
+    } else {
+        set_argb(cr, correct_opaqueness(client, lighten(config->color_apps_background, 8)));
+    }
     cairo_fill(cr);
 }
 
@@ -100,39 +112,104 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     container->real_bounds.x += 1;
     container->real_bounds.w -= 2;
     
-    ButtonData *data = (ButtonData *) container->user_data;
-    
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_apps_pressed_item);
-        } else {
-            set_argb(cr, config->color_apps_hovered_item);
+    auto data = (ButtonData *) container->user_data;
+    {
+        auto default_color = config->color_taskbar_button_default;
+        auto hovered_color = config->color_taskbar_button_hovered;
+        auto pressed_color = config->color_taskbar_button_pressed;
+        
+        auto e = getEasingFunction(easing_functions::EaseOutQuad);
+        double time = 0;
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                if (data->previous_state != 2) {
+                    time = 40;
+                    data->previous_state = 2;
+                    client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
+                    client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
+                    client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
+                    client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
+                }
+            } else if (data->previous_state != 1) {
+                time = 70;
+                data->previous_state = 1;
+                client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
+                client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
+                client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
+                client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
+            }
+        } else if (data->previous_state != 0) {
+            time = 100;
+            data->previous_state = 0;
+            e = getEasingFunction(easing_functions::EaseInCirc);
+            client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
+            client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
+            client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
+            client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
         }
-        int border = 0;
+        
+        set_argb(cr, data->color);
         
         cairo_rectangle(cr,
-                        container->real_bounds.x + border,
-                        container->real_bounds.y + border,
-                        container->real_bounds.w - border * 2,
-                        container->real_bounds.h - border * 2);
+                        container->real_bounds.x,
+                        container->real_bounds.y,
+                        container->real_bounds.w,
+                        container->real_bounds.h);
         cairo_fill(cr);
     }
     
     container->real_bounds.x -= 1;
     container->real_bounds.w += 2;
     
-    if (data && data->surface) {
-        int width = cairo_image_surface_get_width(data->surface);
-        int height = cairo_image_surface_get_height(data->surface);
+    if (data) {
+        PangoLayout *icon_layout =
+                get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         
-        dye_surface(data->surface, config->color_apps_icons);
-        
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.h / 2 - height / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-        cairo_paint(cr);
+        // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+        if (data->text == "START") {
+            pango_layout_set_text(icon_layout, "\uE700", strlen("\uE83F"));
+        } else if (data->text == "Documents") {
+            pango_layout_set_text(icon_layout, "\uE7C3", strlen("\uE83F"));
+        } else if (data->text == "Downloads") {
+            pango_layout_set_text(icon_layout, "\uE896", strlen("\uE83F"));
+        } else if (data->text == "Music") {
+            pango_layout_set_text(icon_layout, "\uEC4F", strlen("\uE83F"));
+        } else if (data->text == "Pictures") {
+            pango_layout_set_text(icon_layout, "\uEB9F", strlen("\uE83F"));
+        } else if (data->text == "Videos") {
+            pango_layout_set_text(icon_layout, "\uE714", strlen("\uE83F"));
+        } else if (data->text == "Network") {
+            pango_layout_set_text(icon_layout, "\uEC27", strlen("\uE83F"));
+        } else if (data->text == "Personal Folder") {
+            pango_layout_set_text(icon_layout, "\uEC25", strlen("\uE83F"));
+        } else if (data->text == "File Explorer") {
+            pango_layout_set_text(icon_layout, "\uEC50", strlen("\uE83F"));
+        } else if (data->text == "Settings") {
+            pango_layout_set_text(icon_layout, "\uE713", strlen("\uE83F"));
+        } else if (data->text == "Power") {
+            pango_layout_set_text(icon_layout, "\uE7E8", strlen("\uE83F"));
+        } else if (data->text == "Off") {
+            pango_layout_set_text(icon_layout, "\uE947", strlen("\uE83F"));
+        } else if (data->text == "Sign Out") {
+            pango_layout_set_text(icon_layout, "\uE77B", strlen("\uE83F"));
+        } else if (data->text == "Shut Down") {
+            pango_layout_set_text(icon_layout, "\uE7E8", strlen("\uE83F"));
+        } else if (data->text == "Restart") {
+            pango_layout_set_text(icon_layout, "\uE777", strlen("\uE83F"));
+        } else if (data->text == "Reload") {
+            pango_layout_set_text(icon_layout, "\uE117", strlen("\uE83F"));
+        }
+    
+        set_argb(cr, config->color_apps_icons);
+    
+        int width;
+        int height;
+        pango_layout_get_pixel_size(icon_layout, &width, &height);
+    
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + container->real_bounds.h / 2 - height / 2),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, icon_layout);
     }
     
     auto taskbar_entity = client_by_name(app, "taskbar");
@@ -199,29 +276,36 @@ clicked_grid(AppClient *client, cairo_t *cr, Container *container) {
     // Set the correct scroll offset
     auto data = (ButtonData *) container->user_data;
     if (auto c = container_by_name(data->text, client->root)) {
-        if (auto scroll_pane = container_by_name("scroll_pane", client->root)) {
-            int offset = get_offset(c, scroll_pane) + scroll_pane->children_bounds.y;
+        if (auto scroll_pane = (ScrollContainer *) container_by_name("scroll_pane", client->root)) {
+            int offset = -scroll_pane->scroll_v_real + c->real_bounds.y;
+            offset -= 5 * config->dpi;
             scroll_pane->scroll_v_real = -offset;
             scroll_pane->scroll_v_visual = scroll_pane->scroll_v_real;
-            ::layout(client, cr, scroll_pane->parent, scroll_pane->real_bounds);
-            
+            ::layout(client, cr, scroll_pane, scroll_pane->real_bounds);
+        
             clicked_title(client, cr, container);
         }
     }
 }
 
 static void
+right_clicked_application(AppClient *client, cairo_t *cr, Container *container);
+
+static void
 clicked_item(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    auto *data = (ItemData *) container->user_data;
-    set_textarea_inactive();
-    launch_command(data->launcher->exec);
-    client_close_threaded(app, client);
-    xcb_flush(app->connection);
-    app->grab_window = -1;
+    if (container->state.mouse_button_pressed == 3) {
+        right_clicked_application(client, cr, container);
+    } else {
+        auto *data = (ItemData *) container->user_data;
+        set_textarea_inactive();
+        launch_command(data->launcher->exec);
+        client_close_threaded(app, client);
+        xcb_flush(app->connection);
+        app->grab_window = -1;
+    }
 }
 
 static void
@@ -235,19 +319,48 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     
     auto *data = (ItemData *) container->user_data;
     
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_apps_pressed_item);
-        } else {
-            set_argb(cr, config->color_apps_hovered_item);
+    {
+        auto default_color = config->color_taskbar_button_default;
+        auto hovered_color = config->color_taskbar_button_hovered;
+        auto pressed_color = config->color_taskbar_button_pressed;
+        
+        auto e = getEasingFunction(easing_functions::EaseOutQuad);
+        double time = 0;
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                if (data->previous_state != 2) {
+                    time = 20;
+                    data->previous_state = 2;
+                    client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
+                    client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
+                    client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
+                    client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
+                }
+            } else if (data->previous_state != 1) {
+                time = 30;
+                data->previous_state = 1;
+                client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
+                client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
+                client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
+                client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
+            }
+        } else if (data->previous_state != 0) {
+            time = 50;
+            data->previous_state = 0;
+            e = getEasingFunction(easing_functions::EaseInCirc);
+            client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
+            client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
+            client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
+            client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
         }
-        int border = 0;
+        
+        set_argb(cr, data->color);
         
         cairo_rectangle(cr,
-                        container->real_bounds.x + border,
-                        container->real_bounds.y + border,
-                        container->real_bounds.w - border * 2,
-                        container->real_bounds.h - border * 2);
+                        container->real_bounds.x,
+                        container->real_bounds.y,
+                        container->real_bounds.w,
+                        container->real_bounds.h);
         cairo_fill(cr);
     }
     
@@ -350,7 +463,7 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    auto *data = (IconButton *) container->user_data;
+    auto *data = (ButtonData *) container->user_data;
     
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
@@ -374,22 +487,36 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
         cairo_fill(cr);
     }
     
-    if (data->surface) {
-        // TODO: cache the dye so we only do it once
-        if (container->state.mouse_pressing || container->state.mouse_hovering) {
-            if (container->state.mouse_pressing) {
-                dye_surface(data->surface, config->color_apps_scrollbar_pressed_button_icon);
-            } else {
-                dye_surface(data->surface, config->color_apps_scrollbar_hovered_button_icon);
-            }
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            auto c = ArgbColor(config->color_apps_scrollbar_pressed_button_icon);
+            c.a = scrollbar_openess;
+            set_argb(cr, c);
         } else {
-            dye_surface(data->surface, config->color_apps_scrollbar_default_button_icon);
+            auto c = ArgbColor(config->color_apps_scrollbar_hovered_button_icon);
+            c.a = scrollbar_openess;
+            set_argb(cr, c);
         }
-        
-        cairo_set_source_surface(
-                cr, data->surface, container->real_bounds.x, container->real_bounds.y);
-        cairo_paint_with_alpha(cr, scrollbar_openess);
+    } else {
+        auto c = ArgbColor(config->color_apps_scrollbar_default_button_icon);
+        c.a = scrollbar_openess;
+        set_argb(cr, c);
     }
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, data->text.data(), strlen("\uE83F"));
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -438,7 +565,7 @@ when_scrollbar_mouse_enters(AppClient *client, cairo_t *cr, Container *container
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(client->app, client, &scrollbar_openess, 100, 0, 1);
+    client_create_animation(client->app, client, &scrollbar_openess, 0, 100, 0, 1);
 }
 
 static void
@@ -446,7 +573,7 @@ when_scrollbar_container_mouse_enters(AppClient *client, cairo_t *cr, Container 
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(client->app, client, &scrollbar_visible, 100, 0, 1);
+    client_create_animation(client->app, client, &scrollbar_visible, 0, 100, 0, 1);
 }
 
 static void
@@ -454,8 +581,8 @@ when_scrollbar_mouse_leaves(AppClient *client, cairo_t *cr, Container *container
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(client->app, client, &scrollbar_openess, 100, 0, 0);
-    client_create_animation(client->app, client, &scrollbar_visible, 100, 0, 0);
+    client_create_animation(client->app, client, &scrollbar_openess, 0, 100, 0, 0);
+    client_create_animation(client->app, client, &scrollbar_visible, 0, 100, 0, 0);
 }
 
 static Timeout *scrollbar_leave_fd = nullptr;
@@ -470,7 +597,7 @@ scrollbar_leaves_timeout(App *app, AppClient *client, Timeout *, void *data) {
         if (scrollbar_openess != 0 && scrollbar_openess == 1 &&
             !bounds_contains(
                     container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
-            client_create_animation(client->app, client, &scrollbar_openess, 100, 0, 0);
+            client_create_animation(client->app, client, &scrollbar_openess, 0, 100, 0, 0);
         }
     } else {
         scrollbar_openess = 0;
@@ -497,11 +624,13 @@ left_open_timeout(App *app, AppClient *client, Timeout *, void *data) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (left_locked)
+        return;
     auto *container = (Container *) data;
     if (app && app->running && valid_client(app, client) &&
         (container->state.mouse_hovering || container->state.mouse_pressing)) {
         client_create_animation(
-                app, client, &container->wanted_bounds.w, 100, nullptr, 256 * config->dpi, true);
+                app, client, &container->wanted_bounds.w, 0, 100, nullptr, 256 * config->dpi, true);
     }
     left_open_fd = nullptr;
 }
@@ -511,6 +640,8 @@ left_open(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (left_locked)
+        return;
     if (left_open_fd == nullptr) {
         left_open_fd = app_timeout_create(client->app, client, 160, left_open_timeout, container);
     } else {
@@ -523,7 +654,9 @@ left_close(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(app, client, &container->wanted_bounds.w, 70, nullptr, 48 * config->dpi, true);
+    if (left_locked || !container)
+        return;
+    client_create_animation(app, client, &container->wanted_bounds.w, 0, 70, nullptr, 48 * config->dpi, true);
 }
 
 static bool
@@ -545,7 +678,8 @@ void scrolled_content_area(AppClient *client,
                            cairo_t *cr,
                            Container *container,
                            int scroll_x,
-                           int scroll_y) {
+                           int scroll_y,
+                           bool came_from_touchpad) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -558,7 +692,7 @@ void scrolled_content_area(AppClient *client,
         }
     }
     
-    scrollpane_scrolled(client, cr, container, scroll_x, scroll_y);
+    fine_scrollpane_scrolled(client, cr, container, scroll_x, scroll_y, came_from_touchpad);
 }
 
 static void
@@ -571,10 +705,10 @@ clicked_start_button(AppClient *client, cairo_t *cr, Container *container) {
         if (auto *container = container_by_name("left_buttons", client->root)) {
             if (container->real_bounds.w == 48 * config->dpi) {
                 client_create_animation(
-                        app, client, &container->wanted_bounds.w, 120, nullptr, 256 * config->dpi, true);
+                        app, client, &container->wanted_bounds.w, 0, 120, nullptr, 256 * config->dpi, true);
             } else if (container->real_bounds.w == 256 * config->dpi) {
                 client_create_animation(
-                        app, client, &container->wanted_bounds.w, 120, nullptr, 48 * config->dpi, true);
+                        app, client, &container->wanted_bounds.w, 0, 120, nullptr, 48 * config->dpi, true);
             }
         }
     }
@@ -648,13 +782,19 @@ clicked_open_file_manager(AppClient *client, cairo_t *cr, Container *container) 
 }
 
 static void
+sub_menu_closed(AppClient *client) {
+    left_locked = false;
+    if (auto client = client_by_name(app, "app_menu")) {
+        left_close(client, client->cr, container_by_name("left_buttons", client->root));
+    }
+}
+
+static void
 clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    std::lock_guard m(app->running_mutex);
-    client->app->running = false;
-    restart = true;
+
 }
 
 static void
@@ -699,12 +839,194 @@ when_key_event(AppClient *client,
 }
 
 static void
+clicked_off(AppClient *client, cairo_t *cr, Container *container) {
+    client->app->running = false;
+}
+
+static void
+clicked_shut_down(AppClient *client, cairo_t *cr, Container *container) {
+    dbus_computer_shut_down();
+}
+
+static void
+clicked_logoff(AppClient *client, cairo_t *cr, Container *container) {
+    dbus_computer_logoff();
+}
+
+static void
+clicked_restart(AppClient *client, cairo_t *cr, Container *container) {
+    dbus_computer_restart();
+}
+
+static void
+clicked_reload(AppClient *client, cairo_t *cr, Container *container) {
+    client->app->running = false;
+    restart = true;
+}
+
+static void
+right_clicked_application(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    Settings settings;
+    settings.force_position = true;
+    settings.w = 256 * config->dpi;
+    settings.h = ((48 * 1) * config->dpi) + (config->dpi * 3);
+    // TODO: get mouse position
+    settings.x = client->mouse_current_x;
+    settings.y = client->mouse_current_y;
+    settings.skip_taskbar = true;
+    settings.decorations = false;
+    settings.override_redirect = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
+    
+    if (auto app_menu = client_by_name(app, "app_menu")) {
+        PopupSettings popup_settings;
+        popup_settings.takes_input_focus = true;
+        
+        auto popup = app_menu->create_popup(popup_settings, settings);
+        popup->fps = 165;
+        
+        popup->root->when_paint = paint_power_menu;
+        popup->root->type = vbox;
+        popup->root->spacing = 1;
+        popup->root->wanted_pad.y = 8 * config->dpi;
+        popup->root->wanted_pad.h = 8 * config->dpi;
+    
+        auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
+        l->when_clicked = clicked_logoff;
+        l->when_paint = paint_button;
+        auto *l_data = new ButtonData;
+        l_data->text = "Sign Out";
+        l->user_data = l_data;
+    
+        auto b = popup->root->child(FILL_SPACE, FILL_SPACE);
+        b->when_clicked = clicked_shut_down;
+        b->when_paint = paint_button;
+        auto *b_data = new ButtonData;
+        b_data->text = "Shut Down";
+        b->user_data = b_data;
+        
+        auto c = popup->root->child(FILL_SPACE, FILL_SPACE);
+        c->when_clicked = clicked_restart;
+        c->when_paint = paint_button;
+        auto *c_data = new ButtonData;
+        c_data->text = "Restart";
+        c->user_data = c_data;
+        
+        auto d = popup->root->child(FILL_SPACE, FILL_SPACE);
+        d->when_clicked = clicked_reload;
+        d->when_paint = paint_button;
+        auto *d_data = new ButtonData;
+        d_data->text = "Reload";
+        d->user_data = d_data;
+        
+        auto a = popup->root->child(FILL_SPACE, FILL_SPACE);
+        a->when_clicked = clicked_off;
+        a->when_paint = paint_button;
+        auto *a_data = new ButtonData;
+        a_data->text = "Off";
+        a->user_data = a_data;
+        
+        popup->when_closed = sub_menu_closed;
+        
+        client_show(app, popup);
+        
+        xcb_set_input_focus(app->connection, XCB_NONE, popup->window, XCB_CURRENT_TIME);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+    }
+}
+
+static void
 clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    std::lock_guard m(app->running_mutex);
-    client->app->running = false;
+    // TODO make button open *and* close menu.
+    left_locked = true;
+    
+    Settings settings;
+    settings.force_position = true;
+    settings.w = 256 * config->dpi;
+    settings.h = ((48 * 4) * config->dpi) + (config->dpi * 3);
+    settings.x = app->bounds.x;
+    settings.y = app->bounds.h - settings.h - config->taskbar_height - (48 * 1) * config->dpi;
+    if (auto *taskbar = client_by_name(app, "taskbar")) {
+        settings.x = taskbar->bounds->x;
+        settings.y = taskbar->bounds->y - settings.h - (48 * 1) * config->dpi;
+    }
+    settings.skip_taskbar = true;
+    settings.decorations = false;
+    settings.override_redirect = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
+    
+    if (auto app_menu = client_by_name(app, "app_menu")) {
+        PopupSettings popup_settings;
+        popup_settings.takes_input_focus = true;
+        
+        auto popup = app_menu->create_popup(popup_settings, settings);
+        
+        popup->root->when_paint = paint_power_menu;
+        popup->root->type = vbox;
+        popup->root->spacing = 1;
+        popup->root->wanted_pad.y = 8 * config->dpi;
+        popup->root->wanted_pad.h = 8 * config->dpi;
+    
+        auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
+        l->when_clicked = clicked_logoff;
+        l->when_paint = paint_button;
+        auto *l_data = new ButtonData;
+        l_data->text = "Sign Out";
+        l->user_data = l_data;
+    
+        auto b = popup->root->child(FILL_SPACE, FILL_SPACE);
+        b->when_clicked = clicked_shut_down;
+        b->when_paint = paint_button;
+        auto *b_data = new ButtonData;
+        b_data->text = "Shut Down";
+        b->user_data = b_data;
+        
+        auto c = popup->root->child(FILL_SPACE, FILL_SPACE);
+        c->when_clicked = clicked_restart;
+        c->when_paint = paint_button;
+        auto *c_data = new ButtonData;
+        c_data->text = "Restart";
+        c->user_data = c_data;
+        
+        auto d = popup->root->child(FILL_SPACE, FILL_SPACE);
+        d->when_clicked = clicked_reload;
+        d->when_paint = paint_button;
+        auto *d_data = new ButtonData;
+        d_data->text = "Reload";
+        d->user_data = d_data;
+        
+        auto a = popup->root->child(FILL_SPACE, FILL_SPACE);
+        a->when_clicked = clicked_off;
+        a->when_paint = paint_button;
+        auto *a_data = new ButtonData;
+        a_data->text = "Off";
+        a->user_data = a_data;
+        
+        popup->when_closed = sub_menu_closed;
+        
+        client_show(app, popup);
+        
+        xcb_set_input_focus(app->connection, XCB_NONE, popup->window, XCB_CURRENT_TIME);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+    }
 }
 
 
@@ -713,50 +1035,71 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_apps_pressed_item);
-        } else {
-            set_argb(cr, config->color_apps_hovered_item);
+    auto data = (ButtonData *) container->user_data;
+    {
+        auto default_color = config->color_taskbar_button_default;
+        auto hovered_color = config->color_taskbar_button_hovered;
+        auto pressed_color = config->color_taskbar_button_pressed;
+        
+        auto e = getEasingFunction(easing_functions::EaseOutQuad);
+        double time = 0;
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                if (data->previous_state != 2) {
+                    time = 40;
+                    data->previous_state = 2;
+                    client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
+                    client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
+                    client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
+                    client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
+                }
+            } else if (data->previous_state != 1) {
+                time = 70;
+                data->previous_state = 1;
+                client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
+                client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
+                client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
+                client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
+            }
+        } else if (data->previous_state != 0) {
+            time = 100;
+            data->previous_state = 0;
+            e = getEasingFunction(easing_functions::EaseInCirc);
+            client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
+            client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
+            client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
+            client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
         }
+        
+        set_argb(cr, data->color);
         int pad = 2;
         paint_margins_rect(client, cr, container->real_bounds, pad, 0);
     }
     
-    auto *data = (ButtonData *) container->user_data;
-    
-    if (data->surface) {
-        if (container->interactable) {
-            dye_surface(data->surface, config->color_apps_text);
-        } else {
-            dye_surface(data->surface, config->color_apps_text_inactive);
-        }
-        cairo_set_source_surface(cr, data->surface,
-                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - (10 * config->dpi)),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - (10 * config->dpi)));
-        cairo_paint(cr);
+    PangoLayout *layout =
+            get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    std::string text(data->text);
+    if (data->text == "Recently added") {
+        pango_layout_set_text(layout, "\uE823", strlen("\uE972"));
     } else {
-        PangoLayout *layout =
-                get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-        std::string text(data->text);
         pango_layout_set_text(layout, text.c_str(), text.size());
-        
-        PangoRectangle ink;
-        PangoRectangle logical;
-        pango_layout_get_extents(layout, &ink, &logical);
-        
-        if (container->interactable) {
-            set_argb(cr, config->color_apps_text);
-        } else {
-            set_argb(cr, config->color_apps_text_inactive);
-        }
-        cairo_move_to(cr,
-                      (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                             ((logical.width / PANGO_SCALE) / 2)),
-                      (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                             ((logical.height / PANGO_SCALE) / 2)));
-        pango_cairo_show_layout(cr, layout);
     }
+    
+    PangoRectangle ink;
+    PangoRectangle logical;
+    pango_layout_get_extents(layout, &ink, &logical);
+    
+    if (container->interactable) {
+        set_argb(cr, config->color_apps_text);
+    } else {
+        set_argb(cr, config->color_apps_text_inactive);
+    }
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 -
+                         ((logical.width / PANGO_SCALE) / 2)),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                         ((logical.height / PANGO_SCALE) / 2)));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -823,9 +1166,6 @@ fill_root(AppClient *client) {
         // button->when_mouse_leaves_container = leave_fade;
         auto *data = new ButtonData;
         data->text = item;
-        data->surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-        paint_surface_with_image(
-                data->surface, as_resource_path("starticons/" + item + ".png"), 16 * config->dpi, nullptr);
         button->user_data = data;
     }
     auto start_filler = new Container();
@@ -860,38 +1200,32 @@ fill_root(AppClient *client) {
     auto *g = grid->child(layout_type::vbox, (48 * 4 + (pad * 3)) * config->dpi, (48 * 8 + (pad * 7)) * config->dpi);
     g->spacing = pad * config->dpi;
     
-    ScrollPaneSettings settings;
-    settings.right_width = 12 * config->dpi;
-    settings.right_arrow_height = 12 * config->dpi;
-    settings.right_inline_track = true;
-    Container *content_area = make_scrollpane(app_list_container, settings);
-    content_area->when_scrolled = scrolled_content_area;
-    content_area->name = "scroll_pane";
-    Container *right_thumb_container = content_area->parent->children[0]->children[1];
+    ScrollPaneSettings settings(config->dpi);
+    ScrollContainer *scroll = make_newscrollpane_as_child(app_list_container, settings);
+    scroll->when_fine_scrolled = scrolled_content_area;
+    scroll->name = "scroll_pane";
+    Container *right_thumb_container = scroll->right->children[1];
     right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
     right_thumb_container->parent->when_mouse_enters_container = when_scrollbar_mouse_enters;
     right_thumb_container->parent->when_mouse_leaves_container = when_scrollbar_mouse_leaves_slow;
     
     right_thumb_container->when_paint = paint_right_thumb;
-    Container *top_arrow = content_area->parent->children[0]->children[0];
+    Container *top_arrow = scroll->right->children[0];
     top_arrow->when_paint = paint_arrow;
-    auto *top_data = new IconButton;
-    top_data->surface = accelerated_surface(app, client, 12 * config->dpi, 12 * config->dpi);
-    paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12 * config->dpi, nullptr);
-    
+    auto *top_data = new ButtonData;
+    top_data->text = "\uE971";
     top_arrow->user_data = top_data;
-    Container *bottom_arrow = content_area->parent->children[0]->children[2];
-    bottom_arrow->when_paint = paint_arrow;
-    auto *bottom_data = new IconButton;
-    bottom_data->surface = accelerated_surface(app, client, 12 * config->dpi, 12 * config->dpi);
-    paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12 * config->dpi, nullptr);
     
+    Container *bottom_arrow = scroll->right->children[2];
+    bottom_arrow->when_paint = paint_arrow;
+    auto *bottom_data = new ButtonData;
+    bottom_data->text = "\uE972";
     bottom_arrow->user_data = bottom_data;
     
-    content_area->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, (settings.right_width + 1) * config->dpi,
-                                      54 * config->dpi);
+    scroll->content->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, (settings.right_width / 2) * config->dpi,
+                                         54 * config->dpi);
     
-    Container *content = content_area->child(FILL_SPACE, 0);
+    Container *content = scroll->content;
     content->spacing = 2 * config->dpi;
     
     char previous_char = '\0';
@@ -915,8 +1249,9 @@ fill_root(AppClient *client) {
                 title->wanted_bounds.h = 34 * config->dpi;
                 title->when_paint = paint_item_title;
                 title->when_clicked = clicked_title;
-                
+    
                 title->user_data = data;
+                title->name = data->text;
             }
         } else if (previous_priority != l->app_menu_priority) {
             previous_priority = l->app_menu_priority;
@@ -942,6 +1277,7 @@ fill_root(AppClient *client) {
                 data->text = "#";
             }
             title->user_data = data;
+            title->name = data->text;
         }
         
         auto *child = content->child(FILL_SPACE, 36 * config->dpi);
@@ -950,6 +1286,7 @@ fill_root(AppClient *client) {
         child->user_data = data;
         child->when_paint = paint_item;
         child->when_clicked = clicked_item;
+        child->name = l->name;
     }
     
     int count = 0;
@@ -970,8 +1307,6 @@ fill_root(AppClient *client) {
                 if (!container_by_name("Recently added", root)) {
                     c->interactable = false;
                 }
-                data->surface = accelerated_surface(app, client, 20 * config->dpi, 20 * config->dpi);
-                paint_png_to_surface(data->surface, as_resource_path("recent.png"), 20 * config->dpi);
                 data->text = "Recently added";
             } else if (count == 2) { // &
                 if (!container_by_name("&", root)) {
@@ -989,12 +1324,9 @@ fill_root(AppClient *client) {
                     c->interactable = false;
                 }
             }
-            
         }
     }
     grid->child(FILL_SPACE, FILL_SPACE);
-    
-    content->wanted_bounds.h = true_height(content_area) + true_height(content);
 }
 
 static void
@@ -1011,7 +1343,26 @@ paint_desktop_files() {
     
     std::vector<IconTarget> targets;
     for (auto *launcher: launchers) {
-        launcher->icon = c3ic_fix_desktop_file_icon(launcher->name, launcher->wmclass, launcher->icon, launcher->icon);
+        if (!launcher->icon.empty() && launcher->icon[0] != '/') {
+            if (!has_options(launcher->icon))
+                launcher->icon = "";
+        }
+    
+        if (launcher->icon.empty() && !launcher->name.empty()) {
+            if (has_options(launcher->name))
+                launcher->icon = launcher->name;
+        }
+    
+        if (launcher->icon.empty() && !launcher->wmclass.empty()) {
+            if (has_options(launcher->wmclass))
+                launcher->icon = launcher->wmclass;
+        }
+    
+        if (launcher->icon.empty() && !launcher->exec.empty()) {
+            if (has_options(launcher->exec))
+                launcher->icon = launcher->exec;
+        }
+    
         if (!launcher->icon.empty()) {
             targets.emplace_back(IconTarget(launcher->icon, launcher));
         }
@@ -1044,43 +1395,43 @@ paint_desktop_files() {
                     path32 = launcher->icon;
                     path64 = launcher->icon;
                 } else {
-                    for (const auto &icon: t.indexes_of_results) {
+                    for (const auto &icon: t.candidates) {
                         if (!path16.empty() && !path24.empty() && !path32.empty() && !path64.empty())
                             break;
                         if ((icon.size == 16) && path16.empty()) {
-                            path16 = icon.pre_path + "/" + icon.name;
+                            path16 = icon.full_path();
                         } else if (icon.size == 24 && path24.empty()) {
-                            path24 = icon.pre_path + "/" + icon.name;
+                            path24 = icon.full_path();
                         } else if (icon.size == 32 && path32.empty()) {
-                            path32 = icon.pre_path + "/" + icon.name;
+                            path32 = icon.full_path();
                         } else if (icon.size == 64 && path64.empty()) {
-                            path64 = icon.pre_path + "/" + icon.name;
+                            path64 = icon.full_path();
                         }
                     }
-                    for (const auto &icon: t.indexes_of_results) {
+                    for (const auto &icon: t.candidates) {
                         if (icon.extension == 2) {
                             if (path16.empty())
-                                path16 = icon.pre_path + "/" + icon.name;
+                                path16 = icon.full_path();
                             if (path24.empty())
-                                path24 = icon.pre_path + "/" + icon.name;
+                                path24 = icon.full_path();
                             if (path32.empty())
-                                path32 = icon.pre_path + "/" + icon.name;
+                                path32 = icon.full_path();
                             if (path64.empty())
-                                path64 = icon.pre_path + "/" + icon.name;
+                                path64 = icon.full_path();
                             break;
                         }
                     }
-                    for (const auto &icon: t.indexes_of_results) {
+                    for (const auto &icon: t.candidates) {
                         if (!path16.empty() && !path24.empty() && !path32.empty() && !path64.empty())
                             break;
                         if (path16.empty())
-                            path16 = icon.pre_path + "/" + icon.name;
+                            path16 = icon.full_path();
                         if (path24.empty())
-                            path24 = icon.pre_path + "/" + icon.name;
+                            path24 = icon.full_path();
                         if (path32.empty())
-                            path32 = icon.pre_path + "/" + icon.name;
+                            path32 = icon.full_path();
                         if (path64.empty())
-                            path64 = icon.pre_path + "/" + icon.name;
+                            path64 = icon.full_path();
                     }
                 }
             }
@@ -1296,6 +1647,7 @@ void load_all_desktop_files() {
 void start_app_menu() {
     scrollbar_openess = 0;
     scrollbar_visible = 0;
+    left_locked = false;
     if (auto *c = client_by_name(app, "search_menu")) {
         client_close(app, c);
     }

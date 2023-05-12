@@ -6,7 +6,7 @@
 
 #ifdef TRACY_ENABLE
 
-#include "../tracy/Tracy.hpp"
+#include "../tracy/public/tracy/Tracy.hpp"
 
 #endif
 
@@ -57,16 +57,10 @@ static int scroll_amount = 0;
 static cairo_surface_t *script_16 = nullptr;
 static cairo_surface_t *script_32 = nullptr;
 static cairo_surface_t *script_64 = nullptr;
-static cairo_surface_t *arrow_right_surface = nullptr;
-static cairo_surface_t *open_surface = nullptr;
 
 class TabData : public UserData {
 public:
     std::string name;
-    
-    cairo_surface_t *surface = nullptr;
-    
-    ~TabData() { cairo_surface_destroy(surface); }
 };
 
 static void
@@ -104,7 +98,7 @@ determine_priority(Sortable *item,
 #endif
     if (text.empty())
         return 11;
-    // Sort priority (this won't try to do anything smart when searching for multiple words)
+    // Sort priority (this won't try to do anything smart when searching for multiple words at the same time: "Firefox Steam")
     //
     // 0: name found somewhere in history TODO: need to implement this
     // 1: Perfect match is highest
@@ -279,21 +273,26 @@ static void
 paint_right_item(AppClient *client, cairo_t *cr, Container *container) {
     paint_item_background(client, cr, container, 0);
     
-    if (arrow_right_surface) {
-        if (container->state.mouse_pressing) {
-            dye_surface(arrow_right_surface, config->color_search_content_left_set_active_button_icon_pressed);
-        } else {
-            dye_surface(arrow_right_surface, config->color_search_content_left_set_active_button_icon_default);
-        }
-        
-        cairo_set_source_surface(cr,
-                                 arrow_right_surface,
-                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                                        ((16 / 2) * config->dpi)),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                                        ((16 / 2) * config->dpi)));
-        cairo_paint(cr);
+    PangoLayout *icon_layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(icon_layout, "\uE974", strlen("\uE83F"));
+    
+    if (container->state.mouse_pressing) {
+        set_argb(cr, config->color_search_content_left_set_active_button_icon_pressed);
+    } else {
+        set_argb(cr, config->color_search_content_left_set_active_button_icon_default);
     }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(icon_layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, icon_layout);
 }
 
 static void
@@ -722,15 +721,22 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
     
-    if (open_surface) {
-        dye_surface(open_surface, config->color_search_accent);
-        cairo_set_source_surface(cr,
-                                 open_surface,
-                                 (int) (container->real_bounds.x + 23 * config->dpi),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                                        ((16 / 2) * config->dpi)));
-        cairo_paint(cr);
-    }
+    
+    PangoLayout *icon_layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(icon_layout, "\uE8A7", strlen("\uE83F"));
+    
+    set_argb(cr, config->color_search_accent);
+    
+    pango_layout_get_pixel_size(icon_layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + 23 * config->dpi),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 -
+                         ((16 / 2) * config->dpi)));
+    pango_cairo_show_layout(cr, icon_layout);
 }
 
 static void
@@ -914,14 +920,28 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
     if (auto *tab_group = container_by_name("tab_group", client->root)) {
         for (auto *tab: tab_group->children) {
             auto *tab_data = (TabData *) tab->user_data;
-            if (tab_data->name == active_tab && tab_data->surface) {
-                dye_surface(tab_data->surface, config->color_search_empty_tab_content_icon);
-                cairo_set_source_surface(cr,
-                                         tab_data->surface,
-                                         container->real_bounds.x + container->real_bounds.w / 2 -
-                                         ((128 / 2) * config->dpi),
-                                         container->real_bounds.y + 156 * config->dpi);
-                cairo_paint(cr);
+            if (tab_data->name == active_tab) {
+    
+                PangoLayout *icon_layout =
+                        get_cached_pango_font(cr, "Segoe MDL2 Assets", 100 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+                // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+                if (tab_data->name == "Apps") {
+                    pango_layout_set_text(icon_layout, "\uF8A5", strlen("\uE83F"));
+                } else if (tab_data->name == "Scripts") {
+                    pango_layout_set_text(icon_layout, "\uE62F", strlen("\uE83F"));
+                }
+    
+                set_argb(cr, config->color_search_empty_tab_content_icon);
+    
+                int width;
+                int height;
+                pango_layout_get_pixel_size(icon_layout, &width, &height);
+    
+                cairo_move_to(cr,
+                              (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                              (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2 - 100 * config->dpi));
+                pango_cairo_show_layout(cr, icon_layout);
             }
         }
     }
@@ -1064,9 +1084,6 @@ add_tab(AppClient *client, Container *tab_bar, std::string tab_name) {
     tab->user_data = data;
     tab->when_paint = paint_tab;
     tab->when_clicked = clicked_tab;
-    
-    data->surface = accelerated_surface(client->app, client, 128 * config->dpi, 128 * config->dpi);
-    paint_surface_with_image(data->surface, as_resource_path(tab_name + ".png"), 128 * config->dpi, nullptr);
 }
 
 static inline bool
@@ -1123,15 +1140,14 @@ void sort_and_add(std::vector<T> *sortables,
         right_fg->when_paint = paint_right_fg;
         right_fg->name = "right_fg";
         
-        ScrollPaneSettings settings;
-        settings.right_inline_track = true;
+        ScrollPaneSettings settings(config->dpi);
         settings.right_show_amount = 2;
-        Container *content_area = make_scrollpane(left, settings);
-        content_area->name = "content_area";
-        content_area->scroll_v_real = scroll_amount;
-        content_area->scroll_v_visual = scroll_amount;
+        ScrollContainer *scroll = make_newscrollpane_as_child(left, settings);
+        scroll->name = "scroll";
+        scroll->scroll_v_real = scroll_amount;
+        scroll->scroll_v_visual = scroll_amount;
         
-        Container *content = content_area->child(::vbox, FILL_SPACE, 0);
+        Container *content = scroll->content;
         content->spacing = 0;
         content->when_paint = paint_content;
         content->clip_children =
@@ -1194,8 +1210,6 @@ void sort_and_add(std::vector<T> *sortables,
             open->when_clicked = clicked_open;
             
             right_fg->child(FILL_SPACE, 12 * config->dpi);
-            
-            content->wanted_bounds.h = true_height(content_area) + true_height(content);
             return;
         }
         
@@ -1258,8 +1272,6 @@ void sort_and_add(std::vector<T> *sortables,
             data->item_number = i;
             hbox->user_data = data;
         }
-        
-        content->wanted_bounds.h = true_height(content_area) + true_height(content);
     }
 }
 
@@ -1395,10 +1407,6 @@ fill_root(AppClient *client) {
     paint_surface_with_image(script_32, as_resource_path("script-32.svg"), 32 * config->dpi, nullptr);
     script_64 = accelerated_surface(client->app, client, 64 * config->dpi, 64 * config->dpi);
     paint_surface_with_image(script_64, as_resource_path("script-64.svg"), 64 * config->dpi, nullptr);
-    arrow_right_surface = accelerated_surface(client->app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(arrow_right_surface, as_resource_path("arrow-right.png"), 16 * config->dpi, nullptr);
-    open_surface = accelerated_surface(client->app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(open_surface, as_resource_path("open.png"), 16 * config->dpi, nullptr);
 }
 
 void load_historic_scripts() {
@@ -1529,8 +1537,6 @@ search_menu_when_closed(AppClient *client) {
     cairo_surface_destroy(script_16);
     cairo_surface_destroy(script_32);
     cairo_surface_destroy(script_64);
-    cairo_surface_destroy(arrow_right_surface);
-    cairo_surface_destroy(open_surface);
     write_historic_scripts();
     write_historic_apps();
     std::thread(load_scripts).detach();

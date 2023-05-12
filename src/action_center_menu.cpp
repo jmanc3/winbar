@@ -415,15 +415,16 @@ static void fill_root(AppClient *client, Container *root) {
     }
     
     auto r = root->child(FILL_SPACE, FILL_SPACE);
-    ScrollPaneSettings settings;
+    ScrollPaneSettings settings(config->dpi);
     settings.right_show_amount = 2;
-    auto scroll_pane = make_scrollpane(r, settings);
+    auto scroll_pane = make_newscrollpane_as_child(r, settings);
     scroll_pane->when_paint = paint_prompt;
     scroll_pane->clip = true;
     scroll_pane->name = "scroll_pane";
-    auto content = scroll_pane->child(::vbox, FILL_SPACE, 0);
+    auto content = scroll_pane->content;
     content->name = "content";
     content->spacing = 8 * config->dpi;
+    content->wanted_pad.h = 16 * config->dpi;
     
     for (int i = notifications.size(); i--;) {
         NotificationInfo *n = notifications[i];
@@ -438,13 +439,7 @@ static void fill_root(AppClient *client, Container *root) {
             auto icon_data = (IconButton *) icon_container->user_data;
             load_icon_full_path(app, client, &icon_data->surface, n->icon_path, 48 * config->dpi);
         }
-        if (auto icon_container = container_by_name("send_to_action_center", notification_container)) {
-            auto icon_data = (IconButton *) icon_container->user_data;
-            load_icon_full_path(app, client, &icon_data->surface, as_resource_path("close-12.png"), 12 * config->dpi);
-        }
     }
-    
-    content->wanted_bounds.h = true_height(content) + true_height(content->parent);
 }
 
 static bool
@@ -534,7 +529,7 @@ void start_action_center(App *app) {
             if (auto co = container_by_name("action", c->root)) {
                 auto data = (ActionCenterButtonData *) co->user_data;
                 data->some_unseen = false;
-                client_create_animation(app, c, &data->slide_anim, 220, nullptr, 0);
+                client_create_animation(app, c, &data->slide_anim, 0, 220, nullptr, 0);
                 request_refresh(app, c);
             }
         }

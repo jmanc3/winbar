@@ -3,12 +3,14 @@
 
 #ifdef TRACY_ENABLE
 
-#include "../tracy/Tracy.hpp"
+#include "../tracy/public/tracy/Tracy.hpp"
 
 #endif
 
 #include "utility.h"
 #include "dpi.h"
+#include "defer.h"
+#include "../src/root.h"
 
 #include <algorithm>
 #include <iostream>
@@ -21,12 +23,15 @@
 #include <sys/timerfd.h>
 #include <cassert>
 #include <cmath>
+#include <xcb/xinput.h>
+#include <xcb/xcb.h>
+#include <poll.h>
 
 #define explicit dont_use_cxx_explicit
 
-#include <xcb/xcb_keysyms.h>
 #include <xcb/xkb.h>
 #include <xcb/xcb_aux.h>
+#include <sys/wait.h>
 
 #undef explicit
 
@@ -72,7 +77,13 @@ void timeout_stop_and_remove_timeout(App *app, Timeout *timeout) {
                 // printf("Timeout Removed: noclient, fd = %d\n", t->file_descriptor);
             }
             app->timeouts.erase(app->timeouts.begin() + timeout_index);
-            epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor, NULL);
+            // remove from polled_descriptors
+            for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+                if (app->descriptors_being_polled[i].file_descriptor == timeout->file_descriptor) {
+                    app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
+                    break;
+                }
+            }
             close(timeout->file_descriptor);
             delete timeout;
             return;
@@ -272,24 +283,15 @@ void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keybo
     }
 }
 
-bool poll_descriptor(App *app, int file_descriptor, int events, void function(App *, int fd)) {
+bool poll_descriptor(App *app, int file_descriptor, int events, void function(App *, int fd, void *user_data),
+                     void *user_data) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     if (!app || !app->running) return false;
     
-    PolledDescriptor polled = {file_descriptor, function};
+    PolledDescriptor polled = {file_descriptor, function, user_data};
     app->descriptors_being_polled.push_back(polled);
-    
-    epoll_event event = {};
-    event.events = events;
-    event.data.fd = file_descriptor;
-    
-    if (epoll_ctl(app->epoll_fd, EPOLL_CTL_ADD, file_descriptor, &event) != 0) {
-        printf("Failed to add file descriptor: %d\n", file_descriptor);
-        close(app->epoll_fd);
-        return false;
-    }
     
     return true;
 }
@@ -330,9 +332,9 @@ get_visualtype(xcb_screen_t *s) {
     return NULL;
 }
 
-void xcb_poll_wakeup(App *app, int fd);
+void xcb_poll_wakeup(App *app, int fd, void *);
 
-void timeout_poll_wakeup(App *app, int fd) {
+void timeout_poll_wakeup(App *app, int fd, void *) {
     std::lock_guard lock(app->thread_mutex);
     
     bool keep_running = false;
@@ -374,6 +376,222 @@ void timeout_poll_wakeup(App *app, int fd) {
 App::App() {
 }
 
+const xcb_query_extension_reply_t *input_query = nullptr;
+
+std::map<xcb_input_device_id_t, int> devices_type;
+
+std::vector<Container *>
+pierced_containers(App *app, AppClient *client, int x, int y);
+
+std::vector<Container *>
+concerned_containers(App *app, AppClient *client);
+
+void set_active(AppClient *client, const std::vector<Container *> &active_containers, Container *c, bool state);
+
+static void deliver_fine_scroll_event(App *app, int horizontal, int vertical, bool came_from_touchpad) {
+    xcb_query_pointer_cookie_t pointer_cookie = xcb_query_pointer(app->connection, app->screen->root);
+    xcb_query_pointer_reply_t *pointer_reply = xcb_query_pointer_reply(app->connection, pointer_cookie, nullptr);
+    
+    if (!pointer_reply)
+        return;
+    
+    for (auto *client: app->clients) {
+        if (client->root) {
+//            if (client->root->children.empty())
+//                continue;
+        } else {
+            continue;
+        }
+        
+        if (bounds_contains(*client->bounds, pointer_reply->root_x, pointer_reply->root_y)) {
+            double x = pointer_reply->root_x - client->bounds->x;
+            double y = pointer_reply->root_y - client->bounds->y;
+            
+            client->mouse_initial_x = x;
+            client->mouse_initial_y = y;
+            client->mouse_current_x = x;
+            client->mouse_current_y = y;
+            std::vector<Container *> pierced = pierced_containers(app, client, x, y);
+            std::vector<Container *> concerned = concerned_containers(app, client);
+            
+            // pierced   are ALL the containers under the mouse
+            // concerned are all the containers which have concerned state on
+            // handle_mouse_button can be the catalyst for sending out when_mouse_down and
+            // when_scrolled
+            
+            std::vector<Container *> mouse_downed;
+            
+            for (int i = 0; i < pierced.size(); i++) {
+                auto p = pierced[i];
+                
+                // pierced[0] will always be the top or "real" container we are actually
+                // clicking on therefore everyone else in the list needs to set
+                // receive_events_even_if_obstructed to true to receive events
+                if (i != 0 && (!p->receive_events_even_if_obstructed_by_one &&
+                               !p->receive_events_even_if_obstructed)) {
+                    continue;
+                }
+                if (i != 0) {
+                    if (p->receive_events_even_if_obstructed) {
+                    
+                    } else if (p->receive_events_even_if_obstructed_by_one && p != pierced[0]->parent) {
+                        continue;
+                    }
+                }
+                
+                p->state.concerned = true;// Make sure this container is concerned
+                
+                if (p->when_fine_scrolled) {
+                    p->when_fine_scrolled(client, client->cr, p, -horizontal, -vertical, came_from_touchpad);
+                }
+                
+                handle_mouse_motion(app, client, x, y);
+            }
+            set_active(client, mouse_downed, client->root, false);
+            
+            client_paint(app, client);
+        }
+    }
+}
+
+static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xcb_window_t) {
+    if (!app->key_symbols)
+        app->key_symbols = xcb_key_symbols_alloc(app->connection);
+    
+    static int keys_down_count = 0;
+    static bool clean = true;
+    static bool num = true;
+    
+    if (event->response_type == XCB_GE_GENERIC) {
+        auto *generic_event = (xcb_ge_generic_event_t *) event;
+        if (generic_event->event_type == XCB_INPUT_KEY_PRESS) {
+            auto *press = (xcb_input_key_press_event_t *) event;
+            
+            xcb_keysym_t keysym = xcb_key_symbols_get_keysym(app->key_symbols, press->detail, 0);
+            
+            if (clean && (press->detail >= 10 && press->detail <= 19)) {
+                num = true;
+                meta_pressed(press->detail);
+            }
+            num = false;
+            clean = keysym == XK_Super_L || keysym == XK_Super_R;
+        } else if (generic_event->event_type == XCB_INPUT_KEY_RELEASE) {
+            auto *release = (xcb_input_key_release_event_t *) event;
+            
+            app->key_symbols = xcb_key_symbols_alloc(app->connection);
+            xcb_keysym_t keysym = xcb_key_symbols_get_keysym(app->key_symbols, release->detail, 0);
+            
+            bool is_meta = keysym == XK_Super_L || keysym == XK_Super_R;
+            if (is_meta && clean && !num) {
+                meta_pressed(0);
+                clean = false;
+            }
+        } else if (generic_event->event_type == XCB_INPUT_RAW_MOTION) {
+            auto *rmt_event = (xcb_input_raw_motion_event_t *) event;
+            int axis_len = xcb_input_raw_button_press_axisvalues_length(rmt_event);
+            if (axis_len) {
+                // from: https://github.com/MatthewZelriche/NamelessWindow/blob/3168145bdd168a37be783acfd1bfd0ba4cbcb1e2/src/X11/X11GenericMouse.cpp#L31
+                // > Ignore other raw motions, based on the valuator indices they contain. This is the best way
+                // > I can think of for disregarding raw motion events and only doing scroll. Indices 0 and 1 appear to be
+                // > real mouse motion events, while 2 and 3 appear to be horz/vertical valuators for scroll.
+                
+                auto mask = xcb_input_raw_button_press_valuator_mask(rmt_event);
+                bool is_scroll_event = (mask[0] & (1 << 2)) || (mask[0] & (1 << 3));
+                bool is_mouse_event = (mask[0] & (1 << 0)) || (mask[0] & (1 << 1));
+                if (is_mouse_event) {
+                
+                } else if (is_scroll_event) {
+                    auto raw_values = xcb_input_raw_button_press_axisvalues(
+                            (xcb_input_raw_button_press_event_t *) event);
+                    
+                    // Get the horizontal and vertical scroll values
+                    int horizontal = raw_values[0].integral;
+                    int vertical = raw_values[1].integral;
+                    
+                    // check devices_type map for device type
+                    int &cached_device_pointer_type = devices_type[rmt_event->deviceid];
+                    if (cached_device_pointer_type != 0) {
+                        if (cached_device_pointer_type == 1) {
+                            deliver_fine_scroll_event(app, vertical, horizontal, false);
+                            return true;
+                        } else if (cached_device_pointer_type == 2) {
+                            deliver_fine_scroll_event(app, horizontal, vertical, true);
+                            return true;
+                        }
+                    } else {
+                        // We want to know if the event came from a mouse or a touchpad
+                        xcb_input_list_input_devices_cookie_t devices_cookie = xcb_input_list_input_devices(
+                                app->connection);
+                        xcb_input_list_input_devices_reply_t *devices_reply = xcb_input_list_input_devices_reply(
+                                app->connection, devices_cookie, NULL);
+                        if (devices_reply != nullptr) {
+                            defer(free(devices_reply));
+                            
+                            int len = xcb_input_list_input_devices_devices_length(devices_reply);
+                            xcb_input_device_info_t *devices = xcb_input_list_input_devices_devices(devices_reply);
+                            // iterate through devices using len
+                            
+                            for (int i = 0; i < len; i++) {
+                                xcb_input_device_info_t *device = &devices[i];
+                                if (device->device_id == rmt_event->deviceid) {
+                                    if (device->device_type != 0) {
+                                        // get name of atom device_type
+                                        auto cookie = xcb_get_atom_name(app->connection, device->device_type);
+                                        auto reply = xcb_get_atom_name_reply(app->connection, cookie, NULL);
+                                        if (reply == nullptr)
+                                            continue;
+                                        
+                                        defer(free(reply));
+                                        std::string name(xcb_get_atom_name_name(reply),
+                                                         xcb_get_atom_name_name_length(reply));
+                                        if (name == "MOUSE") {
+                                            devices_type[rmt_event->deviceid] = 1;
+                                            deliver_fine_scroll_event(app, vertical, horizontal, false);
+                                            return true;
+                                        } else if (name == "TOUCHPAD") {
+                                            devices_type[rmt_event->deviceid] = 2;
+                                            deliver_fine_scroll_event(app, horizontal, vertical, true);
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                }
+            }
+        }
+    }
+    
+    return false; // Returning false here means this event handler does not consume the event
+}
+
+void get_raw_motion_and_scroll_events(App *app) {
+    // check if xinput is present on server
+    input_query = xcb_get_extension_data(app->connection, &xcb_input_id);
+    if (!input_query->present) {
+        perror("XInput was not present on Xorg server.\n");
+        return;
+    }
+    
+    // PASS US ALL EVENTS
+    app_create_custom_event_handler(app, INT_MAX, listen_for_raw_input_events);
+    
+    // select for raw motion events on the root window
+    struct {
+        xcb_input_event_mask_t iem;
+        xcb_input_xi_event_mask_t xiem;
+    } se_mask;
+    se_mask.iem.deviceid = XCB_INPUT_DEVICE_ALL;
+    se_mask.iem.mask_len = 1;
+    se_mask.xiem = (xcb_input_xi_event_mask_t) (XCB_INPUT_XI_EVENT_MASK_KEY_PRESS |
+                                                XCB_INPUT_XI_EVENT_MASK_KEY_RELEASE |
+                                                XCB_INPUT_XI_EVENT_MASK_RAW_MOTION);
+    xcb_input_xi_select_events(app->connection, app->screen->root, 1, &se_mask.iem);
+}
+
+
 App *app_new() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -390,7 +608,6 @@ App *app_new() {
     app->connection = connection;
     app->screen_number = screen_number;
     app->screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
-    app->epoll_fd = epoll_create(40);
     app->argb_visualtype = get_alpha_visualtype(app->screen);
     app->root_visualtype = get_visualtype(app->screen);
     app->bounds.x = 0;
@@ -404,7 +621,7 @@ App *app_new() {
     
     xcb_flush(app->connection);
     
-    poll_descriptor(app, xcb_get_file_descriptor(app->connection), EPOLLIN, xcb_poll_wakeup);
+    poll_descriptor(app, xcb_get_file_descriptor(app->connection), POLLIN, xcb_poll_wakeup, nullptr);
     
     auto atom_cookie = xcb_intern_atom(app->connection, 1, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
     xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(app->connection, atom_cookie, NULL);
@@ -423,6 +640,8 @@ App *app_new() {
     free(reply);
     
     dpi_setup(app);
+    
+    get_raw_motion_and_scroll_events(app);
     
     return app;
 }
@@ -763,7 +982,8 @@ void destroy_client(App *app, AppClient *client) {
     ZoneScoped;
 #endif
     delete client->bounds;
-    delete client->root;
+    if (client->auto_delete_root)
+        delete client->root;
     cairo_destroy(client->cr);
     xcb_free_colormap(app->connection, client->colormap);
     xcb_cursor_context_free(client->ctx);
@@ -801,7 +1021,7 @@ bool valid_client(App *app, AppClient *target_client) {
 
 void client_add_handler(App *app,
                         AppClient *client_entity,
-                        bool (*event_handler)(App *app, xcb_generic_event_t *)) {
+                        bool (*event_handler)(App *app, xcb_generic_event_t *, xcb_window_t)) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -875,15 +1095,11 @@ void request_refresh(App *app, AppClient *client) {
     if (app == nullptr || !valid_client(app, client))
         return;
     
-    auto *event = new xcb_expose_event_t;
-    
-    event->response_type = XCB_EXPOSE;
-    event->window = client->window;
-    
-    xcb_send_event(app->connection, true, event->window, XCB_EVENT_MASK_EXPOSURE, (char *) event);
-    xcb_flush(app->connection);
-    
-    delete event;
+    std::thread t([app, client]() {
+        std::lock_guard lock(app->running_mutex);
+        client_paint(app, client);
+    });
+    t.detach();
 }
 
 void client_animation_paint(App *app, AppClient *client, Timeout *, void *user_data);
@@ -915,13 +1131,44 @@ void client_close(App *app, AppClient *client) {
     if (app == nullptr || !valid_client(app, client))
         return;
     
+    if (client->name == "taskbar" && app->running) {
+        client->marked_to_close = false;
+        return;
+    }
+    
+    for (int i = client->commands.size() - 1; i >= 0; i--)
+        client->commands[i]->kill(false);
+    client->commands.clear();
+    
     if (client->when_closed) {
         client->when_closed(client);
     }
-    
+    int w = 0;
     if (client->popup_info.is_popup) {
-        xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
-        xcb_flush(app->connection);
+        AppClient *parent_client = nullptr;
+        for (auto c: app->clients)
+            if (c->child_popup == client)
+                parent_client = c;
+        if (parent_client) {
+            if (parent_client->popup_info.is_popup) {
+                parent_client->wants_popup_events = true;
+                if (parent_client->popup_info.takes_input_focus) {
+                    w = parent_client->window;
+                    xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, parent_client->window,
+                                        XCB_CURRENT_TIME);
+                    xcb_ewmh_request_change_active_window(&app->ewmh,
+                                                          app->screen_number,
+                                                          parent_client->window,
+                                                          XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                                          XCB_CURRENT_TIME,
+                                                          XCB_NONE);
+                    xcb_flush(app->connection);
+                }
+            } else {
+                xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
+                xcb_flush(app->connection);
+            }
+        }
     }
     
     // TODO: this will crash if there is more than one handler per window I think
@@ -939,9 +1186,15 @@ void client_close(App *app, AppClient *client) {
                                            bool remove = timeout_client == client;
         
                                            if (remove) {
-                                               epoll_ctl(client->app->epoll_fd, EPOLL_CTL_DEL, timeout->file_descriptor,
-                                                         NULL);
                                                close(timeout->file_descriptor);
+                                               for (int i = 0; i < client->app->descriptors_being_polled.size(); i++) {
+                                                   if (client->app->descriptors_being_polled[i].file_descriptor ==
+                                                       timeout->file_descriptor) {
+                                                       client->app->descriptors_being_polled.erase(
+                                                               client->app->descriptors_being_polled.begin() + i);
+                                                       break;
+                                                   }
+                                               }
                                                delete timeout;
                                            }
                                            if (remove != (timeout_client == client)) {
@@ -966,8 +1219,19 @@ void client_close(App *app, AppClient *client) {
     destroy_client(app, client);
     
     if (app->clients.empty()) {
-        std::lock_guard m(app->running_mutex);
         app->running = false;
+    }
+    if (w != 0) {
+        xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, w,
+                            XCB_CURRENT_TIME);
+        xcb_ewmh_request_change_active_window(&app->ewmh,
+                                              app->screen_number,
+                                              w,
+                                              XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                              XCB_CURRENT_TIME,
+                                              XCB_NONE);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
     }
     
     delete client;
@@ -1004,25 +1268,57 @@ void paint_container(App *app, AppClient *client, Container *container) {
         if (container->when_paint && client->cr) {
             container->when_paint(client, client->cr, container);
         }
-        
+    
         if (!container->automatically_paint_children) {
             return;
         }
+    
+        if (container->type == ::newscroll) {
+            auto s = (ScrollContainer *) container;
+            // only render content children which overlap with the scroll container
+            for (auto child: s->content->children) {
+                cairo_save(client->cr);
+                set_rect(client->cr, container->real_bounds);
+                cairo_clip(client->cr);
         
-        // TODO: check if any childrens z_index is non zero first as an optimization
-        // so we don't have to sort if we don't need it Only sort render_order
-        // indexes by z_index rather than the actual children list themselves
-        std::vector<int> render_order;
-        for (int i = 0; i < container->children.size(); i++) {
-            render_order.push_back(i);
-        }
-        std::sort(render_order.begin(), render_order.end(), [container](int a, int b) -> bool {
-            return container->children[a]->z_index < container->children[b]->z_index;
-        });
+                if (overlaps(child->real_bounds, s->real_bounds)) {
+                    paint_container(app, client, child);
+                }
+                cairo_restore(client->cr);
+            }
+            if (s->right && s->right->exists)
+                paint_container(app, client, s->right);
+            if (s->bottom && s->bottom->exists)
+                paint_container(app, client, s->bottom);
+        } else {
+            // What we already do
+            // TODO: check if any childrens z_index is non zero first as an optimization
+            // so we don't have to sort if we don't need it Only sort render_order
+            // indexes by z_index rather than the actual children list themselves
+            std::vector<int> render_order;
+            for (int i = 0; i < container->children.size(); i++) {
+                render_order.push_back(i);
+            }
+            std::sort(render_order.begin(), render_order.end(), [container](int a, int b) -> bool {
+                return container->children[a]->z_index < container->children[b]->z_index;
+            });
         
-        if (container->clip_children) {
-            for (auto index: render_order) {
-                if (overlaps(container->children[index]->real_bounds, container->real_bounds)) {
+            if (container->clip_children) {
+                for (auto index: render_order) {
+                    if (overlaps(container->children[index]->real_bounds, container->real_bounds)) {
+                        if (container->clip) {
+                            cairo_save(client->cr);
+                            set_rect(client->cr, container->real_bounds);
+                            cairo_clip(client->cr);
+                        }
+                        paint_container(app, client, container->children[index]);
+                        if (container->clip) {
+                            cairo_restore(client->cr);
+                        }
+                    }
+                }
+            } else {
+                for (auto index: render_order) {
                     if (container->clip) {
                         cairo_save(client->cr);
                         set_rect(client->cr, container->real_bounds);
@@ -1032,18 +1328,6 @@ void paint_container(App *app, AppClient *client, Container *container) {
                     if (container->clip) {
                         cairo_restore(client->cr);
                     }
-                }
-            }
-        } else {
-            for (auto index: render_order) {
-                if (container->clip) {
-                    cairo_save(client->cr);
-                    set_rect(client->cr, container->real_bounds);
-                    cairo_clip(client->cr);
-                }
-                paint_container(app, client, container->children[index]);
-                if (container->clip) {
-                    cairo_restore(client->cr);
                 }
             }
         }
@@ -1087,37 +1371,23 @@ void client_paint(App *app, AppClient *client) {
     client_paint(app, client, false);
 }
 
-Container *
-hovered_container(App *app, Container *root, int x, int y) {
-    if (root == nullptr)
-        return nullptr;
-    
-    for (Container *child: root->children) {
-        if (child) {
-            if (auto real = hovered_container(app, child, x, y)) {
-                return real;
-            }
-        }
-    }
-    
-    bool also_in_parent =
-            root->parent == nullptr ? true : bounds_contains(root->parent->real_bounds, x, y);
-    if (root->interactable && bounds_contains(root->real_bounds, x, y) && also_in_parent &&
-        root->exists) {
-        return root;
-    }
-    
-    return nullptr;
-}
-
 static xcb_generic_event_t *event;
 
 void fill_list_with_concerned(std::vector<Container *> &containers, Container *parent) {
-    for (auto child: parent->children) {
-        fill_list_with_concerned(containers, child);
+    if (parent->type == ::newscroll) {
+        auto s = (ScrollContainer *) parent;
+        for (auto child: s->content->children)
+            fill_list_with_concerned(containers, child);
+        if (s->right)
+            fill_list_with_concerned(containers, s->right);
+        if (s->bottom)
+            fill_list_with_concerned(containers, s->bottom);
+    } else {
+        for (auto child: parent->children)
+            fill_list_with_concerned(containers, child);
     }
     
-    if (parent->state.concerned) {
+    if (parent->state.concerned && parent->exists) {
         containers.push_back(parent);
     }
 }
@@ -1132,17 +1402,41 @@ concerned_containers(App *app, AppClient *client) {
 }
 
 void fill_list_with_pierced(std::vector<Container *> &containers, Container *parent, int x, int y) {
-    for (auto child: parent->children) {
-        if (child->interactable) {
-            fill_list_with_pierced(containers, child, x, y);
+    if (parent->type == ::newscroll) {
+        auto s = (ScrollContainer *) parent;
+        for (auto child: s->content->children) {
+            if (child->interactable) {
+                // parent->real_bounds w and h need to be subtracted by right and bottom if they exist
+                auto real_bounds_copy = parent->real_bounds;
+                if (s->right && s->right->exists)
+                    real_bounds_copy.w -= s->right->real_bounds.w;
+                if (s->bottom && s->bottom->exists)
+                    real_bounds_copy.h -= s->bottom->real_bounds.h;
+                if (!bounds_contains(real_bounds_copy, x, y))
+                    continue;
+                fill_list_with_pierced(containers, child, x, y);
+            }
+        }
+        if (s->right && s->right->exists)
+            fill_list_with_pierced(containers, s->right, x, y);
+        if (s->bottom && s->bottom->exists)
+            fill_list_with_pierced(containers, s->bottom, x, y);
+    } else {
+        for (auto child: parent->children) {
+            if (child->interactable) {
+                // check if parent is scrollpane and if so, check if the child is in bounds before calling
+                if (parent->type >= ::scrollpane && parent->type <= ::scrollpane_b_never)
+                    if (!bounds_contains(parent->real_bounds, x, y))
+                        continue;
+                fill_list_with_pierced(containers, child, x, y);
+            }
         }
     }
     
     if (parent->exists) {
         if (parent->handles_pierced) {
-            if (parent->handles_pierced(parent, x, y)) {
+            if (parent->handles_pierced(parent, x, y))
                 containers.push_back(parent);
-            }
         } else if (bounds_contains(parent->real_bounds, x, y)) {
             containers.push_back(parent);
         }
@@ -1403,9 +1697,11 @@ void handle_mouse_button_press(App *app) {
         p->state.mouse_pressing = true;
         p->state.mouse_button_pressed = e->detail;
         
-        if (p->when_mouse_down) {
+        if (p->when_mouse_down || p->when_key_event) {
             mouse_downed.push_back(p);
-            p->when_mouse_down(client, client->cr, p);
+            if (p->when_mouse_down) {
+                p->when_mouse_down(client, client->cr, p);
+            }
         }
     }
     set_active(client, mouse_downed, client->root, false);
@@ -1596,6 +1892,17 @@ send_key(App *app, AppClient *client, Container *container) {
     }
 }
 
+//static void
+//send_key_to_wants_keys(App *app, AppClient *client, Container *container) {
+//    for (auto c: container->children) {
+//        send_key_to_wants_keys(app, client, c);
+//    }
+//
+//    if (container->when_key_event) {
+//       send_key(app, client, container);
+//    }
+//}
+
 void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event, bool change_event_source) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -1783,9 +2090,20 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         
         case XCB_FOCUS_OUT: {
             if (auto client = client_by_window(app, window_number)) {
-                if (client->popup_info.is_popup) {
-                    if (client->popup_info.close_on_focus_out) {
+                if (client->child_popup) {
+                    if (!client->child_popup->popup_info.is_popup)
                         client_close_threaded(app, client);
+                } else if (client->popup_info.is_popup) {
+                    if (client->popup_info.close_on_focus_out)
+                        client_close_threaded(app, client);
+        
+                    AppClient *parent_client = nullptr;
+                    for (auto c: app->clients)
+                        if (c->child_popup == client)
+                            parent_client = c;
+                    if (parent_client && parent_client->popup_info.is_popup &&
+                        parent_client->popup_info.close_on_focus_out) {
+                        client_close_threaded(app, parent_client);
                     }
                 }
             }
@@ -1809,12 +2127,14 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
                     }
                 }
             }
-            
+    
             break;
         }
     }
     
-    client_paint(app, client_by_window(app, window_number), true);
+    if (auto client = client_by_window(app, window_number)) {
+        client_paint(app, client, true);
+    }
 }
 
 void handle_xcb_event(App *app) {
@@ -1825,20 +2145,20 @@ void handle_xcb_event(App *app) {
     
     std::lock_guard lock(app->thread_mutex);
     
-    while ((event = xcb_poll_for_event(app->connection)) != nullptr) {
+    while ((event = xcb_poll_for_event(app->connection))) {
         if (auto window = get_window(event)) {
             bool event_consumed_by_custom_handler = false;
             for (auto handler: app->handlers) {
                 // If the handler's target window is INT_MAX that means it wants to see every event
                 if (handler->target_window == INT_MAX) {
-                    if (handler->event_handler(app, event)) {
+                    if (handler->event_handler(app, event, handler->target_window)) {
                         // TODO: is this supposed to be called twice? I doubt it
 //                        handler->event_handler(app, event);
                         event_consumed_by_custom_handler = true;
                     }
                 } else if (handler->target_window ==
                            window) { // If the target window and the window of this event matches, then send the handler the
-                    if (handler->event_handler(app, event)) {
+                    if (handler->event_handler(app, event, handler->target_window)) {
                         event_consumed_by_custom_handler = true;
                     }
                 }
@@ -1861,8 +2181,8 @@ void handle_xcb_event(App *app) {
             for (auto handler: app->handlers) {
                 // If the handler's target window is INT_MAX that means it wants to see every event
                 if (handler->target_window == INT_MAX) {
-                    if (handler->event_handler(app, event)) {
-                    
+                    if (handler->event_handler(app, event, handler->target_window)) {
+        
                     }
                 }
             }
@@ -1872,7 +2192,7 @@ void handle_xcb_event(App *app) {
     }
 }
 
-void xcb_poll_wakeup(App *app, int fd) {
+void xcb_poll_wakeup(App *app, int fd, void *) {
     handle_xcb_event(app);
 }
 
@@ -1883,28 +2203,70 @@ void app_main(App *app) {
         return;
     }
     
-    int MAX_POLLING_EVENTS_AT_THE_SAME_TIME = 40;
-    epoll_event events[MAX_POLLING_EVENTS_AT_THE_SAME_TIME];
+    int MAX_POLLING_EVENTS_AT_THE_SAME_TIME = 100;
+    pollfd fds[MAX_POLLING_EVENTS_AT_THE_SAME_TIME];
     
     app->running = true;
     while (app->running) {
-        int event_count = epoll_wait(app->epoll_fd, events, MAX_POLLING_EVENTS_AT_THE_SAME_TIME, -1);
+        // set all fds to 0
+        memset(fds, 0, sizeof(fds));
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+            fds[i].fd = app->descriptors_being_polled[i].file_descriptor;
+            fds[i].events = POLLIN | POLLPRI;
+        }
+        
+        int num_ready = poll(fds, app->descriptors_being_polled.size(), -1);
+        if (num_ready < 0) {
+            perror("poll");
+            exit(1);
+        }
+        
+        std::lock_guard m(app->running_mutex);
         app->loop++;
         
-        for (int event_index = 0; event_index < event_count; event_index++) {
-            bool found = false;
-            for (auto polled: app->descriptors_being_polled) {
-                if (events[event_index].data.fd == polled.file_descriptor) {
-                    found = true;
-                    if (polled.function) {
-                        polled.function(app, polled.file_descriptor);
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+            if (fds[i].revents & POLLPRI) {
+                bool found = false;
+                for (const auto &polled: app->descriptors_being_polled) {
+                    if (fds[i].fd == polled.file_descriptor) {
+                        found = true;
+                        if (polled.function) {
+                            polled.function(app, polled.file_descriptor, polled.user_data);
+                        }
                     }
                 }
+                if (!found) {
+                    for (int x = 0; x < app->descriptors_being_polled.size(); x++) {
+                        if (app->descriptors_being_polled[x].file_descriptor == fds[x].fd) {
+                            app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + x);
+                            break;
+                        }
+                    }
+                    close(fds[i].fd);
+                }
             }
-            if (!found) {
-                // printf("Epoll was awoke by a file descriptor that is not in our descriptors_being_polled anymore\n");
-                epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, events[event_index].data.fd, NULL);
-                close(events[event_index].data.fd);
+        }
+        
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+            if (fds[i].revents & POLLIN) {
+                bool found = false;
+                for (const auto &polled: app->descriptors_being_polled) {
+                    if (fds[i].fd == polled.file_descriptor) {
+                        found = true;
+                        if (polled.function) {
+                            polled.function(app, polled.file_descriptor, polled.user_data);
+                        }
+                    }
+                }
+                if (!found) {
+                    for (int x = 0; x < app->descriptors_being_polled.size(); x++) {
+                        if (app->descriptors_being_polled[x].file_descriptor == fds[x].fd) {
+                            app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + x);
+                            break;
+                        }
+                    }
+                    close(fds[i].fd);
+                }
             }
         }
         
@@ -1927,6 +2289,13 @@ void app_clean(App *app) {
         client_close(app, client);
     }
     
+    if (app->key_symbols) {
+        xcb_key_symbols_free(app->key_symbols);
+    }
+    
+    input_query = nullptr;
+    devices_type.clear();
+    
     for (auto c: app->clients) {
         delete c;
     }
@@ -1941,7 +2310,12 @@ void app_clean(App *app) {
     cleanup_cached_atoms();
     
     for (auto t: app->timeouts) {
-        epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, t->file_descriptor, NULL);
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+            if (app->descriptors_being_polled[i].file_descriptor == t->file_descriptor) {
+                app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
+                break;
+            }
+        }
         close(t->file_descriptor);
         delete t;
     }
@@ -1951,8 +2325,6 @@ void app_clean(App *app) {
     app->descriptors_being_polled.clear();
     app->descriptors_being_polled.shrink_to_fit();
     
-    close(app->epoll_fd);
-    
     if (app->device) {
         cairo_device_finish(app->device);
         cairo_device_destroy(app->device);
@@ -1961,16 +2333,12 @@ void app_clean(App *app) {
     xcb_disconnect(app->connection);
 }
 
-void client_create_animation(App *app,
-                             AppClient *client,
-                             double *value,
-                             double length,
-                             easingFunction easing,
-                             double target,
-                             void (*finished)(AppClient *client),
-                             bool relayout) {
+void
+client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+                        double target, void (*finished)(AppClient *), bool relayout) {
     for (auto &animation: client->animations) {
         if (animation.value == value) {
+            animation.delay = delay;
             animation.length = length;
             animation.easing = easing;
             animation.target = target;
@@ -1983,6 +2351,7 @@ void client_create_animation(App *app,
     }
     
     ClientAnimation animation;
+    animation.delay = delay;
     animation.value = value;
     animation.length = length;
     animation.easing = easing;
@@ -1996,33 +2365,27 @@ void client_create_animation(App *app,
     client_register_animation(app, client);
 }
 
-void client_create_animation(App *app,
-                             AppClient *client,
-                             double *value,
-                             double length,
-                             easingFunction easing,
-                             double target) {
-    client_create_animation(app, client, value, length, easing, target, nullptr, false);
+void
+client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+                        double target) {
+    client_create_animation(app, client, value, delay, length, easing, target, nullptr, false);
 }
 
 void client_create_animation(App *app,
                              AppClient *client,
                              double *value,
+                             double delay,
                              double length,
                              easingFunction easing,
                              double target,
                              void (*finished)(AppClient *client)) {
-    client_create_animation(app, client, value, length, easing, target, finished, false);
+    client_create_animation(app, client, value, delay, length, easing, target, finished, false);
 }
 
-void client_create_animation(App *app,
-                             AppClient *client,
-                             double *value,
-                             double length,
-                             easingFunction easing,
-                             double target,
-                             bool relayout) {
-    client_create_animation(app, client, value, length, easing, target, nullptr, relayout);
+void
+client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+                        double target, bool relayout) {
+    client_create_animation(app, client, value, delay, length, easing, target, nullptr, relayout);
 }
 
 bool app_timeout_stop(App *app,
@@ -2083,9 +2446,14 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
         return nullptr;
     }
     
-    bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup);
+    bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup, nullptr);
     if (!success) { // error with poll_descriptor
-        epoll_ctl(app->epoll_fd, EPOLL_CTL_DEL, timeout_file_descriptor, NULL);
+        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+            if (app->descriptors_being_polled[i].file_descriptor == timeout_file_descriptor) {
+                app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + i);
+                break;
+            }
+        }
         close(timeout_file_descriptor);
         return nullptr;
     }
@@ -2125,7 +2493,8 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
 }
 
 void app_create_custom_event_handler(App *app, xcb_window_t window,
-                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event)) {
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event,
+                                                            xcb_window_t target_window)) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -2136,7 +2505,8 @@ void app_create_custom_event_handler(App *app, xcb_window_t window,
 }
 
 void app_remove_custom_event_handler(App *app, xcb_window_t window,
-                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event)) {
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event,
+                                                            xcb_window_t target_window)) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -2194,16 +2564,18 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
         bool wants_to_relayout = false;
         
         for (auto &animation: client->animations) {
-            long elapsed_time = now - animation.start_time;
+            long elapsed_time = now - (animation.start_time + animation.delay);
+            if (elapsed_time < 0)
+                elapsed_time = 0;
             double scalar = (double) elapsed_time / animation.length;
             animation.done = scalar >= 1;
-            
+    
             if (animation.easing != nullptr)
                 scalar = animation.easing(scalar);
-            
+    
             double diff = (animation.target - animation.start_value) * scalar;
             *animation.value = animation.start_value + diff;
-            
+    
             if (animation.relayout)
                 wants_to_relayout = true;
             
@@ -2246,4 +2618,74 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
 #ifdef TRACY_ENABLE
     FrameMarkEnd("Animation Paint");
 #endif
+}
+
+void command_wakeup(App *app, int fd, void *userdata) {
+    auto cc = (Subprocess *) userdata;
+    std::size_t buffer_size = 131072; // (128 kB).
+    char output[buffer_size];
+    
+    ssize_t read_size = read(fd, output, buffer_size);
+    if (read_size == -1) {
+        cc->status = CommandStatus::ERROR;
+        goto finish;
+    } else if (read_size == 0) {
+        cc->status = CommandStatus::FINISHED;
+        goto finish;
+    } else {
+        cc->status = CommandStatus::UPDATE;
+        cc->output += std::string(output, read_size);
+        cc->recent = std::string(output, read_size);
+        if (cc->function)
+            cc->function(cc);
+        return;
+    }
+    
+    finish:
+    if (cc->function)
+        cc->function(cc);
+    cc->kill(false);
+}
+
+void command_timeout(App *app, int fd, void *userdata) {
+    auto cc = (Subprocess *) userdata;
+    cc->status = CommandStatus::TIMEOUT;
+    if (cc->function)
+        cc->function(cc);
+    cc->kill(false);
+}
+
+Subprocess *
+command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, void (*function)(Subprocess *),
+                    void *user_data) {
+    int timerfd = 0;
+    if (timeout_in_ms != 0) {
+        struct itimerspec its;
+        timerfd = timerfd_create(CLOCK_MONOTONIC, 0);
+        if (timerfd == -1) {
+            printf("Error creating timer for command: %s\n", c.c_str());
+            return nullptr;
+        }
+        memset(&its, 0, sizeof(its));
+        its.it_value.tv_sec = timeout_in_ms / 1000;
+        its.it_value.tv_nsec = (timeout_in_ms % 1000) * 1000000;
+        if (timerfd_settime(timerfd, 0, &its, NULL) == -1) {
+            printf("Error setting timer for command: %s\n", c.c_str());
+            return nullptr;
+        }
+    }
+    
+    auto cc = new Subprocess(client->app, c);
+    if (timeout_in_ms != 0)
+        cc->timeout_fd = timerfd;
+    cc->function = function;
+    cc->client = client;
+    cc->user_data = user_data;
+    client->commands.push_back(cc);
+    
+    poll_descriptor(client->app, cc->outpipe[0], EPOLLIN, command_wakeup, cc);
+    if (timeout_in_ms != 0) {
+        poll_descriptor(client->app, cc->timeout_fd, EPOLLIN, command_timeout, cc);
+    }
+    return cc;
 }

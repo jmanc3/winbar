@@ -5,8 +5,7 @@
 
 #ifdef TRACY_ENABLE
 
-#include "../tracy/Tracy.hpp"
-#include "../tracy/common/TracySystem.hpp"
+#include "../tracy/public/tracy/Tracy.hpp"
 
 #endif
 
@@ -79,7 +78,7 @@ paint_display(AppClient *client_entity, cairo_t *cr, Container *container) {
 }
 
 static bool
-systray_event_handler(App *app, xcb_generic_event_t *event) {
+systray_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -128,7 +127,7 @@ systray_event_handler(App *app, xcb_generic_event_t *event) {
 // Selecting the SubstrucreRedirectMask and intercepting events on it like mapping/unmapping
 // configuring and so on. So that's what we do in this icon_event_handler
 static bool
-icon_event_handler(App *app, xcb_generic_event_t *generic_event) {
+icon_event_handler(App *app, xcb_generic_event_t *generic_event, xcb_window_t) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif

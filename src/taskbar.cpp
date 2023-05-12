@@ -3,7 +3,7 @@
 
 #ifdef TRACY_ENABLE
 
-#include "../tracy/Tracy.hpp"
+#include "../tracy/public/tracy/Tracy.hpp"
 
 #endif
 
@@ -29,6 +29,8 @@
 #include "simple_dbus.h"
 #include "audio.h"
 #include "defer.h"
+#include "bluetooth_menu.h"
+#include "plugins_menu.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -40,19 +42,7 @@
 #include <xcb/xproto.h>
 #include <dpi.h>
 #include <sys/inotify.h>
-
-class WorkspaceButton : public HoverableButton {
-public:
-    cairo_surface_t *surface = nullptr;
-    cairo_surface_t *surface_hover = nullptr;
-    
-    ~WorkspaceButton() {
-        if (surface)
-            cairo_surface_destroy(surface);
-        if (surface_hover)
-            cairo_surface_destroy(surface_hover);
-    }
-};
+#include <functional>
 
 static Container *active_container = nullptr;
 static xcb_window_t active_window = 0;
@@ -102,37 +92,38 @@ paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *con
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    HoverableButton *data = (HoverableButton *) container->user_data;
+    auto *data = (HoverableButton *) container->user_data;
     
     auto default_color = config->color_taskbar_button_default;
     auto hovered_color = config->color_taskbar_button_hovered;
     auto pressed_color = config->color_taskbar_button_pressed;
     
     auto e = getEasingFunction(easing_functions::EaseOutQuad);
-    double time = 100;
+    double time = 0;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
             if (data->previous_state != 2) {
                 data->previous_state = 2;
-                client_create_animation(app, client, &data->color.r, time, e, pressed_color.r);
-                client_create_animation(app, client, &data->color.g, time, e, pressed_color.g);
-                client_create_animation(app, client, &data->color.b, time, e, pressed_color.b);
-                client_create_animation(app, client, &data->color.a, time, e, pressed_color.a);
+                client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
+                client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
+                client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
+                client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
             }
         } else if (data->previous_state != 1) {
             data->previous_state = 1;
-            client_create_animation(app, client, &data->color.r, time, e, hovered_color.r);
-            client_create_animation(app, client, &data->color.g, time, e, hovered_color.g);
-            client_create_animation(app, client, &data->color.b, time, e, hovered_color.b);
-            client_create_animation(app, client, &data->color.a, time, e, hovered_color.a);
+            client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
+            client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
+            client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
+            client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
         }
     } else if (data->previous_state != 0) {
+        time = 100;
         data->previous_state = 0;
-        e = getEasingFunction(easing_functions::EaseInQuad);
-        client_create_animation(app, client, &data->color.r, time, e, default_color.r);
-        client_create_animation(app, client, &data->color.g, time, e, default_color.g);
-        client_create_animation(app, client, &data->color.b, time, e, default_color.b);
-        client_create_animation(app, client, &data->color.a, time, e, default_color.a);
+        e = getEasingFunction(easing_functions::EaseInCirc);
+        client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
+        client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
+        client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
+        client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
     }
     
     set_argb(cr, data->color);
@@ -155,25 +146,28 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
     
     paint_hoverable_button_background(client, cr, container);
     
-    if (data->surface) {
-        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
-        if (container->state.mouse_pressing) {
-            dye_surface(data->surface, config->color_taskbar_windows_button_pressed_icon);
-        } else if (container->state.mouse_hovering) {
-            dye_surface(data->surface, config->color_taskbar_windows_button_hovered_icon);
-        } else {
-            dye_surface(data->surface, config->color_taskbar_windows_button_default_icon);
-        }
-        
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2));
-        cairo_paint(cr);
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    pango_layout_set_text(layout, "\uE782", strlen("\uE83F"));
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    if (container->state.mouse_pressing) {
+        set_argb(cr, config->color_taskbar_windows_button_pressed_icon);
+    } else if (container->state.mouse_hovering) {
+        set_argb(cr, config->color_taskbar_windows_button_hovered_icon);
+    } else {
+        set_argb(cr, config->color_taskbar_windows_button_default_icon);
     }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -189,12 +183,6 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
     container->real_bounds = start;
     
-    auto surfaces = (volume_surfaces *) container->user_data;
-    
-    if (surfaces->mute == nullptr || surfaces->high == nullptr || surfaces->low == nullptr ||
-        surfaces->medium == nullptr)
-        return;
-    
     int val = 100;
     bool mute_state = false;
     for (auto c: audio_clients) {
@@ -205,28 +193,43 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
         }
     }
     
-    cairo_surface_t *surface = nullptr;
-    if (mute_state) {
-        surface = surfaces->mute;
-    } else if (val == 0) {
-        surface = surfaces->none;
-    } else if (val < 33) {
-        surface = surfaces->low;
-    } else if (val < 66) {
-        surface = surfaces->medium;
-    } else {
-        surface = surfaces->high;
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    int width;
+    int height;
+    pango_layout_set_text(layout, "\uEBC5", strlen("\uE83F"));
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    if (!mute_state) {
+        ArgbColor volume_bars_color = ArgbColor(.4, .4, .4, 1);
+        set_argb(cr, volume_bars_color);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, layout);
     }
     
-    dye_surface(surface, config->color_taskbar_button_icons);
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    if (mute_state) {
+        pango_layout_set_text(layout, "\uE74F", strlen("\uE83F"));
+    } else if (val == 0) {
+        pango_layout_set_text(layout, "\uE992", strlen("\uE83F"));
+    } else if (val < 33) {
+        pango_layout_set_text(layout, "\uE993", strlen("\uE83F"));
+    } else if (val < 66) {
+        pango_layout_set_text(layout, "\uE994", strlen("\uE83F"));
+    } else {
+        pango_layout_set_text(layout, "\uE995", strlen("\uE83F"));
+    }
     
-    cairo_set_source_surface(cr,
-                             surface,
-                             (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                                    cairo_image_surface_get_width(surface) / 2),
-                             (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                                    cairo_image_surface_get_height(surface) / 2));
-    cairo_paint(cr);
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -234,51 +237,37 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    WorkspaceButton *data = (WorkspaceButton *) container->user_data;
-    
     paint_hoverable_button_background(client, cr, container);
     
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    set_argb(cr, config->color_taskbar_button_icons);
+    
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        if (data->surface_hover) {
-            dye_surface(data->surface_hover, config->color_taskbar_button_icons);
-            // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
-            cairo_set_source_surface(
-                    cr,
-                    data->surface_hover,
-                    (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                           cairo_image_surface_get_width(data->surface) / 2),
-                    (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                           cairo_image_surface_get_width(data->surface) / 2));
-            cairo_paint(cr);
-        }
+        pango_layout_set_text(layout, "\uEB91", strlen("\uE83F"));
     } else {
-        if (data->surface) {
-            dye_surface(data->surface, config->color_taskbar_button_icons);
-            // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
-            cairo_set_source_surface(
-                    cr,
-                    data->surface,
-                    (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                           cairo_image_surface_get_width(data->surface) / 2),
-                    (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                           cairo_image_surface_get_width(data->surface) / 2));
-            cairo_paint(cr);
-        }
+        pango_layout_set_text(layout, "\uE7C4", strlen("\uE83F"));
     }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
-paint_double_bar(cairo_t *cr,
-                 Container *container,
-                 ArgbColor bar_l_c,
-                 ArgbColor bar_m_c,
-                 ArgbColor bar_r_c) {
+paint_double_bar(cairo_t *cr, Container *container, ArgbColor bar_l_c, ArgbColor bar_m_c, ArgbColor bar_r_c,
+                 int windows_count) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    LaunchableButton *data = (LaunchableButton *) container->user_data;
+    auto data = (LaunchableButton *) container->user_data;
     
     double bar_amount = std::max(data->hover_amount, data->active_amount);
     if (data->type != selector_type::CLOSED) {
@@ -287,51 +276,59 @@ paint_double_bar(cairo_t *cr,
     if (data->wants_attention_amount != 0) {
         bar_amount = 1;
     }
-    double bar_inset = 4 * (1 - bar_amount);
-    double bar_right = 4 + (4 * (1 - bar_amount));
     
-    Bounds bar_rect = Bounds(container->real_bounds.x + bar_inset,
-                             container->real_bounds.y + container->real_bounds.h - 2,
-                             container->real_bounds.w - bar_inset * 2,
-                             2);
+    double squish_factor = std::round(4 * config->dpi);
+    double bar_inset = squish_factor * (1 - bar_amount);
     
-    set_argb(cr, bar_r_c);
-    set_rect(cr, bar_rect);
+    Bounds bounds = container->real_bounds;
+    float height = std::round(2 * config->dpi);
+    // setting the appropriate height
+    bounds.y = bounds.y + bounds.h - height;
+    bounds.h = height;
+    
+    // squishing the width
+    bounds.x += bar_inset;
+    bounds.w -= bar_inset * 2;
+    
+    set_rect(cr, bounds);
+    ArgbColor r = bar_r_c;
+    set_argb(cr, r);
     cairo_fill(cr);
     
-    bar_rect.w -= (bar_right - 1);
+    bounds.w -= std::round(3 * config->dpi);
     
-    set_argb(cr, bar_m_c);
-    set_rect(cr, bar_rect);
+    set_rect(cr, bounds);
+    ArgbColor m = bar_m_c;
+    set_argb(cr, m);
     cairo_fill(cr);
     
-    bar_rect.w -= 1;
+    bounds.w -= std::round(1 * config->dpi);
     
-    set_argb(cr, bar_l_c);
-    set_rect(cr, bar_rect);
+    set_rect(cr, bounds);
+    ArgbColor l = bar_l_c;
+    set_argb(cr, l);
     cairo_fill(cr);
 }
 
 static void
 paint_double_bg_with_opacity(cairo_t *cr, Bounds bounds, ArgbColor bg_l_c, ArgbColor bg_m_c, ArgbColor bg_r_c,
-                             double opacity) {
+                             double opacity, int windows_count) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
     set_rect(cr, bounds);
     ArgbColor r = bg_r_c;
     set_argb(cr, r);
     cairo_fill(cr);
     
-    bounds.w -= 3;
+    bounds.w -= std::round(3 * config->dpi);
     
     set_rect(cr, bounds);
     ArgbColor m = bg_m_c;
     set_argb(cr, m);
     cairo_fill(cr);
     
-    bounds.w -= 1;
+    bounds.w -= std::round(1 * config->dpi);
     
     set_rect(cr, bounds);
     ArgbColor l = bg_l_c;
@@ -340,8 +337,8 @@ paint_double_bg_with_opacity(cairo_t *cr, Bounds bounds, ArgbColor bg_l_c, ArgbC
 }
 
 static void
-paint_double_bg(cairo_t *cr, Bounds bounds, ArgbColor bg_l_c, ArgbColor bg_m_c, ArgbColor bg_r_c) {
-    paint_double_bg_with_opacity(cr, bounds, bg_l_c, bg_m_c, bg_r_c, 1);
+paint_double_bg(cairo_t *cr, Bounds bounds, ArgbColor bg_l_c, ArgbColor bg_m_c, ArgbColor bg_r_c, int windows_count) {
+    paint_double_bg_with_opacity(cr, bounds, bg_l_c, bg_m_c, bg_r_c, 1, windows_count);
 }
 
 static void
@@ -349,16 +346,267 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
     if (data->surface) {
+        cairo_save(cr);
+        double scale_afterwards = .81;
+        double w = cairo_image_surface_get_width(data->surface);
+        auto scale_amount = 1 - (data->animation_zoom_amount * (1 - scale_afterwards));
+        double current_w = w * scale_amount;
+        double xpos = container->real_bounds.x + container->real_bounds.w / 2 -
+                      cairo_image_surface_get_width(data->surface) / 2;
+        double ypos = container->real_bounds.y + container->real_bounds.h / 2 -
+                      cairo_image_surface_get_width(data->surface) / 2;
+        xpos += (w - current_w) / 2;
+        ypos += (w - current_w) / 2;
+    
+        cairo_scale(cr, scale_amount, scale_amount);
+        double xpostrans = (xpos * (1 - scale_amount) / scale_amount);
+        double ypostrans = (ypos * (1 - scale_amount) / scale_amount);
+        cairo_translate(cr, xpostrans, ypostrans);
         // Assumes the size of the icon to be 24x24 and tries to draw it centered
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2));
+        if (data->animation_bounce_amount == 1 || data->windows_data_list.empty()) {
+            data->animation_bounce_amount = 0;
+        }
+        auto easeBack = getEasingFunction(EaseOutBack);
+        auto easeIn = getEasingFunction(EaseInQuad);
+        if (data->animation_bounce_direction == 1) {
+            easeIn = getEasingFunction(EaseInSine);
+        }
+        double bounce_amount = easeBack(easeIn(data->animation_bounce_amount));
+        if (bounce_amount > .5)
+            bounce_amount = 1 - bounce_amount;
+        if (data->animation_bounce_direction == 0) {
+            bounce_amount = bounce_amount;
+        } else if (data->animation_bounce_direction == 1) {
+            bounce_amount = -bounce_amount;
+        }
+        double off = (((config->taskbar_height - w) - (2 * config->dpi)) / 2) * (bounce_amount);
+        cairo_set_source_surface(cr, data->surface, xpos, ypos + off);
         cairo_paint(cr);
+        cairo_restore(cr);
     }
+}
+
+#define WIN7 true
+
+
+static void
+rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height) {
+    double radius = corner_radius;
+    double degrees = M_PI / 180.0;
+    
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
+    cairo_arc(cr, x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees);
+    cairo_arc(cr, x + radius, y + height - radius, radius, 90 * degrees, 180 * degrees);
+    cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
+    cairo_close_path(cr);
+}
+
+static void
+paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container) {
+    
+    auto *data = (LaunchableButton *) container->user_data;
+    // This is the real underlying color
+    // is_light_theme determines if generated secondary colors should go up or down in brightness
+    bool is_light_theme = false;
+    {
+        double h; // hue
+        double s; // saturation
+        double p; // perceived brightness
+        ArgbColor real = config->color_taskbar_application_icons_background;
+        rgb2hsluv(real.r, real.g, real.b, &h, &s, &p);
+        is_light_theme = p > 50; // if the perceived perceived brightness is greater than that we are a light theme
+    }
+    
+    int windows_count = data->windows_data_list.size();
+    bool active = active_container == container || (data->type == selector_type::OPEN_CLICKED);
+    bool pressed = container->state.mouse_pressing;
+    bool hovered = container->state.mouse_hovering || (data->type != selector_type::CLOSED);
+    bool dragging = container->state.mouse_dragging;
+    double active_amount = data->active_amount;
+    if (data->type == selector_type::OPEN_CLICKED) active_amount = 1;
+    
+    int highlight_height = 2;
+    
+    double bar_amount = std::max(data->hover_amount, active_amount);
+    if (data->type != selector_type::CLOSED)
+        bar_amount = 1;
+    if (data->wants_attention_amount != 0)
+        bar_amount = 1;
+    double highlight_inset = 4 * (1 - bar_amount);
+    
+    double bg_openess = highlight_inset;
+    double right_size = 0;
+    
+    ArgbColor original_color_taskbar_application_icons_background = config->color_taskbar_application_icons_background;
+    // The pinned icon is composed of three sections;
+    // The background pane, the foreground pane, and the accent bar.
+    //
+    ArgbColor accent = config->color_taskbar_application_icons_accent;
+    ArgbColor background = config->color_taskbar_application_icons_background;
+    
+    if (data->wants_attention_amount != 0) {
+        double blinks = 10.5;
+        double scalar = fmod(data->wants_attention_amount, (1.0 / blinks)); // get N blinks
+        scalar *= blinks;
+        if (scalar > .5)
+            scalar = 1 - scalar;
+        scalar *= 2;
+        if (data->wants_attention_amount == 1)
+            scalar = 1;
+        accent = lerp_argb(scalar, accent, config->color_taskbar_attention_accent);
+        background = lerp_argb(scalar, background, config->color_taskbar_attention_background);
+        active_amount = 1;
+    }
+    
+    // The following colors are used on the accent bar
+    ArgbColor color_accent_bar_left = accent;
+    ArgbColor color_accent_bar_middle = darken(accent, 20);
+    ArgbColor color_accent_bar_right = darken(accent, 15);
+    
+    if (screen_has_transparency(app)) {
+        background.a = config->color_taskbar_background.a;
+    }
+    
+    // The following colors are used for the background pane
+    ArgbColor color_background_pane_hovered_left = darken(background, 15);
+    ArgbColor color_background_pane_hovered_middle = darken(background, 22 * 1.14);
+    ArgbColor color_background_pane_hovered_right = darken(background, 17 * 1.2);
+    
+    ArgbColor color_background_pane_pressed_left = darken(background, 20);
+    ArgbColor color_background_pane_pressed_middle = darken(background, 27 * 1.3);
+    ArgbColor color_background_pane_pressed_right = darken(background, 22 * 1.2);
+    
+    // The following colors are used for the foreground pane
+    ArgbColor color_foreground_pane_default_left = darken(background, 10);
+    ArgbColor color_foreground_pane_default_middle = darken(background, 17 * 1.3);
+    ArgbColor color_foreground_pane_default_right = darken(background, 12 * 1.2);
+    
+    ArgbColor color_foreground_pane_hovered_left = darken(background, 0);
+    ArgbColor color_foreground_pane_hovered_middle = darken(background, 7 * 1.14);
+    ArgbColor color_foreground_pane_hovered_right = darken(background, 2 * 1.2);
+    
+    ArgbColor color_foreground_pane_pressed_left = darken(background, 2);
+    ArgbColor color_foreground_pane_pressed_middle = darken(background, 9 * 1.3);
+    ArgbColor color_foreground_pane_pressed_right = darken(background, 4 * 1.2);
+    
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    
+    { // Background pane
+        if (windows_count > 1) {
+            if (pressed || hovered) {
+                if (pressed) {
+                    paint_double_bg(cr,
+                                    container->real_bounds,
+                                    color_background_pane_pressed_left,
+                                    color_background_pane_pressed_middle,
+                                    color_background_pane_pressed_right, windows_count);
+                } else {
+                    paint_double_bg(cr,
+                                    container->real_bounds,
+                                    color_background_pane_hovered_left,
+                                    color_background_pane_hovered_middle,
+                                    color_background_pane_hovered_right, windows_count);
+                }
+            }
+        } else {
+            if (pressed || hovered) {
+                if (pressed) {
+                    paint_double_bg(cr,
+                                    container->real_bounds,
+                                    color_background_pane_pressed_left,
+                                    color_background_pane_pressed_left,
+                                    color_background_pane_pressed_left, windows_count);
+                } else {
+                    paint_double_bg(cr,
+                                    container->real_bounds,
+                                    color_background_pane_hovered_left,
+                                    color_background_pane_hovered_left,
+                                    color_background_pane_hovered_left, windows_count);
+                }
+            }
+        }
+    }
+    
+    { // Foreground pane
+        // make the bounds
+        double back_x = container->real_bounds.x + highlight_inset;
+        double back_w = container->real_bounds.w - highlight_inset * 2;
+        
+        if (active_amount) {
+            double height = container->real_bounds.h * active_amount;
+            Bounds bounds = Bounds(back_x, container->real_bounds.y + container->real_bounds.h - height, back_w,
+                                   height);
+            
+            if (windows_count > 1) {
+                if (pressed || hovered) {
+                    if (pressed) {
+                        paint_double_bg(cr,
+                                        bounds,
+                                        color_foreground_pane_pressed_left,
+                                        color_foreground_pane_pressed_middle,
+                                        color_foreground_pane_pressed_right, windows_count);
+                    } else {
+                        paint_double_bg(cr,
+                                        bounds,
+                                        color_foreground_pane_hovered_left,
+                                        color_foreground_pane_hovered_middle,
+                                        color_foreground_pane_hovered_right, windows_count);
+                    }
+                } else {
+                    paint_double_bg(cr,
+                                    bounds,
+                                    color_foreground_pane_default_left,
+                                    color_foreground_pane_default_middle,
+                                    color_foreground_pane_default_right, windows_count);
+                }
+            } else {
+                if (pressed || hovered) {
+                    if (pressed) {
+                        paint_double_bg(cr,
+                                        bounds,
+                                        color_foreground_pane_pressed_left,
+                                        color_foreground_pane_pressed_left,
+                                        color_foreground_pane_pressed_left, windows_count);
+                    } else {
+                        paint_double_bg(cr,
+                                        bounds,
+                                        color_foreground_pane_hovered_left,
+                                        color_foreground_pane_hovered_left,
+                                        color_foreground_pane_hovered_left, windows_count);
+                    }
+                } else {
+                    paint_double_bg(cr,
+                                    bounds,
+                                    color_foreground_pane_default_left,
+                                    color_foreground_pane_default_left,
+                                    color_foreground_pane_default_left, windows_count);
+                }
+            }
+        }
+    }
+    
+    { // Accent bar
+        if (windows_count > 0) {
+            paint_double_bar(cr,
+                             container,
+                             color_accent_bar_left,
+                             color_accent_bar_left,
+                             color_accent_bar_left, windows_count);
+            
+            // paint the right side
+            if (windows_count > 1) {
+                paint_double_bar(cr,
+                                 container,
+                                 color_accent_bar_left,
+                                 color_accent_bar_middle,
+                                 color_accent_bar_right, windows_count);
+            }
+        }
+    }
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+    
+    config->color_taskbar_application_icons_background = original_color_taskbar_application_icons_background;
 }
 
 static void
@@ -366,6 +614,11 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (WIN7) {
+        paint_icon_background_win7(client, cr, container);
+        return;
+    }
+    
     auto *data = (LaunchableButton *) container->user_data;
     // This is the real underlying color
     // is_light_theme determines if generated secondary colors should go up or down in brightness
@@ -461,13 +714,13 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
                                     container->real_bounds,
                                     color_background_pane_pressed_left,
                                     color_background_pane_pressed_middle,
-                                    color_background_pane_pressed_right);
+                                    color_background_pane_pressed_right, windows_count);
                 } else {
                     paint_double_bg(cr,
                                     container->real_bounds,
                                     color_background_pane_hovered_left,
                                     color_background_pane_hovered_middle,
-                                    color_background_pane_hovered_right);
+                                    color_background_pane_hovered_right, windows_count);
                 }
             }
         } else {
@@ -477,13 +730,13 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
                                     container->real_bounds,
                                     color_background_pane_pressed_left,
                                     color_background_pane_pressed_left,
-                                    color_background_pane_pressed_left);
+                                    color_background_pane_pressed_left, windows_count);
                 } else {
                     paint_double_bg(cr,
                                     container->real_bounds,
                                     color_background_pane_hovered_left,
                                     color_background_pane_hovered_left,
-                                    color_background_pane_hovered_left);
+                                    color_background_pane_hovered_left, windows_count);
                 }
             }
         }
@@ -506,20 +759,20 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
                                         bounds,
                                         color_foreground_pane_pressed_left,
                                         color_foreground_pane_pressed_middle,
-                                        color_foreground_pane_pressed_right);
+                                        color_foreground_pane_pressed_right, windows_count);
                     } else {
                         paint_double_bg(cr,
                                         bounds,
                                         color_foreground_pane_hovered_left,
                                         color_foreground_pane_hovered_middle,
-                                        color_foreground_pane_hovered_right);
+                                        color_foreground_pane_hovered_right, windows_count);
                     }
                 } else {
                     paint_double_bg(cr,
                                     bounds,
                                     color_foreground_pane_default_left,
                                     color_foreground_pane_default_middle,
-                                    color_foreground_pane_default_right);
+                                    color_foreground_pane_default_right, windows_count);
                 }
             } else {
                 if (pressed || hovered) {
@@ -528,20 +781,20 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
                                         bounds,
                                         color_foreground_pane_pressed_left,
                                         color_foreground_pane_pressed_left,
-                                        color_foreground_pane_pressed_left);
+                                        color_foreground_pane_pressed_left, windows_count);
                     } else {
                         paint_double_bg(cr,
                                         bounds,
                                         color_foreground_pane_hovered_left,
                                         color_foreground_pane_hovered_left,
-                                        color_foreground_pane_hovered_left);
+                                        color_foreground_pane_hovered_left, windows_count);
                     }
                 } else {
                     paint_double_bg(cr,
                                     bounds,
                                     color_foreground_pane_default_left,
                                     color_foreground_pane_default_left,
-                                    color_foreground_pane_default_left);
+                                    color_foreground_pane_default_left, windows_count);
                 }
             }
         }
@@ -553,7 +806,7 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
                              container,
                              color_accent_bar_left,
                              color_accent_bar_left,
-                             color_accent_bar_left);
+                             color_accent_bar_left, windows_count);
             
             // paint the right side
             if (windows_count > 1) {
@@ -561,7 +814,7 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
                                  container,
                                  color_accent_bar_left,
                                  color_accent_bar_middle,
-                                 color_accent_bar_right);
+                                 color_accent_bar_right, windows_count);
             }
         }
     }
@@ -596,7 +849,7 @@ pinned_icon_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     possibly_open(app, container, data);
-    client_create_animation(app, client, &data->hover_amount, 70, 0, 1);
+    client_create_animation(app, client, &data->hover_amount, 0, 70, 0, 1);
 }
 
 static void
@@ -606,7 +859,7 @@ pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     possibly_close(app, container, data);
-    client_create_animation(app, client, &data->hover_amount, 70, 0, 0);
+    client_create_animation(app, client, &data->hover_amount, 0, 70, 0, 0);
 }
 
 std::string
@@ -698,7 +951,7 @@ void active_window_changed(xcb_window_t new_active_window) {
         if (auto data = (LaunchableButton *) new_active_container->user_data) {
             for (int i = 0; i < data->windows_data_list.size(); i++) {
                 if (data->windows_data_list[i]->id == active_window) {
-                    std::swap(data->windows_data_list[0], data->windows_data_list[i]);
+//                    std::swap(data->windows_data_list[0], data->windows_data_list[i]);
                     break;
                 }
             }
@@ -711,13 +964,13 @@ void active_window_changed(xcb_window_t new_active_window) {
         if (active_container) {
             auto data = (LaunchableButton *) active_container->user_data;
             if (data)
-                client_create_animation(app, c, &data->active_amount, 45, nullptr, 0);
+                client_create_animation(app, c, &data->active_amount, 0, 45, nullptr, 0);
         }
         
         active_container = new_active_container;
         if (new_active_container) {
             auto data = (LaunchableButton *) new_active_container->user_data;
-            client_create_animation(app, c, &data->active_amount, 45, nullptr, 1);
+            client_create_animation(app, c, &data->active_amount, 0, 45, nullptr, 1);
             
             for (auto w_d: data->windows_data_list) {
                 if (w_d->id == new_active_window) {
@@ -775,7 +1028,7 @@ icons_align(AppClient *client_entity, Container *icon_container, bool all_except
             if (real_data->target != laid_icon->real_bounds.x) {
                 client_create_animation(app,
                                         client_entity,
-                                        &real_icon->real_bounds.x,
+                                        &real_icon->real_bounds.x, 0,
                                         100,
                                         nullptr,
                                         laid_icon->real_bounds.x,
@@ -785,7 +1038,7 @@ icons_align(AppClient *client_entity, Container *icon_container, bool all_except
             real_data->animating = true;
             client_create_animation(app,
                                     client_entity,
-                                    &real_icon->real_bounds.x,
+                                    &real_icon->real_bounds.x, 0,
                                     100,
                                     nullptr,
                                     laid_icon->real_bounds.x,
@@ -799,7 +1052,6 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_entity->motion_events_per_second = 0;
     for (auto c: app->clients) {
         if (c->name == "windows_selector") {
             client_close_threaded(app, c);
@@ -809,6 +1061,9 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
     active_window_changed(-1);
     container->parent->should_layout_children = false;
     auto *data = static_cast<LaunchableButton *>(container->user_data);
+    client_create_animation(app, client_entity, &data->animation_zoom_amount, 0, 55 * data->animation_zoom_amount,
+                            nullptr,
+                            0);
     data->initial_mouse_click_before_drag_offset_x =
             container->real_bounds.x - client_entity->mouse_initial_x;
     container->z_index = 1;
@@ -886,7 +1141,11 @@ pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_entity->motion_events_per_second = 30;
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
+    
+    client_create_animation(app, client_entity, &data->animation_zoom_amount, 0, 85 * data->animation_zoom_amount,
+                            nullptr,
+                            0);
     
     container->parent->should_layout_children = true;
     active_window_changed(backup_active_window);
@@ -1019,21 +1278,23 @@ scrolled_volume(AppClient *client_entity,
     
     for (auto c: audio_clients) {
         if (c->is_master_volume()) {
+            if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO) {
+                if (!c->default_sink) {
+                    continue;
+                }
+            }
             double new_volume = c->get_volume() + (.05 * vertical_scroll) + (.05 * -horizontal_scroll);
             if (new_volume < 0) {
                 new_volume = 0;
             } else if (new_volume > 1) {
                 new_volume = 1;
             }
-            
+    
             if (new_volume != c->get_volume()) {
                 if (c->is_muted())
                     c->set_mute(false);
                 
                 c->set_volume(new_volume);
-                if (c->is_master_volume()) {
-                    update_volume_menu();
-                }
             }
         }
     }
@@ -1045,6 +1306,8 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     ZoneScoped;
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
+    
+    client_create_animation(app, client, &data->animation_zoom_amount, 0, 85 * data->animation_zoom_amount, nullptr, 0);
     
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
         if (data->windows_data_list.empty()) {
@@ -1096,6 +1359,10 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                 if (is_active_window) {
                     update_minimize_icon_positions();
                     minimize_window(window);
+                    data->animation_bounce_amount = 0;
+                    data->animation_bounce_direction = 0;
+                    client_create_animation(app, client, &data->animation_bounce_amount, 0,
+                                            451.2, nullptr, 1);
                 } else {
                     xcb_ewmh_request_change_active_window(&app->ewmh,
                                                           app->screen_number,
@@ -1111,6 +1378,10 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                                                       XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
                                                       XCB_CURRENT_TIME,
                                                       XCB_NONE);
+                data->animation_bounce_amount = 0;
+                data->animation_bounce_direction = 1;
+                client_create_animation(app, client, &data->animation_bounce_amount, 0,
+                                        651.2, nullptr, 1);
             }
         }
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
@@ -1132,6 +1403,22 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
             }
         }
     }
+}
+
+static void
+pinned_icon_mouse_down(AppClient *client, cairo_t *cr, Container *container) {
+    auto data = (LaunchableButton *) container->user_data;
+    
+    client_create_animation(app, client, &data->animation_zoom_amount, 0, 85 * (1 - data->animation_zoom_amount),
+                            nullptr,
+                            1);
+}
+
+static void
+pinned_icon_mouse_up(AppClient *client, cairo_t *cr, Container *container) {
+    auto data = (LaunchableButton *) container->user_data;
+    
+    client_create_animation(app, client, &data->animation_zoom_amount, 0, 85 * data->animation_zoom_amount, nullptr, 0);
 }
 
 static void
@@ -1160,52 +1447,68 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     
     auto data = (ActionCenterButtonData *) container->user_data;
     
-    if (data->surface) {
-        dye_surface(data->surface, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + (12 * config->dpi)),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
-        cairo_paint(cr);
-    }
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE91C", strlen("\uE83F"));
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + (12 * config->dpi)),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
+    pango_cairo_show_layout(cr, layout);
     
     if (data->slide_anim != 1) {
-        cairo_save(cr);
-        dye_surface(data->surface_unseen_notification, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                data->surface_unseen_notification,
-                (int) (container->real_bounds.x + (12 * config->dpi) + (1 - data->slide_anim) * (16 * config->dpi)),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
-        cairo_mask_surface(
-                cr,
-                data->surface_unseen_notification,
-                (int) (container->real_bounds.x + (12 * config->dpi)),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
-        cairo_fill(cr);
-        cairo_restore(cr);
+        cairo_push_group(cr);
+        pango_layout_set_text(layout, "\uE7E7", strlen("\uE83F"));
+        set_argb(cr, config->color_taskbar_button_icons);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + (12 * config->dpi)),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
+        pango_cairo_show_layout(cr, layout);
+        cairo_pattern_t *mask = cairo_pop_group(cr);
+    
+        cairo_push_group(cr);
+        pango_layout_set_text(layout, "\uE7E7", strlen("\uE83F"));
+        set_argb(cr, config->color_taskbar_button_icons);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + (12 * config->dpi) +
+                             (1 - data->slide_anim) * (16 * config->dpi)),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
+        pango_cairo_show_layout(cr, layout);
+        cairo_pattern_t *actual = cairo_pop_group(cr);
+    
+        cairo_set_source(cr, actual);
+        cairo_mask(cr, mask);
+        
+        cairo_pattern_destroy(actual);
+        cairo_pattern_destroy(mask);
     } else if (data->some_unseen) {
-        dye_surface(data->surface_unseen_notification, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                data->surface_unseen_notification,
-                (int) (container->real_bounds.x + (12 * config->dpi) + (1 - data->slide_anim) * (16 * config->dpi)),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
-        cairo_paint(cr);
+        // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+        pango_layout_set_text(layout, "\uE7E7", strlen("\uE83F"));
+    
+        set_argb(cr, config->color_taskbar_button_icons);
+    
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + (12 * config->dpi) +
+                             (1 - data->slide_anim) * (16 * config->dpi)),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
+        pango_cairo_show_layout(cr, layout);
     }
     
     if (data->slide_anim != 0 && data->some_unseen) {
         cairo_push_group(cr);
+        // @Important (crazyness): https://stackoverflow.com/questions/66820155/how-to-prevent-an-extra-line-to-be-drawn-between-text-and-shape
+        cairo_new_path(cr);
         cairo_set_line_width(cr, 1);
         cairo_set_source_rgba(cr, 0.6, 0.6, 0.6, .8);
-        
+    
         cairo_arc(cr, container->real_bounds.x + (12 * config->dpi) + (16 * config->dpi),
                   container->real_bounds.y + container->real_bounds.h / 2 + (8 * config->dpi),
                   (17.0 / 2.0) * config->dpi, 0, 2 * M_PI);
         cairo_stroke_preserve(cr);
-        
-        cairo_set_source_rgba(cr, 1, 1, 1, 0.1);
+    
+        cairo_set_source_rgba(cr, .2, .2, .2, 0.7);
         cairo_fill(cr);
         
         std::string count_text;
@@ -1216,14 +1519,14 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
             }
         }
         count_text = std::to_string(count);
-        
-        PangoLayout *layout =
+    
+        PangoLayout *text_layout =
                 get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-        
-        pango_layout_set_text(layout, count_text.c_str(), 2);
+    
+        pango_layout_set_text(text_layout, count_text.c_str(), 2);
         PangoRectangle ink;
         PangoRectangle logical;
-        pango_layout_get_extents(layout, &ink, &logical);
+        pango_layout_get_extents(text_layout, &ink, &logical);
         
         set_argb(cr, config->color_taskbar_date_time_text);
         cairo_move_to(cr,
@@ -1232,9 +1535,9 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
                       container->real_bounds.y - (ink.y / PANGO_SCALE) +
                       (container->real_bounds.h / 2 + (8 * config->dpi)) -
                       (std::ceil(ink.height / PANGO_SCALE / 2)) - 1);
-        pango_cairo_show_layout(cr, layout);
-        
+        pango_cairo_show_layout(cr, text_layout);
         cairo_pop_group_to_source(cr);
+    
         double time = data->slide_anim * 2;
         if (time > 1)
             time = 1;
@@ -1249,19 +1552,51 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     paint_hoverable_button_background(client, cr, container);
     
-    IconButton *data = (IconButton *) container->user_data;
-    if (data->surface) {
-        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
-        dye_surface(data->surface, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                       cairo_image_surface_get_width(data->surface) / 2));
-        cairo_paint(cr);
-    }
+    auto *data = (IconButton *) container->user_data;
+    
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE971", strlen("\uE83F"));
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - (10 * config->dpi) / 2));
+    pango_cairo_show_layout(cr, layout);
+}
+
+static void
+paint_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_hoverable_button_background(client, cr, container);
+    
+    auto *data = (IconButton *) container->user_data;
+    
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE702", strlen("\uE702"));
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -1312,7 +1647,7 @@ clicked_date(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_wifi(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (wifi_surfaces *) container->user_data;
+    auto *data = (IconButton *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->wifi_command.empty()) {
             start_wifi_menu();
@@ -1335,8 +1670,16 @@ clicked_systray(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+clicked_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
+    auto *data = (IconButton *) container->user_data;
+    if (!data->invalid_button_down) {
+        open_bluetooth_menu();
+    }
+}
+
+static void
 clicked_battery(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (data_battery_surfaces *) container->user_data;
+    auto *data = (BatteryInfo *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->battery_command.empty()) {
             start_battery_menu();
@@ -1348,7 +1691,7 @@ clicked_battery(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_volume(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (volume_surfaces *) container->user_data;
+    auto *data = (IconButton *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->volume_command.empty()) {
             open_volume_menu();
@@ -1402,7 +1745,7 @@ clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
         }
     }
     
-    if (dbus_connection) {
+    if (dbus_connection_session) {
         for (const auto &s: running_dbus_services) {
             if (s == "org.kde.kglobalaccel") {
                 // On KDE try to show the desktop
@@ -1543,25 +1886,30 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
     
     // Paint search icon
-    if (data->surface) {
-        // Assumes the size of the window_surface to be 16x16 and tries to draw it centered
-        if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
-            if (active || container->state.mouse_pressing) {
-                dye_surface(data->surface, config->color_taskbar_search_bar_pressed_icon);
-            } else {
-                dye_surface(data->surface, config->color_taskbar_search_bar_hovered_icon);
-            }
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE721", strlen("\uE83F"));
+
+    if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (active || container->state.mouse_pressing) {
+            set_argb(cr, config->color_taskbar_search_bar_pressed_icon);
         } else {
-            dye_surface(data->surface, config->color_taskbar_search_bar_default_icon);
+            set_argb(cr, config->color_taskbar_search_bar_hovered_icon);
         }
-        
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + 12 * config->dpi),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi));
-        cairo_paint(cr);
+    } else {
+        set_argb(cr, config->color_taskbar_search_bar_default_icon);
     }
+
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + 12 * config->dpi),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi));
+    pango_cairo_show_layout(cr, layout);
     
     if (text_empty) {
         PangoLayout *layout =
@@ -1597,10 +1945,10 @@ void update_battery_animation_timeout(App *app, AppClient *client, Timeout *time
 #endif
     timeout->keep_running = true;
     
-    auto *data = static_cast<data_battery_surfaces *>(userdata);
+    auto *data = static_cast<BatteryInfo *>(userdata);
     
     data->animating_capacity_index++;
-    if (data->animating_capacity_index > 9)
+    if (data->animating_capacity_index > 10)
         data->animating_capacity_index = data->capacity_index;
     
     request_refresh(app, client);
@@ -1614,7 +1962,7 @@ void update_battery_status_timeout(App *app, AppClient *client, Timeout *timeout
         timeout->keep_running = true;
     }
     
-    auto data = (data_battery_surfaces *) userdata;
+    auto data = (BatteryInfo *) userdata;
     long current_time = get_current_time_in_ms();
     
     int previous_animating_capacity = 0;
@@ -1645,12 +1993,15 @@ void update_battery_status_timeout(App *app, AppClient *client, Timeout *timeout
     } else {
         data->capacity = "0";
     }
-    data->previous_status_update_ms = current_time;
     
-    int capacity_index = std::floor(((double) (std::stoi(data->capacity))) / 10.0);
+    float i = std::stoi(data->capacity);
+    if (i == 5)
+        i = 4;
+    int rounded = std::round(i / 10) * 10;
+    int capacity_index = std::floor(((double) (rounded)) / 10.0);
     
-    if (capacity_index > 9)
-        capacity_index = 9;
+    if (capacity_index > 10)
+        capacity_index = 10;
     if (capacity_index < 0)
         capacity_index = 0;
     
@@ -1676,31 +2027,40 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     paint_hoverable_button_background(client_entity, cr, container);
     container->real_bounds = start;
     
-    auto *data = static_cast<data_battery_surfaces *>(container->user_data);
+    auto *data = static_cast<BatteryInfo *>(container->user_data);
     assert(data);
-    assert(!data->normal_surfaces.empty());
-    assert(!data->charging_surfaces.empty());
     
-    cairo_surface_t *surface;
-    if (data->status == "Charging") {
-        surface = data->charging_surfaces[data->animating_capacity_index];
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    std::string regular[] = {"\uE678", "\uE679", "\uE67A", "\uE67B", "\uE67C", "\uE67D", "\uE67E", "\uE67F", "\uE680",
+                             "\uE681", "\uE682"};
+    
+    std::string charging[] = {"\uE683", "\uE684", "\uE685", "\uE686", "\uE687", "\uE688", "\uE689", "\uE68A", "\uE68B",
+                              "\uE68C", "\uE68D"};
+    
+    if (data->status == "Full") {
+        pango_layout_set_text(layout, regular[10].c_str(), strlen("\uE83F"));
+    } else if (data->status == "Charging") {
+//        surface = data->charging_surfaces[data->animating_capacity_index];
+        pango_layout_set_text(layout, charging[data->animating_capacity_index].c_str(), strlen("\uE83F"));
     } else {
-        surface = data->normal_surfaces[data->capacity_index];
+//        surface = data->normal_surfaces[data->capacity_index];
+        pango_layout_set_text(layout, regular[data->capacity_index].c_str(), strlen("\uE83F"));
     }
-    if (surface) {
-        dye_surface(surface, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                       cairo_image_surface_get_width(surface) / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                       cairo_image_surface_get_width(surface) / 2));
-        cairo_paint(cr);
-    }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
-void invalidate_icon_button_press_if_window_open(AppClient *client, cairo_t *cr, Container *container) {
+static void invalidate_icon_button_press_if_window_open(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (IconButton *) container->user_data;
     
     if (get_current_time_in_ms() - data->timestamp > 100) {
@@ -1724,24 +2084,9 @@ make_battery_button(Container *parent, AppClient *client_entity) {
     c->when_clicked = clicked_battery;
     c->name = "battery";
     
-    auto *data = new data_battery_surfaces;
+    auto *data = new BatteryInfo;
     data->invalidate_button_press_if_client_with_this_name_is_open = "app_menu";
     c->when_mouse_down = invalidate_icon_button_press_if_window_open;
-    for (int i = 0; i <= 9; i++) {
-        auto *normal_surface = accelerated_surface(app, client_entity, 16 * config->dpi, 16 * config->dpi);
-        paint_surface_with_image(
-                normal_surface,
-                as_resource_path("battery/16/normal/" + std::to_string(i) + ".png"), 16 * config->dpi,
-                nullptr);
-        data->normal_surfaces.push_back(normal_surface);
-        
-        auto *charging_surface = accelerated_surface(app, client_entity, 16 * config->dpi, 16 * config->dpi);
-        paint_surface_with_image(
-                charging_surface,
-                as_resource_path("battery/16/charging/" + std::to_string(i) + ".png"), 16 * config->dpi,
-                nullptr);
-        data->charging_surfaces.push_back(charging_surface);
-    }
     c->user_data = data;
     
     std::string line;
@@ -1752,8 +2097,8 @@ make_battery_button(Container *parent, AppClient *client_entity) {
                 parent->children.push_back(c);
                 app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data);
                 update_battery_status_timeout(app, client_entity, nullptr, data);
-                
-                app_timeout_create(app, client_entity, 1200, update_battery_animation_timeout, data);
+    
+                app_timeout_create(app, client_entity, 700, update_battery_animation_timeout, data);
             } else {
                 delete c;
             }
@@ -1792,7 +2137,7 @@ void gnome_stuck_mouse_state_fix(App *app, AppClient *client, Timeout *, void *)
 
 static void
 clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
-    if (dbus_connection) {
+    if (dbus_connection_session) {
         for (const auto &s: running_dbus_services) {
             if (s == "org.kde.kglobalaccel") {
                 // On KDE try to show the desktop grid
@@ -1826,8 +2171,9 @@ clicked_super(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (wifi_surfaces *) container->user_data;
-    
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     Bounds start = container->real_bounds;
     container->real_bounds.x += 1;
     container->real_bounds.y += 1;
@@ -1838,34 +2184,35 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     
     bool up = false;
     bool wired = false;
-    wifi_state(&up, &wired);
+    wifi_state(client, &up, &wired);
     
-    cairo_surface_t *surface = nullptr;
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     if (up) {
         if (wired) {
-            surface = data->wired_up;
+            pango_layout_set_text(layout, "\uE839", strlen("\uE83F"));
         } else {
-            surface = data->wireless_up;
+            pango_layout_set_text(layout, "\uEC3F", strlen("\uE83F"));
         }
     } else {
         if (wired) {
-            surface = data->wired_down;
+            pango_layout_set_text(layout, "\uF384", strlen("\uE83F"));
         } else {
-            surface = data->wireless_down;
+            pango_layout_set_text(layout, "\uEB5E", strlen("\uE83F"));
         }
     }
     
-    if (surface) {
-        dye_surface(surface, config->color_taskbar_button_icons);
-        cairo_set_source_surface(
-                cr,
-                surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                       cairo_image_surface_get_width(surface) / 2),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                       cairo_image_surface_get_width(surface) / 2));
-        cairo_paint(cr);
-    }
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -1882,6 +2229,10 @@ fill_root(App *app, AppClient *client, Container *root) {
     Container *button_workspace = root->child(48 * config->dpi, FILL_SPACE);
     Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
     Container *button_systray = root->child(24 * config->dpi, FILL_SPACE);
+    
+    make_plugins(app, client, root);
+    
+    Container *button_bluetooth = root->child(24 * config->dpi, FILL_SPACE);
     make_battery_button(root, client);
     Container *button_wifi = root->child(24 * config->dpi, FILL_SPACE);
     Container *button_volume = root->child(24 * config->dpi, FILL_SPACE);
@@ -1896,22 +2247,14 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_super->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_super->name = "super";
     button_super->when_clicked = clicked_super;
-    load_icon_full_path(app,
-                        client,
-                        &((IconButton *) button_super->user_data)->surface,
-                        as_resource_path("windows.png"), 16 * config->dpi);
     
     field_search->when_paint = paint_search;
     field_search->when_mouse_down = clicked_search;
     field_search->receive_events_even_if_obstructed = true;
     field_search->user_data = new IconButton;
     field_search->name = "field_search";
-    load_icon_full_path(app,
-                        client,
-                        &((IconButton *) field_search->user_data)->surface,
-                        as_resource_path("search.png"), 16 * config->dpi);
     
-    TextAreaSettings settings;
+    TextAreaSettings settings(config->dpi);
     settings.font_size = 12 * config->dpi;
     settings.font = config->font;
     settings.color = ArgbColor(0, 0, 0, 1);
@@ -1928,19 +2271,11 @@ fill_root(App *app, AppClient *client, Container *root) {
     textarea->parent->alignment = ALIGN_CENTER | ALIGN_LEFT;
     
     button_workspace->when_paint = paint_workspace;
-    button_workspace->user_data = new WorkspaceButton;
+    button_workspace->user_data = new IconButton;
     button_workspace->when_scrolled = scrolled_workspace;
     button_workspace->when_clicked = clicked_workspace;
-    load_icon_full_path(app,
-                        client,
-                        &((WorkspaceButton *) button_workspace->user_data)->surface,
-                        as_resource_path("taskview.png"), 16 * config->dpi);
-    load_icon_full_path(app,
-                        client,
-                        &((WorkspaceButton *) button_workspace->user_data)->surface_hover,
-                        as_resource_path("taskview-hovered.png"), 16 * config->dpi);
     
-    container_icons->spacing = 1;
+    container_icons->spacing = 2 * std::floor(config->dpi);
     container_icons->type = hbox;
     container_icons->name = "icons";
     container_icons->when_paint = paint_all_icons;
@@ -1952,27 +2287,20 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_systray->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_systray->when_clicked = clicked_systray;
     button_systray->name = "systray";
-    load_icon_full_path(app,
-                        client,
-                        &((IconButton *) button_systray->user_data)->surface,
-                        as_resource_path("arrow.png"), 16 * config->dpi);
+    
+    button_bluetooth->exists = false;
+    button_bluetooth->when_paint = paint_bluetooth;
+    auto button_bluetooth_data = new IconButton;
+    button_bluetooth_data->invalidate_button_press_if_client_with_this_name_is_open = "bluetooth_menu";
+    button_bluetooth->user_data = button_bluetooth_data;
+    button_bluetooth->when_mouse_down = invalidate_icon_button_press_if_window_open;
+    button_bluetooth->when_clicked = clicked_bluetooth;
+    button_bluetooth->name = "bluetooth";
     
     button_wifi->when_paint = paint_wifi;
     button_wifi->when_clicked = clicked_wifi;
     button_wifi->name = "wifi";
-    auto wifi_data = new wifi_surfaces;
-    wifi_data->wired_up = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(
-            wifi_data->wired_up, as_resource_path("wifi/16/wired_up.png"), 16 * config->dpi, nullptr);
-    wifi_data->wired_down = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(
-            wifi_data->wired_down, as_resource_path("wifi/16/wired_down.png"), 16 * config->dpi, nullptr);
-    wifi_data->wireless_down = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(
-            wifi_data->wireless_down, as_resource_path("wifi/16/wireless_down.png"), 16 * config->dpi, nullptr);
-    wifi_data->wireless_up = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(
-            wifi_data->wireless_up, as_resource_path("wifi/16/wireless_up.png"), 16 * config->dpi, nullptr);
+    auto wifi_data = new IconButton;
     wifi_data->invalidate_button_press_if_client_with_this_name_is_open = "wifi_menu";
     button_wifi->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_wifi->user_data = wifi_data;
@@ -1982,28 +2310,10 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_volume->when_scrolled = scrolled_volume;
     button_volume->when_mouse_leaves_container = mouse_leaves_volume;
     button_volume->name = "volume";
-    auto surfaces = new volume_surfaces;
-    surfaces->none = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->none, as_resource_path("audio/none16.png"), 16 * config->dpi, nullptr);
-    surfaces->low = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->low, as_resource_path("audio/low16.png"), 16 * config->dpi, nullptr);
-    surfaces->medium = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium16.png"), 16 * config->dpi, nullptr);
-    surfaces->high = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->high, as_resource_path("audio/high16.png"), 16 * config->dpi, nullptr);
-    surfaces->mute = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute16.png"), 16 * config->dpi, nullptr);
-    surfaces->invalidate_button_press_if_client_with_this_name_is_open = "volume";
+    auto volume_data = new IconButton;
+    volume_data->invalidate_button_press_if_client_with_this_name_is_open = "volume";
     button_volume->when_mouse_down = invalidate_icon_button_press_if_window_open;
-    button_volume->user_data = surfaces;
-    
-    double opacity_diff = .5;
-    double opacity_thresh = 200;
-    dye_opacity(surfaces->none, opacity_diff, opacity_thresh);
-    dye_opacity(surfaces->low, opacity_diff, opacity_thresh);
-    dye_opacity(surfaces->medium, opacity_diff, opacity_thresh);
-    dye_opacity(surfaces->high, opacity_diff, opacity_thresh);
-    dye_opacity(surfaces->mute, opacity_diff, opacity_thresh);
+    button_volume->user_data = volume_data;
     
     button_date->when_paint = paint_date;
     button_date->when_clicked = clicked_date;
@@ -2019,12 +2329,6 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_action_center->when_paint = paint_action_center;
     auto action_center_data = new ActionCenterButtonData;
     button_action_center->user_data = action_center_data;
-    load_icon_full_path(app, client, &action_center_data->surface,
-                        as_resource_path("taskbar-notification-empty.png"), 16 * config->dpi);
-    load_icon_full_path(app, client, &action_center_data->surface_unseen_notification,
-                        as_resource_path("taskbar-notification-available.png"), 16 * config->dpi);
-    load_icon_full_path(app, client, &action_center_data->surface_mask,
-                        as_resource_path("taskbar-notification-mask.png"), 16 * config->dpi);
     
     action_center_data->invalidate_button_press_if_client_with_this_name_is_open = "action_center";
     button_action_center->when_mouse_down = invalidate_icon_button_press_if_window_open;
@@ -2052,11 +2356,6 @@ when_taskbar_closed(AppClient *client) {
     inotify_capacity_fd = -1;
     update_pinned_items_file(true);
     pinned_timeout = nullptr;
-}
-
-static bool
-taskbar_event_handler(App *app, xcb_generic_event_t *event) {
-    return false;
 }
 
 static void
@@ -2147,7 +2446,7 @@ void remove_window(App *app, xcb_window_t window);
 void add_window(App *app, xcb_window_t window);
 
 static bool
-window_event_handler(App *app, xcb_generic_event_t *event) {
+window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t) {
     // This will listen to configure notify events and check if it's about a
     // window we need a thumbnail of and update its size if so.
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
@@ -2267,7 +2566,8 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                                 for (auto windows_data: data->windows_data_list) {
                                                     if (windows_data->id == e->window) {
                                                         client_create_animation(app, client,
-                                                                                &data->wants_attention_amount, 10000, 0,
+                                                                                &data->wants_attention_amount, 0, 10000,
+                                                                                0,
                                                                                 1);
                                                         windows_data->wants_attention = true;
                                                     }
@@ -2277,6 +2577,7 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                     }
                                 }
                                 free(reply);
+                                reply = nullptr;
                                 break;
                             }
                         }
@@ -2288,8 +2589,9 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                                             auto *data = static_cast<LaunchableButton *>(icon->user_data);
                                             for (auto windows_data: data->windows_data_list) {
                                                 if (windows_data->id == e->window) {
-                                                    client_create_animation(app, client, &data->wants_attention_amount,
-                                                                            0, 0, 0);
+                                                    client_create_animation(app, client,
+                                                                            &data->wants_attention_amount, 0, 0,
+                                                                            nullptr, 0);
                                                     windows_data->wants_attention = false;
                                                 }
                                             }
@@ -2299,6 +2601,8 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                             }
                         }
                     }
+                    if (reply)
+                        free(reply);
                 } else if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
                     // TODO: error check
                     auto r = xcb_get_property(app->connection, False, e->window,
@@ -2328,6 +2632,10 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                             for (auto windows_data: data->windows_data_list) {
                                 if (windows_data->id == e->window) {
                                     windows_data->mapped = true;
+                                    data->animation_bounce_amount = 0;
+                                    data->animation_bounce_direction = 1;
+                                    client_create_animation(app, client, &data->animation_bounce_amount, 0,
+                                                            651.2, nullptr, 1);
                                 }
                             }
                         }
@@ -2346,10 +2654,72 @@ window_event_handler(App *app, xcb_generic_event_t *event) {
                             for (auto windows_data: data->windows_data_list) {
                                 if (windows_data->id == e->window) {
                                     windows_data->mapped = false;
+                                    data->animation_bounce_amount = 0;
+                                    data->animation_bounce_direction = 0;
+                                    client_create_animation(app, client, &data->animation_bounce_amount, 0,
+                                                            451.2, nullptr, 1);
                                 }
                             }
                         }
                     }
+                }
+            }
+            break;
+        }
+        case XCB_CLIENT_MESSAGE: {
+            auto *e = (xcb_client_message_event_t *) event;
+        
+            // Drag and drop stuff from: https://www.acc.umu.se/~vatten/XDND.html
+            if (e->type == get_cached_atom(app, "XdndPosition")) {
+                if (auto client = client_by_window(app, e->window)) {
+                    if (client->name == "windows_selector") {
+                        drag_and_dropping = true;
+                    }
+                    uint32_t x = e->data.data32[2] >> 16;
+                    uint32_t y = e->data.data32[2] & 0xffff;
+                
+                    auto cookie = xcb_translate_coordinates(app->connection, app->screen->root, client->window, x, y);
+                    auto reply = xcb_translate_coordinates_reply(app->connection, cookie, nullptr);
+                    if (reply) {
+                        x = reply->dst_x;
+                        y = reply->dst_y;
+                        free(reply);
+                    }
+                
+                    client->motion_event_x = (int) x;
+                    client->motion_event_y = (int) y;
+                    handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
+                    client_paint(app, client, true);
+                
+                    xcb_window_t drag_and_drop_source = e->data.data32[0];
+                
+                    xcb_client_message_event_t status_event = {};
+                    status_event.response_type = XCB_CLIENT_MESSAGE;
+                    status_event.format = 32;
+                    status_event.window = drag_and_drop_source;
+                    status_event.type = get_cached_atom(app, "XdndStatus");
+                    status_event.data.data32[0] = client->window; // drag and drop target (us)
+                    int data = 0;
+                    data |= (1 << 1);
+                    status_event.data.data32[1] = data; // if we are going to accept it
+                    status_event.data.data32[2] = ((int) client->bounds->x << 16) | (int) client->bounds->y;
+                    status_event.data.data32[3] = ((int) client->bounds->w << 16) | (int) client->bounds->h;
+                    status_event.data.data32[3] = XCB_NONE;
+                
+                    auto xcb = app->connection;
+                
+                    xcb_send_event(xcb, false, drag_and_drop_source, XCB_EVENT_MASK_NO_EVENT,
+                                   reinterpret_cast<const char *> (&status_event));
+                }
+            } else if (e->type == get_cached_atom(app, "XdndLeave")) {
+                if (auto client = client_by_window(app, e->window)) {
+                    if (client->name == "windows_selector") {
+                        drag_and_dropping = false;
+                    }
+                    client->motion_event_x = (int) -1;
+                    client->motion_event_y = (int) -1;
+                    handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
+                    client_paint(app, client, true);
                 }
             }
             break;
@@ -2456,7 +2826,7 @@ create_taskbar(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    app = app;
+    audio_start(app);
     
     // Set window startup settings
     Settings settings;
@@ -2511,7 +2881,6 @@ create_taskbar(App *app) {
     paint_surface_with_image(
             global->unknown_icon_64, as_resource_path("unknown-64.svg"), 64 * config->dpi, nullptr);
     
-    app_create_custom_event_handler(app, taskbar->window, taskbar_event_handler);
     app_create_custom_event_handler(app, INT_MAX, window_event_handler);
     app_timeout_create(app, taskbar, 500, screenshot_active_window, nullptr);
     
@@ -2525,6 +2894,10 @@ create_taskbar(App *app) {
     if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO) {
         audio_update_list_of_clients();
     }
+    
+    uint32_t version = 5;
+    xcb_change_property(app->connection, XCB_PROP_MODE_REPLACE, taskbar->window, get_cached_atom(app, "XdndAware"),
+                        XCB_ATOM_ATOM, 32, 1, &version);
     
     /*
     inotify_fd = inotify_init1(IN_NONBLOCK);
@@ -2592,14 +2965,16 @@ std::string get_icon_name(xcb_window_t win) {
 }
 
 static inline void rtrim(std::string &s) {
-    s.erase(std::find_if(s.rbegin(), s.rend(),
-                         std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !std::isspace(ch); }).base(), s.end());
 }
+
+std::string find_icon_string_from_window_properties(xcb_window_t window);
 
 void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    find_icon_string_from_window_properties(window);
     // Exit the function if the window type is not something a dock should display
     xcb_get_property_cookie_t cookie = xcb_ewmh_get_wm_window_type_unchecked(&app->ewmh, window);
     xcb_ewmh_get_atoms_reply_t atoms_reply_data;
@@ -2737,12 +3112,14 @@ void add_window(App *app, xcb_window_t window) {
     xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
     xcb_flush(app->connection);
     
-    Container *a = icons->child(48 * config->dpi, FILL_SPACE);
+    Container *a = icons->child(60 * config->dpi, FILL_SPACE);
     a->when_drag_end_is_click = false;
     a->minimum_x_distance_to_move_before_drag_begins = 15;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
     a->when_mouse_leaves_container = pinned_icon_mouse_leaves;
     a->when_clicked = pinned_icon_mouse_clicked;
+    a->when_mouse_down = pinned_icon_mouse_down;
+    a->when_mouse_up = pinned_icon_mouse_up;
     a->when_drag_end = pinned_icon_drag_end;
     a->when_drag_start = pinned_icon_drag_start;
     a->when_drag = pinned_icon_drag;
@@ -2923,6 +3300,9 @@ void remove_window(App *app, xcb_window_t window) {
                         }
                     }
                 }
+                data->animation_bounce_amount = 0;
+                data->animation_bounce_direction = 0;
+                client_create_animation(app, entity, &data->animation_bounce_amount, 0, 0, nullptr, 0);
                 
                 delete data->windows_data_list[i];
                 data->windows_data_list.erase(data->windows_data_list.begin() + i);
@@ -3198,13 +3578,15 @@ load_pinned_icons() {
         auto *child = new Container();
         child->parent = icons;
         child->wanted_bounds.h = FILL_SPACE;
-        child->wanted_bounds.w = 48 * config->dpi;
+        child->wanted_bounds.w = 60 * config->dpi;
         
         child->when_drag_end_is_click = false;
         child->minimum_x_distance_to_move_before_drag_begins = 15;
         child->when_mouse_enters_container = pinned_icon_mouse_enters;
         child->when_mouse_leaves_container = pinned_icon_mouse_leaves;
         child->when_clicked = pinned_icon_mouse_clicked;
+        child->when_mouse_down = pinned_icon_mouse_down;
+        child->when_mouse_up = pinned_icon_mouse_up;
         child->when_drag_end = pinned_icon_drag_end;
         child->when_drag_start = pinned_icon_drag_start;
         child->when_drag = pinned_icon_drag;
@@ -3260,6 +3642,8 @@ late_classes_update(App *app, AppClient *client, Timeout *timeout, void *data) {
 #endif
     if (timeout)
         timeout->keep_running = true;
+    if (!client || !app)
+        return;
     auto *root = client->root;
     if (!root)
         return;
@@ -3292,17 +3676,14 @@ late_classes_update(App *app, AppClient *client, Timeout *timeout, void *data) {
 }
 
 void update_taskbar_volume_icon() {
-    if (auto *client = client_by_name(app, "taskbar")) {
-        auto *event = new xcb_expose_event_t;
-        
-        event->response_type = XCB_EXPOSE;
-        event->window = client->window;
-        
-        xcb_send_event(app->connection, true, event->window, XCB_EVENT_MASK_EXPOSURE, (char *) event);
-        xcb_flush(app->connection);
-        
-        delete event;
-    }
+    std::thread t([]() {
+        std::lock_guard lock(app->running_mutex);
+        if (auto *client = client_by_name(app, "taskbar")) {
+            client_layout(app, client);
+            client_paint(app, client);
+        }
+    });
+    t.detach();
 }
 
 void set_textarea_active() {
@@ -3422,6 +3803,9 @@ void update_pinned_items_icon() {
 }
 
 WindowsData::WindowsData(App *app, xcb_window_t window) {
+    option_width = 217 * 1.2 * config->dpi;
+    option_height = 144 * 1.2 * config->dpi;
+    
     id = window;
     
     auto cookie = xcb_get_property(app->connection, 0, id, get_cached_atom(app, "_GTK_FRAME_EXTENTS"),
@@ -3463,11 +3847,11 @@ WindowsData::WindowsData(App *app, xcb_window_t window) {
                                                       (height = geom->height));
             
             raw_thumbnail_surface = accelerated_surface(app, client_by_name(app, "taskbar"),
-                                                        width * config->dpi, height * config->dpi);
+                                                        width, height);
             raw_thumbnail_cr = cairo_create(raw_thumbnail_surface);
             scaled_thumbnail_surface = accelerated_surface(app, client_by_name(app, "taskbar"),
-                                                           option_width * config->dpi,
-                                                           option_height * config->dpi);
+                                                           option_width,
+                                                           option_height);
             scaled_thumbnail_cr = cairo_create(scaled_thumbnail_surface);
             take_screenshot();
             free(geom);
@@ -3553,3 +3937,67 @@ void taskbar_launch_index(int index) {
         }
     }
 }
+
+std::string find_icon_string_from_window_properties(xcb_window_t window) {
+    std::string wm_name;
+    std::string net_wm_name;
+    std::string icon_name;
+    std::string wm_class;
+    std::string gtk_application_id;
+    std::string kde_application_id;
+    xcb_icccm_get_text_property_reply_t reply;
+    xcb_ewmh_get_utf8_strings_reply_t data;
+    
+    const xcb_get_property_cookie_t &name_cookie = xcb_icccm_get_wm_icon_name(app->connection, window);
+    const xcb_get_property_cookie_t &net_name_cookie = xcb_ewmh_get_wm_name(&app->ewmh, window);
+    const xcb_get_property_cookie_t &icon_cookie = xcb_icccm_get_wm_icon_name(app->connection, window);
+    const xcb_get_property_cookie_t &wm_class_cookie = xcb_icccm_get_wm_class(app->connection, window);
+    xcb_get_property_cookie_t gtk_coookie = xcb_icccm_get_text_property_unchecked(app->connection, window,
+                                                                                  get_cached_atom(app,
+                                                                                                  "_GTK_APPLICATION_ID"));
+    xcb_get_property_cookie_t kde_cookie = xcb_icccm_get_text_property_unchecked(app->connection, window,
+                                                                                 get_cached_atom(app,
+                                                                                                 "_KDE_NET_WM_DESKTOP_FILE"));
+    
+    // _GTK_APPLICATION_ID
+    if (xcb_icccm_get_text_property_reply(app->connection, gtk_coookie, &reply, nullptr)) {
+        gtk_application_id = std::string(reply.name, reply.name_len);
+        xcb_icccm_get_text_property_reply_wipe(&reply);
+    }
+    
+    // _KDE_NET_WM_DESKTOP_FILE
+    if (xcb_icccm_get_text_property_reply(app->connection, kde_cookie, &reply, nullptr)) {
+        kde_application_id = std::string(reply.name, reply.name_len);
+        xcb_icccm_get_text_property_reply_wipe(&reply);
+    }
+    
+    uint8_t success = xcb_icccm_get_wm_name_reply(app->connection, net_name_cookie, &reply, nullptr);
+    if (success) {
+        net_wm_name = std::string(reply.name, reply.name_len);
+        xcb_icccm_get_text_property_reply_wipe(&reply);
+    }
+    
+    // try to use properties to find matching desktop file, and if the icon specified, has options, or is a '/' return that
+    success = xcb_ewmh_get_wm_name_reply(&app->ewmh, name_cookie, &data, nullptr);
+    if (success) {
+        wm_name = strndup(data.strings, data.strings_len);
+        xcb_ewmh_get_utf8_strings_reply_wipe(&data);
+    }
+    
+    success = xcb_icccm_get_text_property_reply(app->connection, wm_class_cookie, &reply, nullptr);
+    if (success) {
+        wm_class = strndup(reply.name, reply.name_len);
+        xcb_icccm_get_text_property_reply_wipe(&reply);
+    }
+    
+    
+    // then check each property individually to see if it has options
+    
+    // then see if we have a set icon string in text file, and if it has options, return that
+    
+    // then check if we have a raw icon saved with the wm_class name, and return that path if so
+    
+    return "";
+}
+
+TextAreaSettings::TextAreaSettings(float scale) : ScrollPaneSettings(scale) {}

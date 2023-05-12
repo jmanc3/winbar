@@ -4,6 +4,7 @@
 #include <X11/keysym.h>
 #include <cairo.h>
 #include <string>
+#include <utility>
 #include <vector>
 #include <xcb/xcb_event.h>
 #include <xcb/xproto.h>
@@ -36,6 +37,10 @@ struct Bounds {
     Bounds(const Bounds &b);
     
     bool non_zero();
+    
+    void shrink(double amount);
+    
+    void grow(double amount);
 };
 
 enum layout_type {
@@ -56,6 +61,8 @@ enum layout_type {
     scrollpane_b_never = 1 << 10,
     
     transition = 1 << 11,
+    
+    newscroll = 1 << 12,
 };
 
 enum container_alignment {
@@ -96,10 +103,10 @@ struct MouseState {
     // it will be set to the events e->detail so test it against
     // XCB_BUTTON_INDEX_[0-9] left XCB_BUTTON_INDEX_1 = 1,
     //
-    // right
+    // middle
     // XCB_BUTTON_INDEX_2 = 2,
     //
-    // middle
+    // right
     // XCB_BUTTON_INDEX_3 = 3,
     int mouse_button_pressed = 0;
     
@@ -186,6 +193,40 @@ struct ClientAnimation {
     bool done = false;
     
     void (*finished)(AppClient *client) = nullptr;
+    
+    double delay;
+};
+
+enum struct CommandStatus {
+    NONE,
+    UPDATE, // For commands that don't finish right away
+    ERROR, // When command fails
+    TIMEOUT, // When command times out
+    FINISHED, // When command finishes
+};
+
+struct Subprocess {
+    int inpipe[2]{};
+    int outpipe[2]{};
+    int timeout_fd = -1;
+    pid_t pid;
+    App *app = nullptr;
+    
+    std::string command;
+    std::string output;
+    std::string recent;
+    CommandStatus status = CommandStatus::NONE; // UPDATE, FINISHED, ERROR, TIMEOUT
+    void *user_data = nullptr;
+    
+    void (*function)(Subprocess *){};
+    
+    AppClient *client{};
+    
+    Subprocess(App *app, const std::string &command);
+    
+    void write(const std::string &message);
+    
+    void kill(bool warn);
 };
 
 struct AppClient {
@@ -202,6 +243,8 @@ struct AppClient {
     
     Container *root;
     
+    bool auto_delete_root = true;
+    
     int mouse_initial_x = -1;
     int mouse_initial_y = -1;
     int mouse_current_x = -1;
@@ -210,7 +253,7 @@ struct AppClient {
     long last_repaint_time;
     
     // Variables to limit how often we handle motion notify events
-    float motion_events_per_second = 30;
+    float motion_events_per_second = 120;
     int motion_event_x = 0;
     int motion_event_y = 0;
     Timeout *motion_event_timeout = nullptr;
@@ -260,7 +303,20 @@ struct AppClient {
     bool wants_popup_events = false;
     
     AppClient *create_popup(PopupSettings popup_settings, Settings client_settings);
+    
+    std::vector<Subprocess *> commands;
+    
+    Subprocess *command(const std::string &command, void (*function)(Subprocess *));
+    
+    Subprocess *command(const std::string &command, int timeout_in_ms, void (*function)(Subprocess *));
+    
+    Subprocess *command(const std::string &command, void (*function)(Subprocess *), void *user_data);
+    
+    Subprocess *command(const std::string &command, int timeout_in_ms, void (*function)(Subprocess *), void *user_data);
 };
+
+struct ScrollContainer;
+struct ScrollPaneSettings;
 
 struct Container {
     // The parent of this container which must be set by the user whenever a
@@ -390,6 +446,14 @@ struct Container {
                           int scroll_x,
                           int scroll_y) = nullptr;
     
+    // Called when this container was scrolled on
+    void (*when_fine_scrolled)(AppClient *client,
+                               cairo_t *cr,
+                               Container *self,
+                               int scroll_x,
+                               int scroll_y,
+                               bool came_from_touchpad) = nullptr;
+    
     // Called once when after mouse_downing a container, there was a mouse_motion
     // event
     void (*when_drag_start)(AppClient *client, cairo_t *cr, Container *self) = nullptr;
@@ -426,7 +490,59 @@ struct Container {
     
     Container(const Container &c);
     
-    ~Container();
+    virtual ~Container();
+    
+    ScrollContainer *scrollchild(const ScrollPaneSettings &scroll_pane_settings);
+};
+
+enum ScrollShow {
+    SAlways,
+    SWhenNeeded,
+    SNever
+};
+
+class ScrollPaneSettings : public UserData {
+public:
+    ScrollPaneSettings(float scale);
+    
+    int right_width = 12;
+    int right_arrow_height = 12;
+    
+    int bottom_height = 12;
+    int bottom_arrow_width = 12;
+    
+    bool right_inline_track = false;
+    bool bottom_inline_track = false;
+    
+    // 0 is always show, 1 is when needed, 2 is never show
+    int right_show_amount = ScrollShow::SWhenNeeded;
+    int bottom_show_amount = ScrollShow::SWhenNeeded;
+    
+    bool make_content = false;
+    
+    bool start_at_end = false;
+    
+    // paint functions
+};
+
+struct ScrollContainer : public Container {
+    Container *content = nullptr;
+    Container *right = nullptr;
+    Container *bottom = nullptr;
+    long previous_time_scrolled = 0;
+    ScrollPaneSettings settings;
+    
+    explicit ScrollContainer(ScrollPaneSettings settings) : settings(std::move(settings)) {
+        type = ::newscroll;
+        wanted_bounds.w = FILL_SPACE;
+        wanted_bounds.h = FILL_SPACE;
+    }
+    
+    ~ScrollContainer() {
+        delete content;
+        delete right;
+        delete bottom;
+    }
 };
 
 Bounds
@@ -455,5 +571,13 @@ true_height(Container *box);
 
 double
 true_width(Container *box);
+
+double
+actual_true_height(Container *box);
+
+double
+actual_true_width(Container *box);
+
+void clamp_scroll(ScrollContainer *scrollpane);
 
 #endif

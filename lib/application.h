@@ -1,7 +1,6 @@
 #ifndef APPLICATION_HEADER
 #define APPLICATION_HEADER
 
-#include "application.h"
 #include "container.h"
 #include "easing.h"
 
@@ -95,7 +94,15 @@ struct Timeout {
 struct PolledDescriptor {
     int file_descriptor;
     
-    void (*function)(App *, int fd);
+    void (*function)(App *, int fd, void *user_data);
+    
+    void *user_data = nullptr;
+    
+    ~PolledDescriptor() {
+//        if (user_data) {
+//            free(user_data);
+//        }
+    }
 };
 
 struct DBusConnection;
@@ -118,6 +125,8 @@ struct App {
     
     xcb_connection_t *connection = nullptr;
     
+    xcb_key_symbols_t *key_symbols = nullptr;
+    
     xcb_visualtype_t *argb_visualtype = nullptr;
     
     xcb_visualtype_t *root_visualtype = nullptr;
@@ -125,8 +134,8 @@ struct App {
     int screen_number = 0;
     
     xcb_screen_t *screen = nullptr;
-    
-    int epoll_fd = -1;
+
+//    int epoll_fd = -1;
     std::vector<PolledDescriptor> descriptors_being_polled;
     
     std::vector<Timeout *> timeouts;
@@ -142,8 +151,6 @@ struct App {
     
     cairo_device_t *device = nullptr;
     
-    AppClient *popup_client = nullptr;
-    
     App();
 };
 
@@ -151,7 +158,7 @@ struct Handler {
     xcb_window_t target_window = 0;
     
     // returning false from this callback means don't consume the event
-    bool (*event_handler)(App *app, xcb_generic_event_t *) = nullptr;
+    bool (*event_handler)(App *app, xcb_generic_event_t *, xcb_window_t target_window) = nullptr;
 };
 
 void init_client(AppClient *client);
@@ -181,28 +188,21 @@ void request_refresh(App *app, AppClient *client_entity);
 
 void client_register_animation(App *app, AppClient *client_entity);
 
-void client_create_animation(App *app,
-                             AppClient *client_entity,
-                             double *value,
-                             double length,
-                             easingFunction easing,
-                             double target);
+void client_create_animation(App *app, AppClient *client_entity, double *value, double delay, double length,
+                             easingFunction easing, double target);
 
 void client_create_animation(App *app,
                              AppClient *client_entity,
                              double *value,
+                             double delay,
                              double length,
                              easingFunction easing,
                              double target,
                              void (*finished)(AppClient *client));
 
-void client_create_animation(App *app,
-                             AppClient *client,
-                             double *value,
-                             double length,
-                             easingFunction easing,
-                             double target,
-                             bool relayout);
+void
+client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+                        double target, bool relayout);
 
 void client_unregister_animation(App *app, AppClient *client_entity);
 
@@ -251,10 +251,12 @@ bool app_timeout_stop(App *app,
                       Timeout *timeout);
 
 void app_create_custom_event_handler(App *app, xcb_window_t window,
-                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event));
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event,
+                                                            xcb_window_t target_window));
 
 void app_remove_custom_event_handler(App *app, xcb_window_t window,
-                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event));
+                                     bool (*custom_handler)(App *app, xcb_generic_event_t *event,
+                                                            xcb_window_t target_window));
 
 bool client_set_position(App *app, AppClient *client, int x, int y);
 
@@ -273,6 +275,10 @@ update_keymap(struct ClientKeyboard *kbd);
 
 void paint_container(App *app, AppClient *client, Container *container);
 
-bool poll_descriptor(App *app, int file_descriptor, int events, void function(App *, int fd));
+bool poll_descriptor(App *app, int file_descriptor, int events, void (*function)(App *, int, void *), void *user_data);
+
+Subprocess *
+command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, void (*function)(Subprocess *),
+                    void *user_data);
 
 #endif

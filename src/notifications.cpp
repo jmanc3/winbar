@@ -9,6 +9,7 @@
 #include "utility.h"
 #include "icons.h"
 #include "simple_dbus.h"
+#include "main.h"
 
 #include <pango/pangocairo.h>
 
@@ -32,6 +33,8 @@ struct LabelData : UserData {
 
 static void close_notification_timeout(App *app, AppClient *client, Timeout *, void *data) {
     auto root_data = (NotificationWrapper *) client->root->user_data;
+    if (root_data->ni->on_ignore)
+        root_data->ni->on_ignore(root_data->ni);
     notification_closed_signal(app, root_data->ni, NotificationReasonClosed::EXPIRED);
     client_close_threaded(app, client);
 }
@@ -46,6 +49,8 @@ static void paint_root(AppClient *client, cairo_t *cr, Container *container) {
 
 static void clicked_root(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationWrapper *) container->user_data;
+    if (data->ni->on_ignore)
+        data->ni->on_ignore(data->ni);
     // TODO I think this should invoke "default" action
     notification_closed_signal(client->app, data->ni, NotificationReasonClosed::DISMISSED_BY_USER);
     client_close_threaded(client->app, client);
@@ -222,7 +227,11 @@ static void paint_action(AppClient *client, cairo_t *cr, Container *container) {
 static void clicked_action(AppClient *client, cairo_t *cr, Container *container) {
     auto client_wrapper = (NotificationWrapper *) client->root->user_data;
     auto action_wrapper = (NotificationActionWrapper *) container->user_data;
-    notification_action_invoked_signal(client->app, client_wrapper->ni, action_wrapper->action);
+    if (action_wrapper->action.callback) {
+        action_wrapper->action.callback(client_wrapper->ni);
+    } else {
+        notification_action_invoked_signal(client->app, client_wrapper->ni, action_wrapper->action);
+    }
     
     app_timeout_create(client->app, client, 300, close_notification_timeout, nullptr);
 //    notification_closed_signal(client->app, client_wrapper->ni, NotificationReasonClosed::DISMISSED_BY_USER);
@@ -239,35 +248,39 @@ static bool send_to_action_pierced_handler(Container *container, int mouse_x, in
 static void clicked_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
     auto client_wrapper = (NotificationWrapper *) client->root->user_data;
     auto icon_button = (IconButton *) container->user_data;
+    if (client_wrapper->ni->on_ignore)
+        client_wrapper->ni->on_ignore(client_wrapper->ni);
 }
 
 static void paint_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
-    auto client_wrapper = (NotificationWrapper *) client->root->user_data;
-    auto icon_button = (IconButton *) container->user_data;
-    if (icon_button->surface) {
-        if (container->state.mouse_pressing || container->state.mouse_hovering) {
-            if (container->state.mouse_pressing) {
-                dye_surface(icon_button->surface, config->color_notification_button_send_to_action_center_pressed);
-            } else {
-                dye_surface(icon_button->surface, config->color_notification_button_send_to_action_center_hovered);
-            }
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE0AB", strlen("\uE83F"));
+    
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_notification_button_send_to_action_center_pressed);
         } else {
-            if (!bounds_contains(client->root->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
-                return;
-            }
-            if (auto c = container_by_name("actions_container", client->root)) {
-                for (auto co: c->children) {
-                    if (bounds_contains(co->real_bounds, client->mouse_current_x, client->mouse_current_y))
-                        return;
-                }
-            }
-            dye_surface(icon_button->surface, config->color_notification_button_send_to_action_center_default);
+            set_argb(cr, config->color_notification_button_send_to_action_center_hovered);
         }
-        cairo_set_source_surface(cr, icon_button->surface,
-                                 container->real_bounds.x + ((16 + 4) * config->dpi),
-                                 container->real_bounds.y + (18 * config->dpi));
-        cairo_paint(cr);
+    } else {
+        if (!bounds_contains(client->root->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+            return;
+        }
+        if (auto c = container_by_name("actions_container", client->root)) {
+            for (auto co: c->children) {
+                if (bounds_contains(co->real_bounds, client->mouse_current_x, client->mouse_current_y))
+                    return;
+            }
+        }
+        set_argb(cr, config->color_notification_button_send_to_action_center_default);
     }
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + ((16) * config->dpi)),
+                  (int) (container->real_bounds.y + (18 * config->dpi)));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void client_closed(AppClient *client) {
@@ -288,7 +301,7 @@ static void client_closed(AppClient *client) {
 
 static Container *create_notification_container(App *app, NotificationInfo *notification_info, int width);
 
-void show_notification(App *app, NotificationInfo *ni) {
+void show_notification(NotificationInfo *ni) {
     auto notification_container = create_notification_container(app, ni, 356 * config->dpi);
     
     Settings settings;
@@ -323,10 +336,6 @@ void show_notification(App *app, NotificationInfo *ni) {
         auto icon_data = (IconButton *) icon_container->user_data;
         load_icon_full_path(app, client, &icon_data->surface, ni->icon_path, 48 * config->dpi);
     }
-    if (auto icon_container = container_by_name("send_to_action_center", notification_container)) {
-        auto icon_data = (IconButton *) icon_container->user_data;
-        load_icon_full_path(app, client, &icon_data->surface, as_resource_path("right-arrow.png"), 12 * config->dpi);
-    }
     
     client->when_closed = client_closed;
     
@@ -351,7 +360,7 @@ void show_notification(App *app, NotificationInfo *ni) {
         }
         
         app_timeout_create(app, client, timeout, close_notification_timeout, nullptr);
-    } else {
+    } else if (ni->expire_timeout_in_milliseconds != 0) {
         app_timeout_create(app, client, ni->expire_timeout_in_milliseconds, close_notification_timeout, nullptr);
     }
 }
@@ -415,8 +424,8 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     }
     
     std::vector<IconTarget> targets;
-    targets.emplace_back(IconTarget(notification_info->app_icon));
-    targets.emplace_back(IconTarget(subtitle_text));
+    targets.emplace_back(notification_info->app_icon);
+    targets.emplace_back(subtitle_text);
     search_icons(targets);
     int icon_size = 48 * config->dpi;
     pick_best(targets, icon_size);

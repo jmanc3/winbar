@@ -15,16 +15,17 @@
 #include <pango/pangocairo.h>
 #include <xbacklight.h>
 
-double marker_position_scalar = .5;
+double marker_position_scalar = 1;
 
 static AppClient *battery_entity = nullptr;
 
+static int brightness = 100;
+static int brightness_fake = 100;
+
 static void
 paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
-    auto *data = static_cast<data_battery_surfaces *>(container->user_data);
+    auto *data = static_cast<BatteryInfo *>(container->user_data);
     assert(data);
-    assert(!data->normal_surfaces.empty());
-    assert(!data->charging_surfaces.empty());
     
     std::string line;
     std::ifstream status("/sys/class/power_supply/BAT0/status");
@@ -47,29 +48,49 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
         data->capacity = "0";
     }
     
-    int capacity_index = std::floor(((double) (std::stoi(data->capacity))) / 10.0);
+    float i = std::stoi(data->capacity);
+    if (i == 5)
+        i = 4;
+    int rounded = std::round(i / 10) * 10;
+    int capacity_index = std::floor(((double) (rounded)) / 10.0);
     
-    if (capacity_index > 9)
-        capacity_index = 9;
+    if (capacity_index > 10)
+        capacity_index = 10;
     if (capacity_index < 0)
         capacity_index = 0;
     
-    cairo_surface_t *surface;
-    if (data->status == "Charging") {
-        surface = data->charging_surfaces[capacity_index];
-    } else {
-        surface = data->normal_surfaces[capacity_index];
-    }
-    int image_height = cairo_image_surface_get_height(surface);
-    dye_surface(surface, config->color_battery_icons);
-    cairo_set_source_surface(
-            cr,
-            surface,
-            (int) (container->real_bounds.x + 12 * config->dpi),
-            (int) (container->real_bounds.y + container->real_bounds.h / 2 - image_height / 2));
-    cairo_paint(cr);
+    data->capacity_index = capacity_index;
     
     PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 32 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    std::string regular[] = {"\uEBA0", "\uEBA1", "\uEBA2", "\uEBA3", "\uEBA4", "\uEBA5", "\uEBA6", "\uEBA7", "\uEBA8",
+                             "\uEBA9", "\uEBAA"};
+    
+    std::string charging[] = {"\uEBAB", "\uEBAC", "\uEBAD", "\uEBAE", "\uEBAF", "\uEBB0", "\uEBB1", "\uEBB2", "\uEBB3",
+                              "\uEBB4", "\uEBB5"};
+    
+    if (data->status == "Full") {
+        pango_layout_set_text(layout, regular[10].c_str(), strlen("\uE83F"));
+    } else if (data->status == "Charging") {
+        pango_layout_set_text(layout, charging[data->capacity_index].c_str(), strlen("\uE83F"));
+    } else {
+        pango_layout_set_text(layout, regular[data->capacity_index].c_str(), strlen("\uE83F"));
+    }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(
+            cr,
+            (int) (container->real_bounds.x + 12 * config->dpi),
+            (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
+    
+    
+    layout =
             get_cached_pango_font(cr, config->font, 34 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     set_argb(cr, config->color_battery_text);
     std::string text = data->capacity + "%";
@@ -78,7 +99,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     int charge_width, charge_height;
     pango_layout_get_pixel_size(layout, &charge_width, &charge_height);
     
-    int text_x = (int) (container->real_bounds.x + 72 * config->dpi);
+    int text_x = (int) (container->real_bounds.x + 90 * config->dpi);
     int text_y =
             (int) (container->real_bounds.y + container->real_bounds.h / 2 - charge_height / 2) - 3;
     cairo_move_to(cr, text_x, text_y);
@@ -95,7 +116,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     int status_width;
     pango_layout_get_pixel_size(layout, &status_width, &status_height);
     
-    text_x = (int) (container->real_bounds.x + 72 * config->dpi + charge_width + 14);
+    text_x = (int) (container->real_bounds.x + 90 * config->dpi + charge_width + 10 * config->dpi);
     text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - status_height / 2);
     cairo_move_to(cr, text_x, text_y);
     
@@ -138,7 +159,7 @@ paint_brightness_amount(AppClient *client_entity, cairo_t *cr, Container *contai
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    std::string text = std::to_string((int) (marker_position_scalar * 100));
+    std::string text = std::to_string((int) (brightness_fake));
     
     int width;
     int height;
@@ -166,14 +187,15 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool real) {
     limited_x -= container->real_bounds.x;
     marker_position_scalar = limited_x / container->real_bounds.w;
     
-    int amount = (int) (marker_position_scalar * 100);
+    int amount = (int) std::round(marker_position_scalar * 100);
     if (amount <= 0)
         amount = 1;
     if (real) {
-        if (dbus_gnome_running()) {
-            dbus_set_gnome_brightness(amount);
-        } else if (dbus_get_kde_max_brightness() != 0) {
+        brightness_fake = amount;
+        if (dbus_kde_running()) {
             dbus_kde_set_brightness(((double) amount) / 100.0);
+        } else if (dbus_gnome_running()) {
+            dbus_set_gnome_brightness(amount);
         } else {
             backlight_set_brightness(amount);
         }
@@ -237,20 +259,22 @@ paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
 
 static void
 paint_brightness_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
-    auto *data = (IconButton *) container->user_data;
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 24 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    if (data->surface == nullptr)
-        return;
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uEC8A", strlen("\uE83F"));
     
-    dye_surface(data->surface, config->color_battery_icons);
+    set_argb(cr, config->color_battery_icons);
     
-    cairo_set_source_surface(cr,
-                             data->surface,
-                             (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                                    cairo_image_surface_get_width(data->surface) / 2),
-                             (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                                    cairo_image_surface_get_height(data->surface) / 2));
-    cairo_paint(cr);
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static Container *
@@ -260,22 +284,7 @@ make_battery_bar(Container *root) {
     battery_bar->wanted_bounds.w = FILL_SPACE;
     battery_bar->wanted_bounds.h = 77 * config->dpi;
     battery_bar->when_paint = paint_battery_bar;
-    auto *data = new data_battery_surfaces;
-    for (int i = 0; i <= 9; i++) {
-        auto *normal_surface = accelerated_surface(app, battery_entity, 40 * config->dpi, 40 * config->dpi);
-        paint_surface_with_image(
-                normal_surface,
-                as_resource_path("battery/40/normal/" + std::to_string(i) + ".png"), 40 * config->dpi,
-                nullptr);
-        data->normal_surfaces.push_back(normal_surface);
-        
-        auto *charging_surface = accelerated_surface(app, battery_entity, 40 * config->dpi, 40 * config->dpi);
-        paint_surface_with_image(
-                charging_surface,
-                as_resource_path("battery/40/charging/" + std::to_string(i) + ".png"), 40 * config->dpi,
-                nullptr);
-        data->charging_surfaces.push_back(charging_surface);
-    }
+    auto *data = new BatteryInfo;
     battery_bar->user_data = data;
     
     return battery_bar;
@@ -301,11 +310,6 @@ make_brightness_slider(Container *root) {
     
     auto brightness_icon = hbox->child(55 * config->dpi, FILL_SPACE);
     brightness_icon->when_paint = paint_brightness_icon;
-    auto *brightness_icon_data = new IconButton();
-    brightness_icon_data->surface = accelerated_surface(app, battery_entity, 24 * config->dpi, 24 * config->dpi);
-    paint_surface_with_image(
-            brightness_icon_data->surface, as_resource_path("brightness.png"), 24 * config->dpi, nullptr);
-    brightness_icon->user_data = brightness_icon_data;
     
     auto slider = new Container();
     slider->parent = hbox;
@@ -333,7 +337,32 @@ fill_root(Container *root) {
     root->children.push_back(make_brightness_slider(root));
 }
 
+static void get_brightness(App *app, AppClient *client, Timeout *, void *) {
+    if (dbus_kde_running()) {
+        brightness = (dbus_get_kde_current_brightness() / dbus_get_kde_max_brightness()) * 100;
+    } else if (dbus_gnome_running()) {
+        brightness = dbus_get_gnome_brightness();
+    } else {
+        brightness = backlight_get_brightness();
+    }
+    
+    if (brightness == -1) {
+        marker_position_scalar = 1;
+        brightness_fake = brightness;
+    } else {
+        marker_position_scalar = (brightness) / 100.0;
+        brightness_fake = brightness;
+    }
+    if (client) {
+        client_paint(app, client, true);
+    }
+}
+
 void start_battery_menu() {
+    static int loop = 0;
+    if (loop == 0)
+        get_brightness(nullptr, nullptr, nullptr, nullptr);
+    loop++;
     if (valid_client(app, battery_entity)) {
         client_close(app, battery_entity);
     }
@@ -363,18 +392,9 @@ void start_battery_menu() {
         popup_settings.name = "battery_menu";
         battery_entity = taskbar->create_popup(popup_settings, settings);
         fill_root(battery_entity->root);
-        
-        int brightness = backlight_get_brightness();
-        if (dbus_gnome_running()) {
-            brightness = dbus_get_gnome_brightness();
-        } else if (dbus_get_kde_max_brightness() != 0)
-            brightness = (dbus_get_kde_current_brightness() / dbus_get_kde_max_brightness()) * 100;
-        if (brightness == -1) {
-            marker_position_scalar = 1;
-        } else {
-            marker_position_scalar = (brightness) / 100.0;
-        }
-        
+    
+        app_timeout_create(app, battery_entity, 0, get_brightness, nullptr);
+    
         client_show(app, battery_entity);
     }
 }

@@ -8,10 +8,11 @@
 #include "main.h"
 #include "taskbar.h"
 #include "components.h"
+#include "icons.h"
 
 #ifdef TRACY_ENABLE
 
-#include "../tracy/Tracy.hpp"
+#include "../tracy/public/tracy/Tracy.hpp"
 
 #endif
 
@@ -43,11 +44,21 @@ class option_data : UserData {
 public:
     int unique_client_id = -100;
     long last_update = get_current_time_in_ms();
+    double rolling_avg = 0;
+    double rolling_avg_delayed = 0;
+    double volume_amount = -1;
+    bool animating = false;
+    long previous_time_animating = 0;
+    cairo_surface_t *icon = nullptr;
     
-    Audio_Client *client() const {
+    Audio_Client *client() {
         for (auto c: audio_clients)
             if (c->unique_id() == unique_client_id)
                 return c;
+        if (icon) {
+            cairo_surface_destroy(icon);
+            icon = nullptr;
+        }
         return nullptr;
     };
     
@@ -68,7 +79,7 @@ rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width
 }
 
 static void
-fill_root(Container *root);
+fill_root(AppClient *client, Container *root);
 
 static void
 paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
@@ -98,47 +109,49 @@ paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto data = static_cast<option_data *>(container->parent->parent->user_data);
-    auto surfaces = static_cast<volume_surfaces *>(container->user_data);
     Audio_Client *client = data->client();
     if (!client) return;
-    
-    if (surfaces->mute == nullptr || surfaces->high == nullptr || surfaces->low == nullptr ||
-        surfaces->medium == nullptr)
-        return;
     
     double scalar = client->get_volume();
     int val = (int) (scalar * 100);
     
-    cairo_surface_t *surface = nullptr;
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 20 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    int width;
+    int height;
+    pango_layout_set_text(layout, "\uEBC5", strlen("\uE83F"));
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    if (!client->is_muted()) {
+        ArgbColor volume_bars_color = ArgbColor(.4, .4, .4, 1);
+        set_argb(cr, volume_bars_color);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, layout);
+    }
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     if (client->is_muted()) {
-        surface = surfaces->mute;
+        pango_layout_set_text(layout, "\uE74F", strlen("\uE83F"));
     } else if (val == 0) {
-        surface = surfaces->none;
+        pango_layout_set_text(layout, "\uE992", strlen("\uE83F"));
     } else if (val < 33) {
-        surface = surfaces->low;
+        pango_layout_set_text(layout, "\uE993", strlen("\uE83F"));
     } else if (val < 66) {
-        surface = surfaces->medium;
+        pango_layout_set_text(layout, "\uE994", strlen("\uE83F"));
     } else {
-        surface = surfaces->high;
+        pango_layout_set_text(layout, "\uE995", strlen("\uE83F"));
     }
     
-    if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
-        if (container->state.mouse_pressing) {
-            dye_surface(surface, config->color_volume_pressed_icon);
-        } else {
-            dye_surface(surface, config->color_volume_hovered_icon);
-        }
-    } else {
-        dye_surface(surface, config->color_volume_default_icon);
-    }
+    pango_layout_get_pixel_size(layout, &width, &height);
     
-    cairo_set_source_surface(cr,
-                             surface,
-                             (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                                    cairo_image_surface_get_width(surface) / 2),
-                             (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                                    cairo_image_surface_get_height(surface) / 2));
-    cairo_paint(cr);
+    set_argb(cr, config->color_taskbar_button_icons);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -152,9 +165,9 @@ paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container)
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    double scalar = client->get_volume();
+    double scalar = data->volume_amount;
     
-    std::string text = std::to_string((int) (scalar * 100));
+    std::string text = std::to_string((int) (std::round(scalar * 100)));
     
     int width;
     int height;
@@ -186,8 +199,17 @@ paint_label(AppClient *client_entity, cairo_t *cr, Container *container) {
     pango_layout_get_pixel_size(layout, &width, &height);
     pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
     
+    double icon_width = 0;
+    if (data->icon) {
+        icon_width = 34 * config->dpi;
+        cairo_set_source_surface(cr, data->icon,
+                                 container->real_bounds.x + 8 * config->dpi,
+                                 container->real_bounds.y + 8 * config->dpi);
+        cairo_paint(cr);
+    }
+    
     set_argb(cr, config->color_volume_text);
-    cairo_move_to(cr, container->real_bounds.x + 13, container->real_bounds.y + 12);
+    cairo_move_to(cr, container->real_bounds.x + 13 + icon_width, container->real_bounds.y + 12);
     
     pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
     pango_cairo_show_layout(cr, layout);
@@ -203,7 +225,26 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     double marker_height = 24 * config->dpi;
     double marker_width = 8 * config->dpi;
-    double marker_position = client->get_volume() * container->real_bounds.w;
+    double volume = client->get_volume();
+    long current_time = get_current_time_in_ms();
+    long diff = current_time - data->previous_time_animating;
+    
+    if (data->volume_amount == -1)
+        data->volume_amount = volume;
+    if (volume != data->volume_amount && !data->animating) {
+        data->previous_time_animating = current_time;
+        data->animating = true;
+        if (diff > 90) {
+            diff = 90;
+        } else if (diff < 20) {
+            diff = 20;
+        }
+        client_create_animation(app, client_entity, &data->volume_amount, 0, diff, getEasingFunction(EaseOutQuad),
+                                volume);
+    } else {
+        data->animating = false;
+    }
+    double marker_position = data->volume_amount * container->real_bounds.w;
     
     double line_height = 2 * config->dpi;
     set_argb(cr, config->color_volume_slider_background);
@@ -218,6 +259,41 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
                     container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
                     marker_position,
+                    line_height);
+    cairo_fill(cr);
+    
+    float peak = client->peak.load();
+    if (data->rolling_avg < peak) {
+        data->rolling_avg = peak;
+        client_create_animation(app, client_entity, &data->rolling_avg, 0, 250, nullptr, 0);
+    }
+    
+    if (data->rolling_avg_delayed < peak) {
+        data->rolling_avg_delayed = peak;
+        client_create_animation(app, client_entity, &data->rolling_avg_delayed, 130, 1000, getEasingFunction(EaseInExpo), 0);
+    }
+    
+    if (is_light_theme(config->color_volume_background)) {
+        set_argb(cr, darken(config->color_volume_background, 13));
+    } else {
+        set_argb(cr, lighten(config->color_volume_background, 20));
+    }
+    cairo_rectangle(cr,
+                    container->real_bounds.x,
+                    container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2 + line_height,
+                    marker_position * data->rolling_avg_delayed,
+                    line_height);
+    cairo_fill(cr);
+    
+    if (is_light_theme(config->color_volume_background)) {
+        set_argb(cr, darken(config->color_volume_background, 30));
+    } else {
+        set_argb(cr, lighten(config->color_volume_background, 50));
+    }
+    cairo_rectangle(cr,
+                    container->real_bounds.x,
+                    container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2 + line_height,
+                    marker_position * data->rolling_avg,
                     line_height);
     cairo_fill(cr);
     
@@ -302,8 +378,9 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool force) {
     if (new_volume != client->get_volume()) {
         if (client->is_muted())
             client->set_mute(false);
-        
+    
         client->set_volume(new_volume);
+        data->volume_amount = new_volume;
         if (client->is_master_volume())
             update_taskbar_volume_icon();
     }
@@ -339,7 +416,7 @@ retry_audio_connection(AppClient *client_entity, cairo_t *cr, Container *contain
     }
 }
 
-void fill_root(Container *root) {
+void fill_root(AppClient *client, Container *root) {
     root->when_paint = paint_root;
     root->type = vbox;
     
@@ -352,7 +429,31 @@ void fill_root(Container *root) {
         vbox_container->wanted_bounds.h = 96 * config->dpi;
         vbox_container->wanted_bounds.w = FILL_SPACE;
         auto data = new option_data();
-        auto uid = audio_clients[i]->unique_id();
+        Audio_Client *audio_c = audio_clients[i];
+        std::string icon_name;
+        if (has_options(audio_c->icon_name)) {
+            icon_name = audio_c->icon_name;
+        } else if (has_options(audio_c->title)) {
+            icon_name = audio_c->title;
+        } else if (has_options(audio_c->subtitle)) {
+            icon_name = audio_c->subtitle;
+        }
+        if (!icon_name.empty()) {
+            std::vector<IconTarget> targets;
+            targets.emplace_back(icon_name);
+            search_icons(targets);
+            double size = 24;
+            pick_best(targets, size * config->dpi);
+            std::string icon_path = targets[0].best_full_path;
+            if (!icon_path.empty()) {
+                if (data->icon) {
+                    cairo_surface_destroy(data->icon);
+                    data->icon = nullptr;
+                }
+                load_icon_full_path(app, client, &data->icon, icon_path, size * config->dpi);
+            }
+        }
+        auto uid = audio_c->unique_id();
         data->unique_client_id = uid;
         vbox_container->user_data = data;
         
@@ -374,28 +475,14 @@ void fill_root(Container *root) {
         volume_icon->when_scrolled = scroll;
         volume_icon->parent = hbox_volume;
         hbox_volume->children.push_back(volume_icon);
-        auto surfaces = new volume_surfaces();
-        surfaces->none = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
-        paint_surface_with_image(surfaces->none, as_resource_path("audio/none24.png"), 24 * config->dpi, nullptr);
-        surfaces->low = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
-        paint_surface_with_image(surfaces->low, as_resource_path("audio/low24.png"), 24 * config->dpi, nullptr);
-        surfaces->medium = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
-        paint_surface_with_image(surfaces->medium, as_resource_path("audio/medium24.png"), 24 * config->dpi, nullptr);
-        surfaces->high = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
-        paint_surface_with_image(surfaces->high, as_resource_path("audio/high24.png"), 24 * config->dpi, nullptr);
-        surfaces->mute = accelerated_surface(app, client_entity, 24 * config->dpi, 24 * config->dpi);
-        paint_surface_with_image(surfaces->mute, as_resource_path("audio/mute24.png"), 24 * config->dpi, nullptr);
-        volume_icon->user_data = surfaces;
-        dye_opacity(surfaces->none, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->low, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->medium, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->high, opacity_diff, opacity_thresh);
-        dye_opacity(surfaces->mute, opacity_diff, opacity_thresh);
+        auto volume_data = new ButtonData;
+        volume_icon->user_data = volume_data;
         
         auto volume_bar = new Container();
         volume_bar->wanted_bounds.h = FILL_SPACE;
         volume_bar->wanted_bounds.w = FILL_SPACE;
         volume_bar->when_paint = paint_option;
+        volume_bar->z_index = 1;
         volume_bar->when_drag_start = drag_force;
         volume_bar->when_drag = drag_whenever;
         volume_bar->when_drag_end = drag_force;
@@ -433,46 +520,48 @@ void updates() {
 
 static void
 paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (IconButton *) container->user_data;
+    auto *data = (ButtonData *) container->user_data;
     
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
             set_rect(cr, container->real_bounds);
-            ArgbColor color = config->color_apps_scrollbar_pressed_button;
-            color.a = 1;
-            set_argb(cr, color);
+            set_argb(cr, config->color_apps_scrollbar_pressed_button);
             cairo_fill(cr);
         } else {
             set_rect(cr, container->real_bounds);
-            ArgbColor color = config->color_apps_scrollbar_hovered_button;
-            color.a = 1;
-            set_argb(cr, color);
+            set_argb(cr, config->color_apps_scrollbar_hovered_button);
             cairo_fill(cr);
         }
     } else {
         set_rect(cr, container->real_bounds);
-        ArgbColor color = config->color_apps_scrollbar_default_button;
-        color.a = 1;
-        set_argb(cr, color);
+        set_argb(cr, config->color_apps_scrollbar_default_button);
         cairo_fill(cr);
     }
     
-    if (data->surface) {
-        // TODO: cache the dye so we only do it once
-        if (container->state.mouse_pressing || container->state.mouse_hovering) {
-            if (container->state.mouse_pressing) {
-                dye_surface(data->surface, config->color_apps_scrollbar_pressed_button_icon);
-            } else {
-                dye_surface(data->surface, config->color_apps_scrollbar_hovered_button_icon);
-            }
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_apps_scrollbar_pressed_button_icon);
         } else {
-            dye_surface(data->surface, config->color_apps_scrollbar_default_button_icon);
+            set_argb(cr, config->color_apps_scrollbar_hovered_button_icon);
         }
-        
-        cairo_set_source_surface(
-                cr, data->surface, container->real_bounds.x, container->real_bounds.y);
-        cairo_paint_with_alpha(cr, 1);
+    } else {
+        set_argb(cr, config->color_apps_scrollbar_default_button_icon);
     }
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, data->text.data(), strlen("\uE83F"));
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -528,6 +617,10 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
 }
 
+void closed_volume(AppClient *client) {
+    unhook_stream();
+}
+
 void open_volume_menu() {
     audio_start(app);
     if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
@@ -536,6 +629,7 @@ void open_volume_menu() {
     } else if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO ||
                audio_backend_data->audio_backend == Audio_Backend::ALSA) {
         audio_update_list_of_clients();
+        hook_up_stream();
         
         if (audio_clients.empty()) {
             connected_message = "Successfully established connection to PulseAudio but found no "
@@ -585,43 +679,38 @@ void open_volume_menu() {
         popup_settings.name = "volume";
         popup_settings.ignore_scroll = true;
         client_entity = taskbar->create_popup(popup_settings, settings);
-        
+    
         Container *root = client_entity->root;
-        ScrollPaneSettings s;
-        s.right_width = 12 * config->dpi;
-        s.right_arrow_height = 12 * config->dpi;
-        Container *scrollpane = make_scrollpane(root, s);
-        scrollpane->when_scrolled = nullptr;
-        Container *content = scrollpane->child(::vbox, FILL_SPACE, FILL_SPACE);
-        
-        Container *right_thumb_container = scrollpane->parent->children[0]->children[1];
+        ScrollPaneSettings s(config->dpi);
+        ScrollContainer *scrollpane = make_newscrollpane_as_child(root, s);
+        scrollpane->when_fine_scrolled = nullptr;
+        Container *content = scrollpane->content;
+    
+        Container *right_thumb_container = scrollpane->right->children[1];
         right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
         right_thumb_container->when_paint = paint_right_thumb;
-        
-        Container *top_arrow = scrollpane->parent->children[0]->children[0];
+    
+        Container *top_arrow = scrollpane->right->children[0];
         top_arrow->when_paint = paint_arrow;
-        auto *top_data = new IconButton;
-        top_data->surface = accelerated_surface(app, client_entity, 12 * config->dpi, 12 * config->dpi);
-        paint_surface_with_image(top_data->surface, as_resource_path("arrow-up-12.png"), 12 * config->dpi, nullptr);
-        
+        auto *top_data = new ButtonData;
+        top_data->text = "\uE971";
         top_arrow->user_data = top_data;
-        Container *bottom_arrow = scrollpane->parent->children[0]->children[2];
+        Container *bottom_arrow = scrollpane->right->children[2];
         bottom_arrow->when_paint = paint_arrow;
-        auto *bottom_data = new IconButton;
-        bottom_data->surface = accelerated_surface(app, client_entity, 12 * config->dpi, 12 * config->dpi);
-        paint_surface_with_image(bottom_data->surface, as_resource_path("arrow-down-12.png"), 12 * config->dpi,
-                                 nullptr);
-        
+        auto *bottom_data = new ButtonData;
+        bottom_data->text = "\uE972";
         bottom_arrow->user_data = bottom_data;
-        
-        fill_root(content);
-        if (audio_backend_data->audio_backend != Audio_Backend::NONE) {
-            content->wanted_bounds.h = true_height(scrollpane) + true_height(content);
-        } else {
+    
+        scrollpane->when_paint = paint_root;
+        fill_root(client_entity, content);
+        if (audio_backend_data->audio_backend == Audio_Backend::NONE) {
             content->wanted_bounds.h = 80;
         }
-        
+    
         client_show(app, client_entity);
+        client_entity->fps = 90;
+        client_entity->when_closed = closed_volume;
+        client_register_animation(app, client_entity);
     }
 }
 

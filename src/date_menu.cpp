@@ -32,17 +32,6 @@ public:
     int year = 0;
 };
 
-class AgendaData : public UserData {
-public:
-    cairo_surface_t *down = nullptr;
-    cairo_surface_t *up = nullptr;
-    
-    ~AgendaData() {
-        if (down) cairo_surface_destroy(down);
-        if (up) cairo_surface_destroy(up);
-    }
-};
-
 static int view_month = 0;
 static int view_year = 0;
 
@@ -292,8 +281,6 @@ paint_events(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (AgendaData *) container->user_data;
-    
     PangoLayout *text_layout =
             get_cached_pango_font(client->cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text;
@@ -325,23 +312,25 @@ paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
     cairo_move_to(cr, pos_x, pos_y);
     pango_cairo_show_layout(cr, text_layout);
     
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    set_argb(cr, color);
+    
     if (agenda_showing) {
-        if (data->down) {
-            dye_surface(data->down, color);
-            cairo_set_source_surface(
-                    cr, data->down, (pos_x + (text_logical.width / PANGO_SCALE) + 5) * config->dpi,
-                    (pos_y + 4) * config->dpi);
-            cairo_paint(cr);
-        }
+        pango_layout_set_text(layout, "\uE972", strlen("\uE83F"));
     } else {
-        if (data->up) {
-            dye_surface(data->up, color);
-            cairo_set_source_surface(
-                    cr, data->up, (pos_x + (text_logical.width / PANGO_SCALE) + 5) * config->dpi,
-                    (pos_y + 4) * config->dpi);
-            cairo_paint(cr);
-        }
+        pango_layout_set_text(layout, "\uE971", strlen("\uE83F"));
     }
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) ((pos_x + (text_logical.width / PANGO_SCALE) + 5 * config->dpi)),
+                  (int) ((pos_y + height / 3 + 4 * config->dpi)));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -366,24 +355,31 @@ paint_month_year_label(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (IconButton *) container->user_data;
-    if (data->surface) {
-        if (container->state.mouse_hovering || container->state.mouse_pressing) {
-            if (container->state.mouse_pressing)
-                dye_surface(data->surface, config->color_date_pressed_arrow);
-            else
-                dye_surface(data->surface, config->color_date_hovered_arrow);
-        } else {
-            dye_surface(data->surface, config->color_date_default_arrow);
-        }
-        
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + container->real_bounds.w / 2 - 8),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - 8));
-        cairo_paint(cr);
+    auto *data = (ButtonData *) container->user_data;
+    
+    PangoLayout *layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    if (container->state.mouse_hovering || container->state.mouse_pressing) {
+        if (container->state.mouse_pressing)
+            set_argb(cr, config->color_date_pressed_arrow);
+        else
+            set_argb(cr, config->color_date_hovered_arrow);
+    } else {
+        set_argb(cr, config->color_date_default_arrow);
     }
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, data->text.data(), strlen("\uE83F"));
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -694,10 +690,9 @@ fill_root(AppClient *client) {
     Container *up_arrow = up_down_hbox->child(16 * config->dpi, FILL_SPACE);
     up_arrow->when_paint = paint_arrow;
     up_arrow->when_clicked = clicked_up_arrow;
-    auto *up_data = new IconButton;
+    auto *up_data = new ButtonData;
     up_arrow->user_data = up_data;
-    up_data->surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(up_data->surface, as_resource_path("arrow-up-16.png"), 16 * config->dpi, nullptr);
+    up_data->text = "\uE971";
     
     // Pad
     up_down_hbox->child(32 * config->dpi, FILL_SPACE);
@@ -705,10 +700,9 @@ fill_root(AppClient *client) {
     Container *down_arrow = up_down_hbox->child(16 * config->dpi, FILL_SPACE);
     down_arrow->when_paint = paint_arrow;
     down_arrow->when_clicked = clicked_down_arrow;
-    auto *down_data = new IconButton;
+    auto *down_data = new ButtonData;
     down_arrow->user_data = down_data;
-    down_data->surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(down_data->surface, as_resource_path("arrow-down-16.png"), 16 * config->dpi, nullptr);
+    down_data->text = "\uE972";
     
     Container *day_titles = body->child(FILL_SPACE, 27 * config->dpi);
     day_titles->type = ::hbox;
@@ -768,7 +762,7 @@ fill_root(AppClient *client) {
     events->wanted_pad = Bounds(24 * config->dpi, 58 * config->dpi, 24 * config->dpi, 0);
     events->when_paint = paint_events;
     
-    TextAreaSettings settings;
+    TextAreaSettings settings(config->dpi);
     settings.color = config->color_date_text;
     settings.color_cursor = config->color_date_cursor;
     settings.font = config->font;
@@ -802,10 +796,6 @@ fill_root(AppClient *client) {
     agenda->type = ::hbox;
     agenda->when_paint = paint_agenda;
     agenda->when_clicked = clicked_agenda;
-    auto *agenda_data = new AgendaData;
-    load_icon_full_path(app, client, &agenda_data->down, as_resource_path("arrow-down-12.png"), 12 * config->dpi);
-    load_icon_full_path(app, client, &agenda_data->up, as_resource_path("arrow-up-12.png"), 12 * config->dpi);
-    agenda->user_data = agenda_data;
 }
 
 static void

@@ -10,9 +10,13 @@
 #include <dbus/dbus.h>
 #include <pango/pango-font.h>
 
+struct NotificationInfo;
+
 struct NotificationAction {
     std::string id;
     std::string label;
+    
+    void (*callback)(NotificationInfo *) = nullptr;
 };
 
 enum NotificationReasonClosed {
@@ -29,6 +33,11 @@ struct NotificationInfo {
     std::string calling_dbus_client;
     bool sent_to_action_center = false;
     bool removed_from_action_center = false;
+    bool sent_by_winbar = false;
+    
+    void (*on_ignore)(NotificationInfo *) = nullptr;
+    
+    void *user_data = nullptr;
     
     std::string app_name;
     std::string app_icon;
@@ -37,6 +46,16 @@ struct NotificationInfo {
     dbus_int32_t expire_timeout_in_milliseconds = -1; // 0 means never, -1 means the server (us) decides
     
     std::vector<NotificationAction> actions;
+    
+    std::string x_kde_appname;
+    std::string x_kde_origin_name;
+    std::string x_kde_display_appname;
+    std::string desktop_entry;
+    std::string x_kde_eventId;
+    std::string x_kde_reply_placeholder_text = "Reply...";
+    std::string x_kde_reply_submit_button_text = "Send";
+    std::string x_kde_reply_submit_button_icon_name = "document-send";
+    std::vector<std::string> x_kde_urls;
 };
 
 struct Container;
@@ -49,7 +68,7 @@ extern std::vector<NotificationInfo *> notifications;
 
 extern std::vector<AppClient *> displaying_notifications;
 
-void show_notification(App *app, NotificationInfo *ni);
+void show_notification(NotificationInfo *ni);
 
 void close_notification(int id);
 

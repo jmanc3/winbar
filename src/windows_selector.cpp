@@ -3,7 +3,7 @@
 
 #ifdef TRACY_ENABLE
 
-#include "../tracy/Tracy.hpp"
+#include "../tracy/public/tracy/Tracy.hpp"
 
 #endif
 
@@ -23,6 +23,8 @@ int option_height = 144 * 1.2;
 int option_pad = 8;
 static double close_width = 32;
 static double close_height = 32;
+static Timeout *drag_and_drop_timeout = nullptr;
+bool drag_and_dropping = false;
 
 static void
 fill_root(Container *root);
@@ -169,6 +171,25 @@ clicked_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     window_option_clicked(client_entity, cr, container->parent->parent);
 }
 
+static void option_hover_clicked(App *, AppClient *client, Timeout *, void *user_data) {
+    clicked_body(client, client->cr, (Container *) user_data);
+    drag_and_drop_timeout = nullptr;
+}
+
+static void
+option_entered(AppClient *client, cairo_t *, Container *container) {
+    if (drag_and_dropping) {
+        drag_and_drop_timeout = app_timeout_create(app, client, 600, option_hover_clicked, container);
+    }
+}
+
+static void
+option_exited(AppClient *client, cairo_t *, Container *) {
+    if (drag_and_drop_timeout != nullptr) {
+        app_timeout_stop(app, client, drag_and_drop_timeout);
+    }
+}
+
 static int get_width(LaunchableButton *data) {
     double total_width = 0;
     
@@ -288,8 +309,6 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
 
 static void
 paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
-    auto *data = static_cast<PinnedIconInfo *>(client_entity->root->user_data);
-    
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         ArgbColor color;
         if (container->state.mouse_pressing) {
@@ -308,22 +327,32 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
                   container->parent->parent->children[1]->state.mouse_pressing ||
                   container->parent->parent->children[1]->state.mouse_hovering;// BODY
     
-    if (data->surface && active) {
+    
+    if (active) {
+        PangoLayout *layout =
+                get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        
         if (container->state.mouse_pressing || container->state.mouse_hovering) {
             if (container->state.mouse_pressing) {
-                dye_surface(data->surface, config->color_windows_selector_close_icon_pressed);
+                set_argb(cr, config->color_windows_selector_close_icon_pressed);
             } else {
-                dye_surface(data->surface, config->color_windows_selector_close_icon_hovered);
+                set_argb(cr, config->color_windows_selector_close_icon_hovered);
             }
         } else {
-            dye_surface(data->surface, config->color_windows_selector_close_icon);
+            set_argb(cr, config->color_windows_selector_close_icon);
         }
-        double offset = (double) (cairo_image_surface_get_width(data->surface));
-        cairo_set_source_surface(
-                cr, data->surface,
-                container->real_bounds.x + container->real_bounds.w / 2 - offset / 2,
-                container->real_bounds.y + container->real_bounds.h / 2 - offset / 2);
-        cairo_paint(cr);
+        
+        int width;
+        int height;
+        pango_layout_set_text(layout, "\uE10A", strlen("\uE83F"));
+        
+        pango_layout_get_pixel_size(layout, &width, &height);
+        cairo_save(cr);
+        cairo_move_to(cr,
+                      container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
+                      container->real_bounds.y + container->real_bounds.h / 2 - width / 2);
+        pango_cairo_show_layout(cr, layout);
+        cairo_restore(cr);
     }
 }
 
@@ -451,8 +480,6 @@ void when_leave(AppClient *client, cairo_t *cr, Container *self) {
 static void
 fill_root(AppClient *client, Container *root) {
     auto pii = (PinnedIconInfo *) root->user_data;
-    pii->surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
-    paint_surface_with_image(pii->surface, as_resource_path("taskbar-close.png"), 16 * config->dpi, nullptr);
     root->receive_events_even_if_obstructed = true;
     root->when_mouse_enters_container = when_enter;
     root->when_mouse_leaves_container = when_leave;
@@ -505,6 +532,8 @@ fill_root(AppClient *client, Container *root) {
         option_titlebar->wanted_bounds.h = FILL_SPACE;
         option_titlebar->when_paint = paint_titlebar;
         option_titlebar->when_clicked = clicked_titlebar;
+        option_titlebar->when_mouse_enters_container = option_entered;
+        option_titlebar->when_mouse_leaves_container = option_exited;
         option_top_hbox->children.push_back(option_titlebar);
         
         Container *option_close_button = new Container();
@@ -522,6 +551,8 @@ fill_root(AppClient *client, Container *root) {
         option_body->wanted_bounds.h = FILL_SPACE;
         option_body->when_paint = paint_body;
         option_body->when_clicked = clicked_body;
+        option_body->when_mouse_enters_container = option_entered;
+        option_body->when_mouse_leaves_container = option_exited;
         auto body_data = new BodyData;
         body_data->windows_data = w;
         option_body->user_data = body_data;
@@ -539,6 +570,7 @@ static void when_closed(AppClient *client) {
     if (auto c = client_by_name(app, "taskbar")) {
         request_refresh(app, c);
     }
+    drag_and_dropping = false;
 }
 
 void start_windows_selector(Container *container, selector_type selector_state) {
@@ -586,7 +618,12 @@ void start_windows_selector(Container *container, selector_type selector_state) 
         popup_settings.name = "windows_selector";
         popup_settings.takes_input_focus = false;
         auto client = taskbar->create_popup(popup_settings, settings);
-        
+    
+    
+        uint32_t version = 5;
+        xcb_change_property(app->connection, XCB_PROP_MODE_REPLACE, client->window, get_cached_atom(app, "XdndAware"),
+                            XCB_ATOM_ATOM, 32, 1, &version);
+    
         client->root->user_data = pii;
         if (pii->data->surface) {
             std::string path;

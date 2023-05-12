@@ -49,6 +49,8 @@ void config_load() {
     
     success = cfg.lookupValue("starting_tab_index", config->starting_tab_index);
     
+    success = cfg.lookupValue("dpi_auto", config->dpi_auto);
+    
     success = cfg.lookupValue("dpi", config->dpi);
     
     success = cfg.lookupValue("font", config->font);
@@ -57,6 +59,7 @@ void config_load() {
     
     success = cfg.lookupValue("volume_command", config->volume_command);
     success = cfg.lookupValue("wifi_command", config->wifi_command);
+    success = cfg.lookupValue("vpn_command", config->wifi_command);
     success = cfg.lookupValue("date_command", config->date_command);
     success = cfg.lookupValue("battery_command", config->battery_command);
     success = cfg.lookupValue("systray_command", config->systray_command);
@@ -392,8 +395,8 @@ bool config_parse(libconfig::Config &cfg) {
         std::cout << "IO error:  " << config_file << std::endl;
         return false;
     } catch (const libconfig::ParseException &pex) {
-        
-        std::cout << "Parsing error:  " << config_file << " Line: " << pex.getLine() << " Error: " << pex.getError()
+    
+        std::cout << "NoError error:  " << config_file << " Line: " << pex.getLine() << " Error: " << pex.getError()
                   << std::endl;
         return false;
     }

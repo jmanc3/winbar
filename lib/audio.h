@@ -7,11 +7,9 @@
 
 #include "application.h"
 
-#include <string>
-#include <vector>
-#include <pulse/volume.h>
 #include <alsa/asoundlib.h>
 #include <pulse/pulseaudio.h>
+#include <atomic>
 
 // The only reason we need [App] is so that we can poll file descriptors fired from audio servers
 void audio_start(App *app);
@@ -35,6 +33,7 @@ public:
     
     std::string title;
     std::string subtitle;
+    std::string icon_name;
     
     double get_volume();
     
@@ -54,17 +53,28 @@ public:
     
     /// Type
     Audio_Backend type = Audio_Backend::PULSEAUDIO;
-    bool is_master = false;
+    bool is_master = false; // Master just means it's not a client that generates audio
+    bool default_sink = false; // Sink means it's a speaker which can play audio
     
     /// Data for use by PulseAudio
-    int pulseaudio_index;
+    int pulseaudio_index = PA_INVALID_INDEX;
+    std::string monitor_source_name;
     int pulseaudio_mute_state;
     pa_cvolume pulseaudio_volume;
+    pa_stream *stream = nullptr; // for showing uv
+    std::atomic<float> peak = 0;
     
     /// Data for use by Alsa
     double alsa_volume = 0;
     bool alsa_mute_state = false;
     int alsa_index = -1;
+    
+    ~Audio_Client() {
+        if (stream) {
+            pa_stream_disconnect(stream);
+            pa_stream_unref(stream);
+        }
+    }
 };
 
 extern std::vector<Audio_Client *> audio_clients;
@@ -86,6 +96,7 @@ public:
     pa_threaded_mainloop *mainloop = nullptr;
     pa_mainloop_api *api = nullptr;
     pa_context *context = nullptr;
+    std::string default_sink_name;
     
     bool shutting_down = false;
     
@@ -112,5 +123,9 @@ public:
 extern AudioBackendData *audio_backend_data;
 
 void audio_update_list_of_clients();
+
+void hook_up_stream();
+
+void unhook_stream();
 
 #endif //WINBAR_AUDIO_H

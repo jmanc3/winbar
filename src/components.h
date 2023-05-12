@@ -8,27 +8,13 @@
 #include <application.h>
 #include <stack>
 #include <utility.h>
-
-class ScrollPaneSettings : public UserData {
-public:
-    int right_width = 15;
-    int right_arrow_height = 15;
-    
-    int bottom_height = 15;
-    int bottom_arrow_width = 15;
-    
-    bool right_inline_track = false;
-    bool bottom_inline_track = false;
-    
-    // 0 is always show, 1 is when needed, 2 is never show
-    int right_show_amount = 1;
-    int bottom_show_amount = 1;
-    
-    // paint functions
-};
+#include "taskbar.h"
 
 Container *
 make_scrollpane(Container *parent, ScrollPaneSettings settings);
+
+ScrollContainer *
+make_newscrollpane_as_child(Container *parent, const ScrollPaneSettings &settings);
 
 Bounds
 right_thumb_bounds(Container *scrollpane, Bounds thumb_area);
@@ -41,6 +27,13 @@ void scrollpane_scrolled(AppClient *client,
                          Container *container,
                          int scroll_x,
                          int scroll_y);
+
+void fine_scrollpane_scrolled(AppClient *client,
+                              cairo_t *cr,
+                              Container *container,
+                              int scroll_x,
+                              int scroll_y,
+                              bool came_from_touchpad);
 
 enum UndoType {
     INSERT,
@@ -118,6 +111,9 @@ public:
 
 class TextAreaSettings : public ScrollPaneSettings {
 public:
+    explicit TextAreaSettings(float scale);
+
+public:
     std::string font = "Arial";
     int font_size = 15;
     bool single_line = false;
@@ -135,12 +131,30 @@ public:
     Bounds pad = Bounds(0, 0, 0, 0);
 };
 
+class ButtonData : public IconButton {
+public:
+    std::string text;
+};
+
 Container *
 make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings settings);
 
 void
 textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string, xkb_keysym_t keysym, char string[64],
                          uint16_t mods, xkb_key_direction direction);
+
+struct FieldSettings {
+    std::string when_empty_text = "";
+    bool only_numbers = false;
+};
+
+struct FieldData : UserData {
+    std::string text;
+    FieldSettings settings;
+};
+
+Container *
+make_textfield(Container *parent, FieldSettings settings, int w, int h);
 
 void
 blink_loop(App *app, AppClient *client, Timeout *, void *textarea);
@@ -166,6 +180,8 @@ enum Transition {
 void transition_same_container(AppClient *client, cairo_t *cr, Container *parent,
                                int original_anim, int replacement_anim);
 
-int get_offset(Container *target, Container *scroll_pane);
+int get_offset(Container *target, ScrollContainer *scroll_pane);
+
+Container *make_combobox(Container *parent, const std::vector<std::string> &items);
 
 #endif// SCROLL_COMPONENTS_H

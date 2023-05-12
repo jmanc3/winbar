@@ -23,11 +23,13 @@ if (PROFILE)
     # compile with profiling enabled
     # run git clone https://github.com/wolfpld/tracy.git if you want to do this
     add_definitions(-DTRACY_ENABLE)
-    add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB} ${WPA_CTRL} ../tracy/TracyClient.cpp)
+    add_subdirectory(tracy)
+    add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB} ${WPA_CTRL} tracy/public/TracyClient.cpp)
 
     set(DL_LIB dl)
     set(PTHREAD_LIB pthread)
     target_link_libraries(${project_name} PUBLIC ${PTHREAD_LIB} ${DL_LIB})
+    target_link_libraries(${project_name} PUBLIC Tracy::TracyClient)
 else ()
     # otherwise just compile
     add_executable(${project_name} ${HEADERS} ${SOURCES} ${LIB} ${WPA_CTRL})
@@ -68,6 +70,8 @@ set(
         xcb-randr # to gain brightness control
         xcb-aux # to force the Xorg server to really finish with all the events before xcb_sync_aux called
         xcb-record # to open the app_menu when the windows key is pressed
+        xcb-xinput # to receive fine grained mouse events for scrolling
+        xcb-keysyms # to be able to translate key presses to actual text
         libpulse # to be able to modify audio volume and mute state
         xcb-ewmh # to make it easier to handle extended windows manager hints requests
         xcb-icccm # to make it easier to handle icccm request
@@ -77,6 +81,7 @@ set(
         xcb-cursor # for setting the cursor
         dbus-1 # for interacting with dbus
         alsa # to be able to modify audio volume and mute state on alsa
+        fontconfig # to be able to add fonts
 )
 
 foreach (LIB IN LISTS LIBS)

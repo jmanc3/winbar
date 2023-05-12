@@ -4,7 +4,7 @@
 
 #ifdef TRACY_ENABLE
 
-#include "../tracy/Tracy.hpp"
+#include "../tracy/public/tracy/Tracy.hpp"
 
 #endif
 
@@ -16,6 +16,8 @@
 #include <cassert>
 #include <sys/wait.h>
 #include <xcb/xcb_aux.h>
+#include <iostream>
+#include <sys/poll.h>
 
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
 #ifdef TRACY_ENABLE
