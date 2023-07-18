@@ -313,7 +313,7 @@ paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
     pango_cairo_show_layout(cr, text_layout);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     set_argb(cr, color);
     
@@ -358,7 +358,7 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (ButtonData *) container->user_data;
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing)
@@ -1011,7 +1011,7 @@ void start_date_menu() {
         
         if (!time_update_thread_updated) {
             time_update_thread_updated = true;
-            app_timeout_create(app, client, 500, paint_date_menu, nullptr);
+            app_timeout_create(app, client, 500, paint_date_menu, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
         }
         
         read_agenda_from_disk(client);

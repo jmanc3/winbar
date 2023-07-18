@@ -134,7 +134,7 @@ int main() {
     return 0;
 }
 
-static int acceptable_config_version = 7;
+static int acceptable_config_version = 8;
 
 std::string first_message;
 std::string second_message;
@@ -241,8 +241,9 @@ void load_in_fonts() {
     std::string font_directory(home);
     font_directory += "/.config/winbar/fonts";
     
-    auto fc_config = FcConfigCreate();
-    FcConfigSetCurrent(fc_config);
+    FcInit();
+    FcConfig *now = FcConfigGetCurrent();
     const FcChar8 *file = (const FcChar8 *) font_directory.c_str();
-    FcBool fontAddStatus = FcConfigAppFontAddDir(FcConfigGetCurrent(), file);
+    FcBool fontAddStatus = FcConfigAppFontAddDir(now, file);
+    FcConfigBuildFonts(now);
 }

@@ -643,6 +643,7 @@ void on_plugin_sent_text(Subprocess *cc) {
                     }
                 } else if (token.text == "ui_start") {
                     container = new Container(::vbox, FILL_SPACE, FILL_SPACE);
+                    container->parent = plugin_data->root;
                     container->wanted_pad = Bounds(8 * config->dpi, 8 * config->dpi, 8 * config->dpi,
                                                    8 * config->dpi);
                     
@@ -918,7 +919,7 @@ paint_plugin(AppClient *client, cairo_t *cr, Container *container) {
     
     if (!data->icon_text.empty()) {
         PangoLayout *layout =
-                get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+                get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
         pango_layout_set_text(layout, data->icon_text.c_str(), data->icon_text.size());

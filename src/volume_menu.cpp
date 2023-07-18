@@ -46,9 +46,6 @@ public:
     long last_update = get_current_time_in_ms();
     double rolling_avg = 0;
     double rolling_avg_delayed = 0;
-    double volume_amount = -1;
-    bool animating = false;
-    long previous_time_animating = 0;
     cairo_surface_t *icon = nullptr;
     
     Audio_Client *client() {
@@ -116,7 +113,7 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     int val = (int) (scalar * 100);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 20 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 20 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int width;
     int height;
@@ -165,7 +162,7 @@ paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container)
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    double scalar = data->volume_amount;
+    double scalar = client->get_volume();
     
     std::string text = std::to_string((int) (std::round(scalar * 100)));
     
@@ -227,24 +224,8 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     double marker_width = 8 * config->dpi;
     double volume = client->get_volume();
     long current_time = get_current_time_in_ms();
-    long diff = current_time - data->previous_time_animating;
     
-    if (data->volume_amount == -1)
-        data->volume_amount = volume;
-    if (volume != data->volume_amount && !data->animating) {
-        data->previous_time_animating = current_time;
-        data->animating = true;
-        if (diff > 90) {
-            diff = 90;
-        } else if (diff < 20) {
-            diff = 20;
-        }
-        client_create_animation(app, client_entity, &data->volume_amount, 0, diff, getEasingFunction(EaseOutQuad),
-                                volume);
-    } else {
-        data->animating = false;
-    }
-    double marker_position = data->volume_amount * container->real_bounds.w;
+    double marker_position = volume * container->real_bounds.w;
     
     double line_height = 2 * config->dpi;
     set_argb(cr, config->color_volume_slider_background);
@@ -380,7 +361,6 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool force) {
             client->set_mute(false);
     
         client->set_volume(new_volume);
-        data->volume_amount = new_volume;
         if (client->is_master_volume())
             update_taskbar_volume_icon();
     }
@@ -412,7 +392,7 @@ retry_audio_connection(AppClient *client_entity, cairo_t *cr, Container *contain
         connected_message = "Still failed. (You can try again, or maybe you have something set up wrong)";
     } else {
         connected_message = "Success";
-        app_timeout_create(app, nullptr, 0, restart_volume_timeout, nullptr);
+        app_timeout_create(app, nullptr, 0, restart_volume_timeout, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
     }
 }
 
@@ -539,7 +519,7 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
@@ -683,7 +663,7 @@ void open_volume_menu() {
         Container *root = client_entity->root;
         ScrollPaneSettings s(config->dpi);
         ScrollContainer *scrollpane = make_newscrollpane_as_child(root, s);
-        scrollpane->when_fine_scrolled = nullptr;
+//        scrollpane->when_fine_scrolled = nullptr;
         Container *content = scrollpane->content;
     
         Container *right_thumb_container = scrollpane->right->children[1];

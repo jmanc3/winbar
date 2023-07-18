@@ -98,7 +98,7 @@ paint_icon(AppClient *client, cairo_t *cr, Container *container, bool dye) {
     auto *data = (OptionData *) container->user_data;
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     set_argb(cr, config->color_pin_menu_icons);
     
     int width;

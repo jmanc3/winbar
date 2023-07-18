@@ -871,7 +871,6 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
         const char *summary = nullptr;
         const char *body = nullptr;
         dbus_int32_t expire_timeout_in_milliseconds = -1; // 0 means never unless user interacts, -1 means the server (us) decides
-        auto notification_info = new NotificationInfo;
         
         dbus_message_iter_init(message, &args);
         dbus_message_iter_get_basic(&args, &app_name);
@@ -884,7 +883,10 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
         dbus_message_iter_next(&args);
         dbus_message_iter_get_basic(&args, &body);
         dbus_message_iter_next(&args);
+        
+        auto notification_info = new NotificationInfo;
         int actions_count = dbus_message_iter_get_element_count(&args);
+//        printf("App Name: %s\n", app_name);
         if (actions_count > 0) {
             DBusMessageIter el;
             dbus_message_iter_recurse(&args, &el);
@@ -898,9 +900,15 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
                     dbus_message_iter_get_basic(&el, &value);
                     dbus_message_iter_next(&el);
                     
+//                    printf("Action: %s, %s\n", key, value);
+                    
                     NotificationAction notification_action;
                     notification_action.id = key;
-                    notification_action.label = value;
+                    if (strlen(value) == 0) {
+                        notification_action.label = value;                  
+                    } else {
+                        notification_action.label = "Default Action";
+                    }
                     notification_info->actions.push_back(notification_action);
                 }
             }
@@ -1116,7 +1124,7 @@ void dbus_start(DBusBusType dbusType) {
     }
     
     if (poll_descriptor(app, file_descriptor, EPOLLIN | EPOLLPRI | EPOLLHUP | EPOLLERR, dbus_poll_wakeup,
-                        dbus_connection)) {
+                        dbus_connection, "dbus")) {
         // Get the names of all the services running
         //
         request_name_of_every_service_running(dbus_connection);

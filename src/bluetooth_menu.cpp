@@ -319,7 +319,7 @@ void bar_message(AppClient *client, const std::string &text, bool error) {
                                                            30 * config->dpi, 100,
                                                            nullptr,
                                                            0, true);
-                               }, c);
+                               }, c, const_cast<char *>(__PRETTY_FUNCTION__));
         }
     }
 }

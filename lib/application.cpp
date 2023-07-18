@@ -283,14 +283,14 @@ void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keybo
     }
 }
 
-bool poll_descriptor(App *app, int file_descriptor, int events, void function(App *, int fd, void *user_data),
-                     void *user_data) {
+bool poll_descriptor(App *app, int file_descriptor, int events, void (*function)(App *, int, void *), void *user_data,
+                     char *text) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     if (!app || !app->running) return false;
     
-    PolledDescriptor polled = {file_descriptor, function, user_data};
+    PolledDescriptor polled = {file_descriptor, std::string(text), function, user_data};
     app->descriptors_being_polled.push_back(polled);
     
     return true;
@@ -621,7 +621,7 @@ App *app_new() {
     
     xcb_flush(app->connection);
     
-    poll_descriptor(app, xcb_get_file_descriptor(app->connection), POLLIN, xcb_poll_wakeup, nullptr);
+    poll_descriptor(app, xcb_get_file_descriptor(app->connection), POLLIN, xcb_poll_wakeup, nullptr, "XCB");
     
     auto atom_cookie = xcb_intern_atom(app->connection, 1, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
     xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(app->connection, atom_cookie, NULL);
@@ -1112,7 +1112,7 @@ void client_register_animation(App *app, AppClient *client) {
         float fps = client->fps;
         if (fps != 0)
             fps = 1000 / fps;
-        app_timeout_create(app, client, fps, client_animation_paint, nullptr);
+        app_timeout_create(app, client, fps, client_animation_paint, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
     }
     client->animations_running++;
 }
@@ -1596,7 +1596,8 @@ void handle_mouse_motion(App *app) {
         float fps = client->motion_events_per_second;
         if (fps != 0)
             fps = 1000 / fps;
-        client->motion_event_timeout = app_timeout_create(app, client, fps, mouse_motion_timeout, nullptr);
+        client->motion_event_timeout = app_timeout_create(app, client, fps, mouse_motion_timeout, nullptr,
+                                                          const_cast<char *>(__PRETTY_FUNCTION__));
         
         handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
         client_paint(app, client, true);
@@ -1639,6 +1640,9 @@ void handle_mouse_button_press(App *app) {
     auto client = client_by_window(app, e->event);
     if (!valid_client(app, client))
         return;
+    
+    if (e->detail == XCB_BUTTON_INDEX_1)
+        client->left_mouse_down = true;
     
     client->mouse_initial_x = e->event_x;
     client->mouse_initial_y = e->event_y;
@@ -1722,6 +1726,9 @@ bool handle_mouse_button_release(App *app) {
     auto client = client_by_window(app, e->event);
     if (!valid_client(app, client))
         return false;
+    
+    if (e->detail == XCB_BUTTON_INDEX_1)
+        client->left_mouse_down = false;
     
     client->mouse_current_x = e->event_x;
     client->mouse_current_y = e->event_y;
@@ -2218,7 +2225,7 @@ void app_main(App *app) {
         return;
     }
     
-    int MAX_POLLING_EVENTS_AT_THE_SAME_TIME = 100;
+    int MAX_POLLING_EVENTS_AT_THE_SAME_TIME = 1000;
     pollfd fds[MAX_POLLING_EVENTS_AT_THE_SAME_TIME];
     
     app->running = true;
@@ -2454,14 +2461,15 @@ Timeout *app_timeout_replace(App *app,
 
 Timeout *
 app_timeout_create(App *app, AppClient *client, float timeout_ms,
-                   void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data) {
+                   void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data,
+                   char *text) {
     if (app == nullptr || !app->running || !timeout_function) return nullptr;
     int timeout_file_descriptor = timerfd_create(CLOCK_REALTIME, 0);
     if (timeout_file_descriptor == -1) { // error with timerfd_create
         return nullptr;
     }
     
-    bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup, nullptr);
+    bool success = poll_descriptor(app, timeout_file_descriptor, EPOLLIN, timeout_poll_wakeup, nullptr, "Timeout");
     if (!success) { // error with poll_descriptor
         for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
             if (app->descriptors_being_polled[i].file_descriptor == timeout_file_descriptor) {
@@ -2478,6 +2486,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
     timeout->file_descriptor = timeout_file_descriptor;
     timeout->user_data = user_data;
     timeout->keep_running = false;
+    timeout->text = std::string(text);
     timeout->kill = false;
     timeout_add(app, timeout);
     
@@ -2698,9 +2707,9 @@ command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, 
     cc->user_data = user_data;
     client->commands.push_back(cc);
     
-    poll_descriptor(client->app, cc->outpipe[0], EPOLLIN, command_wakeup, cc);
+    poll_descriptor(client->app, cc->outpipe[0], EPOLLIN, command_wakeup, cc, "Command with client: " );
     if (timeout_in_ms != 0) {
-        poll_descriptor(client->app, cc->timeout_fd, EPOLLIN, command_timeout, cc);
+        poll_descriptor(client->app, cc->timeout_fd, EPOLLIN, command_timeout, cc, "Timeout with command with client: ");
     }
     return cc;
 }

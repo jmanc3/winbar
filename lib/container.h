@@ -16,6 +16,7 @@
 #include <xcb/xcb_keysyms.h>
 #include <xcb/xkb.h>
 #include <xcb/xcb_cursor.h>
+#include <pango/pango-font.h>
 #include "easing.h"
 
 #undef explicit
@@ -63,6 +64,8 @@ enum layout_type {
     transition = 1 << 11,
     
     newscroll = 1 << 12,
+    
+    editable_label = 1 << 13,
 };
 
 enum container_alignment {
@@ -250,6 +253,9 @@ struct AppClient {
     int mouse_initial_y = -1;
     int mouse_current_x = -1;
     int mouse_current_y = -1;
+    bool left_mouse_down = false;
+    
+    bool mapped = true;
     
     long last_repaint_time;
     
@@ -314,8 +320,6 @@ struct AppClient {
     Subprocess *command(const std::string &command, void (*function)(Subprocess *), void *user_data);
     
     Subprocess *command(const std::string &command, int timeout_in_ms, void (*function)(Subprocess *), void *user_data);
-    
-    bool mapped = true;
 };
 
 struct ScrollContainer;
@@ -472,6 +476,9 @@ struct Container {
     // pierced
     bool (*handles_pierced)(Container *container, int mouse_x, int mouse_y) = nullptr;
     
+    void (*before_layout)(AppClient *client, Container *self, const Bounds &bounds, double *target_w,
+                          double *target_h) = nullptr;
+    
     // When layout is called on this container and generate_event is true on that
     // call
     void (*when_layout)(AppClient *client, Container *self, const Bounds &bounds, double *target_w,
@@ -549,10 +556,18 @@ struct ScrollContainer : public Container {
 };
 
 struct EditableSelectableLabel : public Container {
+    std::string font = "Segoe MDL2 Assets Mod";
+    PangoWeight weight = PANGO_WEIGHT_NORMAL;
     std::string text;
     int size = 12;
-    bool editable = true; // draws a cursor, and key presses work
+    bool editable = false; // draws a cursor, and key presses work
     bool selectable = true;
+    int selection_start = 0;
+    int selection_end = 0;
+    
+    double previous_width = -1;
+    
+    AppClient *client = nullptr; // so we can create the pango text layout on layout
 };
 
 Bounds

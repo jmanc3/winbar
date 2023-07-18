@@ -437,7 +437,7 @@ void set_icons_path_and_possibly_update(App *app) {
     }
     icon_search_paths.emplace_back("/usr/share/pixmaps");
     
-    app_timeout_create(app, nullptr, 50000, check_if_cache_needs_update, nullptr);
+    app_timeout_create(app, nullptr, 50000, check_if_cache_needs_update, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
     
     check_cache_file();
 }

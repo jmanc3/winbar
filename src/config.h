@@ -8,7 +8,7 @@
 struct Config {
     bool found_config = false;
     
-    int config_version = 7;
+    int config_version = 8;
     
     int taskbar_height = 40;
     
@@ -18,7 +18,7 @@ struct Config {
     
     float dpi = 1;
     
-    std::string font = "Segoe UI";
+    std::string font = "Segoe UI Variable Mod";
     
     std::string open_pinned_icon_editor = "WHEN_ANY_FIELD_EMPTY";
     

@@ -92,7 +92,8 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
         } else {
             // start timeout
             if (data->possibly_open_timeout == nullptr) {
-                data->possibly_open_timeout = app_timeout_create(app, nullptr, 130, on_open_timeout, container);
+                data->possibly_open_timeout = app_timeout_create(app, nullptr, 130, on_open_timeout, container,
+                                                                 const_cast<char *>(__PRETTY_FUNCTION__));
             }
         }
     }
@@ -130,7 +131,8 @@ void possibly_close(App *app, Container *container, LaunchableButton *data) {
     
     if (we_are == selector_type::OPEN_HOVERED) {
         if (data->possibly_stop_timeout == nullptr) {
-            data->possibly_stop_timeout = app_timeout_create(app, nullptr, 220, on_close_timeout, container);
+            data->possibly_stop_timeout = app_timeout_create(app, nullptr, 220, on_close_timeout, container,
+                                                             const_cast<char *>(__PRETTY_FUNCTION__));
         }
     }
 }
@@ -179,7 +181,7 @@ static void option_hover_clicked(App *, AppClient *client, Timeout *, void *user
 static void
 option_entered(AppClient *client, cairo_t *, Container *container) {
     if (drag_and_dropping) {
-        drag_and_drop_timeout = app_timeout_create(app, client, 600, option_hover_clicked, container);
+        drag_and_drop_timeout = app_timeout_create(app, client, 600, option_hover_clicked, container, const_cast<char *>(__PRETTY_FUNCTION__));
     }
 }
 
@@ -330,7 +332,7 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     if (active) {
         PangoLayout *layout =
-                get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+                get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         
         if (container->state.mouse_pressing || container->state.mouse_hovering) {
             if (container->state.mouse_pressing) {

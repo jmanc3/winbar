@@ -72,7 +72,7 @@ bool wifi_wpa_start(App *app) {
     
     int fd;
     if ((fd = wpa_ctrl_get_fd(wifi_data->wpa_message_listener)) != -1)
-        return poll_descriptor(app, fd, EPOLLIN, wifi_wpa_has_message, nullptr);
+        return poll_descriptor(app, fd, EPOLLIN, wifi_wpa_has_message, nullptr, "wpa");
     return false;
 }
 

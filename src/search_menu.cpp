@@ -274,7 +274,7 @@ paint_right_item(AppClient *client, cairo_t *cr, Container *container) {
     paint_item_background(client, cr, container, 0);
     
     PangoLayout *icon_layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(icon_layout, "\uE974", strlen("\uE83F"));
@@ -723,7 +723,7 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
     
     
     PangoLayout *icon_layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(icon_layout, "\uE8A7", strlen("\uE83F"));
@@ -923,7 +923,8 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
             if (tab_data->name == active_tab) {
     
                 PangoLayout *icon_layout =
-                        get_cached_pango_font(cr, "Segoe MDL2 Assets", 100 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+                        get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 100 * config->dpi,
+                                              PangoWeight::PANGO_WEIGHT_NORMAL);
     
                 // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
                 if (tab_data->name == "Apps") {
@@ -1065,7 +1066,7 @@ static void
 clicked_tab(AppClient *client, cairo_t *cr, Container *container) {
     // This has to happen in another thread because on_key_press modifies the containers
     // and this function is called while iterating through them.
-    app_timeout_create(app, client, 0, clicked_tab_timeout, container);
+    app_timeout_create(app, client, 0, clicked_tab_timeout, container, const_cast<char *>(__PRETTY_FUNCTION__));
 }
 
 static void

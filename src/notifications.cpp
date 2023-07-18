@@ -233,7 +233,7 @@ static void clicked_action(AppClient *client, cairo_t *cr, Container *container)
         notification_action_invoked_signal(client->app, client_wrapper->ni, action_wrapper->action);
     }
     
-    app_timeout_create(client->app, client, 300, close_notification_timeout, nullptr);
+    app_timeout_create(client->app, client, 300, close_notification_timeout, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
 //    notification_closed_signal(client->app, client_wrapper->ni, NotificationReasonClosed::DISMISSED_BY_USER);
 //    client_close_threaded(client->app, client);
 }
@@ -254,7 +254,7 @@ static void clicked_send_to_action_center(AppClient *client, cairo_t *cr, Contai
 
 static void paint_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(layout, "\uE0AB", strlen("\uE83F"));
@@ -359,9 +359,10 @@ void show_notification(NotificationInfo *ni) {
             timeout = 5000;
         }
         
-        app_timeout_create(app, client, timeout, close_notification_timeout, nullptr);
+        app_timeout_create(app, client, timeout, close_notification_timeout, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
     } else if (ni->expire_timeout_in_milliseconds != 0) {
-        app_timeout_create(app, client, ni->expire_timeout_in_milliseconds, close_notification_timeout, nullptr);
+        app_timeout_create(app, client, ni->expire_timeout_in_milliseconds, close_notification_timeout, nullptr,
+                           const_cast<char *>(__PRETTY_FUNCTION__));
     }
 }
 

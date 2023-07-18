@@ -123,7 +123,10 @@ void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bou
         if (child && child->exists) {
             double target_w = child->wanted_pad.x + child->wanted_pad.w;
             double target_h = child->wanted_pad.y + child->wanted_pad.h;
-            
+    
+            if (child->before_layout)
+                child->before_layout(client, child, bounds, &target_w, &target_h);
+    
             if (child->wanted_bounds.w == FILL_SPACE) {
                 target_w = container->children_bounds.w;
             } else if (child->wanted_bounds.w == USE_CHILD_SIZE) {
@@ -139,7 +142,7 @@ void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                 target_h += child->wanted_bounds.h;
             }
             if (child->wanted_bounds.w == DYNAMIC || child->wanted_bounds.h == DYNAMIC) {
-                child->when_layout(client, container, bounds, &target_w, &target_h);
+                child->when_layout(client, child, bounds, &target_w, &target_h);
             }
             
             // Keep within horizontal bounds
@@ -250,7 +253,7 @@ true_width(Container *box) {
 
 // returns the width filler children should be
 double
-single_filler_width(Container *container) {
+single_filler_width(Container *container, const Bounds bounds) {
     double reserved_w = reserved_width(container);
     double available_w = container->children_bounds.w - reserved_w;
     double single_fill_size = 0;
@@ -271,14 +274,17 @@ single_filler_width(Container *container) {
 }
 
 void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
-    double fill_w = single_filler_width(container);
+    double fill_w = single_filler_width(container, bounds);
     
     double offset = 0;
     for (auto child: container->children) {
         if (child && child->exists) {
             double target_w = child->wanted_pad.x + child->wanted_pad.w;
             double target_h = child->wanted_pad.y + child->wanted_pad.h;
-            
+    
+            if (child->before_layout)
+                child->before_layout(client, child, bounds, &target_w, &target_h);
+    
             if (child->wanted_bounds.w == FILL_SPACE) {
                 target_w += fill_w;
             } else if (child->wanted_bounds.w == USE_CHILD_SIZE) {
@@ -294,7 +300,7 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                 target_h += child->wanted_bounds.h;
             }
             if (child->wanted_bounds.w == DYNAMIC || child->wanted_bounds.h == DYNAMIC) {
-                child->when_layout(client, container, bounds, &target_w, &target_h);
+                child->when_layout(client, child, bounds, &target_w, &target_h);
             }
             
             // Keep within horizontal bounds
@@ -636,6 +642,8 @@ void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &
         }
     } else if (container->type & layout_type::newscroll) {
         layout_newscrollpane(client, cr, (ScrollContainer *) container, container->children_bounds);
+    } else if (container->type & layout_type::editable_label) {
+    
     }
     
     // TODO: this only covers the first layer and not all of them

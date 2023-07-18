@@ -157,7 +157,7 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     pango_layout_set_text(layout, "\uE782", strlen("\uE83F"));
     
@@ -204,7 +204,7 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     int width;
     int height;
@@ -250,7 +250,7 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     set_argb(cr, config->color_taskbar_button_icons);
@@ -1339,7 +1339,7 @@ scrolled_volume(AppClient *client_entity,
                 cairo_t *cr,
                 Container *container,
                 int horizontal_scroll,
-                int vertical_scroll) {
+                int vertical_scroll, bool came_from_touchpad) {
     if (audio_backend_data->audio_backend == Audio_Backend::NONE)
         return;
     if (audio_clients.empty())
@@ -1357,14 +1357,23 @@ scrolled_volume(AppClient *client_entity,
                     continue;
                 }
             }
-            double new_volume = c->get_volume() + (.05 * vertical_scroll) + (.05 * -horizontal_scroll);
-            if (new_volume < 0) {
-                new_volume = 0;
-            } else if (new_volume > 1) {
-                new_volume = 1;
+            double current_volume = c->get_volume(); // scalar: 0-1
+            double new_volume = current_volume;
+            static double cached_current = current_volume;
+            if (came_from_touchpad) {
+                new_volume = ((cached_current * 2400) + vertical_scroll) / 2400;
+                cached_current = new_volume;
+                cached_current = cached_current < 0 ? 0 : cached_current > 1 ? 1 : cached_current;
+            } else {
+                if (vertical_scroll > 0) {
+                    new_volume += .05;
+                } else if (vertical_scroll < 0) {
+                    new_volume -= .05;
+                }
             }
-    
-            if (new_volume != c->get_volume()) {
+
+            new_volume = new_volume < 0 ? 0 : new_volume > 1 ? 1 : new_volume;
+            if (new_volume != current_volume) {
                 if (c->is_muted())
                     c->set_mute(false);
                 
@@ -1531,7 +1540,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (ActionCenterButtonData *) container->user_data;
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(layout, "\uE91C", strlen("\uE83F"));
@@ -1638,7 +1647,7 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (IconButton *) container->user_data;
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(layout, "\uE971", strlen("\uE83F"));
@@ -1665,7 +1674,7 @@ paint_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (IconButton *) container->user_data;
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(layout, "\uE702", strlen("\uE702"));
@@ -1970,7 +1979,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     
     // Paint search icon
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
 
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(layout, "\uE721", strlen("\uE83F"));
@@ -2114,7 +2123,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     assert(data);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     std::string regular[] = {"\uE678", "\uE679", "\uE67A", "\uE67B", "\uE67C", "\uE67D", "\uE67E", "\uE67F", "\uE680",
                              "\uE681", "\uE682"};
@@ -2178,10 +2187,10 @@ make_battery_button(Container *parent, AppClient *client_entity) {
         if (getline(capacity, line)) {
             if (line != "UPS") {
                 parent->children.push_back(c);
-                app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data);
+                app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data, const_cast<char *>(__PRETTY_FUNCTION__));
                 update_battery_status_timeout(app, client_entity, nullptr, data);
-    
-                app_timeout_create(app, client_entity, 700, update_battery_animation_timeout, data);
+                
+                app_timeout_create(app, client_entity, 700, update_battery_animation_timeout, data, const_cast<char *>(__PRETTY_FUNCTION__));
             } else {
                 delete c;
             }
@@ -2230,7 +2239,7 @@ clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
             } else if (s == "org.gnome.Shell") {
                 // On Gnome try to show the overview screen
                 if (dbus_gnome_show_overview()) {
-                    app_timeout_create(app, client_entity, 100, gnome_stuck_mouse_state_fix, nullptr);
+                    app_timeout_create(app, client_entity, 100, gnome_stuck_mouse_state_fix, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
                     return;
                 }
             }
@@ -2270,7 +2279,7 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     wifi_state(client, &up, &wired);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     if (up) {
@@ -2309,7 +2318,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     
     Container *button_super = root->child(48 * config->dpi, FILL_SPACE);
     Container *field_search = root->child(344 * config->dpi, FILL_SPACE);
-    Container *button_chatgpt = root->child(48 * config->dpi, FILL_SPACE);
+//    Container *button_chatgpt = root->child(48 * config->dpi, FILL_SPACE);
     Container *button_workspace = root->child(48 * config->dpi, FILL_SPACE);
     Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
     Container *button_systray = root->child(24 * config->dpi, FILL_SPACE);
@@ -2359,14 +2368,14 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_workspace->when_scrolled = scrolled_workspace;
     button_workspace->when_clicked = clicked_workspace;
     
-    button_chatgpt->when_paint = paint_chatgpt;
-    auto button_chatgpt_data = new IconButton;
-    button_chatgpt_data->surface = accelerated_surface(app, client, 24 * config->dpi, 24 * config->dpi);
-    paint_surface_with_image(button_chatgpt_data->surface, as_resource_path("chatgpt.svg"),
-                             24 * config->dpi, nullptr);
-    button_chatgpt->user_data = button_chatgpt_data;
-    button_chatgpt->when_clicked = clicked_chatgpt;
-    button_chatgpt->name = "chatgpt";
+//    button_chatgpt->when_paint = paint_chatgpt;
+//    auto button_chatgpt_data = new IconButton;
+//    button_chatgpt_data->surface = accelerated_surface(app, client, 24 * config->dpi, 24 * config->dpi);
+//    paint_surface_with_image(button_chatgpt_data->surface, as_resource_path("chatgpt.svg"),
+//                             24 * config->dpi, nullptr);
+//    button_chatgpt->user_data = button_chatgpt_data;
+//    button_chatgpt->when_clicked = clicked_chatgpt;
+//    button_chatgpt->name = "chatgpt";
     
     container_icons->spacing = 1;
     container_icons->type = hbox;
@@ -2400,7 +2409,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     
     button_volume->when_paint = paint_volume;
     button_volume->when_clicked = clicked_volume;
-    button_volume->when_scrolled = scrolled_volume;
+    button_volume->when_fine_scrolled = scrolled_volume;
     button_volume->when_mouse_leaves_container = mouse_leaves_volume;
     button_volume->name = "volume";
     auto volume_data = new IconButton;
@@ -2416,8 +2425,8 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_date->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_date->name = "date";
     
-    app_timeout_create(app, client, 1000, update_time, nullptr);
-    app_timeout_create(app, client, 10000, late_classes_update, nullptr);
+    app_timeout_create(app, client, 1000, update_time, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
+    app_timeout_create(app, client, 10000, late_classes_update, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
     
     button_action_center->when_paint = paint_action_center;
     auto action_center_data = new ActionCenterButtonData;
@@ -2431,6 +2440,8 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_minimize->when_paint = paint_minimize;
     button_minimize->user_data = new IconButton;
     button_minimize->when_clicked = clicked_minimize;
+    button_minimize->when_fine_scrolled = scrolled_volume;
+    button_minimize->when_mouse_leaves_container = mouse_leaves_volume;
 }
 
 static void
@@ -2975,7 +2986,7 @@ create_taskbar(App *app) {
             global->unknown_icon_64, as_resource_path("unknown-64.svg"), 64 * config->dpi, nullptr);
     
     app_create_custom_event_handler(app, INT_MAX, window_event_handler);
-    app_timeout_create(app, taskbar, 500, screenshot_active_window, nullptr);
+    app_timeout_create(app, taskbar, 500, screenshot_active_window, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
     
     // Lay it out
     fill_root(app, taskbar, taskbar->root);
@@ -3595,7 +3606,7 @@ void update_pinned_items_file(bool force_update) {
         if (force_update) {
             update_pinned_items_timeout(app, client, nullptr, nullptr);
         } else if (pinned_timeout == nullptr) {
-            pinned_timeout = app_timeout_create(app, client, 1000, update_pinned_items_timeout, nullptr);
+            pinned_timeout = app_timeout_create(app, client, 1000, update_pinned_items_timeout, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
         } else {
             app_timeout_replace(app, client, pinned_timeout, 1000, update_pinned_items_timeout, nullptr);
         }

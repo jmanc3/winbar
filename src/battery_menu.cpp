@@ -62,7 +62,7 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
     data->capacity_index = capacity_index;
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 32 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 32 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     std::string regular[] = {"\uEBA0", "\uEBA1", "\uEBA2", "\uEBA3", "\uEBA4", "\uEBA5", "\uEBA6", "\uEBA7", "\uEBA8",
                              "\uEBA9", "\uEBAA"};
@@ -260,7 +260,7 @@ paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 paint_brightness_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 24 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 24 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(layout, "\uEC8A", strlen("\uE83F"));
@@ -392,8 +392,8 @@ void start_battery_menu() {
         popup_settings.name = "battery_menu";
         battery_entity = taskbar->create_popup(popup_settings, settings);
         fill_root(battery_entity->root);
-    
-        app_timeout_create(app, battery_entity, 0, get_brightness, nullptr);
+        
+        app_timeout_create(app, battery_entity, 0, get_brightness, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
     
         client_show(app, battery_entity);
     }

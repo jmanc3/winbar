@@ -163,7 +163,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     
     if (data) {
         PangoLayout *icon_layout =
-                get_cached_pango_font(cr, "Segoe MDL2 Assets", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+                get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
         if (data->text == "START") {
@@ -488,7 +488,7 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
@@ -611,7 +611,7 @@ when_scrollbar_mouse_leaves_slow(AppClient *client, cairo_t *cr, Container *cont
     ZoneScoped;
 #endif
     if (scrollbar_leave_fd == nullptr) {
-        scrollbar_leave_fd = app_timeout_create(app, client, 3000, scrollbar_leaves_timeout, container);
+        scrollbar_leave_fd = app_timeout_create(app, client, 3000, scrollbar_leaves_timeout, container, const_cast<char *>(__PRETTY_FUNCTION__));
     } else {
         app_timeout_replace(app, client, scrollbar_leave_fd, 3000, scrollbar_leaves_timeout, container);
     }
@@ -643,7 +643,7 @@ left_open(AppClient *client, cairo_t *cr, Container *container) {
     if (left_locked)
         return;
     if (left_open_fd == nullptr) {
-        left_open_fd = app_timeout_create(client->app, client, 160, left_open_timeout, container);
+        left_open_fd = app_timeout_create(client->app, client, 160, left_open_timeout, container, const_cast<char *>(__PRETTY_FUNCTION__));
     } else {
         app_timeout_replace(client->app, client, left_open_fd, 160, left_open_timeout, container);
     }
@@ -1077,7 +1077,7 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text(data->text);
     if (data->text == "Recently added") {
         pango_layout_set_text(layout, "\uE823", strlen("\uE972"));

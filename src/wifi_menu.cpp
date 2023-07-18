@@ -154,7 +154,7 @@ clicked_forget(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (DataOfLabelButton *) container->user_data;
 //    wifi_forget_network(data->info);
     
-    app_timeout_create(app, client, 0, delete_container, container);
+    app_timeout_create(app, client, 0, delete_container, container, const_cast<char *>(__PRETTY_FUNCTION__));
 }
 
 static void

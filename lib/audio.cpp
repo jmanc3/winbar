@@ -29,6 +29,10 @@ double Audio_Client::get_volume() {
 }
 
 void Audio_Client::set_volume(double value) {
+    if (value > 1)
+        value = 1;
+    if (value < 0)
+        value = 0;
     if (this->type == Audio_Backend::PULSEAUDIO) {
         pa_cvolume copy = this->pulseaudio_volume;
         for (int i = 0; i < this->pulseaudio_volume.channels; i++)
@@ -180,7 +184,7 @@ bool try_establishing_connection_with_alsa(App *app) {
     if (snd_mixer_poll_descriptors(audio_backend_data->alsa_handle, pfds, nfds) < 0)
         return false;
     for (i = 0; i < nfds; i++)
-        poll_descriptor(app, pfds[i].fd, pfds[i].events, alsa_event_pumping_required_callback, nullptr);
+        poll_descriptor(app, pfds[i].fd, pfds[i].events, alsa_event_pumping_required_callback, nullptr, "try_establishing_connection_with_alsa");
     
     snd_mixer_elem_set_callback(audio_backend_data->master_volume, alsa_state_change_callback);
     
@@ -406,7 +410,13 @@ void change_in_audio(App *app, AppClient *, Timeout *, void *) {
 }
 
 void subscribe_cb(pa_context *c, pa_subscription_event_type_t t, uint32_t index, void *userdata) {
-    app_timeout_create(((App *) userdata), nullptr, 0, change_in_audio, nullptr);
+    App *app = (App *) userdata;
+    for (const auto &timeout: app->timeouts)
+        if (timeout->function == change_in_audio)
+            return;
+    
+    app_timeout_create(((App *) userdata), nullptr, 0, change_in_audio, nullptr,
+                       const_cast<char *>(__PRETTY_FUNCTION__));
 }
 
 void audio_subscribe_to_changes(App *app) {
