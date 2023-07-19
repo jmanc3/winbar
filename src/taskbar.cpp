@@ -32,6 +32,7 @@
 #include "bluetooth_menu.h"
 #include "plugins_menu.h"
 #include "chatgpt.h"
+#include "xbacklight.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -1323,6 +1324,7 @@ update_minimize_icon_positions() {
 }
 
 static bool volume_open_because_of_scroll = false;
+static bool battery_open_because_of_scroll = false;
 
 static void
 mouse_leaves_volume(AppClient *client_entity,
@@ -1332,6 +1334,16 @@ mouse_leaves_volume(AppClient *client_entity,
         client_close_threaded(app, client_by_name(app, "volume"));
     }
     volume_open_because_of_scroll = false;
+}
+
+static void
+mouse_leaves_battery(AppClient *client_entity,
+                     cairo_t *cr,
+                     Container *container) {
+    if (battery_open_because_of_scroll && client_by_name(app, "battery_menu")) {
+        client_close_threaded(app, client_by_name(app, "battery_menu"));
+    }
+    battery_open_because_of_scroll = false;
 }
 
 static void
@@ -1381,6 +1393,20 @@ scrolled_volume(AppClient *client_entity,
             }
         }
     }
+}
+
+static void
+scrolled_battery(AppClient *client,
+                 cairo_t *cr,
+                 Container *container,
+                 int horizontal_scroll,
+                 int vertical_scroll, bool came_from_touchpad) {
+    if (client_by_name(app, "battery_menu") == nullptr) {
+        start_battery_menu();
+        battery_open_because_of_scroll = true;
+    }
+    adjust_brightness_based_on_fine_scroll(client, cr, container, horizontal_scroll, vertical_scroll,
+                                           came_from_touchpad);
 }
 
 static void
@@ -2179,6 +2205,8 @@ make_battery_button(Container *parent, AppClient *client_entity) {
     auto *data = new BatteryInfo;
     data->invalidate_button_press_if_client_with_this_name_is_open = "app_menu";
     c->when_mouse_down = invalidate_icon_button_press_if_window_open;
+    c->when_mouse_leaves_container = mouse_leaves_battery;
+    c->when_fine_scrolled = scrolled_battery;
     c->user_data = data;
     
     std::string line;
@@ -2187,10 +2215,12 @@ make_battery_button(Container *parent, AppClient *client_entity) {
         if (getline(capacity, line)) {
             if (line != "UPS") {
                 parent->children.push_back(c);
-                app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data, const_cast<char *>(__PRETTY_FUNCTION__));
+                app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data,
+                                   const_cast<char *>(__PRETTY_FUNCTION__));
                 update_battery_status_timeout(app, client_entity, nullptr, data);
                 
-                app_timeout_create(app, client_entity, 700, update_battery_animation_timeout, data, const_cast<char *>(__PRETTY_FUNCTION__));
+                app_timeout_create(app, client_entity, 700, update_battery_animation_timeout, data,
+                                   const_cast<char *>(__PRETTY_FUNCTION__));
             } else {
                 delete c;
             }
