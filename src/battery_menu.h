@@ -22,4 +22,8 @@ struct BatteryInfo : public IconButton {
 
 void start_battery_menu();
 
+void
+adjust_brightness_based_on_fine_scroll(AppClient *client, cairo_t *cr, Container *container, int scroll_x, int scroll_y,
+                                       bool came_from_touchpad);
+
 #endif// APP_BATTERY_MENU_H

@@ -19,11 +19,31 @@ double marker_position_scalar = 1;
 
 static AppClient *battery_entity = nullptr;
 
-static int brightness = 100;
 static int brightness_fake = 100;
 
+void set_brightness(double new_brightness) {
+    int amount = (int) std::round(new_brightness * 100);
+    if (amount <= 0)
+        amount = 1;
+    if (dbus_kde_running()) {
+        dbus_kde_set_brightness(((double) amount) / 100.0);
+    } else if (dbus_gnome_running()) {
+        dbus_set_gnome_brightness(amount);
+    } else {
+        backlight_set_brightness(amount);
+    }
+
+//    get_brightness_and_update_visually(app, client_by_name(app, "battery_menu"), nullptr, nullptr);
+}
+
+void set_brightness_visual(double new_brightness) {
+    marker_position_scalar = new_brightness;
+    brightness_fake = (int) std::round(new_brightness * 100);
+    client_paint(app, client_by_name(app, "battery_menu"));
+}
+
 static void
-paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
+paint_battery_bar(AppClient *, cairo_t *cr, Container *container) {
     auto *data = static_cast<BatteryInfo *>(container->user_data);
     assert(data);
     
@@ -88,7 +108,6 @@ paint_battery_bar(AppClient *client_entity, cairo_t *cr, Container *container) {
             (int) (container->real_bounds.x + 12 * config->dpi),
             (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
-    
     
     layout =
             get_cached_pango_font(cr, config->font, 34 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -290,6 +309,71 @@ make_battery_bar(Container *root) {
     return battery_bar;
 }
 
+static void
+scroll(AppClient *client, cairo_t *cr, Container *container, int scroll_x, int scroll_y, bool came_from_touchpad) {
+    double current_brightness = marker_position_scalar; // scalar: 0-1
+    
+    double new_brightness = current_brightness;
+    
+    static double cached_current = current_brightness;
+    
+    if (came_from_touchpad) {
+        new_brightness = ((cached_current * 2400) + scroll_y) / 2400;
+        cached_current = new_brightness;
+        cached_current = cached_current < 0 ? 0 : cached_current > 1 ? 1 : cached_current;
+    } else {
+        if (scroll_y > 0) {
+            new_brightness += .05;
+        } else if (scroll_y < 0) {
+            new_brightness -= .05;
+        }
+    }
+    
+    new_brightness = new_brightness < 0 ? 0 : new_brightness > 1 ? 1 : new_brightness;
+    if (new_brightness != current_brightness) {
+        set_brightness_visual(new_brightness);
+        
+        // Set the brightness but only every 500ms
+        static int file_descriptor = -1000000;
+        
+        auto *new_brigtness = new double;
+        *new_brigtness = new_brightness;
+        
+        if (file_descriptor == -1000000) {
+            Timeout *timeout = app_timeout_create(app, client, 200,
+                                                  [](App *, AppClient *, Timeout *, void *user_data) {
+                                                      file_descriptor = -1000000;
+                                                      auto *brightness = (double *) user_data;
+                                                      set_brightness(*brightness);
+                                                  }, new_brigtness, const_cast<char *>(__PRETTY_FUNCTION__));
+            file_descriptor = timeout->file_descriptor;
+        } else {            // check if file_descriptor exists
+            for (auto timeout: app->timeouts) {
+                if (timeout->file_descriptor == file_descriptor) {
+                    delete (double *) timeout->user_data;
+                    
+                    timeout->user_data = new_brigtness;
+                    return;
+                }
+            }
+            
+            Timeout *timeout = app_timeout_create(app, client, 200,
+                                                  [](App *, AppClient *, Timeout *, void *user_data) {
+                                                      file_descriptor = -1000000;
+                                                      auto *brightness = (double *) user_data;
+                                                      set_brightness(*brightness);
+                                                  }, new_brigtness, const_cast<char *>(__PRETTY_FUNCTION__));
+            file_descriptor = timeout->file_descriptor;
+        }
+    }
+}
+
+void
+adjust_brightness_based_on_fine_scroll(AppClient *client, cairo_t *cr, Container *container, int scroll_x, int scroll_y,
+                                       bool came_from_touchpad) {
+    scroll(client, cr, container, scroll_x, scroll_y, came_from_touchpad);
+}
+
 static Container *
 make_brightness_slider(Container *root) {
     auto vbox = new Container();
@@ -310,11 +394,13 @@ make_brightness_slider(Container *root) {
     
     auto brightness_icon = hbox->child(55 * config->dpi, FILL_SPACE);
     brightness_icon->when_paint = paint_brightness_icon;
+    brightness_icon->when_fine_scrolled = scroll;
     
     auto slider = new Container();
     slider->parent = hbox;
     hbox->children.push_back(slider);
     slider->when_paint = paint_slider;
+    slider->when_fine_scrolled = scroll;
     slider->when_mouse_down = drag_real;
     slider->when_drag_end = drag_real;
     slider->when_drag = drag_not_real;
@@ -324,6 +410,7 @@ make_brightness_slider(Container *root) {
     
     auto brightness_amount = hbox->child(65 * config->dpi, FILL_SPACE);
     brightness_amount->when_paint = paint_brightness_amount;
+    brightness_amount->when_fine_scrolled = scroll;
     
     return vbox;
 }
@@ -337,11 +424,13 @@ fill_root(Container *root) {
     root->children.push_back(make_brightness_slider(root));
 }
 
-static void get_brightness(App *app, AppClient *client, Timeout *, void *) {
+static void get_brightness_and_update_visually(App *app, AppClient *client, Timeout *, void *) {
+    int brightness;
+    
     if (dbus_kde_running()) {
-        brightness = (dbus_get_kde_current_brightness() / dbus_get_kde_max_brightness()) * 100;
+        brightness = (int) std::round((dbus_get_kde_current_brightness() / dbus_get_kde_max_brightness()) * 100);
     } else if (dbus_gnome_running()) {
-        brightness = dbus_get_gnome_brightness();
+        brightness = (int) std::round(dbus_get_gnome_brightness());
     } else {
         brightness = backlight_get_brightness();
     }
@@ -361,7 +450,7 @@ static void get_brightness(App *app, AppClient *client, Timeout *, void *) {
 void start_battery_menu() {
     static int loop = 0;
     if (loop == 0)
-        get_brightness(nullptr, nullptr, nullptr, nullptr);
+        get_brightness_and_update_visually(nullptr, nullptr, nullptr, nullptr);
     loop++;
     if (valid_client(app, battery_entity)) {
         client_close(app, battery_entity);
@@ -390,11 +479,13 @@ void start_battery_menu() {
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "battery_menu";
+        popup_settings.ignore_scroll = true;
         battery_entity = taskbar->create_popup(popup_settings, settings);
         fill_root(battery_entity->root);
         
-        app_timeout_create(app, battery_entity, 0, get_brightness, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
-    
+        app_timeout_create(app, battery_entity, 0, get_brightness_and_update_visually, nullptr,
+                           const_cast<char *>(__PRETTY_FUNCTION__));
+        
         client_show(app, battery_entity);
     }
 }

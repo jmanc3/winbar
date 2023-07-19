@@ -2245,6 +2245,10 @@ void app_main(App *app) {
         
         std::lock_guard m(app->running_mutex);
         app->loop++;
+
+#ifndef NDEBUG
+        printf("Timeouts count: %zu\n", app->timeouts.size());
+#endif
         
         for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
             if (fds[i].revents & POLLPRI) {
