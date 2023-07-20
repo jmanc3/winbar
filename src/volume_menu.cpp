@@ -698,5 +698,7 @@ adjust_volume_based_on_fine_scroll(Audio_Client *audio_client, AppClient *client
             audio_client->set_mute(false);
         
         audio_client->set_volume(audio_client->cached_volume);
+        if (audio_client->is_master_volume())
+            update_taskbar_volume_icon();
     }
 }
