@@ -1369,28 +1369,9 @@ scrolled_volume(AppClient *client_entity,
                     continue;
                 }
             }
-            double current_volume = c->get_volume(); // scalar: 0-1
-            double new_volume = current_volume;
-            static double cached_current = current_volume;
-            if (came_from_touchpad) {
-                new_volume = ((cached_current * 2400) + vertical_scroll) / 2400;
-                cached_current = new_volume;
-                cached_current = cached_current < 0 ? 0 : cached_current > 1 ? 1 : cached_current;
-            } else {
-                if (vertical_scroll > 0) {
-                    new_volume += .05;
-                } else if (vertical_scroll < 0) {
-                    new_volume -= .05;
-                }
-            }
-
-            new_volume = new_volume < 0 ? 0 : new_volume > 1 ? 1 : new_volume;
-            if (new_volume != current_volume) {
-                if (c->is_muted())
-                    c->set_mute(false);
-                
-                c->set_volume(new_volume);
-            }
+            
+            adjust_volume_based_on_fine_scroll(c, client_entity, cr, container, horizontal_scroll, vertical_scroll,
+                                               came_from_touchpad);
         }
     }
 }

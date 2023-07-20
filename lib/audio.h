@@ -69,6 +69,9 @@ public:
     bool alsa_mute_state = false;
     int alsa_index = -1;
     
+    // Data for use by us
+    double cached_volume = 0;
+    
     ~Audio_Client() {
         if (stream) {
             pa_stream_disconnect(stream);

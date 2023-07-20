@@ -23,16 +23,7 @@
 #include <utility.h>
 
 static AppClient *client_entity;
-static std::string connected_message = "";
-
-enum option_type {
-    client,
-    output
-};
-
-static double opacity_diff = .5;
-
-static double opacity_thresh = 200;
+static std::string connected_message;
 
 // TODO: every frame we should resize and remake containers based on data in audio_clients and
 // audio_outputs since it can change
@@ -109,8 +100,8 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     Audio_Client *client = data->client();
     if (!client) return;
     
-    double scalar = client->get_volume();
-    int val = (int) (scalar * 100);
+    double scalar = client->cached_volume;
+    int val = (int) std::round(scalar * 100);
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 20 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -162,7 +153,7 @@ paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container)
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    double scalar = client->get_volume();
+    double scalar = client->cached_volume;
     
     std::string text = std::to_string((int) (std::round(scalar * 100)));
     
@@ -222,7 +213,7 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     double marker_height = 24 * config->dpi;
     double marker_width = 8 * config->dpi;
-    double volume = client->get_volume();
+    double volume = client->cached_volume;
     long current_time = get_current_time_in_ms();
     
     double marker_position = volume * container->real_bounds.w;
@@ -304,26 +295,13 @@ toggle_mute(AppClient *client_entity, cairo_t *cr, Container *container) {
 }
 
 static void
-scroll(AppClient *client_entity, cairo_t *cr, Container *container, int scroll_x, int scroll_y) {
+scroll(AppClient *client_entity, cairo_t *cr, Container *container, int scroll_x, int scroll_y,
+       bool came_from_touchpad) {
     auto data = static_cast<option_data *>(container->parent->parent->user_data);
     Audio_Client *client = data->client();
     if (!client) return;
     
-    double new_volume = client->get_volume() + (.05 * scroll_y) + (.05 * -scroll_x);
-    if (new_volume < 0) {
-        new_volume = 0;
-    } else if (new_volume > 1) {
-        new_volume = 1;
-    }
-    
-    if (new_volume != client->get_volume()) {
-        if (client->is_muted())
-            client->set_mute(false);
-        
-        client->set_volume(new_volume);
-        if (client->is_master_volume())
-            update_taskbar_volume_icon();
-    }
+    adjust_volume_based_on_fine_scroll(client, client_entity, cr, container, scroll_x, scroll_y, came_from_touchpad);
 }
 
 static void
@@ -355,14 +333,15 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool force) {
     } else if (new_volume > 1) {
         new_volume = 1;
     }
-    
-    if (new_volume != client->get_volume()) {
+    if (((int) std::round(new_volume * 100)) != ((int) std::round(client->cached_volume * 100))) {
         if (client->is_muted())
             client->set_mute(false);
-    
+        
         client->set_volume(new_volume);
         if (client->is_master_volume())
             update_taskbar_volume_icon();
+    } else {
+        client->cached_volume = new_volume;
     }
 }
 
@@ -452,7 +431,7 @@ void fill_root(AppClient *client, Container *root) {
         volume_icon->wanted_bounds.w = 55 * config->dpi;
         volume_icon->when_paint = paint_volume_icon;
         volume_icon->when_clicked = toggle_mute;
-        volume_icon->when_scrolled = scroll;
+        volume_icon->when_fine_scrolled = scroll;
         volume_icon->parent = hbox_volume;
         hbox_volume->children.push_back(volume_icon);
         auto volume_data = new ButtonData;
@@ -470,7 +449,7 @@ void fill_root(AppClient *client, Container *root) {
         volume_bar->when_mouse_up = drag_force;
         volume_bar->draggable = true;
         volume_bar->parent = hbox_volume;
-        volume_bar->when_scrolled = scroll;
+        volume_bar->when_fine_scrolled = scroll;
         hbox_volume->children.push_back(volume_bar);
         
         auto volume_amount = new Container();
@@ -478,7 +457,7 @@ void fill_root(AppClient *client, Container *root) {
         volume_amount->wanted_bounds.w = 65 * config->dpi;
         volume_amount->when_paint = paint_volume_amount;
         volume_amount->parent = hbox_volume;
-        volume_amount->when_scrolled = scroll;
+        volume_amount->when_fine_scrolled = scroll;
         hbox_volume->children.push_back(volume_amount);
         
         label->parent = vbox_container;
@@ -493,9 +472,11 @@ void fill_root(AppClient *client, Container *root) {
 }
 
 void updates() {
-    if (valid_client(app, client_entity)) {
+    for (const auto &audio_client: audio_clients)
+        audio_client->cached_volume = audio_client->get_volume();
+    
+    if (valid_client(app, client_entity))
         request_refresh(app, client_entity);
-    }
 }
 
 static void
@@ -616,9 +597,9 @@ void open_volume_menu() {
                                 "clients or devices running";
         }
     }
-    if (audio_backend_data->audio_backend != Audio_Backend::NONE) {
+    if (audio_backend_data->audio_backend != Audio_Backend::NONE)
         audio_state_change_callback(updates);
-    }
+    updates();
     
     Settings settings;
     settings.decorations = false;
@@ -694,6 +675,28 @@ void open_volume_menu() {
     }
 }
 
-void update_volume_menu() {
-    updates();
+void
+adjust_volume_based_on_fine_scroll(Audio_Client *audio_client, AppClient *client, cairo_t *cr, Container *container,
+                                   int horizontal_scroll,
+                                   int vertical_scroll, bool came_from_touchpad) {
+    double current_volume = audio_client->get_volume();
+    if (came_from_touchpad) {
+        audio_client->cached_volume += vertical_scroll / 2400.0;
+    } else {
+        if (vertical_scroll > 0) {
+            audio_client->cached_volume += .05;
+        } else if (vertical_scroll < 0) {
+            audio_client->cached_volume -= .05;
+        }
+    }
+    
+    audio_client->cached_volume =
+            audio_client->cached_volume < 0 ? 0 : audio_client->cached_volume > 1 ? 1 : audio_client->cached_volume;
+    
+    if (((int) std::round(current_volume * 100)) != ((int) std::round(audio_client->cached_volume * 100))) {
+        if (audio_client->is_muted())
+            audio_client->set_mute(false);
+        
+        audio_client->set_volume(audio_client->cached_volume);
+    }
 }
