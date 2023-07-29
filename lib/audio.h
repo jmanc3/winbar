@@ -37,6 +37,7 @@ public:
     
     double get_volume();
     
+    long last_time_volume_set = 0;
     void set_volume(double value); // Shouldn't be expected to un-mute
     
     bool is_muted();

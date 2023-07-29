@@ -472,8 +472,17 @@ void fill_root(AppClient *client, Container *root) {
 }
 
 void updates() {
-    for (const auto &audio_client: audio_clients)
-        audio_client->cached_volume = audio_client->get_volume();
+    for (const auto &audio_client: audio_clients) {
+        // This piece of code keeps us accurate and synced when another program changes the volume behind our back
+        // But this piece of code is also called when *we* change the volume.
+        // This leads to minor hitching when devices are running on low power mode and pulseaudio isn't updating fast enough
+        // What ends up happening is that the slider is scrolled back to a position we had already visually demonstrated being at
+        //
+        // We fix that by ignoring any volume changes that happened very recently since they most likely come from us and leaving the value we set visually.
+        if (get_current_time_in_ms() - audio_client->last_time_volume_set > 250) {
+            audio_client->cached_volume = audio_client->get_volume();
+        }
+    }
     
     if (valid_client(app, client_entity))
         request_refresh(app, client_entity);

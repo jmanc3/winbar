@@ -33,6 +33,7 @@ void Audio_Client::set_volume(double value) {
         value = 1;
     if (value < 0)
         value = 0;
+    last_time_volume_set = get_current_time_in_ms();
     if (this->type == Audio_Backend::PULSEAUDIO) {
         pa_cvolume copy = this->pulseaudio_volume;
         for (int i = 0; i < this->pulseaudio_volume.channels; i++)
