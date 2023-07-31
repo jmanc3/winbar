@@ -1168,7 +1168,12 @@ void client_close(App *app, AppClient *client) {
             } else {
                 xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
                 xcb_flush(app->connection);
+                xcb_aux_sync(app->connection);
             }
+        } else {
+            xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
+            xcb_flush(app->connection);
+            xcb_aux_sync(app->connection);
         }
     }
     

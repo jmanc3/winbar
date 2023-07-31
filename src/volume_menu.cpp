@@ -340,9 +340,8 @@ drag(AppClient *client_entity, cairo_t *cr, Container *container, bool force) {
         client->set_volume(new_volume);
         if (client->is_master_volume())
             update_taskbar_volume_icon();
-    } else {
-        client->cached_volume = new_volume;
     }
+    client->cached_volume = new_volume;
 }
 
 static void
