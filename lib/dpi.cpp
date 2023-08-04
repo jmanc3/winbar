@@ -123,7 +123,7 @@ void dpi_setup(App *app) {
     randr_query = xcb_get_extension_data(app->connection, &xcb_randr_id);
     if (!randr_query->present) {
         perror("XRandr was not present on Xorg server.\n");
-        assert(false);
+        assert(randr_query->present);
     }
     
     update_information_of_all_screens(app);

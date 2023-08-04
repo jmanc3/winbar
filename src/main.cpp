@@ -2,6 +2,7 @@
 
 #include <pango/pangocairo.h>
 #include <cmath>
+#include <iostream>
 #include "main.h"
 #include "app_menu.h"
 #include "application.h"
@@ -25,7 +26,20 @@ void check_config_version();
 
 void load_in_fonts();
 
+static bool redirected_once = false;
+
 int main() {
+    if (!redirected_once) {
+        redirected_once = true;
+        char *home = getenv("HOME");
+        std::string config_directory(home);
+        config_directory += "/.config/winbar/";
+        std::string log = config_directory + "log.txt";
+        std::string log_error = config_directory + "log-error.txt";
+//        std::freopen(log.c_str(), "w", stdout);
+        std::freopen(log_error.c_str(), "w", stderr);
+    }
+
     global = new globals;
     
     // Open connection to app

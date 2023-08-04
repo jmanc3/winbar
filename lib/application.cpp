@@ -311,7 +311,7 @@ get_alpha_visualtype(xcb_screen_t *s) {
         }
     }
     // we didn't find any visualtypes with 32bit depth
-    return NULL;
+    return nullptr;
 }
 
 static xcb_visualtype_t *
@@ -329,7 +329,7 @@ get_visualtype(xcb_screen_t *s) {
         }
     }
     // we didn't find any visualtypes with 32bit depth
-    return NULL;
+    return nullptr;
 }
 
 void xcb_poll_wakeup(App *app, int fd, void *);
@@ -572,7 +572,7 @@ void get_raw_motion_and_scroll_events(App *app) {
     input_query = xcb_get_extension_data(app->connection, &xcb_input_id);
     if (!input_query->present) {
         perror("XInput was not present on Xorg server.\n");
-        return;
+        assert(input_query->present);
     }
     
     // PASS US ALL EVENTS
@@ -591,7 +591,6 @@ void get_raw_motion_and_scroll_events(App *app) {
     xcb_input_xi_select_events(app->connection, app->screen->root, 1, &se_mask.iem);
 }
 
-
 App *app_new() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -600,25 +599,25 @@ App *app_new() {
     
     int screen_number;
     xcb_connection_t *connection = xcb_connect(nullptr, &screen_number);
-    if (xcb_connection_has_error(connection)) {
-        return nullptr;
-    }
-    
+    assert(xcb_connection_has_error(connection) == false);
+
     auto *app = new App;
     app->connection = connection;
     app->screen_number = screen_number;
     app->screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
+    assert(app->screen != nullptr);
     app->argb_visualtype = get_alpha_visualtype(app->screen);
+    assert(app->argb_visualtype != nullptr);
     app->root_visualtype = get_visualtype(app->screen);
+    assert(app->root_visualtype != nullptr);
     app->bounds.x = 0;
     app->bounds.y = 0;
     app->bounds.w = app->screen->width_in_pixels;
     app->bounds.h = app->screen->height_in_pixels;
-    
+
     xcb_intern_atom_cookie_t *c = xcb_ewmh_init_atoms(app->connection, &app->ewmh);
-    if (!xcb_ewmh_init_atoms_replies(&app->ewmh, c, NULL))
-        return nullptr;
-    
+    assert(xcb_ewmh_init_atoms_replies(&app->ewmh, c, nullptr));
+
     xcb_flush(app->connection);
     
     poll_descriptor(app, xcb_get_file_descriptor(app->connection), POLLIN, xcb_poll_wakeup, nullptr, "XCB");
@@ -627,9 +626,8 @@ App *app_new() {
     xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(app->connection, atom_cookie, NULL);
     app->protocols_atom = reply->atom;
     free(reply);
-    
-    atom_cookie =
-            xcb_intern_atom(app->connection, 0, strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
+
+    atom_cookie = xcb_intern_atom(app->connection, 0, strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
     reply = xcb_intern_atom_reply(app->connection, atom_cookie, NULL);
     app->delete_window_atom = reply->atom;
     free(reply);
@@ -690,11 +688,12 @@ client_new(App *app, Settings settings, const std::string &name) {
     ZoneScoped;
 #endif
     if (app == nullptr) {
-        printf("App * passed to client_new was nullptr so couldn't make the client\n");
-        return nullptr;
+        perror("App * passed to client_new was nullptr so couldn't make the client\n");
+        assert(app != nullptr);
     }
     
     xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
+    assert(screen);
     
     ScreenInformation *primary_screen_info = nullptr;
     for (auto s: screens) {
@@ -704,6 +703,7 @@ client_new(App *app, Settings settings, const std::string &name) {
         if (screens.empty()) {
             assert(primary_screen_info != nullptr);
         } else {
+            assert(!screens.empty());
             primary_screen_info = screens[0];
         }
     }
@@ -717,14 +717,17 @@ client_new(App *app, Settings settings, const std::string &name) {
             -1,
             depth
     );
+    assert(visual);
+    
     xcb_colormap_t colormap = xcb_generate_id(app->connection);
-    xcb_create_colormap(
+    auto colormap_cookie = xcb_create_colormap_checked(
             app->connection,
             XCB_COLORMAP_ALLOC_NONE,
             colormap, primary_screen_info->root_window,
             visual->visual_id
     );
-    
+    assert(xcb_request_check(app->connection, colormap_cookie) == nullptr);
+
     const uint32_t values[] = {
             // XCB_CW_BACK_PIXEL
             settings.background,
@@ -742,31 +745,38 @@ client_new(App *app, Settings settings, const std::string &name) {
             // XCB_CW_COLORMAP
             colormap
     };
-    
-    xcb_create_window(app->connection,
-                      depth,
-                      window,
-                      primary_screen_info->root_window,
-                      settings.x, settings.y, settings.w, settings.h,
-                      0,
-                      XCB_WINDOW_CLASS_INPUT_OUTPUT,
-                      visual->visual_id,
-                      XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL
-                      | XCB_CW_OVERRIDE_REDIRECT
-                      | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
-                      values);
-    
+
+    auto window_cookie = xcb_create_window_checked(app->connection,
+                                                   depth,
+                                                   window,
+                                                   primary_screen_info->root_window,
+                                                   settings.x, settings.y, settings.w, settings.h,
+                                                   0,
+                                                   XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                                                   visual->visual_id,
+                                                   XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL
+                                                   | XCB_CW_OVERRIDE_REDIRECT
+                                                   | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
+                                                   values);
+    assert(xcb_request_check(app->connection, window_cookie) == nullptr);
+
     // This is so that we don't flicker when resizing the window
     if (settings.window_transparent) {
         const uint32_t s[] = {XCB_BACK_PIXMAP_NONE};
-        xcb_change_window_attributes(app->connection, window, XCB_CW_BACK_PIXMAP, s);
+        auto attributes_cookie = xcb_change_window_attributes_checked(app->connection, window,
+                                                                      XCB_CW_BACK_PIXMAP, s);
+        assert(xcb_request_check(app->connection, attributes_cookie) == nullptr);
     }
     
     cairo_surface_t *client_cr_surface = cairo_xcb_surface_create(app->connection,
                                                                   window,
                                                                   visual,
                                                                   settings.w, settings.h);
+    assert(cairo_surface_status(client_cr_surface) == CAIRO_STATUS_SUCCESS);
+
     cairo_t *cr = cairo_create(client_cr_surface);
+    assert(cairo_status(cr) == CAIRO_STATUS_SUCCESS);
+
     cairo_surface_destroy(client_cr_surface);
     
     if (settings.sticky) {
@@ -2081,8 +2091,8 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         case XCB_MAP_NOTIFY: {
             if (auto client = client_by_window(app, window_number)) {
                 client->mapped = true;
-            
-                if (client->popup_info.is_popup) {
+
+                if (client->popup_info.is_popup && client->popup_info.wants_grab) {
                     // TODO why don't we grab the pointer instead?
                     xcb_void_cookie_t grab_cookie =
                             xcb_grab_button_checked(app->connection,
