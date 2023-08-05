@@ -3007,6 +3007,7 @@ create_taskbar(App *app) {
     
     if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO) {
         audio_update_list_of_clients();
+        update_taskbar_volume_icon();
     }
     
     uint32_t version = 5;

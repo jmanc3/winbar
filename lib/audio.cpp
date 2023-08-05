@@ -506,6 +506,17 @@ void subscribe_cb(pa_context *, pa_subscription_event_type_t, uint32_t, void *us
         std::lock_guard lock(app->running_mutex);
         // TODO: we are still, still getting choked here. due to waiting on pa_threaded_mainloop_lock
         change_in_audio(app, nullptr, nullptr, nullptr);
+        possibly_update_default_sink();
+        // swap so that first client is the default sink
+        for (int i = 1; i < audio_clients.size(); ++i) {
+            Audio_Client *client = audio_clients[i];
+            if (client->default_sink) {
+                // swap with location at zero
+                std::iter_swap(audio_clients.begin(), audio_clients.begin() + i);
+            }
+        }
+        if (audio_backend_data->callback)
+            audio_backend_data->callback();
         already_trying_to_tell_main_thread_about_change = false;
     });
     t.detach();

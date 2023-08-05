@@ -19,5 +19,7 @@ adjust_volume_based_on_fine_scroll(Audio_Client *audio_client,
                                    int horizontal_scroll,
                                    int vertical_scroll, bool came_from_touchpad);
 
+void updates();
+
 
 #endif// APP_VOLUME_MENU_H

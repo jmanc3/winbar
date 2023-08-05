@@ -17,6 +17,7 @@
 #include "simple_dbus.h"
 #include "icons.h"
 #include "dpi.h"
+#include "volume_menu.h"
 
 App *app;
 
@@ -89,8 +90,9 @@ int main() {
     
     // Add listeners and grabs on the root window
     root_start(app);
-    
+
     // Start the pulseaudio connection
+    audio_state_change_callback(updates);
     audio_start(app);
     
     // We need to register as the systray
