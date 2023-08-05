@@ -195,6 +195,14 @@ bool try_establishing_connection_with_alsa(App *app) {
     audio_backend_data->default_sink_name = "Master";
     
     alsa_state_change_callback(audio_backend_data->master_volume, 0);
+
+    long min, max;
+    snd_mixer_selem_get_playback_volume_range(audio_backend_data->master_volume, &min, &max);
+    long current_volume;
+    snd_mixer_selem_get_playback_volume(audio_backend_data->master_volume, SND_MIXER_SCHN_FRONT_LEFT, &current_volume);
+    double volume_percentage = ((double) (current_volume - min)) / (double) (max - min);
+    c->cached_volume = volume_percentage;
+    c->alsa_volume = volume_percentage;
     
     return true;
 }
@@ -570,6 +578,10 @@ static bool try_establishing_connection_with_pulseaudio(App *app) {
 }
 
 void audio_update_list_of_clients() {
+    if (audio_backend_data->audio_backend != Audio_Backend::PULSEAUDIO) {
+        return;
+    }
+
     for (auto c: audio_clients)
         delete c;
     audio_clients.clear();
