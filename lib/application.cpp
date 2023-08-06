@@ -605,6 +605,7 @@ App *app_new() {
     }
     
     auto *app = new App;
+    app->running_mutex.lock();
     app->connection = connection;
     app->screen_number = screen_number;
     app->screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
@@ -1093,12 +1094,14 @@ void request_refresh(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (app == nullptr || !valid_client(app, client))
+    if (app == nullptr || client == nullptr || client->refresh_already_queued)
         return;
-    
+    client->refresh_already_queued = true;
+
     std::thread t([app, client]() {
         std::lock_guard lock(app->running_mutex);
         client_paint(app, client);
+        client->refresh_already_queued = false;
     });
     t.detach();
 }
@@ -2234,6 +2237,7 @@ void app_main(App *app) {
     pollfd fds[MAX_POLLING_EVENTS_AT_THE_SAME_TIME];
     
     app->running = true;
+    app->running_mutex.unlock();
     while (app->running) {
         // set all fds to 0
         memset(fds, 0, sizeof(fds));

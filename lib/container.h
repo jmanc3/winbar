@@ -232,6 +232,8 @@ struct Subprocess {
     void kill(bool warn);
 };
 
+#include <atomic>
+
 struct AppClient {
     App *app = nullptr;
     
@@ -264,7 +266,9 @@ struct AppClient {
     int motion_event_x = 0;
     int motion_event_y = 0;
     Timeout *motion_event_timeout = nullptr;
-    
+
+    std::atomic<bool> refresh_already_queued = false;
+
     std::vector<ClientAnimation> animations;
     int animations_running = 0;
     float fps = 144;
