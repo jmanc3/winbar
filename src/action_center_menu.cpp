@@ -442,44 +442,6 @@ static void fill_root(AppClient *client, Container *root) {
     }
 }
 
-static bool
-event_handler(App *app, xcb_generic_event_t *event) {
-    // For detecting if we pressed outside the window
-    switch (XCB_EVENT_RESPONSE_TYPE(event)) {
-        case XCB_MAP_NOTIFY: {
-            auto *e = (xcb_map_notify_event_t *) (event);
-            register_popup(e->window);
-            xcb_set_input_focus(app->connection, XCB_NONE, e->window, XCB_CURRENT_TIME);
-            xcb_flush(app->connection);
-            break;
-        }
-        case XCB_FOCUS_OUT: {
-            auto *e = (xcb_focus_out_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (valid_client(app, client)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-            }
-        }
-        case XCB_BUTTON_PRESS: {
-            auto *e = (xcb_button_press_event_t *) (event);
-            auto *client = client_by_window(app, e->event);
-            if (!valid_client(app, client)) {
-                break;
-            }
-            if (!bounds_contains(*client->bounds, e->root_x, e->root_y)) {
-                client_close_threaded(app, client);
-                xcb_flush(app->connection);
-                app->grab_window = -1;
-            }
-            break;
-        }
-    }
-    
-    return false;
-}
-
 void start_action_center(App *app) {
     for (auto n: notifications) {
         n->sent_to_action_center = false;

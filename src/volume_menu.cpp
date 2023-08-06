@@ -485,6 +485,8 @@ void updates() {
     
     if (valid_client(app, client_entity))
         request_refresh(app, client_entity);
+
+    update_taskbar_volume_icon();
 }
 
 static void
@@ -598,6 +600,7 @@ void open_volume_menu() {
     } else if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO ||
                audio_backend_data->audio_backend == Audio_Backend::ALSA) {
         audio_update_list_of_clients();
+        update_taskbar_volume_icon();
         hook_up_stream();
         
         if (audio_clients.empty()) {
@@ -605,8 +608,6 @@ void open_volume_menu() {
                                 "clients or devices running";
         }
     }
-    if (audio_backend_data->audio_backend != Audio_Backend::NONE)
-        audio_state_change_callback(updates);
     updates();
     
     Settings settings;

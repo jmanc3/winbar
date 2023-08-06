@@ -179,6 +179,9 @@ paint_brightness_amount(AppClient *client_entity, cairo_t *cr, Container *contai
             get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     std::string text = std::to_string((int) (brightness_fake));
+    if (((int) brightness_fake) == -1) {
+        text = "100";
+    }
     
     int width;
     int height;

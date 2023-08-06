@@ -311,7 +311,7 @@ get_alpha_visualtype(xcb_screen_t *s) {
         }
     }
     // we didn't find any visualtypes with 32bit depth
-    return NULL;
+    return nullptr;
 }
 
 static xcb_visualtype_t *
@@ -329,7 +329,7 @@ get_visualtype(xcb_screen_t *s) {
         }
     }
     // we didn't find any visualtypes with 32bit depth
-    return NULL;
+    return nullptr;
 }
 
 void xcb_poll_wakeup(App *app, int fd, void *);
@@ -2084,8 +2084,8 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         case XCB_MAP_NOTIFY: {
             if (auto client = client_by_window(app, window_number)) {
                 client->mapped = true;
-            
-                if (client->popup_info.is_popup) {
+
+                if (client->popup_info.is_popup && client->popup_info.wants_grab) {
                     // TODO why don't we grab the pointer instead?
                     xcb_void_cookie_t grab_cookie =
                             xcb_grab_button_checked(app->connection,
