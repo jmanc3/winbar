@@ -348,7 +348,7 @@ struct Container {
     int z_index = 0;
     
     // Spacing between children when laying them out
-    int spacing = 0;
+    double spacing = 0;
     
     // Where you are placed inside the parent
     int alignment = 0;

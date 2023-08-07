@@ -1101,6 +1101,8 @@ compare_priority(Sortable *first, Sortable *second) {
     return first->name.length() < second->name.length();
 }
 
+static bool can_pop = false;
+
 template<class T>
 void sort_and_add(std::vector<T> *sortables,
                   Container *bottom,
@@ -1150,6 +1152,14 @@ void sort_and_add(std::vector<T> *sortables,
         
         Container *content = scroll->content;
         content->spacing = 0;
+        if (auto client = client_by_name(app, "search_menu")) {
+            if (can_pop) {
+                can_pop = false;
+                content->spacing = 16 * config->dpi;
+                client_create_animation(app, client, &content->spacing, 0, 120, nullptr, 0, true);
+            }
+        }
+
         content->when_paint = paint_content;
         content->clip_children =
                 false;// We have to do custom clipping so don't waste calls on this
@@ -1566,7 +1576,8 @@ void start_search_menu() {
         popup_settings.name = "search_menu";
         popup_settings.takes_input_focus = true;
         auto client = taskbar->create_popup(popup_settings, settings);
-        
+
+        can_pop = true;
         client->when_closed = search_menu_when_closed;
         fill_root(client);
         client_show(app, client);

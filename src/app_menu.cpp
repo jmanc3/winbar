@@ -1226,8 +1226,9 @@ fill_root(AppClient *client) {
                                          54 * config->dpi);
     
     Container *content = scroll->content;
-    content->spacing = 2 * config->dpi;
-    
+    content->spacing = 54 * config->dpi;
+    client_create_animation(app, client, &content->spacing, 0, 130, nullptr, 2 * config->dpi, true);
+
     char previous_char = '\0';
     int previous_priority = 0;
     for (int i = 0; i < launchers.size(); i++) {
