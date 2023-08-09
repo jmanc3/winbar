@@ -1550,11 +1550,11 @@ search_menu_when_closed(AppClient *client) {
     cairo_surface_destroy(script_64);
     write_historic_scripts();
     write_historic_apps();
-    std::thread(load_scripts).detach();
     set_textarea_inactive();
 }
 
 void start_search_menu() {
+    load_scripts();
     Settings settings;
     settings.decorations = false;
     settings.skip_taskbar = true;
@@ -1591,85 +1591,129 @@ void start_search_menu() {
 #include <dirent.h>
 #include <sstream>
 
-static std::mutex script_loaded;
 
 void load_scripts() {
-    std::lock_guard m(script_loaded);
-    for (auto s: scripts) {
-        delete s;
-    }
-    scripts.clear();
-    scripts.shrink_to_fit();
-    // go through every directory in $PATH environment variable
-    // add to our scripts list if the files we check are executable
-    std::string paths = std::string(getenv("PATH"));
-    
-    std::replace(paths.begin(), paths.end(), ':', ' ');
-    
-    std::stringstream ss(paths);
-    std::string string_path;
-    while (ss >> string_path) {
-        if (auto *dir = opendir(string_path.c_str())) {
-            struct dirent *dp;
-            while ((dp = readdir(dir)) != NULL) {
-                struct stat st, ln;
-                
-                // This is what determines if its an executable and its from dmenu and its not good. oh
-                // well
-                static int flag[26];
+    std::thread t([]() {
+        static std::vector<Script *> temp_scripts;
+        temp_scripts.clear();
+
+        // go through every directory in $PATH environment variable
+        // add to our scripts list if the files we check are executable
+        std::string paths = std::string(getenv("PATH"));
+
+        std::replace(paths.begin(), paths.end(), ':', ' ');
+
+        std::stringstream ss(paths);
+        std::string string_path;
+        while (ss >> string_path) {
+            if (auto *dir = opendir(string_path.c_str())) {
+                struct dirent *dp;
+                while ((dp = readdir(dir)) != NULL) {
+                    struct stat st, ln;
+
+                    // This is what determines if its an executable and its from dmenu and its not good. oh
+                    // well
+                    static int flag[26];
 #define FLAG(x) (flag[(x) - 'a'])
-                
-                const char *path = string_path.c_str();
-                if ((!stat(path, &st) && (FLAG('a') || dp->d_name[0] != '.')       /* hidden files      */
-                     && (!FLAG('b') || S_ISBLK(st.st_mode))                        /* block special     */
-                     && (!FLAG('c') || S_ISCHR(st.st_mode))                        /* character special */
-                     && (!FLAG('d') || S_ISDIR(st.st_mode))                        /* directory         */
-                     && (!FLAG('e') || access(path, F_OK) == 0)                    /* exists            */
-                     && (!FLAG('f') || S_ISREG(st.st_mode))                        /* regular file      */
-                     && (!FLAG('g') || st.st_mode & S_ISGID)                       /* set-group-id flag */
-                     && (!FLAG('h') || (!lstat(path, &ln) && S_ISLNK(ln.st_mode))) /* symbolic link */
-                     && (!FLAG('p') || S_ISFIFO(st.st_mode))                       /* named pipe        */
-                     && (!FLAG('r') || access(path, R_OK) == 0)                    /* readable          */
-                     && (!FLAG('s') || st.st_size > 0)                             /* not empty         */
-                     && (!FLAG('u') || st.st_mode & S_ISUID)                       /* set-user-id flag  */
-                     && (!FLAG('w') || access(path, W_OK) == 0)                    /* writable          */
-                     && (!FLAG('x') || access(path, X_OK) == 0)) != FLAG('v')) {   /* executable        */
-                    
-                    if (!(FLAG('q'))) {
-                        bool already_have_this_script = false;
-                        std::string name = std::string(dp->d_name);
-                        for (auto *script: scripts) {
-                            if (script->name == name) {
-                                already_have_this_script = true;
-                                break;
+
+                    const char *path = string_path.c_str();
+                    if ((!stat(path, &st) && (FLAG('a') || dp->d_name[0] != '.')       /* hidden files      */
+                         && (!FLAG('b') || S_ISBLK(st.st_mode))                        /* block special     */
+                         && (!FLAG('c') || S_ISCHR(st.st_mode))                        /* character special */
+                         && (!FLAG('d') || S_ISDIR(st.st_mode))                        /* directory         */
+                         && (!FLAG('e') || access(path, F_OK) == 0)                    /* exists            */
+                         && (!FLAG('f') || S_ISREG(st.st_mode))                        /* regular file      */
+                         && (!FLAG('g') || st.st_mode & S_ISGID)                       /* set-group-id flag */
+                         && (!FLAG('h') || (!lstat(path, &ln) && S_ISLNK(ln.st_mode))) /* symbolic link */
+                         && (!FLAG('p') || S_ISFIFO(st.st_mode))                       /* named pipe        */
+                         && (!FLAG('r') || access(path, R_OK) == 0)                    /* readable          */
+                         && (!FLAG('s') || st.st_size > 0)                             /* not empty         */
+                         && (!FLAG('u') || st.st_mode & S_ISUID)                       /* set-user-id flag  */
+                         && (!FLAG('w') || access(path, W_OK) == 0)                    /* writable          */
+                         && (!FLAG('x') || access(path, X_OK) == 0)) != FLAG('v')) {   /* executable        */
+
+                        if (!(FLAG('q'))) {
+                            bool already_have_this_script = false;
+                            std::string name = std::string(dp->d_name);
+                            for (auto *script: scripts) {
+                                if (script->name == name) {
+                                    already_have_this_script = true;
+                                    break;
+                                }
+                            }
+                            if (already_have_this_script)
+                                continue;
+
+                            auto *script = new Script();
+                            script->name = name;
+                            script->lowercase_name = script->name;
+                            std::transform(script->lowercase_name.begin(),
+                                           script->lowercase_name.end(),
+                                           script->lowercase_name.begin(),
+                                           ::tolower);
+
+                            script->path = path;
+                            if (!script->path.empty()) {
+                                if (script->path[script->path.length() - 1] == '/' ||
+                                    script->path[script->path.length() - 1] == '\\') {
+                                    script->path.erase(script->path.begin() + (script->path.length() - 1));
+                                }
+                            }
+
+                            temp_scripts.push_back(script);
+                        }
+                    }
+                }
+                closedir(dir);
+            }
+        }
+
+        std::lock_guard mtx(app->running_mutex);
+        for (auto sc: scripts) {
+            delete sc;
+        }
+        scripts.clear();
+        scripts.shrink_to_fit();
+
+        for (auto sc: temp_scripts) {
+            scripts.push_back(sc);
+        }
+
+        if (auto taskbar_client = client_by_name(app, "taskbar")) {
+            if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
+                if (auto *search_menu_client = client_by_name(app, "search_menu")) {
+                    auto *data = (TextAreaData *) textarea->user_data;
+
+                    auto *bottom = container_by_name("bottom", search_menu_client->root);
+                    if (bottom) {
+                        for (auto *c: bottom->children)
+                            delete c;
+                        bottom->children.clear();
+                        bottom->children.shrink_to_fit();
+                        if (!data->state->text.empty()) {
+                            active_item = 0;
+                            scroll_amount = 0;
+
+                            if (active_tab == "Scripts") {
+                                sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
+                            } else if (active_tab == "Apps") {
+                                // We create a copy because app_menu relies on the order
+                                std::vector<Launcher *> launchers_copy;
+                                for (auto *l: launchers) {
+                                    launchers_copy.push_back(l);
+                                }
+                                sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text,
+                                                         global->history_apps);
                             }
                         }
-                        if (already_have_this_script)
-                            continue;
-                        
-                        auto *script = new Script();
-                        script->name = name;
-                        script->lowercase_name = script->name;
-                        std::transform(script->lowercase_name.begin(),
-                                       script->lowercase_name.end(),
-                                       script->lowercase_name.begin(),
-                                       ::tolower);
-                        
-                        script->path = path;
-                        if (!script->path.empty()) {
-                            if (script->path[script->path.length() - 1] == '/' ||
-                                script->path[script->path.length() - 1] == '\\') {
-                                script->path.erase(script->path.begin() + (script->path.length() - 1));
-                            }
-                        }
-                        
-                        scripts.push_back(script);
+                        client_layout(app, search_menu_client);
+                        client_paint(app, search_menu_client);
                     }
                 }
             }
-            closedir(dir);
         }
-    }
+    });
+    t.detach();
 }
 
 bool script_exists(const std::string &name) {

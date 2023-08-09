@@ -466,7 +466,7 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
         auto *generic_event = (xcb_ge_generic_event_t *) event;
         if (generic_event->event_type == XCB_INPUT_KEY_PRESS) {
             auto *press = (xcb_input_key_press_event_t *) event;
-            
+
             xcb_keysym_t keysym = xcb_key_symbols_get_keysym(app->key_symbols, press->detail, 0);
             
             if (clean && (press->detail >= 10 && press->detail <= 19)) {
@@ -477,8 +477,7 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
             clean = keysym == XK_Super_L || keysym == XK_Super_R;
         } else if (generic_event->event_type == XCB_INPUT_KEY_RELEASE) {
             auto *release = (xcb_input_key_release_event_t *) event;
-            
-            app->key_symbols = xcb_key_symbols_alloc(app->connection);
+
             xcb_keysym_t keysym = xcb_key_symbols_get_keysym(app->key_symbols, release->detail, 0);
             
             bool is_meta = keysym == XK_Super_L || keysym == XK_Super_R;
