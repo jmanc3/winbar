@@ -17,6 +17,7 @@
 #include "main.h"
 #include "taskbar.h"
 #include "globals.h"
+#include "defer.h"
 
 #include <algorithm>
 #include <fstream>
@@ -1591,9 +1592,15 @@ void start_search_menu() {
 #include <dirent.h>
 #include <sstream>
 
-
 void load_scripts() {
+    static std::atomic<bool> already_working = false;
+    if (already_working)
+        return;
+    already_working = true;
+
     std::thread t([]() {
+        defer(already_working = false);
+
         static std::vector<Script *> temp_scripts;
         temp_scripts.clear();
 
@@ -1667,6 +1674,9 @@ void load_scripts() {
                 closedir(dir);
             }
         }
+
+        if (temp_scripts.empty())
+            return;
 
         std::lock_guard mtx(app->running_mutex);
         for (auto sc: scripts) {
