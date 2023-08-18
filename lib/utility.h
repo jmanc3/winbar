@@ -168,5 +168,6 @@ paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, doubl
 
 bool is_light_theme(const ArgbColor &color);
 
+std::string clipboard();
 
 #endif

@@ -66,6 +66,7 @@ set(
         pango # for loading fonts and laying them out
         librsvg-2.0 # to load svg icons
         xcb # to open windows with the Xorg server
+        x11
         libcurl # to make http requests to chatgpt
         pangocairo # to paint pango text layouts using cairo
         xcb-randr # to gain brightness control

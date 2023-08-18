@@ -2355,8 +2355,16 @@ textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string,
             
             }
         } else if (keysym == XKB_KEY_v) {
-            if (control) {
-            
+            std::string text = clipboard();
+            if (data->single_line) {
+                text.erase(std::remove_if(text.begin(), text.end(), [](char c) {
+                    return c == '\n' || c == '\r';
+                }), text.end());
+            }
+            if (data->state->selection_x != -1) {
+                replace_action(client, textarea, data, text);
+            } else {
+                insert_action(client, textarea, data, text);
             }
         } else if (keysym == XKB_KEY_Home) {
             Seeker seeker(data->state);

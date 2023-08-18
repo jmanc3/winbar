@@ -1,6 +1,8 @@
 
 #include "utility.h"
 #include "hsluv.h"
+#include <stdio.h>
+#include <X11/Xlib.h>
 
 #ifdef TRACY_ENABLE
 
@@ -677,4 +679,89 @@ bool is_light_theme(const ArgbColor &color) {
     rgb2hsluv(color.r, color.g, color.b, &h, &s, &p);
     
     return p >= 50;
+}
+
+std::string
+show_utf8_prop(Display *dpy, Window w, Atom p) {
+    Atom da, incr, type;
+    int di;
+    unsigned long size, dul;
+    unsigned char *prop_ret = NULL;
+
+    /* Dummy call to get type and size. */
+    XGetWindowProperty(dpy, w, p, 0, 0, False, AnyPropertyType,
+                       &type, &di, &dul, &size, &prop_ret);
+    XFree(prop_ret);
+
+    incr = XInternAtom(dpy, "INCR", False);
+    if (type == incr) {
+        return "";
+    }
+
+    /* Read the data in one go. */
+    //printf("Property size: %lu\n", size);
+
+    XGetWindowProperty(dpy, w, p, 0, size, False, AnyPropertyType,
+                       &da, &di, &dul, &dul, &prop_ret);
+    //printf("%s", prop_ret);
+    std::string t((char *) prop_ret, size);
+    XFree(prop_ret);
+
+    /* Signal the selection owner that we have successfully read the
+     * data. */
+    XDeleteProperty(dpy, w, p);
+    return t;
+}
+
+std::string clipboard() {
+    Display *dpy;
+    Window owner, target_window, root;
+    int screen;
+    Atom sel, target_property, utf8;
+    XEvent ev;
+    XSelectionEvent *sev;
+
+    dpy = XOpenDisplay(NULL);
+    if (!dpy) {
+        return "";
+    }
+
+    screen = DefaultScreen(dpy);
+    root = RootWindow(dpy, screen);
+
+    sel = XInternAtom(dpy, "CLIPBOARD", False);
+    utf8 = XInternAtom(dpy, "UTF8_STRING", False);
+
+    owner = XGetSelectionOwner(dpy, sel);
+    if (owner == None) {
+        return "";
+    }
+
+    /* The selection owner will store the data in a property on this
+     * window: */
+    target_window = XCreateSimpleWindow(dpy, root, -10, -10, 1, 1, 0, 0, 0);
+
+    /* That's the property used by the owner. Note that it's completely
+     * arbitrary. */
+    target_property = XInternAtom(dpy, "PENGUIN", False);
+
+    /* Request conversion to UTF-8. Not all owners will be able to
+     * fulfill that request. */
+    XConvertSelection(dpy, sel, utf8, target_property, target_window,
+                      CurrentTime);
+
+    for (;;) {
+        XNextEvent(dpy, &ev);
+        switch (ev.type) {
+            case SelectionNotify:
+                sev = (XSelectionEvent *) &ev.xselection;
+                if (sev->property == None) {
+                    printf("Conversion could not be performed.\n");
+                    return "";
+                } else {
+                    return show_utf8_prop(dpy, target_window, target_property);
+                }
+                break;
+        }
+    }
 }
