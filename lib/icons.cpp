@@ -4,7 +4,6 @@
 
 #include "icons.h"
 #include "utility.h"
-#include "INIReader.h"
 #include "../src/config.h"
 
 #include <string>
@@ -661,14 +660,33 @@ static std::string get_current_theme_name() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    static std::string current_theme;
+    static long previous_time_cached;
+    if (!current_theme.empty()) {
+        long current_time = get_current_time_in_ms();
+        long elapsed_time = current_time - previous_time_cached;
+        if (elapsed_time < 1000 * 20) {
+            return current_theme;
+        }
+    }
+
     std::string gtk_settings_file_path(getenv("HOME"));
     gtk_settings_file_path += "/.config/gtk-3.0/settings.ini";
-    
-    INIReader gtk_settings(gtk_settings_file_path);
-    if (gtk_settings.ParseError() != 0)
-        return "hicolor";
-    
-    return gtk_settings.Get("Settings", "gtk-icon-theme-name", "hicolor");
+
+    std::ifstream in(gtk_settings_file_path);
+
+    std::string line;
+    const char *target = "gtk-icon-theme-name=";
+    while (std::getline(in, line)) {
+        if (line.find(target) != std::string::npos) {
+            previous_time_cached = get_current_time_in_ms();
+            current_theme = line.substr(strlen(target));
+            return current_theme;
+        }
+    }
+    previous_time_cached = get_current_time_in_ms();
+    current_theme = "hicolor";
+    return current_theme;
 }
 
 static void c3ic_generate_sizes(int target_size, std::vector<int> &target_sizes) {
