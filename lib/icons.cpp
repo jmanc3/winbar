@@ -20,6 +20,7 @@
 #include <sys/mman.h>
 #include <pango/pangocairo.h>
 #include <math.h>
+#include <unordered_map>
 
 #ifdef TRACY_ENABLE
 
@@ -27,7 +28,7 @@
 
 #endif
 
-static uint32_t cache_version = 2;
+static uint32_t cache_version = 3;
 
 int getExtension(unsigned short int i) {
     // return the top two bits
@@ -81,6 +82,14 @@ struct OptionsData {
 
 static std::vector<std::string> icon_search_paths;
 static auto *data = new OptionsData;
+
+char *name_buffer = nullptr;
+char *option_buffer = nullptr;
+struct Range {
+    unsigned long start = -1;
+    unsigned long length = -1;
+};
+std::unordered_map<std::string_view, Range> ranges;
 
 void traverse_dir(const char *path) {
     DIR *dir = opendir(path);
@@ -229,7 +238,27 @@ void save_data() {
     
     // version (string)
     cache_file << std::to_string(cache_version) << '\0';
-    
+
+#define WRITE_NUM(num) \
+    reinterpret_cast<const char *>(&num), sizeof(num) \
+
+    // We will use this number when loading, so we can pre-allocate a buffer that will contain every option name
+    // We won't need to zero terminate the strings in the buffer since we're going make a string view of the names
+    // when we load them.
+    unsigned long option_names_buffer_size = 0;
+    for (const auto &item: data->options)
+        option_names_buffer_size += item.first.size();
+    cache_file.write(WRITE_NUM(option_names_buffer_size));
+
+    // We will use this number to pre-allocate a buffer which will store the parentIndexAndExtension and,
+    // themeIndex contiguously. We'll access the data via a hash_table (std::unordered_map) which will take
+    // a string view and return a Range{int index, int count}, into the pre-allocated buffer.
+    unsigned long option_data_buffer_size = 0;
+    for (const auto &item: data->options)
+        option_data_buffer_size +=
+                item.second.size() * (sizeof(Option::parentIndexAndExtension) + sizeof(Option::themeIndex));
+    cache_file.write(WRITE_NUM(option_data_buffer_size));
+
     // parent paths size (int)
     cache_file << std::to_string(data->parentPaths.size()) << '\0';
     for (const auto &item: data->parentPaths) {
@@ -243,9 +272,6 @@ void save_data() {
         // parent paths (string)
         cache_file << item << '\0';
     }
-
-#define WRITE_NUM(num) \
-    reinterpret_cast<const char *>(&num), sizeof(num) \
 
     // options size (int)
     cache_file << std::to_string(data->options.size()) << '\0';
@@ -271,35 +297,7 @@ void save_data() {
     rename(icon_cache_temp_path.data(), icon_cache_path.data());
 }
 
-// TODO: there has to be a better way to do this
-long load_file_into_memory(char const *path, char **buf) {
-    FILE *fp;
-    size_t fsz;
-    long off_end;
-    int rc;
-    fp = fopen(path, "rb");
-    if (nullptr == fp)
-        return -1L;
-    rc = fseek(fp, 0L, SEEK_END);
-    if (0 != rc)
-        return -1L;
-    if (0 > (off_end = ftell(fp)))
-        return -1L;
-    fsz = (size_t) off_end;
-    *buf = static_cast<char *>(malloc(fsz));
-    if (nullptr == *buf)
-        return -1L;
-    rewind(fp);
-    if (fsz != fread(*buf, 1, fsz, fp)) {
-        free(*buf);
-        return -1L;
-    }
-    if (EOF == fclose(fp)) {
-        free(*buf);
-        return -1L;
-    }
-    return (long) fsz;
-}
+static bool first_time_load_data = true;
 
 void load_data() {
 #ifdef TRACY_ENABLE
@@ -310,34 +308,51 @@ void load_data() {
     data->options.clear();
     data->parentPaths.clear();
     data->themes.clear();
-    
+    if (name_buffer != nullptr)
+        free(name_buffer);
+    if (option_buffer != nullptr)
+        free(option_buffer);
+    ranges.clear();
+
     // Load data from disk
     const char *home_directory = getenv("HOME");
     std::string icon_cache_path(home_directory);
     icon_cache_path += "/.cache/winbar_icon_cache/icon.cache";
-    
-    char *icon_cache_data = nullptr;
-    
+
     struct stat cache_stat{};
     if (stat(icon_cache_path.c_str(), &cache_stat) == 0) { // exists
-        // Quick check version
-        FILE *fp;
-        char buf[1024];
-        if ((fp = fopen(icon_cache_path.data(), "rb"))) {
-            fread(buf, 1, 10, fp);
-            std::string versionString = std::string(buf, std::max(strlen(buf), (unsigned long) 0));
-            int version = atoi(versionString.data());
-            fclose(fp);
-            if (version < cache_version) {
+        // Open the file
+        int fd = open(icon_cache_path.c_str(), O_RDONLY);
+        if (fd == -1) {
+            fprintf(stderr, "Error opening file");
+            return;
+        }
+
+        off_t fileSize = cache_stat.st_size;
+
+        // Map the file into memory
+        char *icon_cache_data = (char *) mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
+        if (icon_cache_data == MAP_FAILED) {
+            fprintf(stderr, "Error mapping file");
+            close(fd);
+            return;
+        }
+
+        std::string versionString = std::string(icon_cache_data);
+        int version = atoi(versionString.data());
+        if (version < cache_version) {
+            if (first_time_load_data) {
+                munmap(icon_cache_data, fileSize);
+                close(fd);
+                first_time_load_data = false;
                 generate_data();
                 save_data();
+                load_data();
+                first_time_load_data = true;
             }
-        }
-        
-        load_file_into_memory(icon_cache_path.data(), &icon_cache_data);
-        if (!icon_cache_data)
             return;
-        
+        }
+
         unsigned long index_into_file = 0;
         char buffer[NAME_MAX];
         long len;
@@ -354,7 +369,12 @@ void load_data() {
         
         // Version
         READ_STRING(version_number)
-        
+
+        unsigned long size_of_pre_allocated_string_buffer = READ_NUM(unsigned long);
+        name_buffer = new char[size_of_pre_allocated_string_buffer];
+        unsigned long size_of_pre_allocated_options_buffer = READ_NUM(unsigned long);
+        option_buffer = new char[size_of_pre_allocated_options_buffer];
+
         READ_STRING(amountOfParentsString)
         int amountOfParents = std::stoi(amountOfParentsString);
         for (int i = 0; i < amountOfParents; ++i) {
@@ -371,25 +391,36 @@ void load_data() {
         
         READ_STRING(optionsSizeString)
         int optionsSize = std::stoi(optionsSizeString);
+
+        ranges.reserve(optionsSize);
+        unsigned long names_buffer_index = 0;
+        unsigned long option_data_index = 0;
         for (int i = 0; i < optionsSize; ++i) {
-            READ_STRING(name)
-            std::vector<Option> *options = &data->options[name];
-            
+            strcpy(buffer, icon_cache_data + index_into_file);
+            len = strlen(buffer);
+            strncpy(name_buffer + names_buffer_index, icon_cache_data + index_into_file, len);
+            index_into_file += len + 1;
+            std::string name = std::string(buffer, std::max(len, (long) 0));
+
             auto optionSize = READ_NUM(unsigned short int);
+            auto view = std::string_view(name_buffer + names_buffer_index, len);
+            names_buffer_index += len;
+            ranges[view] = {option_data_index, (unsigned long) optionSize * 3};
+
             for (int j = 0; j < optionSize; ++j) {
-                auto parentIndexAndExtension = READ_NUM(unsigned short int);
-                auto theme = READ_NUM(unsigned char);
-                
-                Option opt = {};
-                opt.parentIndexAndExtension = parentIndexAndExtension;
-                opt.themeIndex = theme;
-                
-                options->push_back(opt);
+                std::memcpy(option_buffer + option_data_index, icon_cache_data + index_into_file,
+                            sizeof(unsigned short int));
+                std::memcpy(option_buffer + option_data_index + sizeof(unsigned short int),
+                            icon_cache_data + index_into_file + sizeof(unsigned short int),
+                            sizeof(unsigned char));
+                index_into_file += sizeof(unsigned short int) + sizeof(unsigned char);
+                option_data_index += sizeof(unsigned short int) + sizeof(unsigned char);
             }
         }
+
+        munmap(icon_cache_data, fileSize);
+        close(fd);
     }
-    
-    free(icon_cache_data);
 }
 
 
@@ -584,16 +615,25 @@ void search_icons(std::vector<IconTarget> &targets) {
     
     for (int i = 0; i < targets.size(); ++i) {
         auto target = targets[i];
-        auto options = data->options[target.name.c_str()];
-        
+
+        Range range = ranges[target.name.c_str()];
+        if (range.start == -1) // There was nothing with that name
+            continue;
+
         std::vector<Candidate> candidates;
-        for (const auto &item: options) {
+        for (int j = 0; j < (range.length / 3); ++j) {
+            unsigned long actual_index = range.start + j * 3;
+            unsigned short int parentIndexAndExtension = 0;
+            std::memcpy(&parentIndexAndExtension, option_buffer + actual_index, sizeof(unsigned short int));
+            unsigned char themeIndex = 0;
+            std::memcpy(&themeIndex, option_buffer + actual_index + sizeof(unsigned short int), sizeof(unsigned char));
+
             Candidate candidate;
-            candidate.parent_path = data->parentPaths[getParentIndex(item.parentIndexAndExtension)];
+            candidate.parent_path = data->parentPaths[getParentIndex(parentIndexAndExtension)];
             candidate.filename = target.name;
-            candidate.theme = data->themes[item.themeIndex];
-            candidate.extension = getExtension(item.parentIndexAndExtension);
-            
+            candidate.theme = data->themes[themeIndex];
+            candidate.extension = getExtension(parentIndexAndExtension);
+
             unsigned long startIndex = candidate.parent_path.find(candidate.theme);
             if (startIndex == std::string::npos)
                 startIndex = 0;
@@ -840,6 +880,9 @@ void unload_icons() {
         data->options.clear();
         delete data;
         data = nullptr;
+        free(name_buffer);
+        free(option_buffer);
+        ranges.clear();
     }
     
     icon_search_paths.clear();
@@ -1000,5 +1043,5 @@ c3ic_fix_wm_class(const std::string &given_wm_class) {
 }
 
 bool has_options(const std::string &name) {
-    return !data->options[name.c_str()].empty();
+    return ranges[name.c_str()].start != -1;
 }
