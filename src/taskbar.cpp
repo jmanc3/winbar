@@ -246,29 +246,44 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
 
     static bool already_expanded = false;
     static long start_time = 0;
+    static int previous_volume_width = 0;
 
     if (container->state.mouse_hovering || container->state.mouse_pressing || container->state.mouse_dragging) {
-        if (!already_expanded) {
-            start_time = get_current_time_in_ms();
-            already_expanded = true;
-            client_create_animation(app, client, &container->wanted_bounds.w, 0, 150.0f, nullptr,
-                                    (config->dpi * 24) + (volume_icon_width + 10 * config->dpi), true);
-        }
+        std::string text = std::to_string(val) + "%";
         // Draw percentage when hovered
         PangoLayout *percentage =
                 get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-        std::string text = std::to_string(val) + "%";
         pango_layout_set_text(percentage, text.c_str(), text.size());
 
         int width;
+        bool resize = false;
         pango_layout_get_pixel_size(percentage, &width, &height);
+        if (previous_volume_width != width) {
+            already_expanded = false;
+            previous_volume_width = width;
+            resize = true;
+        }
+
+        float speed = 110.0f;
+        if (!already_expanded) {
+            if (resize) {
+                speed = 40.0f;
+            } else {
+                start_time = get_current_time_in_ms();
+            }
+
+            already_expanded = true;
+            client_create_animation(app, client, &container->wanted_bounds.w, 0, speed, nullptr,
+                                    (config->dpi * 24) + (width + 7 * config->dpi), true);
+        }
+
         ArgbColor color = config->color_taskbar_button_icons;
-        color.a = (get_current_time_in_ms() - start_time) / 100.0f;
+        color.a = (get_current_time_in_ms() - start_time) / speed;
         if (color.a > 1)
             color.a = 1;
         set_argb(cr, color);
         cairo_move_to(cr,
-                      (int) (container->real_bounds.x + 4 * config->dpi),
+                      (int) (container->real_bounds.x + 5 * config->dpi),
                       (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
         pango_cairo_show_layout(cr, percentage);
     } else {
@@ -2196,14 +2211,9 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
 
     static bool already_expanded = false;
     static long start_time = 0;
+    static int previous_volume_width = 0;
 
     if (container->state.mouse_hovering || container->state.mouse_pressing || container->state.mouse_dragging) {
-        if (!already_expanded) {
-            start_time = get_current_time_in_ms();
-            already_expanded = true;
-            client_create_animation(app, client_entity, &container->wanted_bounds.w, 0, 150.0f, nullptr,
-                                    (config->dpi * 24) + (battery_icon_width + 10 * config->dpi), true);
-        }
         // Draw percentage when hovered
         PangoLayout *percentage =
                 get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -2212,8 +2222,31 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
 
         int width;
         pango_layout_get_pixel_size(percentage, &width, &height);
+
+        bool resize = false;
+        pango_layout_get_pixel_size(percentage, &width, &height);
+        if (previous_volume_width != width) {
+            already_expanded = false;
+            previous_volume_width = width;
+            resize = true;
+        }
+
+
+        float speed = 110.0f;
+        if (!already_expanded) {
+            if (resize) {
+                speed = 40.0f;
+            } else {
+                start_time = get_current_time_in_ms();
+            }
+
+            already_expanded = true;
+            client_create_animation(app, client_entity, &container->wanted_bounds.w, 0, speed, nullptr,
+                                    (config->dpi * 24) + (width + 7 * config->dpi), true);
+        }
+
         ArgbColor color = config->color_taskbar_button_icons;
-        color.a = (get_current_time_in_ms() - start_time) / 100.0f;
+        color.a = (get_current_time_in_ms() - start_time) / speed;
         if (color.a > 1)
             color.a = 1;
         set_argb(cr, color);
