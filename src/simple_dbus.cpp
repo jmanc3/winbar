@@ -900,11 +900,11 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
                     dbus_message_iter_get_basic(&el, &value);
                     dbus_message_iter_next(&el);
                     
-//                    printf("Action: %s, %s\n", key, value);
-                    
                     NotificationAction notification_action;
                     notification_action.id = key;
-                    if (strlen(value) == 0) {
+                    std::string v(value);
+                    bool only_whitespace = std::all_of(v.begin(), v.end(), isspace);
+                    if (!only_whitespace) {
                         notification_action.label = value;                  
                     } else {
                         notification_action.label = "Default Action";

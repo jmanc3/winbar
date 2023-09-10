@@ -206,17 +206,18 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    int width;
+
+    int volume_icon_width;
     int height;
     pango_layout_set_text(layout, "\uEBC5", strlen("\uE83F"));
-    pango_layout_get_pixel_size(layout, &width, &height);
-    
+    pango_layout_get_pixel_size(layout, &volume_icon_width, &height);
+
     if (!mute_state) {
         ArgbColor volume_bars_color = ArgbColor(.4, .4, .4, 1);
         set_argb(cr, volume_bars_color);
         cairo_move_to(cr,
-                      (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                      (int) (container->real_bounds.x + (container->real_bounds.w - 12 * config->dpi) -
+                             volume_icon_width / 2),
                       (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
         pango_cairo_show_layout(cr, layout);
     }
@@ -233,14 +234,50 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     } else {
         pango_layout_set_text(layout, "\uE995", strlen("\uE83F"));
     }
-    
-    pango_layout_get_pixel_size(layout, &width, &height);
-    
+
+    pango_layout_get_pixel_size(layout, &volume_icon_width, &height);
+
     set_argb(cr, config->color_taskbar_button_icons);
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.x + (container->real_bounds.w - 12 * config->dpi) -
+                         volume_icon_width / 2),
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
+
+    static bool already_expanded = false;
+    static long start_time = 0;
+
+    if (container->state.mouse_hovering || container->state.mouse_pressing || container->state.mouse_dragging) {
+        if (!already_expanded) {
+            start_time = get_current_time_in_ms();
+            already_expanded = true;
+            client_create_animation(app, client, &container->wanted_bounds.w, 0, 150.0f, nullptr,
+                                    (config->dpi * 24) + (volume_icon_width + 10 * config->dpi), true);
+        }
+        // Draw percentage when hovered
+        PangoLayout *percentage =
+                get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        std::string text = std::to_string(val) + "%";
+        pango_layout_set_text(percentage, text.c_str(), text.size());
+
+        int width;
+        pango_layout_get_pixel_size(percentage, &width, &height);
+        ArgbColor color = config->color_taskbar_button_icons;
+        color.a = (get_current_time_in_ms() - start_time) / 100.0f;
+        if (color.a > 1)
+            color.a = 1;
+        set_argb(cr, color);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + 4 * config->dpi),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, percentage);
+    } else {
+        if (already_expanded) {
+            already_expanded = false;
+            client_create_animation(app, client, &container->wanted_bounds.w, 0, 100.0f, nullptr, 24 * config->dpi,
+                                    true);
+        }
+    }
 }
 
 static void
@@ -943,7 +980,7 @@ return_current_time_and_date() {
     auto in_time_t = std::chrono::system_clock::to_time_t(now);
     
     std::stringstream ss;
-    ss << std::put_time(std::localtime(&in_time_t), "%I:%M %p");
+    ss << std::put_time(std::localtime(&in_time_t), "%I:%M %p — %A");
     if (config->date_single_line) {
         ss << ' ';
     } else {
@@ -951,8 +988,8 @@ return_current_time_and_date() {
     }
     
     std::stringstream month;
-    month << std::put_time(std::localtime(&in_time_t), "%m");
-    
+    month << std::put_time(std::localtime(&in_time_t), "%B, %m");
+
     std::string real_month;
     if (month.str().at(0) == '0') {
         real_month = month.str().erase(0, 1);
@@ -2146,16 +2183,51 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
 //        surface = data->normal_surfaces[data->capacity_index];
         pango_layout_set_text(layout, regular[data->capacity_index].c_str(), strlen("\uE83F"));
     }
-    
-    int width;
+    int battery_icon_width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
-    
+    pango_layout_get_pixel_size(layout, &battery_icon_width, &height);
+
     set_argb(cr, config->color_taskbar_button_icons);
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  (int) (container->real_bounds.x + (container->real_bounds.w - 12 * config->dpi) -
+                         battery_icon_width / 2),
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
+
+    static bool already_expanded = false;
+    static long start_time = 0;
+
+    if (container->state.mouse_hovering || container->state.mouse_pressing || container->state.mouse_dragging) {
+        if (!already_expanded) {
+            start_time = get_current_time_in_ms();
+            already_expanded = true;
+            client_create_animation(app, client_entity, &container->wanted_bounds.w, 0, 150.0f, nullptr,
+                                    (config->dpi * 24) + (battery_icon_width + 10 * config->dpi), true);
+        }
+        // Draw percentage when hovered
+        PangoLayout *percentage =
+                get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        std::string text = data->capacity + "%";
+        pango_layout_set_text(percentage, text.c_str(), text.size());
+
+        int width;
+        pango_layout_get_pixel_size(percentage, &width, &height);
+        ArgbColor color = config->color_taskbar_button_icons;
+        color.a = (get_current_time_in_ms() - start_time) / 100.0f;
+        if (color.a > 1)
+            color.a = 1;
+        set_argb(cr, color);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + 4 * config->dpi),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, percentage);
+    } else {
+        if (already_expanded) {
+            already_expanded = false;
+            client_create_animation(app, client_entity, &container->wanted_bounds.w, 0, 100.0f, nullptr,
+                                    24 * config->dpi, true);
+        }
+    }
 }
 
 static void invalidate_icon_button_press_if_window_open(AppClient *client, cairo_t *cr, Container *container) {
@@ -2183,7 +2255,7 @@ make_battery_button(Container *parent, AppClient *client_entity) {
     c->name = "battery";
     
     auto *data = new BatteryInfo;
-    data->invalidate_button_press_if_client_with_this_name_is_open = "app_menu";
+    data->invalidate_button_press_if_client_with_this_name_is_open = "battery_menu";
     c->when_mouse_down = invalidate_icon_button_press_if_window_open;
     c->when_mouse_leaves_container = mouse_leaves_battery;
     c->when_fine_scrolled = scrolled_battery;
@@ -2195,7 +2267,7 @@ make_battery_button(Container *parent, AppClient *client_entity) {
         if (getline(capacity, line)) {
             if (line != "UPS") {
                 parent->children.push_back(c);
-                app_timeout_create(app, client_entity, 7000, update_battery_status_timeout, data,
+                app_timeout_create(app, client_entity, 15000, update_battery_status_timeout, data,
                                    const_cast<char *>(__PRETTY_FUNCTION__));
                 update_battery_status_timeout(app, client_entity, nullptr, data);
                 

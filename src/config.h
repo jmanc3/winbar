@@ -19,6 +19,8 @@ struct Config {
     float dpi = 1;
     
     std::string font = "Segoe UI Variable Mod";
+
+    bool pinned_icon_shortcut = true;
     
     std::string open_pinned_icon_editor = "WHEN_ANY_FIELD_EMPTY";
     

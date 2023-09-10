@@ -54,6 +54,8 @@ void config_load() {
     success = cfg.lookupValue("dpi", config->dpi);
     
     success = cfg.lookupValue("font", config->font);
+
+    success = cfg.lookupValue("pinned_icon_shortcut", config->pinned_icon_shortcut);
     
     success = cfg.lookupValue("open_pinned_icon_editor", config->open_pinned_icon_editor);
     

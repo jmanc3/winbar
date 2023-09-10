@@ -10,6 +10,7 @@
 #include "utility.h"
 #include "dpi.h"
 #include "defer.h"
+#include "../src/config.h"
 #include "../src/root.h"
 
 #include <algorithm>
@@ -471,7 +472,9 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
             
             if (clean && (press->detail >= 10 && press->detail <= 19)) {
                 num = true;
-                meta_pressed(press->detail);
+                if (config->pinned_icon_shortcut) {
+                    meta_pressed(press->detail);
+                }
             }
             num = false;
             clean = keysym == XK_Super_L || keysym == XK_Super_R;
