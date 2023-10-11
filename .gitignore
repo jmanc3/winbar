@@ -1,0 +1,14 @@
+.*
+*.sh
+out/*
+cmake*/
+build/*
+release/*
+tracy/*
+tracy*
+*.4coder
+winbar/
+todo*
+.ccls-cache
+.cache
+compile_commands.json
