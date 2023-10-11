@@ -429,7 +429,7 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     targets.emplace_back(subtitle_text);
     search_icons(targets);
     int icon_size = 48 * config->dpi;
-    pick_best(targets, icon_size);
+    pick_best(targets, icon_size, IconContext::Statuses);
     notification_info->icon_path = targets[0].best_full_path;
     if (notification_info->icon_path.empty()) {
         if (!subtitle_text.empty()) {

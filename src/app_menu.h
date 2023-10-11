@@ -11,6 +11,7 @@
 
 class Launcher : public Sortable {
 public:
+    std::string full_path;
     std::string icon;
     std::string exec;
     std::string wmclass;

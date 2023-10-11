@@ -633,7 +633,32 @@ void search_icons(std::vector<IconTarget> &targets) {
             candidate.filename = target.name;
             candidate.theme = data->themes[themeIndex];
             candidate.extension = getExtension(parentIndexAndExtension);
+            candidate.context = IconContext::NotSet;
+            // The following is to set the icon 'context' based on the parent_path
+            struct ICMap {
+                std::string name;
+                IconContext context;
+            };
+            std::vector<ICMap> ics = {{"/actions",    IconContext::Actions},
+                                      {"/animations", IconContext::Animations},
+                                      {"/apps",       IconContext::Apps},
+                                      {"/categories", IconContext::Categories},
+                                      {"/devices",    IconContext::Devices},
+                                      {"/emblems",    IconContext::Emblems},
+                                      {"/emotes",     IconContext::Emotes},
+                                      {"/intl",       IconContext::Intl},
+                                      {"/mimetypes",  IconContext::Mimetypes},
+                                      {"/places",     IconContext::Places},
+                                      {"/status",     IconContext::Statuses},
+                                      {"/panel",      IconContext::Panel}};
+            std::string path_copy = candidate.parent_path;
+            for (char &t: path_copy)
+                t = std::tolower(t);
+            for (const auto &item: ics)
+                if (path_copy.find(item.name) != std::string::npos)
+                    candidate.context = item.context;
 
+            // The following is to determine the size and scale of the icon based on the parent path
             unsigned long startIndex = candidate.parent_path.find(candidate.theme);
             if (startIndex == std::string::npos)
                 startIndex = 0;
@@ -767,7 +792,12 @@ static void c3ic_generate_sizes(int target_size, std::vector<int> &target_sizes)
     });
 }
 
+// We should get rid of this function and be more specific at the calls sites with what they need
 void pick_best(std::vector<IconTarget> &targets, int target_size) {
+    pick_best(targets, target_size, IconContext::Apps);
+}
+
+void pick_best(std::vector<IconTarget> &targets, int target_size, IconContext target_context) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -783,20 +813,27 @@ void pick_best(std::vector<IconTarget> &targets, int target_size) {
             for (int i = 0; i < target->candidates.size(); i++) {
                 Candidate *candidate = &target->candidates[i];
                 candidate->is_part_of_current_theme = current_theme == candidate->theme;
+                candidate->is_part_of_target_context = candidate->context == target_context;
+                if (candidate->context == IconContext::NotSet)
+                    candidate->is_part_of_target_context = false;
             }
             // Sort vector based on quality and size, and current theme
             // Set best_full_path equal to best top option
             std::sort(target->candidates.begin(), target->candidates.end(),
                       [current_theme](Candidate lhs, Candidate rhs) {
                           if (lhs.is_part_of_current_theme == rhs.is_part_of_current_theme) {
-                              if (lhs.size_index == rhs.size_index) {
-                                  if (lhs.extension == rhs.extension) {
-                                      return lhs.scale < rhs.scale;
+                              if (lhs.is_part_of_target_context == rhs.is_part_of_target_context) {
+                                  if (lhs.size_index == rhs.size_index) {
+                                      if (lhs.extension == rhs.extension) {
+                                          return lhs.scale < rhs.scale;
+                                      } else {
+                                          return lhs.extension < rhs.extension;
+                                      }
                                   } else {
-                                      return lhs.extension < rhs.extension;
+                                      return lhs.size_index < rhs.size_index;
                                   }
                               } else {
-                                  return lhs.size_index < rhs.size_index;
+                                  return lhs.is_part_of_target_context > rhs.is_part_of_target_context;
                               }
                           }
                           return lhs.is_part_of_current_theme > rhs.is_part_of_current_theme;

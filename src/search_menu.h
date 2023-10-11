@@ -15,6 +15,7 @@ public:
     std::string lowercase_name;
     int priority = -1;
     int historical_ranking = -1;
+    std::string full_path;
 };
 
 extern std::string active_tab;

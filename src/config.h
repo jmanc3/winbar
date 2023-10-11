@@ -21,6 +21,8 @@ struct Config {
     std::string font = "Segoe UI Variable Mod";
 
     bool pinned_icon_shortcut = true;
+
+    bool battery_life_extender = false;
     
     std::string open_pinned_icon_editor = "WHEN_ANY_FIELD_EMPTY";
     

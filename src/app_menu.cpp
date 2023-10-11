@@ -198,6 +198,8 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
             pango_layout_set_text(icon_layout, "\uE777", strlen("\uE83F"));
         } else if (data->text == "Reload") {
             pango_layout_set_text(icon_layout, "\uE117", strlen("\uE83F"));
+        } else if (data->text == "Open file location") {
+            pango_layout_set_text(icon_layout, "\uED43", strlen("\uE83F"));
         }
     
         set_argb(cr, config->color_apps_icons);
@@ -865,17 +867,33 @@ clicked_reload(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+clicked_open_in_folder(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *data = (ButtonData *) container->user_data;
+    dbus_open_in_folder(data->full_path);
+    if (auto *c = client_by_name(app, "app_menu"))
+        client_close_threaded(app, c);
+    client_close_threaded(app, client);
+}
+
+static void
 right_clicked_application(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    auto *data = (ItemData *) container->user_data;
+
+    int options_count = 1;
+    int pad = 1 * config->dpi;
     Settings settings;
     settings.force_position = true;
     settings.w = 256 * config->dpi;
-    settings.h = ((48 * 1) * config->dpi) + (config->dpi * 3);
+    settings.h = ((36 * options_count) * config->dpi) + (config->dpi * (options_count - 1)) + (pad * 2);
     // TODO: get mouse position
-    settings.x = client->mouse_current_x;
-    settings.y = client->mouse_current_y;
+    settings.x = client->mouse_current_x + client->bounds->x;
+    settings.y = client->mouse_current_y + client->bounds->y;
     settings.skip_taskbar = true;
     settings.decorations = false;
     settings.override_redirect = true;
@@ -896,44 +914,18 @@ right_clicked_application(AppClient *client, cairo_t *cr, Container *container) 
         popup->root->when_paint = paint_power_menu;
         popup->root->type = vbox;
         popup->root->spacing = 1;
-        popup->root->wanted_pad.y = 8 * config->dpi;
-        popup->root->wanted_pad.h = 8 * config->dpi;
-    
+        popup->root->wanted_pad.y = pad;
+        popup->root->wanted_pad.h = pad;
+
         auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
-        l->when_clicked = clicked_logoff;
+        l->when_clicked = clicked_open_in_folder;
         l->when_paint = paint_button;
         auto *l_data = new ButtonData;
-        l_data->text = "Sign Out";
+        if (data->launcher)
+            l_data->full_path = data->launcher->full_path;
+        l_data->text = "Open file location";
         l->user_data = l_data;
-    
-        auto b = popup->root->child(FILL_SPACE, FILL_SPACE);
-        b->when_clicked = clicked_shut_down;
-        b->when_paint = paint_button;
-        auto *b_data = new ButtonData;
-        b_data->text = "Shut Down";
-        b->user_data = b_data;
-        
-        auto c = popup->root->child(FILL_SPACE, FILL_SPACE);
-        c->when_clicked = clicked_restart;
-        c->when_paint = paint_button;
-        auto *c_data = new ButtonData;
-        c_data->text = "Restart";
-        c->user_data = c_data;
-        
-        auto d = popup->root->child(FILL_SPACE, FILL_SPACE);
-        d->when_clicked = clicked_reload;
-        d->when_paint = paint_button;
-        auto *d_data = new ButtonData;
-        d_data->text = "Reload";
-        d->user_data = d_data;
-        
-        auto a = popup->root->child(FILL_SPACE, FILL_SPACE);
-        a->when_clicked = clicked_off;
-        a->when_paint = paint_button;
-        auto *a_data = new ButtonData;
-        a_data->text = "Off";
-        a->user_data = a_data;
-        
+
         popup->when_closed = sub_menu_closed;
         
         client_show(app, popup);
@@ -1569,6 +1561,7 @@ void load_desktop_files(std::string directory) {
                 name = exec;
             
             auto *launcher = new Launcher();
+            launcher->full_path = path;
             launcher->name = name;
             launcher->lowercase_name = launcher->name;
             std::transform(launcher->lowercase_name.begin(),

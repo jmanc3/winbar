@@ -57,6 +57,8 @@ void dbus_computer_shut_down();
 
 void dbus_computer_restart();
 
+void dbus_open_in_folder(std::string path);
+
 void register_agent_if_needed();
 
 void unregister_agent_if_needed();

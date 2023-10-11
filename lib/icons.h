@@ -18,6 +18,23 @@ void set_icons_path_and_possibly_update(App *app);
 // Remove all icons from memory
 void unload_icons();
 
+enum IconContext {
+    Actions,
+    Animations,
+    Apps,
+    Categories,
+    Devices,
+    Emblems,
+    Emotes,
+    Intl,
+    Mimetypes,
+    Places,
+    Statuses,
+    Panel,
+
+    NotSet
+};
+
 struct Candidate {
     std::string parent_path;
     std::string filename;
@@ -25,7 +42,8 @@ struct Candidate {
     int extension;
     int size;
     int scale;
-    
+    IconContext context;
+
     [[nodiscard]] std::string full_path() const {
         std::string temp = std::string(parent_path).append("/").append(filename);
         if (extension == 0) {
@@ -42,6 +60,7 @@ struct Candidate {
     
     int size_index = 10;
     bool is_part_of_current_theme = false;
+    bool is_part_of_target_context = false;
 };
 
 struct IconTarget {
@@ -60,6 +79,8 @@ struct IconTarget {
 void search_icons(std::vector<IconTarget> &targets);
 
 void pick_best(std::vector<IconTarget> &targets, int size);
+
+void pick_best(std::vector<IconTarget> &targets, int size, IconContext target_context);
 
 bool has_options(const std::string &name);
 

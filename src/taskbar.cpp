@@ -2188,7 +2188,24 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     
     std::string charging[] = {"\uE683", "\uE684", "\uE685", "\uE686", "\uE687", "\uE688", "\uE689", "\uE68A", "\uE68B",
                               "\uE68C", "\uE68D"};
-    
+
+    if (config->battery_life_extender) {
+        static bool full_warning = false;
+        if (std::stoi(data->capacity) >= 80 && !full_warning) {
+            full_warning = true;
+            launch_command("notify-send \"Battery Full\" \"Unplug charger\" -a \"Winbar\" -i battery-full-charged");
+        } else if (std::stoi(data->capacity) < 75) {
+            full_warning = false;
+        }
+        static bool low_warning = false;
+        if (std::stoi(data->capacity) <= 25 && !low_warning) {
+            low_warning = true;
+            launch_command("notify-send \"Battery Low\" \"Plug-in charger\" -a \"Winbar\" -i battery-empty");
+        } else if (std::stoi(data->capacity) > 30) {
+            low_warning = false;
+        }
+    }
+
     if (data->status == "Full") {
         pango_layout_set_text(layout, regular[10].c_str(), strlen("\uE83F"));
     } else if (data->status == "Charging") {

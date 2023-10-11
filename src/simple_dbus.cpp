@@ -1352,6 +1352,35 @@ void dbus_computer_restart() {
     }
 }
 
+void dbus_open_in_folder(std::string path) {
+    if (path.empty()) return;
+    if (!dbus_connection_session) return;
+
+    DBusMessage *dbus_msg = dbus_message_new_method_call("org.freedesktop.FileManager1",
+                                                         "/org/freedesktop/FileManager1",
+                                                         "org.freedesktop.FileManager1",
+                                                         "ShowItems");
+    defer(dbus_message_unref(dbus_msg));
+
+    DBusMessageIter iter;
+    dbus_message_iter_init_append(dbus_msg, &iter);
+
+    DBusMessageIter array_iter;
+    dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "s", &array_iter);
+
+    dbus_message_iter_append_basic(&array_iter, DBUS_TYPE_STRING, &path);
+
+    dbus_message_iter_close_container(&iter, &array_iter);
+
+    const char *id = "";
+    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_STRING, &id, DBUS_TYPE_INVALID)) {
+        fprintf(stderr, "%s\n", "In \"dbus_open_in_folder\" couldn't append an argument to the DBus message.");
+        return;
+    }
+
+    dbus_connection_send(dbus_connection_session, dbus_msg, NULL);
+}
+
 /*************************************************
  *
  * Talking with org.bluez
@@ -1406,34 +1435,6 @@ bool become_default_bluetooth_agent() {
     }
     defer(dbus_message_unref(reply));
     return true;
-}
-
-#include <sys/select.h>
-#include <unistd.h>
-#include <cerrno>
-#include <atomic>
-
-ssize_t read_with_timeout(int fd, void *buf, size_t count, int timeout_ms) {
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(fd, &readfds);
-    
-    struct timeval timeout;
-    timeout.tv_sec = timeout_ms / 1000;
-    timeout.tv_usec = (timeout_ms % 1000) * 1000;
-    
-    int ret = select(fd + 1, &readfds, NULL, NULL, &timeout);
-    if (ret == -1) {
-        // select failed
-        return -1;
-    } else if (ret == 0) {
-        // timeout occurred
-        errno = ETIMEDOUT;
-        return -1;
-    } else {
-        // pipe is readable, perform the read
-        return read(fd, buf, count);
-    }
 }
 
 DBusHandlerResult bluetooth_agent_message(DBusConnection *conn, DBusMessage *message, void *user_data) {

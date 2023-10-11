@@ -134,6 +134,7 @@ public:
 class ButtonData : public IconButton {
 public:
     std::string text;
+    std::string full_path;
 };
 
 Container *

@@ -18,6 +18,7 @@
 #include "taskbar.h"
 #include "globals.h"
 #include "defer.h"
+#include "simple_dbus.h"
 
 #include <algorithm>
 #include <fstream>
@@ -694,7 +695,7 @@ paint_spacer(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
-paint_open(AppClient *client, cairo_t *cr, Container *container) {
+paint_sub_option(AppClient *client, cairo_t *cr, Container *container, std::string text, std::string icon) {
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
             set_argb(cr, config->color_search_content_right_button_pressed);
@@ -709,8 +710,7 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
     
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    std::string text("Open");
+
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), text.size());
@@ -727,8 +727,8 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(icon_layout, "\uE8A7", strlen("\uE83F"));
-    
+    pango_layout_set_text(icon_layout, icon.c_str(), strlen("\uE83F"));
+
     set_argb(cr, config->color_search_accent);
     
     pango_layout_get_pixel_size(icon_layout, &width, &height);
@@ -738,6 +738,21 @@ paint_open(AppClient *client, cairo_t *cr, Container *container) {
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 -
                          ((16 / 2) * config->dpi)));
     pango_cairo_show_layout(cr, icon_layout);
+}
+
+static void
+paint_open(AppClient *client, cairo_t *cr, Container *container) {
+    paint_sub_option(client, cr, container, "Open", "\uE8A7");
+}
+
+static void
+paint_run(AppClient *client, cairo_t *cr, Container *container) {
+    paint_sub_option(client, cr, container, "Run", "\uE8A7");
+}
+
+static void
+paint_open_in_folder(AppClient *client, cairo_t *cr, Container *container) {
+    paint_sub_option(client, cr, container, "Open file location", "\uED43");
 }
 
 static void
@@ -824,6 +839,12 @@ launch_active_item() {
 static void
 clicked_open(AppClient *client, cairo_t *cr, Container *container) {
     launch_active_item();
+}
+
+static void
+clicked_open_in_folder(AppClient *client, cairo_t *cr, Container *container) {
+    auto *data = (SearchItemData *) container->parent->user_data;
+    dbus_open_in_folder(data->sortable->full_path);
 }
 
 static void
@@ -1218,7 +1239,7 @@ void sort_and_add(std::vector<T> *sortables,
             right_fg->child(FILL_SPACE, 12 * config->dpi);
             
             Container *open = right_fg->child(FILL_SPACE, 32 * config->dpi);
-            open->when_paint = paint_open;
+            open->when_paint = paint_run;
             open->when_clicked = clicked_open;
             
             right_fg->child(FILL_SPACE, 12 * config->dpi);
@@ -1252,6 +1273,7 @@ void sort_and_add(std::vector<T> *sortables,
             if (i == active_item) {
                 auto *right_data = new SearchItemData;
                 right_data->sortable = sorted[i];
+                right_data->sortable->full_path = sorted[i]->full_path;
                 right_data->user_data = sorted[i];
                 right_data->item_number = i;
                 right_fg->user_data = right_data;
@@ -1268,7 +1290,11 @@ void sort_and_add(std::vector<T> *sortables,
                 Container *open = right_fg->child(FILL_SPACE, 32 * config->dpi);
                 open->when_paint = paint_open;
                 open->when_clicked = clicked_open;
-                
+
+                Container *open_in_folder = right_fg->child(FILL_SPACE, 32 * config->dpi);
+                open_in_folder->when_paint = paint_open_in_folder;
+                open_in_folder->when_clicked = clicked_open_in_folder;
+
                 right_fg->child(FILL_SPACE, 12 * config->dpi);
             } else {
                 Container *right_item = hbox->child(49 * config->dpi, FILL_SPACE);
@@ -1280,6 +1306,7 @@ void sort_and_add(std::vector<T> *sortables,
             item->when_clicked = clicked_item;
             auto *data = new SearchItemData;
             data->sortable = sorted[i];
+            data->sortable->full_path = sorted[i]->full_path;
             data->user_data = sorted[i];
             data->item_number = i;
             hbox->user_data = data;
@@ -1659,6 +1686,8 @@ void load_scripts() {
                                            script->lowercase_name.begin(),
                                            ::tolower);
 
+                            script->full_path = path;
+                            script->full_path += "/" + name;
                             script->path = path;
                             if (!script->path.empty()) {
                                 if (script->path[script->path.length() - 1] == '/' ||
