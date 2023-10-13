@@ -2234,7 +2234,15 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
         // Draw percentage when hovered
         PangoLayout *percentage =
                 get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-        std::string text = data->capacity + "%";
+        std::string status;
+        if (data->status == "Charging") {
+            status = "+";
+        } else if (data->status != "Full") {
+            status = "-";
+        } else {
+            status = "=";
+        }
+        std::string text = status + data->capacity + "%";
         pango_layout_set_text(percentage, text.c_str(), text.size());
 
         int width;
