@@ -35,6 +35,16 @@ public:
     Launcher *launcher = nullptr;
 };
 
+struct RightClickMenuData : public UserData {
+    Timeout *tooltip_timeout = nullptr;
+    bool inside = false;
+    std::string path;
+};
+
+struct TooltipMenuData : public UserData {
+    std::string path;
+};
+
 // the scrollbar should only open if the mouse is in the scrollbar
 static double scrollbar_openess = 0;
 // the scrollbar should only be visible if the mouse is in the container
@@ -50,6 +60,28 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
     set_argb(cr, correct_opaqueness(client, config->color_apps_background));
     cairo_fill(cr);
+}
+
+static void
+paint_tooltip(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *data = (TooltipMenuData *) client->user_data;
+    paint_root(client, cr, container);
+    PangoLayout *layout =
+            get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    set_argb(cr, config->color_apps_text);
+    pango_layout_set_text(layout, data->path.c_str(), data->path.length());
+    
+    int width, height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    int text_x = (int) (6 * config->dpi);
+    int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+    cairo_move_to(cr, text_x, text_y);
+    
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -789,6 +821,8 @@ sub_menu_closed(AppClient *client) {
     if (auto client = client_by_name(app, "app_menu")) {
         left_close(client, client->cr, container_by_name("left_buttons", client->root));
     }
+    if (auto c = client_by_name(app, "tooltip_popup"))
+        client_close_threaded(app, c);
 }
 
 static void
@@ -879,6 +913,81 @@ clicked_open_in_folder(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+mouse_leaves_open_file_location(AppClient *right_click_client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *data = (RightClickMenuData *) right_click_client->user_data;
+    data->inside = false;
+    if (auto c = client_by_name(app, "tooltip_popup")) {
+        client_close_threaded(app, c);
+    }
+}
+
+void something_timeout(App *app, AppClient *client, Timeout *timeout, void *user_data) {
+    auto *data = (RightClickMenuData *) client->user_data;
+    data->tooltip_timeout = nullptr;
+    if (!data->inside) {
+        return;
+    }
+    
+    PangoLayout *layout = get_cached_pango_font(client->cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    pango_layout_set_text(layout, data->path.c_str(), data->path.length());
+    
+    int width, height;
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    Settings settings;
+    settings.force_position = true;
+    settings.w = width + 6 * 2 * config->dpi;
+    settings.h = height + 6 * 2 * config->dpi;
+    settings.x = client->mouse_current_x + client->bounds->x;
+    settings.y = client->bounds->y - settings.h;
+    settings.skip_taskbar = true;
+    settings.decorations = false;
+    settings.override_redirect = true;
+    settings.no_input_focus = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
+    
+    PopupSettings popup_settings;
+    popup_settings.takes_input_focus = false;
+    popup_settings.close_on_focus_out = false;
+    popup_settings.wants_grab = false;
+    
+    auto popup = client->create_popup(popup_settings, settings);
+    auto *tooltip_data = new TooltipMenuData;
+    tooltip_data->path = data->path;
+    popup->user_data = tooltip_data;
+    popup->name = "tooltip_popup";
+    popup->root->when_paint = paint_tooltip;
+    client_show(app, popup);
+}
+
+static void
+mouse_enters_open_file_location(AppClient *right_click_client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *data = (RightClickMenuData *) right_click_client->user_data;
+    data->inside = true;
+    auto *l_data = (ButtonData *) container->user_data;
+    data->path = l_data->full_path;
+    if (auto c = client_by_name(app, "tooltip_popup")) {
+        return;
+    }
+    
+    if (data->tooltip_timeout == nullptr) {
+        data->tooltip_timeout = app_timeout_create(app, right_click_client, 100, something_timeout, nullptr,
+                                                   const_cast<char *>(__PRETTY_FUNCTION__));
+    }
+}
+
+static void
 right_clicked_application(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -906,19 +1015,23 @@ right_clicked_application(AppClient *client, cairo_t *cr, Container *container) 
     
     if (auto app_menu = client_by_name(app, "app_menu")) {
         PopupSettings popup_settings;
+        popup_settings.close_on_focus_out = false;
         popup_settings.takes_input_focus = true;
         
         auto popup = app_menu->create_popup(popup_settings, settings);
-        popup->fps = 165;
+        popup->name = "right_click_popup";
         
         popup->root->when_paint = paint_power_menu;
         popup->root->type = vbox;
         popup->root->spacing = 1;
         popup->root->wanted_pad.y = pad;
         popup->root->wanted_pad.h = pad;
+        popup->user_data = new RightClickMenuData;
 
         auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
         l->when_clicked = clicked_open_in_folder;
+        l->when_mouse_enters_container = mouse_enters_open_file_location;
+        l->when_mouse_leaves_container = mouse_leaves_open_file_location;
         l->when_paint = paint_button;
         auto *l_data = new ButtonData;
         if (data->launcher)
@@ -969,6 +1082,7 @@ clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
         popup_settings.takes_input_focus = true;
         
         auto popup = app_menu->create_popup(popup_settings, settings);
+        popup->name = "power_popup";
         
         popup->root->when_paint = paint_power_menu;
         popup->root->type = vbox;
@@ -1324,6 +1438,12 @@ fill_root(AppClient *client) {
 
 static void
 app_menu_closed(AppClient *client) {
+    if (auto c = client_by_name(app, "tooltip_popup"))
+        client_close_threaded(app, c);
+    if (auto c = client_by_name(app, "power_popup"))
+        client_close_threaded(app, c);
+    if (auto c = client_by_name(app, "right_click_popup"))
+        client_close_threaded(app, c);
     set_textarea_inactive();
 }
 

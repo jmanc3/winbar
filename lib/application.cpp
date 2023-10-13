@@ -1149,6 +1149,12 @@ void client_close(App *app, AppClient *client) {
     if (client->when_closed) {
         client->when_closed(client);
     }
+    
+    if (client->user_data) {
+        auto data = static_cast<UserData *>(client->user_data);
+        delete data;
+    }
+    
     int w = 0;
     if (client->popup_info.is_popup) {
         AppClient *parent_client = nullptr;

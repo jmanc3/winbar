@@ -238,6 +238,8 @@ struct Subprocess {
 struct AppClient {
     App *app = nullptr;
     
+    void *user_data = nullptr;
+    
     // Information about the screen the client is on like DPI
     ScreenInformation *screen_information = nullptr;
     
