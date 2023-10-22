@@ -386,6 +386,7 @@ void merge_order_with_taskbar() {
     container_by_name("bluetooth", taskbar->root)->exists = false;
     
     client_layout(app, taskbar);
+    client_paint(app, taskbar);
 }
 
 static void clicked_reset(AppClient *client, cairo_t *, Container *) {
