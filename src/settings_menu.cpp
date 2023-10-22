@@ -13,6 +13,12 @@
 #include "utility.h"
 #include "simple_dbus.h"
 
+#ifdef TRACY_ENABLE
+
+#include "../tracy/public/tracy/Tracy.hpp"
+
+#endif
+
 WinbarSettings *winbar_settings = new WinbarSettings;
 
 void merge_order_with_taskbar();
@@ -37,7 +43,7 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     if (label->color.a == 0) {
         set_argb(cr, config->color_pinned_icon_editor_field_default_text);
     } else {
@@ -121,7 +127,7 @@ static void paint_on_off(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
@@ -157,7 +163,7 @@ static void paint_remove(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
@@ -334,7 +340,7 @@ static void paint_centered_text(AppClient *client, cairo_t *cr, Container *conta
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     set_argb(cr, config->color_pinned_icon_editor_field_default_text);
     cairo_move_to(cr, container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
                   container->real_bounds.y + container->real_bounds.h / 2 - height / 2);

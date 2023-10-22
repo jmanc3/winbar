@@ -253,7 +253,7 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),

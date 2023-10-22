@@ -1093,6 +1093,11 @@ void desktops_change(App *app, long desktop_index) {
     xcb_flush(app->connection);
 }
 
+void paint_client_timeout(App *app, AppClient *client, Timeout *, void *) {
+    client->refresh_already_queued = false;
+    client_paint(app, client);
+}
+
 void request_refresh(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -1100,13 +1105,7 @@ void request_refresh(App *app, AppClient *client) {
     if (app == nullptr || client == nullptr || client->refresh_already_queued)
         return;
     client->refresh_already_queued = true;
-
-    std::thread t([app, client]() {
-        std::lock_guard lock(app->running_mutex);
-        client_paint(app, client);
-        client->refresh_already_queued = false;
-    });
-    t.detach();
+    app_timeout_create(app, client, 0, paint_client_timeout, nullptr, "request_refresh(app, client)");
 }
 
 void client_animation_paint(App *app, AppClient *client, Timeout *, void *user_data);

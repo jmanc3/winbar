@@ -289,7 +289,7 @@ paint_right_item(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(icon_layout, &width, &height);
+    pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
@@ -417,7 +417,7 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr, (int) (container->real_bounds.x + 56 * config->dpi),
@@ -428,7 +428,7 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
     layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     pango_layout_set_text(layout, active_tab.c_str(), active_tab.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_secondary);
     cairo_move_to(cr,
@@ -504,7 +504,7 @@ paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr, (int) (container->real_bounds.x + 56 * config->dpi),
@@ -516,7 +516,7 @@ paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
     
     std::string subtitle_text = "Run command anyways";
     pango_layout_set_text(layout, subtitle_text.c_str(), subtitle_text.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_secondary);
     cairo_move_to(cr,
@@ -544,7 +544,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, data->text.c_str(), data->text.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
@@ -578,7 +578,7 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
@@ -593,7 +593,7 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
     layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     pango_layout_set_text(layout, active_tab.data(), active_tab.length());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_secondary);
     cairo_move_to(cr,
@@ -651,7 +651,7 @@ paint_right_active_title_for_no_results(AppClient *client, cairo_t *cr, Containe
     int width;
     int height;
     pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
@@ -667,7 +667,7 @@ paint_right_active_title_for_no_results(AppClient *client, cairo_t *cr, Containe
     
     std::string subtitle_text = "Run command anyways";
     pango_layout_set_text(layout, subtitle_text.data(), subtitle_text.length());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_secondary);
     cairo_move_to(cr,
@@ -714,7 +714,7 @@ paint_sub_option(AppClient *client, cairo_t *cr, Container *container, std::stri
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), text.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
     cairo_move_to(cr,
@@ -731,7 +731,7 @@ paint_sub_option(AppClient *client, cairo_t *cr, Container *container, std::stri
 
     set_argb(cr, config->color_search_accent);
     
-    pango_layout_get_pixel_size(icon_layout, &width, &height);
+    pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + 23 * config->dpi),
@@ -931,7 +931,7 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), text.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_empty_tab_content_text);
     cairo_move_to(cr,
@@ -959,7 +959,7 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
     
                 int width;
                 int height;
-                pango_layout_get_pixel_size(icon_layout, &width, &height);
+                pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
     
                 cairo_move_to(cr,
                               (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
@@ -978,7 +978,7 @@ paint_tab(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, data->name.c_str(), data->name.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     if (data->name == active_tab) {
         set_argb(cr, config->color_search_tab_bar_active_text);
@@ -1099,7 +1099,7 @@ add_tab(AppClient *client, Container *tab_bar, std::string tab_name) {
     int width;
     int height;
     pango_layout_set_text(layout, tab_name.c_str(), tab_name.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     auto *tab = tab_bar->child((width + 12 * 2) * config->dpi, FILL_SPACE);
     auto *data = new TabData();

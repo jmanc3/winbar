@@ -151,7 +151,7 @@ void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, first_message.data(), first_message.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
@@ -165,7 +165,7 @@ void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_width(layout, (container->real_bounds.w - 20) * PANGO_SCALE);
     pango_layout_set_text(layout, second_message.data(), second_message.size());
-    pango_layout_get_pixel_size(layout, &width, &second_height);
+    pango_layout_get_pixel_size_safe(layout, &width, &second_height);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,

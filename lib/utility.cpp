@@ -202,7 +202,7 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
     ZoneScoped;
 #endif
     for (auto font: cached_fonts) {
-        if (font->name == name && font->size == pixel_height && font->weight == weight) {
+        if (font->name == name && font->size == pixel_height && font->weight == weight && font->cr == cr) {
             pango_layout_set_attributes(font->layout, nullptr);
 //            printf("returned: %p\n", font->layout);
             return font->layout;
@@ -770,5 +770,13 @@ std::string clipboard() {
                 break;
         }
     }
+}
+
+void pango_layout_get_pixel_size_safe(PangoLayout *layout, int *w, int *h) {
+    PangoRectangle ink;
+    PangoRectangle logical;
+    pango_layout_get_pixel_extents(layout, &ink, &logical);
+    *w = logical.width;
+    *h = logical.height;
 }
 

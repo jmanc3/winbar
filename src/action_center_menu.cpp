@@ -3,6 +3,7 @@
 //
 
 #include <pango/pangocairo.h>
+#include <pango/pango-layout.h>
 #include <icons.h>
 #include <dpi.h>
 #include "action_center_menu.h"
@@ -10,6 +11,7 @@
 #include "config.h"
 #include "taskbar.h"
 #include "main.h"
+#include "utility.h"
 #include "notifications.h"
 #include "components.h"
 #include "simple_dbus.h"
@@ -44,7 +46,7 @@ static void paint_prompt(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), text.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_action_center_no_new_text);
     cairo_move_to(cr,

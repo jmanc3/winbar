@@ -127,7 +127,7 @@ paint_icon(AppClient *client, cairo_t *cr, Container *container, bool dye) {
         return;
     }
     
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     cairo_save(cr);
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + (12 * config->dpi)),
@@ -146,7 +146,7 @@ paint_text(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, data->text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   container->real_bounds.x + data->text_offset,

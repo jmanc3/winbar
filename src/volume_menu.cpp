@@ -83,7 +83,7 @@ paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
         pango_layout_set_text(layout, connected_message.c_str(), -1);
         pango_layout_set_wrap(layout, PangoWrapMode::PANGO_WRAP_WORD);
         pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
-        pango_layout_get_pixel_size(layout, &width, &height);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
         
         set_argb(cr, config->color_volume_text);
         cairo_move_to(cr,
@@ -108,7 +108,7 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, "\uEBC5", strlen("\uE83F"));
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     if (!client->is_muted()) {
         ArgbColor volume_bars_color = ArgbColor(.4, .4, .4, 1);
@@ -132,7 +132,7 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
         pango_layout_set_text(layout, "\uE995", strlen("\uE83F"));
     }
     
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_taskbar_button_icons);
     cairo_move_to(cr,
@@ -159,7 +159,7 @@ paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container)
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
@@ -183,7 +183,7 @@ paint_label(AppClient *client_entity, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
     
     double icon_width = 0;
@@ -526,7 +526,7 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),

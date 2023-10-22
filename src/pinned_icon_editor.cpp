@@ -56,7 +56,7 @@ static void paint_state_label(AppClient *client, cairo_t *cr, Container *contain
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     if (width < container->real_bounds.w) {
         pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
     }
@@ -81,7 +81,7 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_pinned_icon_editor_field_default_text);
     cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y + container->real_bounds.h);
@@ -119,7 +119,7 @@ static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_pinned_icon_editor_button_text_default);
     cairo_move_to(cr, container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
@@ -173,7 +173,7 @@ static void paint_restore(AppClient *client, cairo_t *cr, Container *container) 
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     if (disabled) {
         set_argb(cr, lighten(config->color_pinned_icon_editor_button_text_default, 45));
@@ -217,7 +217,7 @@ static Container *make_button(AppClient *client, Container *parent, std::string 
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     button->user_data = new Label(std::move(text));
     button->when_paint = paint_button;

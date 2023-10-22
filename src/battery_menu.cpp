@@ -100,7 +100,7 @@ paint_battery_bar(AppClient *, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_taskbar_button_icons);
     cairo_move_to(
@@ -116,7 +116,7 @@ paint_battery_bar(AppClient *, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, text.c_str(), text.length());
     
     int charge_width, charge_height;
-    pango_layout_get_pixel_size(layout, &charge_width, &charge_height);
+    pango_layout_get_pixel_size_safe(layout, &charge_width, &charge_height);
     
     int text_x = (int) (container->real_bounds.x + 90 * config->dpi);
     int text_y =
@@ -133,7 +133,7 @@ paint_battery_bar(AppClient *, cairo_t *cr, Container *container) {
     
     int status_height;
     int status_width;
-    pango_layout_get_pixel_size(layout, &status_width, &status_height);
+    pango_layout_get_pixel_size_safe(layout, &status_width, &status_height);
     
     text_x = (int) (container->real_bounds.x + 90 * config->dpi + charge_width + 10 * config->dpi);
     text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - status_height / 2);
@@ -151,7 +151,7 @@ paint_title(AppClient *client_entity, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, text.c_str(), text.length());
     
     int text_width, text_height;
-    pango_layout_get_pixel_size(layout, &text_width, &text_height);
+    pango_layout_get_pixel_size_safe(layout, &text_width, &text_height);
     
     int text_x = (int) (container->real_bounds.x + 13);
     int text_y = (int) (container->real_bounds.y);
@@ -173,7 +173,7 @@ paint_brightness_amount(AppClient *client_entity, cairo_t *cr, Container *contai
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_battery_text);
     cairo_move_to(cr,
@@ -278,7 +278,7 @@ paint_brightness_icon(AppClient *client_entity, cairo_t *cr, Container *containe
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),

@@ -18,7 +18,6 @@
 #include "root.h"
 #include "search_menu.h"
 #include "systray.h"
-#include "utility.h"
 #include "volume_menu.h"
 #include "wifi_menu.h"
 #include "windows_selector.h"
@@ -46,6 +45,7 @@
 #include <dpi.h>
 #include <sys/inotify.h>
 #include <functional>
+#include "utility.h"
 
 #define WIN7 false
 
@@ -193,7 +193,7 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
@@ -230,7 +230,7 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     int volume_icon_width;
     int height;
     pango_layout_set_text(layout, "\uEBC5", strlen("\uE83F"));
-    pango_layout_get_pixel_size(layout, &volume_icon_width, &height);
+    pango_layout_get_pixel_size_safe(layout, &volume_icon_width, &height);
 
     if (!mute_state) {
         ArgbColor volume_bars_color = ArgbColor(.4, .4, .4, 1);
@@ -255,7 +255,7 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
         pango_layout_set_text(layout, "\uE995", strlen("\uE83F"));
     }
 
-    pango_layout_get_pixel_size(layout, &volume_icon_width, &height);
+    pango_layout_get_pixel_size_safe(layout, &volume_icon_width, &height);
 
     set_argb(cr, config->color_taskbar_button_icons);
     cairo_move_to(cr,
@@ -277,7 +277,7 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
 
         int width;
         bool resize = false;
-        pango_layout_get_pixel_size(percentage, &width, &height);
+        pango_layout_get_pixel_size_safe(percentage, &width, &height);
         if (previous_volume_width != width) {
             already_expanded = false;
             previous_volume_width = width;
@@ -336,7 +336,7 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
@@ -1714,7 +1714,7 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
@@ -1741,7 +1741,7 @@ paint_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
@@ -1764,7 +1764,7 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, time_text.c_str(), time_text.size());
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     int pad = 16;
     if (container->wanted_bounds.w != width + pad) {
@@ -1800,7 +1800,7 @@ paint_right_click_popup(AppClient *client, cairo_t *cr, Container *container) {
         
         int width;
         int height;
-        pango_layout_get_pixel_size(layout, &width, &height);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
         set_argb(cr, config->color_taskbar_button_icons);
         
         cairo_move_to(cr,
@@ -1817,7 +1817,7 @@ paint_right_click_popup(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, "Taskbar Settings", strlen("Taskbar Settings"));
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_taskbar_date_time_text);
     cairo_move_to(cr,
@@ -2207,7 +2207,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
 
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
 
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + 12 * config->dpi),
@@ -2370,7 +2370,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     }
     int battery_icon_width;
     int height;
-    pango_layout_get_pixel_size(layout, &battery_icon_width, &height);
+    pango_layout_get_pixel_size_safe(layout, &battery_icon_width, &height);
 
     set_argb(cr, config->color_taskbar_button_icons);
     cairo_move_to(cr,
@@ -2399,10 +2399,10 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
         pango_layout_set_text(percentage, text.c_str(), text.size());
 
         int width;
-        pango_layout_get_pixel_size(percentage, &width, &height);
+        pango_layout_get_pixel_size_safe(percentage, &width, &height);
 
         bool resize = false;
-        pango_layout_get_pixel_size(percentage, &width, &height);
+        pango_layout_get_pixel_size_safe(percentage, &width, &height);
         if (previous_volume_width != width) {
             already_expanded = false;
             previous_volume_width = width;
@@ -2599,7 +2599,7 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_taskbar_button_icons);
     cairo_move_to(cr,

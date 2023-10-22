@@ -17,7 +17,6 @@
 #include "search_menu.h"
 #include "taskbar.h"
 #include "globals.h"
-
 #include <cmath>
 #include <pango/pangocairo.h>
 #include <vector>
@@ -28,6 +27,9 @@
 #include "functional"
 #include "simple_dbus.h"
 #include "settings_menu.h"
+#include <pango/pango-layout.h>
+#include "utility.h"
+
 
 std::vector<Launcher *> launchers;
 
@@ -77,7 +79,7 @@ paint_tooltip(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, data->path.c_str(), data->path.length());
     
     int width, height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     int text_x = (int) (6 * config->dpi);
     int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
     cairo_move_to(cr, text_x, text_y);
@@ -239,7 +241,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     
         int width;
         int height;
-        pango_layout_get_pixel_size(icon_layout, &width, &height);
+        pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
     
         cairo_move_to(cr,
                       (int) (container->real_bounds.x + container->real_bounds.h / 2 - height / 2),
@@ -265,7 +267,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
         
         int width, height;
         // valgrind thinks this leaks
-        pango_layout_get_pixel_size(layout, &width, &height);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
         
         int text_x = (int) (container->real_bounds.x + super->real_bounds.w);
         int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
@@ -547,7 +549,7 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
@@ -937,7 +939,7 @@ void something_timeout(App *app, AppClient *client, Timeout *timeout, void *user
     pango_layout_set_text(layout, data->path.c_str(), data->path.length());
     
     int width, height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     Settings settings;
     settings.force_position = true;

@@ -62,7 +62,7 @@ paint_tab(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
@@ -121,7 +121,7 @@ paint_add_new_button(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
@@ -164,7 +164,7 @@ paint_conversation_button(AppClient *client, cairo_t *cr, Container *container) 
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
@@ -225,7 +225,7 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
@@ -440,7 +440,7 @@ void on_label_layout(AppClient *client, Container *self, const Bounds &bounds, d
     
     int width;
     int height;
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     pango_layout_set_width(layout, -1);
     
@@ -503,7 +503,7 @@ static void text_field_before_layout(AppClient *client, Container *self, const B
             pango_layout_set_text(layout, "\n\n\n\n\n", 5);
             int width;
             int height;
-            pango_layout_get_pixel_size(layout, &width, &height);
+            pango_layout_get_pixel_size_safe(layout, &width, &height);
             five_line_h = height;
         }
         

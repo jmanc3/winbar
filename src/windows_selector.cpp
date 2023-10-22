@@ -348,7 +348,7 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
         int height;
         pango_layout_set_text(layout, "\uE10A", strlen("\uE83F"));
         
-        pango_layout_get_pixel_size(layout, &width, &height);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
         cairo_save(cr);
         cairo_move_to(cr,
                       container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
@@ -394,7 +394,7 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, title.c_str(), -1);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     int close_w = close_width;
     bool hovered = false;

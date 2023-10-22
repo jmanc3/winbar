@@ -5,6 +5,7 @@
 #include "defer.h"
 #include <cairo-xcb.h>
 #include <container.h>
+#include <pango/pangocairo.h>
 #include <pango/pango-layout.h>
 #include <regex>
 #include <utility>
@@ -277,5 +278,7 @@ std::string clipboard();
 
 void
 rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height);
+
+void pango_layout_get_pixel_size_safe(PangoLayout *layout, int *w, int *h);
 
 #endif

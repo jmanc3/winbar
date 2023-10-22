@@ -207,7 +207,7 @@ paint_message(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, data->text.c_str(), -1);
     pango_layout_set_wrap(layout, PangoWrapMode::PANGO_WRAP_WORD);
     pango_layout_set_width(layout, (container->real_bounds.w - (side_pad * 2)) * PANGO_SCALE);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
@@ -1240,7 +1240,7 @@ paint_left_label(AppClient *, cairo_t *cr, Container *container) {
     pango_layout_set_text(layout, data->text.c_str(), -1);
     pango_layout_set_wrap(layout, PangoWrapMode::PANGO_WRAP_WORD);
     pango_layout_set_width(layout, (container->real_bounds.w) * PANGO_SCALE);
-    pango_layout_get_pixel_size(layout, &width, &height);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
