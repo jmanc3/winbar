@@ -457,9 +457,21 @@ void start_action_center(App *app) {
     settings.h = app->bounds.h - config->taskbar_height;
     settings.x = app->bounds.x + app->bounds.w - settings.w;
     settings.y = 0;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 2;
+    settings.slide_data[2] = 120;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
         // TODO screen_info can be null if window is not half in any screen, we should preserve most recent screen
-        settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
+        auto *container = container_by_name("action", taskbar->root);
+        if (container->real_bounds.x > taskbar->bounds->w / 2) {
+            settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
+        } else {
+            settings.x = 0;
+            settings.slide_data[1] = 0;
+        }
         ScreenInformation *primary_screen = nullptr;
         for (auto s: screens)
             if (s->is_primary) primary_screen = s;
@@ -472,13 +484,7 @@ void start_action_center(App *app) {
     settings.skip_taskbar = true;
     settings.decorations = false;
     settings.force_position = true;
-    settings.slide = true;
-    settings.slide_data[0] = -1;
-    settings.slide_data[1] = 2;
-    settings.slide_data[2] = 120;
-    settings.slide_data[3] = 100;
-    settings.slide_data[4] = 80;
-    
+
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "action_center";

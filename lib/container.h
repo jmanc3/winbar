@@ -316,6 +316,8 @@ struct AppClient {
     
     bool wants_popup_events = false;
     
+    bool skip_taskbar = true;
+    
     AppClient *create_popup(PopupSettings popup_settings, Settings client_settings);
     
     std::vector<Subprocess *> commands;
@@ -540,6 +542,7 @@ public:
     bool start_at_end = false;
     
     // paint functions
+    bool paint_minimal = false;
 };
 
 struct ScrollContainer : public Container {

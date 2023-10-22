@@ -1593,8 +1593,19 @@ void start_search_menu() {
     settings.x = app->bounds.x + width;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
-        width = taskbar->root->children[0]->real_bounds.w;
-        settings.x = width + taskbar->bounds->x;
+        auto field_search = container_by_name("field_search", taskbar->root);
+        auto super = container_by_name("super", taskbar->root);
+        if (field_search->exists) {
+            settings.x = taskbar->bounds->x + field_search->real_bounds.x;
+        } else if (super->exists) {
+            settings.x = taskbar->bounds->x + super->real_bounds.x;
+        } else {
+            settings.x = taskbar->bounds->x;
+        }
+        // Make sure doesn't go off-screen right side
+        if (settings.x + settings.w > taskbar->screen_information->width_in_pixels) {
+            settings.x = taskbar->screen_information->width_in_pixels - settings.w;
+        }
         settings.y = taskbar->bounds->y - settings.h;
     }
     settings.override_redirect = true;

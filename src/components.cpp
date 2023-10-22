@@ -110,9 +110,12 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    bool minimal = ((ScrollContainer *) container->parent->parent)->settings.paint_minimal;
+    
     double scrollbar_openess = 1;
     double scrollbar_visible = 1;
-    paint_scroll_bg(client, cr, container);
+    if (!minimal)
+        paint_scroll_bg(client, cr, container);
     
     Container *scrollpane = container->parent->parent;
     
@@ -152,9 +155,12 @@ paint_bottom_thumb(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    bool minimal = ((ScrollContainer *) container->parent->parent)->settings.paint_minimal;
+    
     double scrollbar_openess = 1;
     double scrollbar_visible = 1;
-    paint_scroll_bg(client, cr, container);
+    if (!minimal)
+        paint_scroll_bg(client, cr, container);
     
     Container *scrollpane = container->parent->parent;
     
@@ -194,6 +200,10 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    bool minimal = ((ScrollContainer *) container->parent->parent)->settings.paint_minimal;
+    if (minimal)
+        return;
+    
     double scrollbar_openess = 1;
     auto *data = (ButtonData *) container->user_data;
     

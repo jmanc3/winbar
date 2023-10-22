@@ -20,6 +20,7 @@ extern DBusConnection *dbus_connection_system;
 extern std::vector<std::string> running_dbus_services;
 struct BluetoothInterface;
 extern std::vector<BluetoothInterface *> bluetooth_interfaces;
+extern bool bluetooth_running;
 
 void dbus_start(DBusBusType dbusType);
 

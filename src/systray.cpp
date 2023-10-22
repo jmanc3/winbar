@@ -95,14 +95,16 @@ systray_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t) {
                             break;
                     
                     const uint32_t cw_values[] = {
-                            XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT |
-                            XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_ENTER_WINDOW};
+                            XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_STRUCTURE_NOTIFY |
+                            XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT |
+                            XCB_EVENT_MASK_PROPERTY_CHANGE};
                     xcb_change_window_attributes(app->connection, window_to_be_docked,
                                                  XCB_CW_EVENT_MASK, cw_values);
                     xcb_change_save_set(app->connection, XCB_SET_MODE_INSERT, window_to_be_docked);
                     
                     auto icon = new Systray_Icon;
                     icon->window = window_to_be_docked;
+//                    printf("ADD: %d\n", icon->window);
                     systray_icons.push_back(icon);
                     
                     if (display) {
@@ -142,8 +144,12 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event, xcb_window_t) {
     if (!window_is_systray_icon)
         return false;// Let someone else handle the event
     
+//    printf("%d - %d\n", event_window, generic_event->response_type);
+    
     switch (XCB_EVENT_RESPONSE_TYPE(generic_event)) {
         case XCB_DESTROY_NOTIFY: {
+//            printf("DESTROY: %d\n", event_window);
+            
             for (int i = 0; i < systray_icons.size(); i++) {
                 auto icon = systray_icons[i];
                 if (icon->window == event_window) {
@@ -156,6 +162,18 @@ icon_event_handler(App *app, xcb_generic_event_t *generic_event, xcb_window_t) {
             if (systray_icons.empty()) {
                 display_close();
             }
+            break;
+        }
+        case XCB_CONFIGURE_NOTIFY: {
+            
+            break;
+        }
+        case XCB_PROPERTY_NOTIFY: {
+            
+            break;
+        }
+        case XCB_MAP_NOTIFY: {
+            
             break;
         }
     }
@@ -219,21 +237,26 @@ layout_systray() {
         auto window_width = (uint32_t) container_size * w;
         auto window_height = (uint32_t) container_size * ++y;
         
-        auto window_x = (uint32_t) 0;
+        int window_x = 0;
         auto window_y = (uint32_t) (app->bounds.h - config->taskbar_height - window_height);
         
         if (auto taskbar = client_by_name(app, "taskbar")) {
             window_x = taskbar->bounds->x;
             window_y = taskbar->bounds->y - window_height;
             if (auto container = container_by_name("systray", taskbar->root)) {
-                window_x += container->real_bounds.x + container->real_bounds.w / 2 -
-                            window_width / 2;
+                window_x += container->real_bounds.x + container->real_bounds.w / 2 - window_width / 2;
+                if (!container->exists)
+                    window_x = 0;
+                if (window_x + window_width >= taskbar->screen_information->width_in_pixels)
+                    window_x = taskbar->screen_information->width_in_pixels - window_width;
             }
         }
+        if (window_x <= 0)
+            window_x = 0;
         
         uint32_t value_mask = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
                               XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
-        uint32_t value_list_resize[] = {window_x, window_y, window_width, window_height};
+        uint32_t value_list_resize[] = {(uint32_t) window_x, window_y, window_width, window_height};
         xcb_configure_window(app->connection, display->window, value_mask, value_list_resize);
     }
 }

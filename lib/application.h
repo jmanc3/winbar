@@ -49,7 +49,7 @@ struct Settings {
     // [5] Start fading window after duration in milliseconds
     int slide_data[5] = {-1, 3, 160, 100, 80};
     
-    bool skip_taskbar = false;
+    bool skip_taskbar = true;
     bool no_input_focus = false;
     bool dock = false;
     bool sticky = false;

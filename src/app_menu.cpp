@@ -27,6 +27,7 @@
 #include <sys/stat.h>
 #include "functional"
 #include "simple_dbus.h"
+#include "settings_menu.h"
 
 std::vector<Launcher *> launchers;
 
@@ -248,8 +249,9 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     
     auto taskbar_entity = client_by_name(app, "taskbar");
     auto taskbar_root = taskbar_entity->root;
+    auto super = container_by_name("super", taskbar_root);
     
-    if (container->parent->wanted_bounds.w != taskbar_root->children[0]->real_bounds.w) {
+    if (container->parent->wanted_bounds.w != super->real_bounds.w) {
         cairo_push_group(cr);
         
         PangoLayout *layout =
@@ -265,7 +267,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
         // valgrind thinks this leaks
         pango_layout_get_pixel_size(layout, &width, &height);
         
-        int text_x = (int) (container->real_bounds.x + taskbar_root->children[0]->real_bounds.w);
+        int text_x = (int) (container->real_bounds.x + super->real_bounds.w);
         int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
         cairo_move_to(cr, text_x, text_y);
         
@@ -737,10 +739,10 @@ clicked_start_button(AppClient *client, cairo_t *cr, Container *container) {
     // Toggle left menu openess
     if (auto *client = client_by_name(app, "app_menu")) {
         if (auto *container = container_by_name("left_buttons", client->root)) {
-            if (container->real_bounds.w == 48 * config->dpi) {
+            if (container->real_bounds.w <= 64 * config->dpi) {
                 client_create_animation(
                         app, client, &container->wanted_bounds.w, 0, 120, nullptr, 256 * config->dpi, true);
-            } else if (container->real_bounds.w == 256 * config->dpi) {
+            } else if (container->real_bounds.w > 86 * config->dpi) {
                 client_create_animation(
                         app, client, &container->wanted_bounds.w, 0, 120, nullptr, 48 * config->dpi, true);
             }
@@ -830,7 +832,7 @@ clicked_open_settings(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-
+    open_settings_menu(SettingsPage::Taskbar);
 }
 
 static void
@@ -1061,10 +1063,9 @@ clicked_open_power_menu(AppClient *client, cairo_t *cr, Container *container) {
     settings.force_position = true;
     settings.w = 256 * config->dpi;
     settings.h = ((48 * 4) * config->dpi) + (config->dpi * 3);
-    settings.x = app->bounds.x;
+    settings.x = client->bounds->x;
     settings.y = app->bounds.h - settings.h - config->taskbar_height - (48 * 1) * config->dpi;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
-        settings.x = taskbar->bounds->x;
         settings.y = taskbar->bounds->y - settings.h - (48 * 1) * config->dpi;
     }
     settings.skip_taskbar = true;
@@ -1221,9 +1222,6 @@ fill_root(AppClient *client) {
     Container *stack = root->child(::stack, FILL_SPACE, FILL_SPACE);
     
     int width = 48 * config->dpi;
-    if (auto *taskbar = client_by_name(app, "taskbar")) {
-        width = taskbar->root->children[0]->real_bounds.w;
-    }
     Container *left_buttons = stack->child(::vbox, width, FILL_SPACE);
     left_buttons->wanted_pad.y = 5 * config->dpi;
     left_buttons->spacing = 1 * config->dpi;
@@ -1781,7 +1779,19 @@ void start_app_menu() {
     settings.x = app->bounds.x;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
-        settings.x = taskbar->bounds->x;
+        auto *super = container_by_name("super", taskbar->root);
+        auto field_search = container_by_name("field_search", taskbar->root);
+        if (super->exists) {
+            settings.x = taskbar->bounds->x + super->real_bounds.x;
+        } else if (field_search->exists) {
+            settings.x = taskbar->bounds->x + field_search->real_bounds.x;
+        } else {
+            settings.x = taskbar->bounds->x;
+        }
+        // Make sure doesn't go off-screen right side
+        if (settings.x + settings.w > taskbar->screen_information->width_in_pixels) {
+            settings.x = taskbar->screen_information->width_in_pixels - settings.w;
+        }
         settings.y = taskbar->bounds->y - settings.h;
     }
     settings.skip_taskbar = true;

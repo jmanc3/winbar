@@ -23,15 +23,6 @@ static TextAreaData *icon_field_data = nullptr;
 static TextAreaData *launch_field_data = nullptr;
 static TextAreaData *wm_field_data = nullptr;
 
-class Label : public UserData {
-public:
-    std::string text;
-    
-    explicit Label(std::string text) {
-        this->text = text;
-    }
-};
-
 static Label *icon_search_state = nullptr;
 
 static void paint_background(AppClient *client, cairo_t *cr, Container *container) {
@@ -468,10 +459,15 @@ void start_pinned_icon_editor(Container *icon_container) {
     Settings settings;
     settings.w = 600 * config->dpi;
     settings.h = 450 * config->dpi;
+    settings.skip_taskbar = false;
+    settings.keep_above = true;
+    
     if (auto client = client_new(app, settings, "pinned_icon_editor")) {
+        xcb_ewmh_set_wm_icon_name(&app->ewmh, client->window, strlen("settings"), "settings");
         fill_root(client);
         std::string title = "Pinned Icon Editor";
         xcb_ewmh_set_wm_name(&app->ewmh, client->window, title.length(), title.c_str());
         client_show(app, client);
+        xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, client->window, XCB_CURRENT_TIME);
     }
 }

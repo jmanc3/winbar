@@ -813,7 +813,7 @@ client_new(App *app, Settings settings, const std::string &name) {
                             32,
                             1,
                             &atom);
-        
+
         atom = get_cached_atom(app, "_NET_WM_STATE_SKIP_PAGER");
         xcb_change_property(app->connection,
                             XCB_PROP_MODE_APPEND,
@@ -949,6 +949,7 @@ client_new(App *app, Settings settings, const std::string &name) {
     client->colormap = colormap;
     client->on_close_is_unmap = settings.on_close_is_unmap;
     client->cr = cr;
+    client->skip_taskbar = settings.skip_taskbar;
     
     uint8_t XC_left_ptr = 68; // from: https://tronche.com/gui/x/xlib/appendix/b/
     set_cursor(app, screen, client, "left_ptr", XC_left_ptr);
@@ -1150,6 +1151,8 @@ void client_close(App *app, AppClient *client) {
         client->when_closed(client);
     }
     
+    remove_cached_fonts(client->cr);
+    
     if (client->user_data) {
         auto data = static_cast<UserData *>(client->user_data);
         delete data;
@@ -1235,9 +1238,10 @@ void client_close(App *app, AppClient *client) {
     
     destroy_client(app, client);
     
-    if (app->clients.empty()) {
-        app->running = false;
-    }
+    app->running = false;
+    for (auto c: app->clients)
+        app->running = c->keeps_app_running;
+    
     if (w != 0) {
         xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, w,
                             XCB_CURRENT_TIME);
@@ -1419,6 +1423,8 @@ concerned_containers(App *app, AppClient *client) {
 }
 
 void fill_list_with_pierced(std::vector<Container *> &containers, Container *parent, int x, int y) {
+    if (!parent->exists)
+        return;
     if (parent->type == ::newscroll) {
         auto s = (ScrollContainer *) parent;
         for (auto child: s->content->children) {

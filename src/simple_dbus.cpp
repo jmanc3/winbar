@@ -28,7 +28,9 @@ DBusConnection *dbus_connection_system = nullptr;
 
 std::vector<std::string> running_dbus_services;
 std::vector<std::string> status_notifier_items;
+std::vector<std::string> status_notifier_hosts;
 std::vector<BluetoothInterface *> bluetooth_interfaces;
+bool bluetooth_running = false;
 
 bool registered_object_path = false;
 bool registered_bluetooth_agent = false;
@@ -52,25 +54,29 @@ void StatusNotifierItemUnregistered(const std::string &service);
 void StatusNotifierHostRegistered();
 
 void remove_service(const std::string &service) {
+    for (int x = 0; x < status_notifier_items.size(); x++) {
+        if (status_notifier_items[x] == service) {
+            StatusNotifierItemUnregistered(service);
+            status_notifier_items.erase(status_notifier_items.begin() + x);
+        }
+    }
+    for (int i = 0; i < status_notifier_hosts.size(); i++) {
+        if (status_notifier_hosts[i] == service) {
+            status_notifier_hosts.erase(status_notifier_hosts.begin() + i);
+        }
+    }
     for (int i = 0; i < running_dbus_services.size(); i++) {
         if (running_dbus_services[i] == service) {
             if (running_dbus_services[i] == "local.org_kde_powerdevil")
                 max_kde_brightness = 0;
             if (running_dbus_services[i] == "org.gnome.SettingsDaemon.Power")
                 gnome_brightness_running = false;
-            if (running_dbus_services[i] == "org.bluez")
+            if (running_dbus_services[i] == "org.bluez") {
                 bluetooth_service_ended();
+                bluetooth_running = false;
+            }
             if (running_dbus_services[i] == "org.freedesktop.UPower")
                 upower_service_ended();
-            
-            for (int x = 0; x < status_notifier_items.size(); x++) {
-                const std::string &sni = status_notifier_items[x];
-                if (sni == service) {
-                    StatusNotifierItemUnregistered(service);
-                    
-                    status_notifier_items.erase(status_notifier_items.begin() + x);
-                }
-            }
             
             running_dbus_services.erase(running_dbus_services.begin() + i);
             return;
@@ -81,6 +87,8 @@ void remove_service(const std::string &service) {
 DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *message, void *userdata);
 
 void create_status_notifier_watcher();
+
+void create_status_notifier_host();
 
 static bool dbus_kde_max_brightness();
 
@@ -109,8 +117,10 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
                 dbus_kde_max_brightness();
             if (std::string(name) == "org.gnome.SettingsDaemon.Power")
                 gnome_brightness_running = true;
-            if (std::string(name) == "org.bluez")
+            if (std::string(name) == "org.bluez") {
                 bluetooth_service_started();
+                bluetooth_running = true;
+            }
             if (std::string(name) == "org.freedesktop.UPower")
                 upower_service_started();
         } else if (strcmp(new_owner, "") == 0) {
@@ -133,8 +143,10 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
             dbus_kde_max_brightness();
         if (std::string(name) == "org.gnome.SettingsDaemon.Power")
             gnome_brightness_running = true;
-        if (std::string(name) == "org.bluez")
+        if (std::string(name) == "org.bluez") {
             bluetooth_service_started();
+            bluetooth_running = true;
+        }
         if (std::string(name) == "org.freedesktop.UPower")
             upower_service_started();
     
@@ -337,8 +349,10 @@ static void dbus_reply_to_list_names_request(DBusPendingCall *call, void *data) 
             dbus_kde_max_brightness();
         if (std::string(name) == "org.gnome.SettingsDaemon.Power")
             gnome_brightness_running = true;
-        if (std::string(name) == "org.bluez")
+        if (std::string(name) == "org.bluez") {
             bluetooth_service_started();
+            bluetooth_running = true;
+        }
         if (std::string(name) == "org.freedesktop.UPower")
             upower_service_started();
     }
@@ -1142,7 +1156,8 @@ void dbus_start(DBusBusType dbusType) {
                 return;
             }
     
-            create_status_notifier_watcher();
+            // create_status_notifier_watcher();
+            // create_status_notifier_host();
         }
         
         dbus_poll_wakeup(nullptr, 0, dbus_connection);
@@ -1150,6 +1165,10 @@ void dbus_start(DBusBusType dbusType) {
 }
 
 void dbus_end() {
+    status_notifier_hosts.clear();
+    status_notifier_hosts.shrink_to_fit();
+    status_notifier_items.clear();
+    status_notifier_items.shrink_to_fit();
     running_dbus_services.clear();
     running_dbus_services.shrink_to_fit();
     
@@ -1181,6 +1200,20 @@ void dbus_end() {
             }
             
             registered_object_path = false;
+        }
+        
+        if (dbus_connection == dbus_connection_session) {
+            dbus_bus_release_name(dbus_connection, "org.kde.StatusNotifierWatcher", &error);
+            if (dbus_error_is_set(&error)) {
+                fprintf(stderr, "Error releasing name: %s\n%s\n", error.name, error.message);
+            }
+            
+            int pid = 23184910;
+            auto host = std::string("org.kde.StatusNotifierHost-" + std::to_string(pid));
+            dbus_bus_release_name(dbus_connection, host.c_str(), &error);
+            if (dbus_error_is_set(&error)) {
+                fprintf(stderr, "Error releasing name: %s\n%s\n", error.name, error.message);
+            }
         }
         
         dbus_bus_remove_match(dbus_connection,
@@ -2407,7 +2440,7 @@ DBusHandlerResult sni_message(DBusConnection *conn, DBusMessage *message, void *
                 DBusMessage *reply = dbus_message_new_method_return(message);
                 defer(dbus_message_unref(reply));
                 
-                dbus_int32_t version = 42;
+                dbus_int32_t version = 0;
                 
                 dbus_message_append_args(reply, DBUS_TYPE_UINT32, &version, DBUS_TYPE_INVALID);
                 dbus_connection_send(conn, reply, NULL);
@@ -2417,7 +2450,7 @@ DBusHandlerResult sni_message(DBusConnection *conn, DBusMessage *message, void *
                 DBusMessage *reply = dbus_message_new_method_return(message);
                 defer(dbus_message_unref(reply));
                 
-                dbus_bool_t is_registered = true;
+                dbus_bool_t is_registered = !status_notifier_hosts.empty();
                 dbus_message_append_args(reply, DBUS_TYPE_BOOLEAN, &is_registered, DBUS_TYPE_INVALID);
                 dbus_connection_send(conn, reply, NULL);
             } else if (property_name == "RegisteredStatusNotifierItems") {
@@ -2475,7 +2508,13 @@ DBusHandlerResult sni_message(DBusConnection *conn, DBusMessage *message, void *
         
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.kde.StatusNotifierWatcher", "RegisterStatusNotifierHost")) {
-        // We don't care about watching other StatusNotifierHost's come online since Winbar is one.
+        const char *service_name;
+        dbus_message_get_args(message, NULL, DBUS_TYPE_STRING, &service_name, DBUS_TYPE_INVALID);
+        
+        status_notifier_hosts.emplace_back(service_name);
+        
+        StatusNotifierHostRegistered();
+        
         return DBUS_HANDLER_RESULT_HANDLED;
     }
     
@@ -2513,8 +2552,47 @@ void create_status_notifier_watcher() {
         fprintf(stderr, "Failed to become StatusNotifierWatcher\n");
         return;
     }
+}
+
+void RegisterStatusNotifierHost(const std::string &service);
+
+void create_status_notifier_host() {
+    int pid = 23184910;
     
-    StatusNotifierHostRegistered();
+    DBusError error;
+    dbus_error_init(&error);
+    auto host = std::string("org.kde.StatusNotifierHost-" + std::to_string(pid));
+    int result = dbus_bus_request_name(dbus_connection_session,
+                                       host.c_str(),
+                                       DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
+    
+    if (dbus_error_is_set(&error)) {
+        fprintf(stderr, "Ran into error when trying to become \"org.kde.StatusNotifierHost\" (%s)\n",
+                error.message);
+        dbus_error_free(&error);
+        return;
+    }
+    
+    if (result != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) {
+        fprintf(stderr, "Failed to become StatusNotifierHost\n");
+        return;
+    }
+    
+    RegisterStatusNotifierHost(host);
+}
+
+void RegisterStatusNotifierHost(const std::string &service) {
+    if (!dbus_connection_session)
+        return;
+    
+    printf("Registering Host: %s\n", service.c_str());
+    
+    DBusMessage *dmsg = dbus_message_new_method_call("org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher",
+                                                     "org.kde.StatusNotifierWatcher",
+                                                     "RegisterStatusNotifierHost");
+    defer(dbus_message_unref(dmsg));
+    dbus_message_append_args(dmsg, DBUS_TYPE_STRING, &service, DBUS_TYPE_INVALID);
+    dbus_connection_send(dbus_connection_session, dmsg, NULL);
 }
 
 void StatusNotifierItemRegistered(const std::string &service) {

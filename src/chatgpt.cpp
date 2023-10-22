@@ -82,19 +82,6 @@ clicked_tab(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
-rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height) {
-    double radius = corner_radius;
-    double degrees = M_PI / 180.0;
-    
-    cairo_new_sub_path(cr);
-    cairo_arc(cr, x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
-    cairo_arc(cr, x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees);
-    cairo_arc(cr, x + radius, y + height - radius, radius, 90 * degrees, 180 * degrees);
-    cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
-    cairo_close_path(cr);
-}
-
-static void
 paint_add_new_button(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
     set_argb(cr, ArgbColor(.125, .129, .137, 1));

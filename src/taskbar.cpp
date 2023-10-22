@@ -33,6 +33,7 @@
 #include "plugins_menu.h"
 #include "chatgpt.h"
 #include "xbacklight.h"
+#include "settings_menu.h"
 
 #include <algorithm>
 #include <cairo.h>
@@ -61,9 +62,6 @@ static int resize_attempts = 0;
 
 static void
 paint_background(AppClient *client, cairo_t *cr, Container *container);
-
-static void
-paint_button(AppClient *client, cairo_t *cr, Container *container);
 
 static void
 paint_icon_background(AppClient *client, cairo_t *cr, Container *container);
@@ -96,6 +94,28 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
         set_argb(cr, correct_opaqueness(client, config->color_taskbar_search_bar_default_border));
         cairo_fill(cr);
     }
+}
+
+static void
+paint_right_click_popup_background(AppClient *client, cairo_t *cr, Container *container) {
+    paint_background(client, cr, container);
+    bool is_light_theme = false;
+    {
+        double h; // hue
+        double s; // saturation
+        double p; // perceived brightness
+        ArgbColor real = config->color_taskbar_application_icons_background;
+        rgb2hsluv(real.r, real.g, real.b, &h, &s, &p);
+        is_light_theme = p > 50; // if the perceived perceived brightness is greater than that we are a light theme
+    }
+    set_rect(cr, container->real_bounds);
+    if (is_light_theme) {
+        set_argb(cr, correct_opaqueness(client, darken(config->color_taskbar_background, 30)));
+    } else {
+        set_argb(cr, correct_opaqueness(client, lighten(config->color_taskbar_background, 30)));
+    }
+    cairo_set_line_width(cr, std::round(1 * config->dpi));
+    cairo_stroke(cr);
 }
 
 static void
@@ -472,20 +492,6 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         cairo_restore(cr);
     }
 }
-
-static void
-rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height) {
-    double radius = corner_radius;
-    double degrees = M_PI / 180.0;
-    
-    cairo_new_sub_path(cr);
-    cairo_arc(cr, x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
-    cairo_arc(cr, x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees);
-    cairo_arc(cr, x + radius, y + height - radius, radius, 90 * degrees, 180 * degrees);
-    cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
-    cairo_close_path(cr);
-}
-
 
 static void animate_color_change(App *app, AppClient *client, ArgbColor *current_color, ArgbColor target_color) {
     if (current_color->a == 0) {
@@ -1071,21 +1077,10 @@ void active_window_changed(xcb_window_t new_active_window) {
 #endif
     if (new_active_window == active_window)
         return;
-    active_window = new_active_window;
-    
     auto *new_active_container = get_pinned_icon_representing_window(new_active_window);
-    if (new_active_container) {
-        if (auto data = (LaunchableButton *) new_active_container->user_data) {
-            for (int i = 0; i < data->windows_data_list.size(); i++) {
-                if (data->windows_data_list[i]->id == active_window) {
-//                    std::swap(data->windows_data_list[0], data->windows_data_list[i]);
-                    break;
-                }
-            }
-        }
-    }
     if (new_active_container == active_container)
         return;
+    active_window = new_active_window;
     
     if (auto c = client_by_name(app, "taskbar")) {
         if (active_container) {
@@ -1579,7 +1574,11 @@ paint_minimize(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
     
     Bounds bounds = container->real_bounds;
-    bounds.w = 1;
+    bounds.w = std::round(1 * config->dpi);
+    set_rect(cr, bounds);
+    set_argb(cr, config->color_taskbar_minimize_line);
+    cairo_fill(cr);
+    bounds.x += container->real_bounds.w - bounds.w;
     set_rect(cr, bounds);
     set_argb(cr, config->color_taskbar_minimize_line);
     cairo_fill(cr);
@@ -1616,6 +1615,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
                       (int) (container->real_bounds.x + (12 * config->dpi)),
                       (int) (container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi)));
         pango_cairo_show_layout(cr, layout);
+        pango_layout_set_attributes(layout, nullptr);
         cairo_pattern_t *mask = cairo_pop_group(cr);
     
         cairo_push_group(cr);
@@ -1770,7 +1770,7 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
     if (container->wanted_bounds.w != width + pad) {
         container->wanted_bounds.w = width + pad;
         client_layout(app, client);
-        request_refresh(app, client);
+        client_paint(app, client);
         return;
     }
     
@@ -1784,7 +1784,67 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+paint_right_click_popup(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_hoverable_button_background(client, cr, container);
+    
+    {
+        // Paint search icon
+        PangoLayout *layout =
+                get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        
+        // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+        pango_layout_set_text(layout, "\uE713", strlen("\uE83F"));
+        
+        int width;
+        int height;
+        pango_layout_get_pixel_size(layout, &width, &height);
+        set_argb(cr, config->color_taskbar_button_icons);
+        
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + 15 * config->dpi),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, layout);
+    }
+    
+    PangoLayout *layout =
+            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    PangoAlignment initial_alignment = pango_layout_get_alignment(layout);
+    pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_CENTER);
+    
+    int width;
+    int height;
+    pango_layout_set_text(layout, "Taskbar Settings", strlen("Taskbar Settings"));
+    pango_layout_get_pixel_size(layout, &width, &height);
+    
+    set_argb(cr, config->color_taskbar_date_time_text);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + 43 * config->dpi),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
+    
+    pango_layout_set_alignment(layout, initial_alignment);
+}
+
+static void
+open_right_click_menu(AppClient *client, cairo_t *cr, Container *container);
+
+static void
+clicked_root(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client, cr, container);
+        return;
+    }
+}
+
+static void
 clicked_date(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client, cr, container);
+        return;
+    }
     auto *data = (IconButton *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->date_command.empty()) {
@@ -1797,6 +1857,10 @@ clicked_date(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_wifi(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client, cr, container);
+        return;
+    }
     auto *data = (IconButton *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->wifi_command.empty()) {
@@ -1809,6 +1873,10 @@ clicked_wifi(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_systray(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client, cr, container);
+        return;
+    }
     auto *data = (IconButton *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->systray_command.empty()) {
@@ -1820,7 +1888,76 @@ clicked_systray(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+clicked_right_click_popup(AppClient *client, cairo_t *cr, Container *container) {
+    client_close_threaded(app, client);
+    
+    open_settings_menu(SettingsPage::Taskbar);
+}
+
+static void
+open_right_click_menu(AppClient *client, cairo_t *cr, Container *container) {
+    int options_count = 1;
+    int pad = 6 * config->dpi;
+    Settings settings;
+    settings.force_position = true;
+    settings.w = 296 * config->dpi;
+    settings.h = ((34 * options_count) * config->dpi) + (config->dpi * (options_count - 1)) + (pad * 2);
+    // TODO: get mouse position
+    settings.x = client->mouse_current_x + client->bounds->x;
+    settings.y = client->mouse_current_y + client->bounds->y - settings.h;
+    if ((settings.x + settings.w) > client->screen_information->width_in_pixels) {
+        settings.x = client->mouse_current_x + client->bounds->x - settings.w;
+    }
+    settings.skip_taskbar = true;
+    settings.decorations = false;
+    settings.override_redirect = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
+    
+    PopupSettings popup_settings;
+    popup_settings.close_on_focus_out = true;
+    popup_settings.takes_input_focus = true;
+    
+    auto popup = client->create_popup(popup_settings, settings);
+    popup->name = "right_click_popup";
+    
+    popup->root->when_paint = paint_right_click_popup_background;
+    popup->root->type = vbox;
+    popup->root->spacing = 1;
+    popup->root->wanted_pad.y = pad;
+    popup->root->wanted_pad.h = pad;
+    popup->root->wanted_bounds.w = FILL_SPACE;
+    
+    auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
+    l->when_paint = paint_right_click_popup;
+    l->when_clicked = clicked_right_click_popup;
+    l->user_data = new HoverableButton();
+    
+    client_show(app, popup);
+}
+
+static void
+clicked_icons_background(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed != XCB_BUTTON_INDEX_3)
+        return;
+    if (auto c = client_by_name(app, "right_click_popup"))
+        return;
+    for (auto c: container->children)
+        if (bounds_contains(c->real_bounds, client->mouse_current_x, client->mouse_current_y))
+            return;
+    open_right_click_menu(client, cr, container);
+}
+
+static void
 clicked_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client, cr, container);
+        return;
+    }
     auto *data = (IconButton *) container->user_data;
     if (!data->invalid_button_down) {
         open_bluetooth_menu();
@@ -1829,6 +1966,10 @@ clicked_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_battery(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client, cr, container);
+        return;
+    }
     auto *data = (BatteryInfo *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->battery_command.empty()) {
@@ -1841,6 +1982,10 @@ clicked_battery(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_volume(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client, cr, container);
+        return;
+    }
     auto *data = (IconButton *) container->user_data;
     if (!data->invalid_button_down) {
         if (config->volume_command.empty()) {
@@ -1856,6 +2001,10 @@ static bool minimize_button_hide = true;
 
 static void
 clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client, cr, container);
+        return;
+    }
     // First we check if the window manager supports the _NET_SHOWING_DESKTOP atom
     // If so, we get the value of _NET_SHOWING_DESKTOP, flip it, and then send that to the root window as a client message
     auto request_cookie = xcb_ewmh_get_supported(&app->ewmh, app->screen_number);
@@ -1948,6 +2097,10 @@ clicked_minimize(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 clicked_action_center(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client, cr, container);
+        return;
+    }
     auto *data = (ActionCenterButtonData *) container->user_data;
     if (!data->invalid_button_down) {
         start_action_center(client->app);
@@ -2369,6 +2522,10 @@ void gnome_stuck_mouse_state_fix(App *app, AppClient *client, Timeout *, void *)
 
 static void
 clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client_entity, cr, container);
+        return;
+    }
     if (dbus_connection_session) {
         for (const auto &s: running_dbus_services) {
             if (s == "org.kde.kglobalaccel") {
@@ -2395,6 +2552,10 @@ clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
 
 static void
 clicked_super(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        open_right_click_menu(client, cr, container);
+        return;
+    }
     auto data = (IconButton *) container->user_data;
     if (!data->invalid_button_down) {
         start_app_menu();
@@ -2453,6 +2614,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     ZoneScoped;
 #endif
     root->when_paint = paint_background;
+    root->when_clicked = clicked_root;
     root->type = hbox;
     root->spacing = 0;
     
@@ -2507,6 +2669,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_workspace->user_data = new IconButton;
     button_workspace->when_scrolled = scrolled_workspace;
     button_workspace->when_clicked = clicked_workspace;
+    button_workspace->name = "workspace";
     
 //    button_chatgpt->when_paint = paint_chatgpt;
 //    auto button_chatgpt_data = new IconButton;
@@ -2521,6 +2684,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     container_icons->type = hbox;
     container_icons->name = "icons";
     container_icons->when_paint = paint_all_icons;
+    container_icons->when_clicked = clicked_icons_background;
     
     button_systray->when_paint = paint_systray;
     auto button_systray_data = new IconButton;
@@ -2582,6 +2746,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_minimize->when_clicked = clicked_minimize;
     button_minimize->when_fine_scrolled = scrolled_volume;
     button_minimize->when_mouse_leaves_container = mouse_leaves_volume;
+    button_minimize->name = "minimize";
 }
 
 static void
@@ -2690,7 +2855,10 @@ void remove_window(App *app, xcb_window_t window);
 void add_window(App *app, xcb_window_t window);
 
 static bool
-window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t) {
+window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) {
+    for (auto c: app->clients)
+        if (c->window == window)
+            return false;
     // This will listen to configure notify events and check if it's about a
     // window we need a thumbnail of and update its size if so.
     switch (XCB_EVENT_RESPONSE_TYPE(event)) {
@@ -3109,6 +3277,7 @@ create_taskbar(App *app) {
     // Create the window
     
     AppClient *taskbar = client_new(app, settings, "taskbar");
+    
     taskbar->when_closed = when_taskbar_closed;
     taskbar->on_any_screen_change = taskbar_on_screen_size_change;
     
@@ -3130,6 +3299,8 @@ create_taskbar(App *app) {
     
     // Lay it out
     fill_root(app, taskbar, taskbar->root);
+    read_settings_file();
+    
     update_time(app, taskbar, nullptr, nullptr);
     update_active_window();
     
@@ -3219,7 +3390,6 @@ void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    find_icon_string_from_window_properties(window);
     // Exit the function if the window type is not something a dock should display
     xcb_get_property_cookie_t cookie = xcb_ewmh_get_wm_window_type_unchecked(&app->ewmh, window);
     xcb_ewmh_get_atoms_reply_t atoms_reply_data;
@@ -3254,14 +3424,19 @@ void add_window(App *app, xcb_window_t window) {
         xcb_ewmh_get_atoms_reply_wipe(&atoms_reply_data);
     }
     
+    bool is_ours = false;
+    bool skip_taskbar = true;
+    for (auto c: app->clients) {
+        if (c->window == window) {
+            is_ours = true;
+            skip_taskbar = c->skip_taskbar;
+        }
+    }
     // on gnome, the Extension app ends up adding the taskbar to the taskbar. I have no idea how it's doing that
     // but the fix for now is just going to be to ignore every client that is ours. Eventually when we make a settings
     // app, we will have to add an exception for that window.
-    for (auto c: app->clients) {
-        if (c->window == window) {
-            return;
-        }
-    }
+    if (is_ours && skip_taskbar)
+        return;
     
     auto cookie_get_wm_desktop = xcb_ewmh_get_wm_desktop(&app->ewmh, window);
     uint32_t desktop = 0;
@@ -3314,9 +3489,11 @@ void add_window(App *app, xcb_window_t window) {
     for (auto icon: icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
         if (data->class_name == window_class_name) {
-            const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
-            xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
-            xcb_flush(app->connection);
+            if (!is_ours) {
+                const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
+                xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
+                xcb_flush(app->connection);
+            }
             
             data->windows_data_list.push_back(new WindowsData(app, window));
             update_window_title_name(window);
@@ -3353,9 +3530,11 @@ void add_window(App *app, xcb_window_t window) {
         err = nullptr;
     }
     
-    const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
-    xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
-    xcb_flush(app->connection);
+    if (!is_ours) {
+        const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
+        xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
+        xcb_flush(app->connection);
+    }
     
     Container *a = icons->child(50 * config->dpi, FILL_SPACE);
     a->when_drag_end_is_click = false;
@@ -3383,22 +3562,36 @@ void add_window(App *app, xcb_window_t window) {
     std::string path;
     std::string icon_name;
     
-    auto get_wm_icon_name_cookie = xcb_icccm_get_wm_icon_name(app->connection, window);
-    xcb_icccm_get_text_property_reply_t prop;
-    uint8_t success = xcb_icccm_get_wm_icon_name_reply(app->connection, get_wm_icon_name_cookie, &prop, nullptr);
-    if (success) {
-        icon_name = prop.name;
-        xcb_icccm_get_text_property_reply_wipe(&prop);
-    } else {
-        icon_name = get_icon_name(window);
+    if (path.empty()) {
+        std::string icon = find_icon_string_from_window_properties(window);
+        if (!icon.empty()) {
+            std::vector<IconTarget> targets;
+            targets.emplace_back(IconTarget(icon));
+            search_icons(targets);
+            pick_best(targets, 24 * config->dpi);
+            path = targets[0].best_full_path;
+            data->icon_name = icon;
+        }
     }
-    if (!icon_name.empty()) {
-        std::vector<IconTarget> targets;
-        targets.emplace_back(IconTarget(icon_name));
-        search_icons(targets);
-        pick_best(targets, 24 * config->dpi);
-        path = targets[0].best_full_path;
-        data->icon_name = icon_name;
+    
+    if (path.empty()) {
+        auto get_wm_icon_name_cookie = xcb_icccm_get_wm_icon_name(app->connection, window);
+        xcb_icccm_get_text_property_reply_t prop;
+        uint8_t success = xcb_icccm_get_wm_icon_name_reply(app->connection, get_wm_icon_name_cookie, &prop, nullptr);
+        if (success) {
+            icon_name = prop.name;
+            xcb_icccm_get_text_property_reply_wipe(&prop);
+        } else {
+            icon_name = get_icon_name(window);
+        }
+        if (!icon_name.empty()) {
+            std::vector<IconTarget> targets;
+            targets.emplace_back(IconTarget(icon_name));
+            search_icons(targets);
+            pick_best(targets, 24 * config->dpi);
+            path = targets[0].best_full_path;
+            data->icon_name = icon_name;
+        }
     }
     if (path.empty()) {
         xcb_generic_error_t *error = NULL;
@@ -4195,6 +4388,16 @@ std::string find_icon_string_from_window_properties(xcb_window_t window) {
     // then see if we have a set icon string in text file, and if it has options, return that
     
     // then check if we have a raw icon saved with the wm_class name, and return that path if so
+    for (auto &l: launchers) {
+        if (!net_wm_name.empty() && !l->name.empty() && l->name == net_wm_name) {
+            printf("%s\n\n", l->icon.c_str());
+            return l->icon;
+        }
+    }
+
+//    printf("WM_NAME: %s, NET_WM_NAME: %s, ICON_NAME: %s, WM_CLASS: %s, GTK_APPLICATION_ID: %s, KDE_APPLICATION_ID: %s\n",
+//           wm_name.c_str(), net_wm_name.c_str(), icon_name.c_str(), wm_class.c_str(), gtk_application_id.c_str(),
+//           kde_application_id.c_str());
     
     return "";
 }

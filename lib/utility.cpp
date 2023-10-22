@@ -11,6 +11,7 @@
 #endif
 
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <librsvg/rsvg.h>
 #include <pango/pangocairo.h>
@@ -193,15 +194,6 @@ void set_rect(cairo_t *cr, Bounds bounds) {
     cairo_rectangle(cr, bounds.x, bounds.y, bounds.w, bounds.h);
 }
 
-struct CachedFont {
-    std::string name;
-    int size;
-    PangoWeight weight;
-    PangoLayout *layout;
-    
-    ~CachedFont() { g_object_unref(layout); }
-};
-
 std::vector<CachedFont *> cached_fonts;
 
 PangoLayout *
@@ -211,6 +203,8 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
 #endif
     for (auto font: cached_fonts) {
         if (font->name == name && font->size == pixel_height && font->weight == weight) {
+            pango_layout_set_attributes(font->layout, nullptr);
+//            printf("returned: %p\n", font->layout);
             return font->layout;
         }
     }
@@ -220,6 +214,7 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
     font->name = name;
     font->size = pixel_height;
     font->weight = weight;
+    font->cr = cr;
     
     PangoLayout *layout = pango_cairo_create_layout(cr);
     PangoFontDescription *desc = pango_font_description_new();
@@ -233,6 +228,7 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
     assert(layout);
     
     font->layout = layout;
+//    printf("new: %p\n", font->layout);
     
     cached_fonts.push_back(font);
     
@@ -247,6 +243,16 @@ void cleanup_cached_fonts() {
     }
     cached_fonts.clear();
     cached_fonts.shrink_to_fit();
+}
+
+void remove_cached_fonts(cairo_t *cr) {
+    for (int i = cached_fonts.size() - 1; i >= 0; --i) {
+        if (cached_fonts[i]->cr == cr) {
+//            printf("removed: %p\n", cached_fonts[i]->layout);
+            delete cached_fonts[i];
+            cached_fonts.erase(cached_fonts.begin() + i);
+        }
+    }
 }
 
 #define get_window_from_casted_event__explicit_member(X, Y, W) \
@@ -765,3 +771,4 @@ std::string clipboard() {
         }
     }
 }
+

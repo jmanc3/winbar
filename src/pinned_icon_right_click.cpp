@@ -49,6 +49,7 @@ public:
 static std::vector<CustomItem *> custom_items;
 static Container *pinned_icon_container = nullptr;
 static LaunchableButton *pinned_icon_data = nullptr;
+static std::string pinned_icon_class;
 static AppClient *client_entity = nullptr;
 static int pad = 8;
 
@@ -220,6 +221,23 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 option_clicked(AppClient *client, cairo_t *cr, Container *container) {
+    // If the pinned icon with the initial starting class return
+    bool found = false;
+    if (auto c = client_by_name(app, "taskbar")) {
+        if (auto icons = container_by_name("icons", c->root)) {
+            for (auto icon: icons->children) {
+                auto data = static_cast<LaunchableButton *>(icon->user_data);
+                if (data->class_name == pinned_icon_class) {
+                    found = true;
+                    break;
+                }
+            }
+        }
+    }
+    if (!found) {
+        client_close_threaded(app, client);
+        return;
+    }
     auto *data = (OptionData *) container->user_data;
     
     switch (data->option_type) {
@@ -305,7 +323,7 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
         }
     }
     
-    client_close(app, client);
+    client_close_threaded(app, client);
 }
 
 class DelayedSurfacePainting {
@@ -373,43 +391,53 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     
     auto *start_pad = root->child(FILL_SPACE, pad);
     
-    auto *data = new OptionData();
-    data->option_type = option_data_type::OPEN;
-    auto *open = root->child(FILL_SPACE, 30 * config->dpi);
-    pinned_icon_data->icon_name = c3ic_fix_wm_class(pinned_icon_data->icon_name);
-    
-    auto *d = new DelayedSurfacePainting();
-    d->surface = &data->surface;
-    d->size = 16 * config->dpi;
-    std::string icon_path;
-    
-    std::vector<IconTarget> targets;
-    targets.emplace_back(IconTarget(pinned_icon_data->icon_name));
-    targets.emplace_back(IconTarget(c3ic_fix_wm_class(pinned_icon_data->class_name)));
-    search_icons(targets);
-    pick_best(targets, 16 * config->dpi);
-    icon_path = targets[0].best_full_path;
-    
-    if (icon_path.empty()) {
-        icon_path = targets[1].best_full_path;
+    bool not_ours = true;
+    for (auto w: pinned_icon_data->windows_data_list) {
+        for (const auto &item: app->clients) {
+            if (w->id == item->window) {
+                not_ours = false;
+            }
+        }
     }
-    if (!icon_path.empty()) {
-        d->path = icon_path;
+    if (not_ours) {
+        auto *data = new OptionData();
+        data->option_type = option_data_type::OPEN;
+        auto *open = root->child(FILL_SPACE, 30 * config->dpi);
+        pinned_icon_data->icon_name = c3ic_fix_wm_class(pinned_icon_data->icon_name);
+        
+        auto *d = new DelayedSurfacePainting();
+        d->surface = &data->surface;
+        d->size = 16 * config->dpi;
+        std::string icon_path;
+        
+        std::vector<IconTarget> targets;
+        targets.emplace_back(IconTarget(pinned_icon_data->icon_name));
+        targets.emplace_back(IconTarget(c3ic_fix_wm_class(pinned_icon_data->class_name)));
+        search_icons(targets);
+        pick_best(targets, 16 * config->dpi);
+        icon_path = targets[0].best_full_path;
+        
+        if (icon_path.empty()) {
+            icon_path = targets[1].best_full_path;
+        }
+        if (!icon_path.empty()) {
+            d->path = icon_path;
+        }
+        d->original_surface = pinned_icon_data->surface;
+        delayed->push_back(d);
+        
+        open->when_paint = paint_open;
+        open->when_clicked = option_clicked;
+        
+        data->text = pinned_icon_data->class_name;
+        data->text_offset = 40 * config->dpi;
+        open->user_data = data;
     }
-    d->original_surface = pinned_icon_data->surface;
-    delayed->push_back(d);
-    
-    open->when_paint = paint_open;
-    open->when_clicked = option_clicked;
-    
-    data->text = pinned_icon_data->class_name;
-    data->text_offset = 40 * config->dpi;
-    open->user_data = data;
     
     if (pinned_icon_data->pinned) {
+        auto *data = new OptionData();
         auto *edit = root->child(FILL_SPACE, 30 * config->dpi);
         edit->when_paint = paint_option;
-        data = new OptionData();
         edit->when_clicked = option_clicked;
         
         data->text = "Edit";
@@ -419,27 +447,30 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
         edit->user_data = data;
     }
     
-    auto *pinned = root->child(FILL_SPACE, 30 * config->dpi);
-    pinned->when_paint = paint_option;
-    data = new OptionData();
-    pinned->when_clicked = option_clicked;
     
-    if (pinned_icon_data->pinned) {
-        data->text = "Unpin from taskbar";
-        data->option_type = option_data_type::UNPIN;
-    } else {
-        data->text = "Pin to taskbar";
-        data->option_type = option_data_type::PIN;
+    if (not_ours) {
+        auto *data = new OptionData();
+        auto *pinned = root->child(FILL_SPACE, 30 * config->dpi);
+        pinned->when_paint = paint_option;
+        pinned->when_clicked = option_clicked;
+        
+        if (pinned_icon_data->pinned) {
+            data->text = "Unpin from taskbar";
+            data->option_type = option_data_type::UNPIN;
+        } else {
+            data->text = "Pin to taskbar";
+            data->option_type = option_data_type::PIN;
+        }
+        
+        data->text_offset = 40 * config->dpi;
+        pinned->user_data = data;
     }
     
-    data->text_offset = 40 * config->dpi;
-    pinned->user_data = data;
-    
     if (!pinned_icon_data->windows_data_list.empty()) {
+        auto data = new OptionData();
         auto *close = root->child(FILL_SPACE, 30 * config->dpi);
         close->when_paint = paint_option;
         close->when_clicked = option_clicked;
-        data = new OptionData();
         data->option_type = option_data_type::CLOSE;
         if (pinned_icon_data->windows_data_list.size() == 1) {
             data->text = "Close window";
@@ -464,11 +495,9 @@ static void when_pinned_icon_right_click_menu_closed(AppClient *client) {
 }
 
 void start_pinned_icon_right_click(Container *container) {
-    if (auto c = client_by_name(app, "pinned_icon_editor")) {
-        client_close_threaded(app, c);
-    }
     pinned_icon_container = container;
     pinned_icon_data = (LaunchableButton *) container->user_data;
+    pinned_icon_class = pinned_icon_data->class_name;
     pinned_icon_data->type = selector_type::OPEN_CLICKED;
     
     load_custom_items();

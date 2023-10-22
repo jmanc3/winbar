@@ -2,6 +2,7 @@
 #define UTILITY_HEADER
 
 #include "application.h"
+#include "defer.h"
 #include <cairo-xcb.h>
 #include <container.h>
 #include <pango/pango-layout.h>
@@ -78,6 +79,108 @@ struct ArgbColor {
     }
 };
 
+class Label : public UserData {
+public:
+    std::string text;
+    int size = -1;
+    PangoWeight weight = PangoWeight::PANGO_WEIGHT_NORMAL;
+    
+    explicit Label(std::string text) {
+        this->text = text;
+    }
+    
+    ArgbColor color = ArgbColor(0, 0, 0, 0);
+};
+
+struct CachedFont {
+    std::string name;
+    int size;
+    PangoWeight weight;
+    PangoLayout *layout;
+    cairo_t *cr; // Creator
+    
+    ~CachedFont() { g_object_unref(layout); }
+};
+
+struct LineParser {
+    enum Token {
+        UNSET, WHITESPACE, IDENT, COMMA, EQUAL, QUOTE, END_OF_LINE
+    };
+    
+    std::string line;
+    size_t current_index = -1;
+    Token current_token = LineParser::Token::UNSET;
+    size_t previous_index = -1;
+    Token previous_token = LineParser::Token::UNSET;
+    
+    explicit LineParser(std::string line) : line(std::move(line)) {
+        next();
+    }
+    
+    void next() {
+        previous_index = current_index;
+        previous_token = current_token;
+        while (previous_token == current_token) {
+            current_index++;
+            if (current_index >= line.size()) {
+                current_token = LineParser::Token::END_OF_LINE;
+                current_index = line.size();
+                break;
+            } else {
+                if (line[current_index] == '=') {
+                    current_token = LineParser::Token::EQUAL;
+                    break; // We shouldn't join '+' with previous
+                } else if (line[current_index] == ',') {
+                    current_token = LineParser::Token::COMMA;
+                    break; // We shouldn't join ',' with previous
+                } else if (line[current_index] == '"') {
+                    current_token = LineParser::Token::QUOTE;
+                    break; // We shouldn't join '"' with previous
+                } else if (isspace(line[current_index])) {
+                    current_token = LineParser::Token::WHITESPACE;
+                } else {
+                    current_token = LineParser::Token::IDENT;
+                }
+            }
+        }
+    }
+    
+    void back() {
+        current_index = previous_index;
+        current_token = previous_token;
+    }
+    
+    Token peek() {
+        next();
+        defer(back()); // happens after return statement
+        return current_token;
+    }
+    
+    std::string text() {
+        next();
+        defer(back()); // happens after return statement
+        if (current_index > previous_index)
+            return line.substr(previous_index, current_index - previous_index);
+        return "";
+    }
+    
+    std::string until(Token type) {
+        if (current_token == type) {
+            return text();
+        }
+        std::string t;
+        while (current_token != Token::END_OF_LINE) {
+            if (current_token == type)
+                break;
+            t += text();
+            next();
+        }
+        return t;
+    }
+};
+
+extern std::vector<CachedFont *> cached_fonts;
+
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color);
 
 void dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold);
@@ -97,6 +200,8 @@ PangoLayout *
 get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeight weight);
 
 void cleanup_cached_fonts();
+
+void remove_cached_fonts(cairo_t *cr);
 
 xcb_window_t
 get_window(xcb_generic_event_t *event);
@@ -169,5 +274,8 @@ paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, doubl
 bool is_light_theme(const ArgbColor &color);
 
 std::string clipboard();
+
+void
+rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height);
 
 #endif

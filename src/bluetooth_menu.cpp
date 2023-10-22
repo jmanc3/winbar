@@ -8,6 +8,7 @@
 #include "config.h"
 #include "icons.h"
 #include "components.h"
+#include "settings_menu.h"
 
 #include <pango/pangocairo.h>
 #include <iostream>
@@ -1131,15 +1132,21 @@ void open_bluetooth_menu() {
     settings.h = 112 * 4 * config->dpi;
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
+    settings.slide_data[1] = 3;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
-        settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
+        auto *container = container_by_name("bluetooth", taskbar->root);
+        if (container->real_bounds.x > taskbar->bounds->w / 2) {
+            settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
+        } else {
+            settings.x = 0;
+            settings.slide_data[1] = 0;
+        }
         settings.y = taskbar->bounds->y - settings.h;
     }
     settings.force_position = true;
     settings.override_redirect = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
-    settings.slide_data[1] = 3;
     settings.slide_data[2] = 160;
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
@@ -1178,7 +1185,7 @@ void bluetooth_service_started() {
     register_agent_if_needed();
     if (auto client = client_by_name(app, "taskbar")) {
         if (auto c = container_by_name("bluetooth", client->root)) {
-            c->exists = true;
+            c->exists = winbar_settings->bluetooth_enabled;
         }
         client_layout(app, client);
         client_paint(app, client);

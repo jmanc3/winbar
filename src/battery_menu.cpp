@@ -161,19 +161,6 @@ paint_title(AppClient *client_entity, cairo_t *cr, Container *container) {
 }
 
 static void
-rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height) {
-    double radius = corner_radius;
-    double degrees = M_PI / 180.0;
-    
-    cairo_new_sub_path(cr);
-    cairo_arc(cr, x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
-    cairo_arc(cr, x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees);
-    cairo_arc(cr, x + radius, y + height - radius, radius, 90 * degrees, 180 * degrees);
-    cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
-    cairo_close_path(cr);
-}
-
-static void
 paint_brightness_amount(AppClient *client_entity, cairo_t *cr, Container *container) {
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -466,8 +453,15 @@ void start_battery_menu() {
     settings.h = 164 * config->dpi;
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
+    settings.slide_data[1] = 3;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
-        settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
+        auto *container = container_by_name("battery", taskbar->root);
+        if (container->real_bounds.x > taskbar->bounds->w / 2) {
+            settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
+        } else {
+            settings.x = 0;
+            settings.slide_data[1] = 0;
+        }
         settings.y = taskbar->bounds->y - settings.h;
     }
     settings.force_position = true;
@@ -476,7 +470,6 @@ void start_battery_menu() {
     settings.override_redirect = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
-    settings.slide_data[1] = 3;
     settings.slide_data[2] = 160;
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
