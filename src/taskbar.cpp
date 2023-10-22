@@ -3277,6 +3277,7 @@ create_taskbar(App *app) {
     // Create the window
     
     AppClient *taskbar = client_new(app, settings, "taskbar");
+    taskbar->screen_information = primary_screen_info;
     
     taskbar->when_closed = when_taskbar_closed;
     taskbar->on_any_screen_change = taskbar_on_screen_size_change;
