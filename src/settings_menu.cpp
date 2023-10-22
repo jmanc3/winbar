@@ -15,7 +15,7 @@
 
 WinbarSettings *winbar_settings = new WinbarSettings;
 
-void merge_order_with_taskbar(AppClient *client);
+void merge_order_with_taskbar();
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
@@ -67,12 +67,21 @@ static void paint_draggable(AppClient *client, cairo_t *cr, Container *container
 
 struct Checkbox : UserData {
     bool on = true;
+    std::string container_name;
+    std::string name;
 };
 
 static void clicked_on_off(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (Checkbox *) container->user_data;
     data->on = !data->on;
-    merge_order_with_taskbar(client);
+    
+    for (auto &c: winbar_settings->taskbar_order) {
+        if (c.name == data->name) {
+            c.on = data->on;
+            break;
+        }
+    }
+    merge_order_with_taskbar();
 }
 
 static void paint_on_off(AppClient *client, cairo_t *cr, Container *container) {
@@ -247,7 +256,31 @@ static void dragged_list_item(AppClient *client, cairo_t *cr, Container *contain
 
 static void dragged_list_item_end(AppClient *client, cairo_t *cr, Container *container) {
     layout(client, cr, container->parent, container->parent->real_bounds);
-    merge_order_with_taskbar(client);
+    
+    Container *reorder_list = container_by_name("reorder_list", client->root);
+    std::sort(winbar_settings->taskbar_order.begin(), winbar_settings->taskbar_order.end(),
+              [reorder_list](const TaskbarItem &first, const TaskbarItem &second) {
+                  int first_index = 1000;
+                  int second_index = 1000;
+                  for (int i = 0; i < reorder_list->children.size(); ++i) {
+                    auto *label = (Label *) reorder_list->children[i]->children[2]->user_data;
+                    if (label->text == first.name) {
+                        first_index = i;
+                        break;
+                    }
+                  }
+                  for (int i = 0; i < reorder_list->children.size(); ++i) {
+                      auto *label = (Label *) reorder_list->children[i]->children[2]->user_data;
+                      if (label->text == second.name) {
+                          second_index = i;
+                          break;
+                      }
+                  }
+                  return first_index < second_index;
+              });
+    for (int i = 0; i < winbar_settings->taskbar_order.size(); i++)
+        winbar_settings->taskbar_order[i].target_index = i;
+    merge_order_with_taskbar();
 }
 
 static void add_item(Container *reorder_list, std::string n, bool on_off_state) {
@@ -276,6 +309,7 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
         on_off->when_clicked = clicked_on_off;
         on_off->when_paint = paint_on_off;
         auto check = new Checkbox;
+        check->name = n;
         check->on = on_off_state;
         on_off->user_data = check;
     }
@@ -307,88 +341,51 @@ static void paint_centered_text(AppClient *client, cairo_t *cr, Container *conta
     pango_cairo_show_layout(cr, layout);
 }
 
-void merge_order_with_taskbar(AppClient *client) {
+void merge_order_with_taskbar() {
+    for (const auto &item: winbar_settings->taskbar_order) {
+        if (item.name == "Bluetooth") {
+            winbar_settings->bluetooth_enabled = item.on;
+        }
+    }
+    std::sort(winbar_settings->taskbar_order.begin(), winbar_settings->taskbar_order.end(),
+              [](const TaskbarItem &first, const TaskbarItem &second) {
+                  return first.target_index < second.target_index;
+              });
+    
     auto taskbar = client_by_name(app, "taskbar");
     if (!taskbar)
         return;
-    
-    // Sort taskbar->root->children based on target_index
-    struct ForSorting {
-        int target_index = 1000;
-        Container *container = nullptr;
-        bool on = true;
-        
-        explicit ForSorting(Container *container) : container(container) {}
-    };
-    
-    std::vector<ForSorting> for_sorting;
-    for (auto i: taskbar->root->children)
-        for_sorting.emplace_back(i);
 
-#define ATTACH(label_text, container_name) \
-    if (label->text == label_text) { \
-        for (auto &c: for_sorting) { \
-            if (c.container->name == container_name) { \
-                c.target_index = current_max;          \
-                c.on = checkbox->on;       \
-                current_max++;                    \
-                goto next; \
-            } \
-        } \
+#define ADD(button_name, container_name) if (s.name == button_name) { \
+       auto container = container_by_name(container_name, taskbar->root); \
+       container->exists = s.on; \
+       containers.push_back(container); \
+       continue; \
     }
     
-    int current_max = 0;
-    auto *reorder_list = container_by_name("reorder_list", client->root);
-    for (auto child: reorder_list->children) {
-        auto *label = (Label *) child->children[child->children.size() - 1]->user_data;
-        auto *checkbox = (Checkbox *) child->children[1]->user_data;
-        if (child->name == "Spacer")
-            continue;
-        
-        ATTACH("Super", "super")
-        ATTACH("Search Field", "field_search")
-        ATTACH("Workspace", "workspace")
-        ATTACH("Pinned Icons", "icons")
-        ATTACH("Systray", "systray")
-        if (label->text == "Bluetooth") {
-            for (auto &c: for_sorting) {
-                if (c.container->name == "bluetooth") {
-                    c.target_index = current_max;
-                    c.on = checkbox->on;
-                    winbar_settings->bluetooth_enabled = checkbox->on;
-                    current_max++;
-                    goto next;
-                }
-            }
-        }
-        ATTACH("Wifi", "wifi")
-        ATTACH("Battery", "battery")
-        ATTACH("Volume", "volume")
-        ATTACH("Date", "date")
-        ATTACH("Notifications", "action")
-        ATTACH("Show Desktop", "minimize")
-        
-        next:
-        continue;
-    }
-    
-    for (auto s: for_sorting) {
-        if (s.container->name == "bluetooth") {
-            s.container->exists = winbar_settings->bluetooth_enabled && bluetooth_running;
-            continue;
-        }
-        s.container->exists = s.on;
+    std::vector<Container *> containers;
+    for (const auto &s: winbar_settings->taskbar_order) {
+        ADD("Super", "super")
+        ADD("Search Field", "field_search")
+        ADD("Workspace", "workspace")
+        ADD("Pinned Icons", "icons")
+        ADD("Systray", "systray")
+        ADD("Bluetooth", "bluetooth")
+        ADD("Wifi", "wifi")
+        ADD("Battery", "battery")
+        ADD("Volume", "volume")
+        ADD("Date", "date")
+        ADD("Notifications", "action")
+        ADD("Show Desktop", "minimize")
     }
     taskbar->root->children.clear();
-    std::sort(for_sorting.begin(), for_sorting.end(), [](ForSorting first, ForSorting second) {
-        return first.target_index < second.target_index;
-    });
-    for (auto s: for_sorting) {
-        taskbar->root->children.push_back(s.container);
+    for (auto c: containers) {
+        taskbar->root->children.push_back(c);
     }
+    // No matter what, bluetooth does not exist until dbus says it does.
+    container_by_name("bluetooth", taskbar->root)->exists = false;
     
     client_layout(app, taskbar);
-    client_paint(app, taskbar);
 }
 
 static void clicked_reset(AppClient *client, cairo_t *, Container *) {
@@ -402,8 +399,16 @@ static void clicked_reset(AppClient *client, cairo_t *, Container *) {
     for (auto n: names) {
         add_item(reorder_list, n, true);
     }
+    winbar_settings->taskbar_order.clear();
+    for (int i = 0; i < names.size(); ++i) {
+        TaskbarItem item;
+        item.name = names[i];
+        item.on = true;
+        item.target_index = i;
+        winbar_settings->taskbar_order.push_back(item);
+    }
     client_layout(app, client);
-    merge_order_with_taskbar(client);
+    merge_order_with_taskbar();
     save_settings_file();
 }
 
@@ -482,6 +487,7 @@ void when_closed_settings_menu(AppClient *client) {
 void open_settings_menu(SettingsPage page) {
     Settings settings;
     settings.skip_taskbar = false;
+//    settings.keep_above = true;
     settings.w = 1000 * config->dpi;
     settings.h = 700 * config->dpi;
     auto client = client_new(app, settings, "settings_menu");
@@ -530,6 +536,7 @@ void save_settings_file() {
         }
         out_file << std::endl;
     }
+    out_file << std::endl;
 }
 
 void read_settings_file() {
@@ -609,51 +616,5 @@ void read_settings_file() {
             order.target_index += 1000;
         }
     }
-    
-    for (const auto &item: winbar_settings->taskbar_order) {
-        if (item.name == "Bluetooth") {
-            winbar_settings->bluetooth_enabled = item.on;
-        }
-    }
-    
-    
-    std::sort(winbar_settings->taskbar_order.begin(), winbar_settings->taskbar_order.end(),
-              [](const TaskbarItem &first, const TaskbarItem &second) {
-                  return first.target_index < second.target_index;
-              });
-    
-    auto taskbar = client_by_name(app, "taskbar");
-    if (!taskbar)
-        return;
-
-#define ADD(button_name, container_name) if (s.name == button_name) { \
-       auto container = container_by_name(container_name, taskbar->root); \
-       container->exists = s.on; \
-       containers.push_back(container); \
-       continue; \
-    }
-    
-    std::vector<Container *> containers;
-    for (const auto &s: winbar_settings->taskbar_order) {
-        ADD("Super", "super")
-        ADD("Search Field", "field_search")
-        ADD("Workspace", "workspace")
-        ADD("Pinned Icons", "icons")
-        ADD("Systray", "systray")
-        ADD("Bluetooth", "bluetooth")
-        ADD("Wifi", "wifi")
-        ADD("Battery", "battery")
-        ADD("Volume", "volume")
-        ADD("Date", "date")
-        ADD("Notifications", "action")
-        ADD("Show Desktop", "minimize")
-    }
-    taskbar->root->children.clear();
-    for (auto c: containers) {
-        taskbar->root->children.push_back(c);
-    }
-    // No matter what, bluetooth does not exist until dbus says it does.
-    container_by_name("bluetooth", taskbar->root)->exists = false;
-    
-    client_layout(app, taskbar);
+    merge_order_with_taskbar();
 }
