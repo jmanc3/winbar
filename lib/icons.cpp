@@ -29,6 +29,7 @@
 #endif
 
 static uint32_t cache_version = 3;
+static long last_time_cached_checked = -1;
 
 int getExtension(unsigned short int i) {
     // return the top two bits
@@ -432,6 +433,7 @@ void set_icons_path_and_possibly_update(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    last_time_cached_checked = 0;
     if (data == nullptr)
         data = new OptionsData();
     icon_search_paths.clear();
@@ -471,8 +473,6 @@ void set_icons_path_and_possibly_update(App *app) {
     
     check_cache_file();
 }
-
-static long last_time_cached_checked = -1;
 
 static std::string first_message;
 static std::string second_message;
@@ -552,6 +552,7 @@ void check_cache_file() {
             std::thread t([icon_cache_path]() -> void {
                 generate_data();
                 save_data();
+                load_data();
             });
             App *temp_app = app_new();
             std::thread t2([&temp_app]() -> void {
@@ -581,6 +582,7 @@ void check_cache_file() {
         std::thread t([icon_cache_path]() -> void {
             generate_data();
             save_data();
+            load_data();
         });
         App *temp_app = app_new();
         std::thread t2([&temp_app]() -> void {
@@ -919,6 +921,8 @@ void unload_icons() {
         data = nullptr;
         free(name_buffer);
         free(option_buffer);
+        name_buffer = nullptr;
+        option_buffer = nullptr;
         ranges.clear();
     }
     
