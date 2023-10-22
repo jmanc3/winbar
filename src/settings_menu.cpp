@@ -404,6 +404,7 @@ static void clicked_reset(AppClient *client, cairo_t *, Container *) {
     }
     client_layout(app, client);
     merge_order_with_taskbar(client);
+    save_settings_file();
 }
 
 static void
