@@ -4131,23 +4131,31 @@ void update_taskbar_volume_icon() {
 
 void set_textarea_active() {
     if (auto *client = client_by_name(app, "taskbar")) {
+        if (auto *container = container_by_name("field_search", client->root))
+            container->exists = true;
         if (auto *container = container_by_name("main_text_area", client->root)) {
             auto *text_data = (TextAreaData *) container->user_data;
             container->parent->active = true;
             container->parent->active = true;
         }
+        client_layout(app, client);
         request_refresh(client->app, client);
     }
 }
 
 void set_textarea_inactive() {
     if (auto *client = client_by_name(app, "taskbar")) {
+        if (auto *container = container_by_name("field_search", client->root))
+            for (auto a: winbar_settings->taskbar_order)
+                if (a.name == "Search Field")
+                    container->exists = a.on;
         if (auto *container = container_by_name("main_text_area", client->root)) {
             auto *text_data = (TextAreaData *) container->user_data;
             delete text_data->state;
             text_data->state = new TextState;
             container->parent->active = false;
         }
+        client_layout(app, client);
         request_refresh(client->app, client);
     }
 }
