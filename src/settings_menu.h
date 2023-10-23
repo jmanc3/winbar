@@ -6,6 +6,7 @@
 #define WINBAR_SETTINGS_MENU_H
 
 #include <vector>
+#include "container.h"
 
 enum SettingsPage {
     Taskbar
@@ -20,6 +21,7 @@ struct TaskbarItem {
 struct WinbarSettings {
     std::vector<TaskbarItem> taskbar_order;
     bool bluetooth_enabled = true;
+    container_alignment icons_alignment = container_alignment::ALIGN_LEFT;
 };
 
 extern WinbarSettings *winbar_settings;

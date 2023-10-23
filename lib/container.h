@@ -70,11 +70,13 @@ enum layout_type {
 
 enum container_alignment {
     ALIGN_NONE = 0,
-    ALIGN_CENTER = 1 << 0,
-    ALIGN_LEFT = 2 << 0,
-    ALIGN_BOTTOM = 2 << 0,
-    ALIGN_RIGHT = 2 << 0,
-    ALIGN_TOP = 2 << 0,
+    ALIGN_GLOBAL_CENTER_HORIZONTALLY = 1 << 0,
+    ALIGN_CENTER_HORIZONTALLY = 1 << 1,
+    ALIGN_CENTER = 1 << 2,
+    ALIGN_LEFT = 1 << 3,
+    ALIGN_BOTTOM = 1 << 4,
+    ALIGN_RIGHT = 1 << 5,
+    ALIGN_TOP = 1 << 6,
 };
 
 struct UserData {

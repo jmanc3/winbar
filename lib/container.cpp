@@ -378,8 +378,78 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
                 // Get height, divide by two, subtract that by parent y - h / 2
                 double full_height = c->real_bounds.h;
                 double align_offset = bounds.h / 2 - full_height / 2;
-                
                 modify_all(c, 0, align_offset);
+            }
+        }
+    }
+    if (container->alignment & ALIGN_RIGHT) {
+        if (!container->children.empty()) {
+            Container *first = container->children[0];
+            Container *last = container->children[container->children.size() - 1];
+            double total_children_w = (last->real_bounds.x + last->real_bounds.w) - first->real_bounds.x;
+            
+            for (auto c: container->children) {
+                modify_all(c, (container->real_bounds.w - total_children_w), 0);
+            }
+        }
+    }
+    if (container->alignment & ALIGN_CENTER_HORIZONTALLY) {
+        if (!container->children.empty()) {
+            Bounds real_bounds = container->real_bounds;
+            Container *first = container->children[0];
+            Container *last = container->children[container->children.size() - 1];
+            double total_children_w = (last->real_bounds.x + last->real_bounds.w) - first->real_bounds.x;
+            
+            for (auto c: container->children) {
+                modify_all(c, (container->real_bounds.w - total_children_w) * .5, 0);
+            }
+            // guarantee first is greater than real_bounds.x
+            if (first->real_bounds.x < real_bounds.x) {
+                auto diff = real_bounds.x - first->real_bounds.x;
+                for (auto c: container->children) {
+                    modify_all(c, diff, 0);
+                }
+            }
+        }
+    }
+    if (container->alignment & ALIGN_GLOBAL_CENTER_HORIZONTALLY) {
+        if (!container->children.empty()) {
+            Container *root = container;
+            while (true) {
+                if (root->parent == nullptr)
+                    break;
+                root = root->parent;
+            }
+            
+            Bounds real_bounds = container->real_bounds;
+            Container *first = container->children[0];
+            Container *last = container->children[container->children.size() - 1];
+            double total_children_w = (last->real_bounds.x + last->real_bounds.w) - first->real_bounds.x;
+            double target_x = root->real_bounds.w / 2 - total_children_w / 2;
+            double initial_x = first->real_bounds.x;
+            for (auto c: container->children) {
+                modify_all(c, target_x - initial_x, 0);
+            }
+            // guarantee first is greater than real_bounds.x
+            if (first->real_bounds.x < real_bounds.x) {
+                auto diff = real_bounds.x - first->real_bounds.x;
+                for (auto c: container->children) {
+                    modify_all(c, diff, 0);
+                }
+            }
+            // guarantee last is less than real_bounds.x
+            if (last->real_bounds.x + last->real_bounds.w > real_bounds.x + real_bounds.w) {
+                auto diff = (real_bounds.x + real_bounds.w) - (last->real_bounds.x + last->real_bounds.w);
+                for (auto c: container->children) {
+                    modify_all(c, diff, 0);
+                }
+            }
+            // guarantee first is greater than real_bounds.x
+            if (first->real_bounds.x < real_bounds.x) {
+                auto diff = real_bounds.x - first->real_bounds.x;
+                for (auto c: container->children) {
+                    modify_all(c, diff, 0);
+                }
             }
         }
     }
@@ -840,6 +910,7 @@ Container::Container(const Container &c) {
     real_bounds = c.real_bounds;
     children_bounds = c.children_bounds;
     interactable = c.interactable;
+    alignment = c.alignment;
     
     should_layout_children = c.should_layout_children;
     clip_children = c.clip_children;

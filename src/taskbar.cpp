@@ -3538,6 +3538,10 @@ void add_window(App *app, xcb_window_t window) {
     }
     
     Container *a = icons->child(50 * config->dpi, FILL_SPACE);
+    if (icons->alignment == container_alignment::ALIGN_RIGHT) {
+        icons->children.erase(icons->children.begin() + (icons->children.size() - 1));
+        icons->children.insert(icons->children.begin(), a);
+    }
     a->when_drag_end_is_click = false;
     a->minimum_x_distance_to_move_before_drag_begins = 15;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;

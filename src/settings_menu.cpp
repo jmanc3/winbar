@@ -23,6 +23,8 @@ WinbarSettings *winbar_settings = new WinbarSettings;
 
 void merge_order_with_taskbar();
 
+static void paint_reordable_item(AppClient *client, cairo_t *cr, Container *container);
+
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
@@ -75,6 +77,10 @@ struct Checkbox : UserData {
     bool on = true;
     std::string container_name;
     std::string name;
+};
+
+struct ComboBox : UserData {
+    std::map<std::string, container_alignment> options;
 };
 
 static void clicked_on_off(AppClient *client, cairo_t *cr, Container *container) {
@@ -132,6 +138,46 @@ static void paint_on_off(AppClient *client, cairo_t *cr, Container *container) {
     cairo_move_to(cr,
                   (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2 - 1 * config->dpi));
+    pango_cairo_show_layout(cr, layout);
+}
+
+static void paint_combo(AppClient *client, cairo_t *cr, Container *container) {
+    auto old = container->real_bounds;
+    int pad = 3;
+    container->real_bounds.y += pad * config->dpi;
+    container->real_bounds.h -= (pad * 2) * config->dpi;
+    paint_reordable_item(client, cr, container);
+    container->real_bounds = old;
+    
+    auto *data = (ComboBox *) container->user_data;
+    
+    std::string selected = "Left";
+    for (const auto &m: data->options)
+        if (m.second == winbar_settings->icons_alignment)
+            selected = m.first;
+    selected = "Alignment: " + selected;
+    
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
+    int width;
+    int height;
+    pango_layout_set_text(layout, selected.c_str(), -1);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
+    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 8 * config->dpi,
+                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+    pango_cairo_show_layout(cr, layout);
+    
+    layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE70D", strlen("\uE83F"));
+    
+    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w - width - 8 * config->dpi),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
 }
 
@@ -193,6 +239,93 @@ static void dragged_list_start(AppClient *client, cairo_t *cr, Container *contai
     for (auto c: container->parent->children)
         c->z_index = 0;
     container->z_index = 20;
+}
+
+static void clicked_combox_item(AppClient *client, cairo_t *cr, Container *container) {
+    auto *label = (Label *) container->user_data;
+    if (auto c = client_by_name(app, "settings_menu")) {
+        if (auto con = container_by_name("combo", c->root)) {
+            auto *data = (ComboBox *) con->user_data;
+            winbar_settings->icons_alignment = data->options[label->text];
+        }
+    }
+    client_close_threaded(app, client);
+    merge_order_with_taskbar();
+}
+
+static void paint_combox_item(AppClient *client, cairo_t *cr, Container *container) {
+    auto *label = (Label *) container->user_data;
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, darken(config->color_pinned_icon_editor_background, 15));
+        } else if (container->state.mouse_hovering) {
+            set_argb(cr, darken(config->color_pinned_icon_editor_background, 7));
+        }
+        set_rect(cr, container->real_bounds);
+        cairo_fill(cr);
+    }
+    
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
+    
+    int width;
+    int height;
+    pango_layout_set_text(layout, label->text.c_str(), -1);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
+    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 12 * config->dpi,
+                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+    pango_cairo_show_layout(cr, layout);
+}
+
+static void clicked_combox(AppClient *client, cairo_t *cr, Container *container) {
+    auto *data = (ComboBox *) container->user_data;
+    
+    float total_text_height = 0;
+    
+    auto taskbar = client_by_name(app, "taskbar");
+    PangoLayout *layout = get_cached_pango_font(taskbar->cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
+    int width;
+    int height;
+    for (auto m: data->options) {
+        pango_layout_set_text(layout, m.first.c_str(), -1);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
+        total_text_height += height;
+    }
+    total_text_height += data->options.size() * (12 * config->dpi); // pad
+    
+    Settings settings;
+    settings.force_position = true;
+    settings.w = container->real_bounds.w;
+    settings.h = total_text_height;
+    settings.x = client->bounds->x + container->real_bounds.x;
+    settings.y = client->bounds->y + container->real_bounds.y + container->real_bounds.h - 2 * config->dpi;
+    settings.skip_taskbar = true;
+    settings.decorations = false;
+    settings.override_redirect = true;
+    settings.no_input_focus = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 1;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
+    
+    PopupSettings popup_settings;
+    popup_settings.takes_input_focus = false;
+    popup_settings.close_on_focus_out = true;
+    popup_settings.wants_grab = true;
+    
+    auto popup = client->create_popup(popup_settings, settings);
+    popup->root->when_paint = paint_root;
+    popup->root->type = ::vbox;
+    for (auto m: data->options) {
+        auto c = popup->root->child(FILL_SPACE, FILL_SPACE);
+        c->when_paint = paint_combox_item;
+        c->when_clicked = clicked_combox_item;
+        auto label = new Label(m.first);
+        c->user_data = label;
+    }
+    client_show(app, popup);
 }
 
 void move_container_to_index(std::vector<Container *> &containers, Container *container, int wants_i) {
@@ -289,6 +422,16 @@ static void dragged_list_item_end(AppClient *client, cairo_t *cr, Container *con
     merge_order_with_taskbar();
 }
 
+bool invalidate_item_pierce(Container *container, int mouse_x, int mouse_y) {
+    // If "combo" or on_off, container is hovered, parent shouldn't be 'pierced'
+    if (auto c = container_by_name("combo", container))
+        if (bounds_contains(c->real_bounds, mouse_x, mouse_y))
+            return false;
+    if (bounds_contains(container->children[1]->real_bounds, mouse_x, mouse_y))
+        return false;
+    return bounds_contains(container->real_bounds, mouse_x, mouse_y);
+}
+
 static void add_item(Container *reorder_list, std::string n, bool on_off_state) {
     auto r = reorder_list->child(::hbox, FILL_SPACE, 28 * config->dpi);
     r->when_paint = paint_reordable_item;
@@ -299,6 +442,7 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
     r->when_drag_end = dragged_list_item_end;
     r->when_drag_end_is_click = false;
     r->user_data = new Drag;
+    r->handles_pierced = invalidate_item_pierce;
     
     auto drag = r->child(r->wanted_bounds.h * .8, FILL_SPACE);
     drag->wanted_pad.x = r->wanted_bounds.h * .43;
@@ -320,11 +464,38 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
         on_off->user_data = check;
     }
     
-    auto x = r->child(::hbox, FILL_SPACE, FILL_SPACE);
-    x->wanted_pad.x = r->wanted_bounds.h * .4;
-    x->when_paint = paint_label;
+    auto taskbar = client_by_name(app, "taskbar");
+    PangoLayout *layout = get_cached_pango_font(taskbar->cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
+    int width;
+    int height;
+    pango_layout_set_text(layout, n.c_str(), -1);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    auto label = r->child(::hbox, width + r->wanted_bounds.h * .8, FILL_SPACE);
+    label->wanted_pad.x = r->wanted_bounds.h * .4;
+    label->when_paint = paint_label;
     auto data = new Label(n);
-    x->user_data = data;
+    label->user_data = data;
+    
+    if (n == "Pinned Icons") {
+        pango_layout_set_text(layout, n.c_str(), -1);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
+        
+        auto combo = new ComboBox;
+        combo->options["Left"] = container_alignment::ALIGN_LEFT;
+        combo->options["Right"] = container_alignment::ALIGN_RIGHT;
+        combo->options["Center"] = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
+        combo->options["Centered Locally"] = container_alignment::ALIGN_CENTER_HORIZONTALLY;
+        
+        std::string selected = "Alignment: Centered Locally";
+        pango_layout_set_text(layout, selected.c_str(), -1);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
+        
+        auto combobox = r->child(width * 1.3, FILL_SPACE);
+        combobox->name = "combo";
+        combobox->when_clicked = clicked_combox;
+        combobox->when_paint = paint_combo;
+        combobox->user_data = combo;
+    }
 }
 
 static void clicked_add_spacer(AppClient *client, cairo_t *cr, Container *container) {
@@ -390,6 +561,7 @@ void merge_order_with_taskbar() {
     }
     // No matter what, bluetooth does not exist until dbus says it does.
     container_by_name("bluetooth", taskbar->root)->exists = false;
+    container_by_name("icons", taskbar->root)->alignment = winbar_settings->icons_alignment;
     
     client_layout(app, taskbar);
     client_paint(app, taskbar);
@@ -414,6 +586,8 @@ static void clicked_reset(AppClient *client, cairo_t *, Container *) {
         item.target_index = i;
         winbar_settings->taskbar_order.push_back(item);
     }
+    winbar_settings->icons_alignment = container_alignment::ALIGN_LEFT;
+    winbar_settings->bluetooth_enabled = true;
     client_layout(app, client);
     merge_order_with_taskbar();
     save_settings_file();
@@ -541,9 +715,20 @@ void save_settings_file() {
             WRITE("Notifications", "action")
             WRITE("Show Desktop", "minimize")
         }
-        out_file << std::endl;
     }
-    out_file << std::endl;
+    out_file << std::endl << std::endl;
+    
+    out_file << "icons_alignment=";
+    if (winbar_settings->icons_alignment == container_alignment::ALIGN_RIGHT) {
+        out_file << "right";
+    } else if (winbar_settings->icons_alignment == container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY) {
+        out_file << "center";
+    } else if (winbar_settings->icons_alignment == container_alignment::ALIGN_CENTER_HORIZONTALLY) {
+        out_file << "center local";
+    } else {
+        out_file << "left";
+    }
+    out_file << std::endl << std::endl;
 }
 
 void read_settings_file() {
@@ -603,6 +788,19 @@ void read_settings_file() {
                 }
                 out:
                 continue;
+            } else if (key == "icons_alignment") {
+                parser.until(LineParser::Token::IDENT);
+                if (parser.current_token == LineParser::Token::IDENT) {
+                    std::string text = parser.until(LineParser::Token::END_OF_LINE);
+                    trim(text);
+                    if (text == "right") {
+                        winbar_settings->icons_alignment = container_alignment::ALIGN_RIGHT;
+                    } else if (text == "center") {
+                        winbar_settings->icons_alignment = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
+                    } else if (text == "center local") {
+                        winbar_settings->icons_alignment = container_alignment::ALIGN_CENTER_HORIZONTALLY;
+                    }
+                }
             }
         }
     }
