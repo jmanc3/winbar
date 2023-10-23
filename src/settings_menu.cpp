@@ -483,10 +483,10 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
         auto combo = new ComboBox;
         combo->options["Left"] = container_alignment::ALIGN_LEFT;
         combo->options["Right"] = container_alignment::ALIGN_RIGHT;
-        combo->options["Center"] = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
-        combo->options["Centered Locally"] = container_alignment::ALIGN_CENTER_HORIZONTALLY;
+        combo->options["Screen Center"] = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
+        combo->options["Container Center"] = container_alignment::ALIGN_CENTER_HORIZONTALLY;
         
-        std::string selected = "Alignment: Centered Locally";
+        std::string selected = "Alignment: Container Center";
         pango_layout_set_text(layout, selected.c_str(), -1);
         pango_layout_get_pixel_size_safe(layout, &width, &height);
         
