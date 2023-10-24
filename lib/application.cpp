@@ -1295,17 +1295,25 @@ void paint_container(App *app, AppClient *client, Container *container) {
     
         if (container->type == ::newscroll) {
             auto s = (ScrollContainer *) container;
-            // only render content children which overlap with the scroll container
-            for (auto child: s->content->children) {
+            std::vector<int> render_order;
+            for (int i = 0; i < s->content->children.size(); i++) {
+                render_order.push_back(i);
+            }
+            std::sort(render_order.begin(), render_order.end(), [s](int a, int b) -> bool {
+                return s->content->children[a]->z_index < s->content->children[b]->z_index;
+            });
+            
+            for (auto index: render_order) {
                 cairo_save(client->cr);
                 set_rect(client->cr, container->real_bounds);
                 cairo_clip(client->cr);
-        
-                if (overlaps(child->real_bounds, s->real_bounds)) {
-                    paint_container(app, client, child);
+                
+                if (overlaps(s->content->children[index]->real_bounds, s->real_bounds)) {
+                    paint_container(app, client, s->content->children[index]);
                 }
                 cairo_restore(client->cr);
             }
+            
             if (s->right && s->right->exists)
                 paint_container(app, client, s->right);
             if (s->bottom && s->bottom->exists)
@@ -1626,28 +1634,57 @@ void handle_mouse_motion(App *app) {
 }
 
 void set_active(AppClient *client, const std::vector<Container *> &active_containers, Container *c, bool state) {
-    for (auto child: c->children) {
-        set_active(client, active_containers, child, state);
-    }
-    
-    bool will_be_activated = false;
-    for (auto active_container: active_containers) {
-        if (active_container == c) {
-            will_be_activated = true;
+    if (c->type == ::newscroll) {
+        auto s = (ScrollContainer *) c;
+        for (auto child: s->content->children) {
+            set_active(client, active_containers, child, state);
         }
-    }
-    if (will_be_activated) {
-        if (!c->active) {
-            c->active = true;
-            if (c->when_active_status_changed) {
-                c->when_active_status_changed(client, client->cr, c);
+        
+        bool will_be_activated = false;
+        for (auto active_container: active_containers) {
+            if (active_container == s->content) {
+                will_be_activated = true;
+            }
+        }
+        if (will_be_activated) {
+            if (!s->content->active) {
+                s->content->active = true;
+                if (s->content->when_active_status_changed) {
+                    s->content->when_active_status_changed(client, client->cr, s->content);
+                }
+            }
+        } else {
+            if (s->content->active) {
+                s->content->active = false;
+                if (s->content->when_active_status_changed) {
+                    s->content->when_active_status_changed(client, client->cr, s->content);
+                }
             }
         }
     } else {
-        if (c->active) {
-            c->active = false;
-            if (c->when_active_status_changed) {
-                c->when_active_status_changed(client, client->cr, c);
+        for (auto child: c->children) {
+            set_active(client, active_containers, child, state);
+        }
+        
+        bool will_be_activated = false;
+        for (auto active_container: active_containers) {
+            if (active_container == c) {
+                will_be_activated = true;
+            }
+        }
+        if (will_be_activated) {
+            if (!c->active) {
+                c->active = true;
+                if (c->when_active_status_changed) {
+                    c->when_active_status_changed(client, client->cr, c);
+                }
+            }
+        } else {
+            if (c->active) {
+                c->active = false;
+                if (c->when_active_status_changed) {
+                    c->when_active_status_changed(client, client->cr, c);
+                }
             }
         }
     }
@@ -1877,11 +1914,21 @@ static bool is_control(char *buf) {
 void
 send_key_actual(App *app, AppClient *client, Container *container, bool is_string, xkb_keysym_t keysym, char string[64],
                 uint16_t mods, xkb_key_direction direction) {
-    for (auto c: container->children) {
-        send_key_actual(app, client, c, is_string, keysym, string, mods, direction);
-    }
-    if (container->when_key_event) {
-        container->when_key_event(client, client->cr, container, is_string, keysym, string, mods, direction);
+    if (container->type == ::newscroll) {
+        auto *s = (ScrollContainer *) container;
+        for (auto c: s->content->children) {
+            send_key_actual(app, client, c, is_string, keysym, string, mods, direction);
+        }
+        if (s->content->when_key_event) {
+            s->content->when_key_event(client, client->cr, s->content, is_string, keysym, string, mods, direction);
+        }
+    } else {
+        for (auto c: container->children) {
+            send_key_actual(app, client, c, is_string, keysym, string, mods, direction);
+        }
+        if (container->when_key_event) {
+            container->when_key_event(client, client->cr, container, is_string, keysym, string, mods, direction);
+        }
     }
 }
 

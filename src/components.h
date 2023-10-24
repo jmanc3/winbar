@@ -147,6 +147,8 @@ textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string,
 struct FieldSettings {
     std::string when_empty_text = "";
     bool only_numbers = false;
+    int font_size = 10;
+    int max_size = -1;
 };
 
 struct FieldData : UserData {
@@ -184,5 +186,9 @@ void transition_same_container(AppClient *client, cairo_t *cr, Container *parent
 int get_offset(Container *target, ScrollContainer *scroll_pane);
 
 Container *make_combobox(Container *parent, const std::vector<std::string> &items);
+
+void
+key_event_textfield(AppClient *client, cairo_t *cr, Container *container, bool is_string, xkb_keysym_t keysym,
+                    char string[64], uint16_t mods, xkb_key_direction direction);
 
 #endif// SCROLL_COMPONENTS_H

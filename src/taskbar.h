@@ -161,4 +161,6 @@ void taskbar_launch_index(int index);
 
 xcb_window_t get_active_window();
 
+void update_time(App *app, AppClient *client, Timeout *timeout, void *data);
+
 #endif// TASKBAR_H

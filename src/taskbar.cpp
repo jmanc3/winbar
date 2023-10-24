@@ -79,6 +79,11 @@ static void
 late_classes_update(App *app, AppClient *client, Timeout *, void *data);
 
 static void
+validate_layout(AppClient *client, PangoLayout *layout) {
+
+}
+
+static void
 paint_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -179,6 +184,7 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client, layout);
     
     pango_layout_set_text(layout, "\uE782", strlen("\uE83F"));
     
@@ -226,6 +232,7 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client, layout);
 
     int volume_icon_width;
     int height;
@@ -273,6 +280,7 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
         // Draw percentage when hovered
         PangoLayout *percentage =
                 get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        validate_layout(client, layout);
         pango_layout_set_text(percentage, text.c_str(), text.size());
 
         int width;
@@ -324,6 +332,7 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client, layout);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     set_argb(cr, config->color_taskbar_button_icons);
@@ -1001,7 +1010,14 @@ return_current_time_and_date() {
     auto in_time_t = std::chrono::system_clock::to_time_t(now);
     
     std::stringstream ss;
-    ss << std::put_time(std::localtime(&in_time_t), "%I:%M %p — %A");
+    if (winbar_settings->date_style == "windows 11 detailed") {
+        ss << std::put_time(std::localtime(&in_time_t), "%I:%M %p — %A");
+    } else {
+        ss << std::put_time(std::localtime(&in_time_t), "%I:%M %p");
+    }
+    if (winbar_settings->date_style == "windows vista") {
+        return ss.str();
+    }
     if (config->date_single_line) {
         ss << ' ';
     } else {
@@ -1009,13 +1025,19 @@ return_current_time_and_date() {
     }
     
     std::stringstream month;
-    month << std::put_time(std::localtime(&in_time_t), "%B, %m");
-
+    month << std::put_time(std::localtime(&in_time_t), "%m");
+    
     std::string real_month;
     if (month.str().at(0) == '0') {
         real_month = month.str().erase(0, 1);
     } else {
         real_month = month.str();
+    }
+    
+    if (winbar_settings->date_style == "windows 11 detailed") {
+        std::stringstream month_name;
+        month_name << std::put_time(std::localtime(&in_time_t), "%B");
+        real_month = month_name.str() + " " + real_month;
     }
     
     std::stringstream day;
@@ -1037,7 +1059,7 @@ return_current_time_and_date() {
     return ss.str();
 }
 
-void update_time(App *app, AppClient *client, Timeout *timeout, void *data) {
+void update_time(App *app, AppClient *client, Timeout *timeout, void *) {
 #ifdef TRACY_ENABLE
     tracy::SetThreadName("Time Thread");
 #endif
@@ -1598,6 +1620,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client, layout);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(layout, "\uE91C", strlen("\uE83F"));
@@ -1672,6 +1695,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     
         PangoLayout *text_layout =
                 get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        validate_layout(client, layout);
     
         pango_layout_set_text(text_layout, count_text.c_str(), 2);
         PangoRectangle ink;
@@ -1706,6 +1730,7 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client, layout);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(layout, "\uE971", strlen("\uE83F"));
@@ -1733,6 +1758,7 @@ paint_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client, layout);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(layout, "\uE702", strlen("\uE702"));
@@ -1757,9 +1783,11 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, winbar_settings->date_size * config->dpi,
+                                  PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client, layout);
     PangoAlignment initial_alignment = pango_layout_get_alignment(layout);
-    pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_CENTER);
+    pango_layout_set_alignment(layout, winbar_settings->date_alignment);
     
     int width;
     int height;
@@ -1794,6 +1822,7 @@ paint_right_click_popup(AppClient *client, cairo_t *cr, Container *container) {
         // Paint search icon
         PangoLayout *layout =
                 get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        validate_layout(client, layout);
         
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
         pango_layout_set_text(layout, "\uE713", strlen("\uE83F"));
@@ -1811,6 +1840,7 @@ paint_right_click_popup(AppClient *client, cairo_t *cr, Container *container) {
     
     PangoLayout *layout =
             get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client, layout);
     PangoAlignment initial_alignment = pango_layout_get_alignment(layout);
     pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_CENTER);
     
@@ -2191,6 +2221,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     // Paint search icon
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client, layout);
 
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     pango_layout_set_text(layout, "\uE721", strlen("\uE83F"));
@@ -2217,6 +2248,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     if (text_empty) {
         PangoLayout *layout =
                 get_cached_pango_font(cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        validate_layout(client, layout);
         std::string text("Type here to search");
         pango_layout_set_text(layout, text.c_str(), text.size());
         
@@ -2335,6 +2367,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client_entity, layout);
     
     std::string regular[] = {"\uE678", "\uE679", "\uE67A", "\uE67B", "\uE67C", "\uE67D", "\uE67E", "\uE67F", "\uE680",
                              "\uE681", "\uE682"};
@@ -2387,6 +2420,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
         // Draw percentage when hovered
         PangoLayout *percentage =
                 get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        validate_layout(client_entity, layout);
         std::string status;
         if (data->status == "Charging") {
             status = "+";
@@ -2581,6 +2615,7 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    validate_layout(client, layout);
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     if (up) {
@@ -2729,7 +2764,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_date->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_date->name = "date";
     
-    app_timeout_create(app, client, 1000, update_time, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
+    app_timeout_create(app, client, 60000, update_time, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
     app_timeout_create(app, client, 10000, late_classes_update, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
     
     button_action_center->when_paint = paint_action_center;

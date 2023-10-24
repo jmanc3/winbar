@@ -14,7 +14,9 @@
 #include "config.h"
 
 #include <atomic>
+#include <utility>
 #include <pango/pangocairo.h>
+#include <cmath>
 
 static int scroll_amount = 120;
 static double scroll_anim_time = 120;
@@ -2450,6 +2452,34 @@ textarea_key_release(AppClient *client,
     }
 }
 
+void key_event_textfield(AppClient *client, cairo_t *cr, Container *container, bool is_string, xkb_keysym_t keysym,
+                         char *string, uint16_t mods, xkb_key_direction direction) {
+    if (!container->active)
+        return;
+    auto *data = (FieldData *) container->user_data;
+    if (direction == XKB_KEY_UP)
+        return;
+    if (is_string) {
+        if (data->settings.only_numbers) {
+            if (string[0] >= '0' && string[0] <= '9') {
+                data->text += string[0];
+            }
+        } else {
+            data->text += string;
+        }
+        if (data->settings.max_size != -1) {
+            data->text = (data->text.length() > data->settings.max_size) ? data->text.substr(0, data->settings.max_size)
+                                                                         : data->text;
+        }
+    } else {
+        if (keysym == XKB_KEY_BackSpace) {
+            if (!data->text.empty()) {
+                data->text.pop_back();
+            }
+        }
+    }
+}
+
 #define CURSOR_BLINK_ON_TIME 530
 #define CURSOR_BLINK_OFF_TIME 430
 
@@ -2746,12 +2776,10 @@ static void
 paint_textfield(AppClient *client, cairo_t *cr, Container *container) {
     // paint blue border
     auto *data = (FieldData *) container->user_data;
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, config->color_taskbar_search_bar_pressed_background);
-    cairo_fill(cr);
-    
+
     // clip text
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, data->settings.font_size * config->dpi,
+                                                PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_width(layout, -1); // disable wrapping
     
     set_argb(cr, config->color_pinned_icon_editor_field_default_text);
@@ -2775,11 +2803,11 @@ paint_textfield(AppClient *client, cairo_t *cr, Container *container) {
                   container->real_bounds.y + text_off_y);
     pango_cairo_show_layout(cr, layout);
     
-    PangoRectangle cursor_strong_pos;
-    PangoRectangle cursor_weak_pos;
-    pango_layout_get_cursor_pos(layout, data->text.size(), &cursor_strong_pos, &cursor_weak_pos);
-    
     if (container->active) {
+        PangoRectangle cursor_strong_pos;
+        PangoRectangle cursor_weak_pos;
+        pango_layout_get_cursor_pos(layout, data->text.size(), &cursor_strong_pos, &cursor_weak_pos);
+        
         set_argb(cr, ArgbColor(0, 0, 0, 1));
         int offset = cursor_strong_pos.x != 0 ? -1 : 0;
         cairo_rectangle(cr,
@@ -2790,43 +2818,20 @@ paint_textfield(AppClient *client, cairo_t *cr, Container *container) {
         cairo_fill(cr);
     }
     
-    set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
-    paint_margins_rect(client, cr, container->real_bounds, 2, 0);
-}
-
-static void
-key_event_textfield(AppClient *client,
-                    cairo_t *cr,
-                    Container *container,
-                    bool is_string, xkb_keysym_t keysym, char string[64],
-                    uint16_t mods,
-                    xkb_key_direction direction) {
-    if (!container->active)
-        return;
-    auto *data = (FieldData *) container->user_data;
-    if (direction == XKB_KEY_UP)
-        return;
-    if (is_string) {
-        if (data->settings.only_numbers) {
-            if (string[0] >= '0' && string[0] <= '9') {
-                data->text += string[0];
-            }
-        } else {
-            data->text += string;
-        }
+    if (container->active) {
+        set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
+    } else if (container->state.mouse_hovering) {
+        set_argb(cr, config->color_pinned_icon_editor_field_hovered_border);
     } else {
-        if (keysym == XKB_KEY_BackSpace) {
-            if (!data->text.empty()) {
-                data->text.pop_back();
-            }
-        }
+        set_argb(cr, config->color_pinned_icon_editor_field_default_border);
     }
+    paint_margins_rect(client, cr, container->real_bounds, 2, 0);
 }
 
 Container *make_textfield(Container *parent, FieldSettings settings, int w, int h) {
     auto *field = parent->child(w, h);
     auto data = new FieldData;
-    data->settings = settings;
+    data->settings = std::move(settings);
     field->user_data = data;
     field->when_paint = paint_textfield;
     field->when_key_event = key_event_textfield;

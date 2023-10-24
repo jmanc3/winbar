@@ -236,6 +236,7 @@ struct Subprocess {
 };
 
 #include <atomic>
+#include <functional>
 
 struct AppClient {
     App *app = nullptr;
