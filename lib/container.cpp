@@ -56,7 +56,7 @@ actual_true_height(Container *box) {
             lowest_y_set = true;
         }
         if (!highest_y_set || child->real_bounds.y + child->real_bounds.h > highest_y) {
-            highest_y = child->real_bounds.y + child->real_bounds.h;
+            highest_y = child->real_bounds.y + std::max((child->real_bounds.h - 1), 0.0);
             highest_y_set = true;
         }
     }
@@ -78,7 +78,7 @@ actual_true_width(Container *box) {
             lowest_x_set = true;
         }
         if (!highest_x_set || child->real_bounds.x + child->real_bounds.w > highest_x) {
-            highest_x = child->real_bounds.x + child->real_bounds.w;
+            highest_x = child->real_bounds.x + std::max((child->real_bounds.w - 1), 0.0);
             highest_x_set = true;
         }
     }
