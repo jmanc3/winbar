@@ -14,6 +14,9 @@ public:
     ArgbColor color = ArgbColor(0, 0, 0, 0);
     int previous_state = -1;
     
+    std::string text;
+    std::string icon;
+    
     int color_option = 0;
     ArgbColor actual_border_color = ArgbColor(0, 0, 0, 0);
     ArgbColor actual_gradient_color = ArgbColor(0, 0, 0, 0);

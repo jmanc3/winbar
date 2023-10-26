@@ -19,6 +19,8 @@
 
 static Container *pinned_icon_container = nullptr;
 static LaunchableButton *pinned_icon_data = nullptr;
+static bool creating_not_editing = false;
+static bool saved = false;
 static TextAreaData *icon_field_data = nullptr;
 static TextAreaData *launch_field_data = nullptr;
 static TextAreaData *wm_field_data = nullptr;
@@ -75,8 +77,10 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     auto label = (Label *) container->user_data;
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
+    PangoWeight weight = PangoWeight::PANGO_WEIGHT_BOLD;
+    if (label->weight == PangoWeight::PANGO_WEIGHT_BOLD)
+        weight = PangoWeight::PANGO_WEIGHT_NORMAL;
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 11 * config->dpi, weight);
     
     int width;
     int height;
@@ -233,6 +237,30 @@ static void clicked_save_and_quit(AppClient *client, cairo_t *cr, Container *con
     pinned_icon_data->command_launched_by = launch_field_data->state->text;
     pinned_icon_data->class_name = wm_field_data->state->text;
     pinned_icon_data->icon_name = icon_field_data->state->text;
+    if (creating_not_editing) {
+        if (auto *taskbar = client_by_name(app, "taskbar")) {
+            saved = true;
+            std::vector<IconTarget> targets;
+            targets.emplace_back(pinned_icon_data->icon_name);
+            search_icons(targets);
+            pick_best(targets, 24 * config->dpi);
+            bool found = false;
+            for (auto &target: targets) {
+                std::string path = target.best_full_path;
+                if (!path.empty()) {
+                    auto *data = (LaunchableButton *) pinned_icon_data;
+                    load_icon_full_path(app, taskbar, &data->surface, path, 24 * config->dpi);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                pinned_icon_data->surface = accelerated_surface(app, client, 24 * config->dpi, 24 * config->dpi);
+                paint_surface_with_image(pinned_icon_data->surface, as_resource_path("unknown-24.svg"),
+                                         24 * config->dpi, nullptr);
+            }
+        }
+    }
     client_close_threaded(client->app, client);
     update_pinned_items_file(false);
     
@@ -243,6 +271,29 @@ static void update_icon(AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (auto icon_name_label = container_by_name("icon_alternatives_label", client->root)) {
+        auto *data = (Label *) icon_name_label->user_data;
+        auto *field = container_by_name("icon_name_field", client->root);
+        std::string &target = ((TextAreaData *) field->user_data)->state->text;
+        if (target.empty()) {
+            data->text = "";
+        } else {
+            std::vector<std::string_view> names;
+            get_options(names, target, 40);
+            if (names.empty()) {
+                data->text = "";
+            } else {
+                data->text = "(";
+                for (int i = 0; i < names.size(); i++) {
+                    data->text += names[i];
+                    if (i != names.size() - 1)
+                        data->text += ", ";
+                }
+                data->text += ")";
+            }
+        }
+    }
+    
     if (auto icon = container_by_name("icon", client->root)) {
         auto icon_data = (IconButton *) icon->user_data;
         
@@ -300,12 +351,19 @@ static void clicked_cancel(AppClient *client, cairo_t *cr, Container *container)
 }
 
 static void
-icon_name_key_event(AppClient *client,
-                    cairo_t *cr,
-                    Container *container,
-                    bool is_string, xkb_keysym_t keysym, char string[64],
-                    uint16_t mods,
-                    xkb_key_direction direction) {
+switch_active(App *, AppClient *client, Timeout *, void *data) {
+    auto *n = (std::string *) data;
+    set_active(client, container_by_name((*n), client->root)->parent, true);
+    delete n;
+}
+
+static void
+tab_key_event(AppClient *client,
+              cairo_t *cr,
+              Container *container,
+              bool is_string, xkb_keysym_t keysym, char string[64],
+              uint16_t mods,
+              xkb_key_direction direction) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -313,9 +371,23 @@ icon_name_key_event(AppClient *client,
         return;
     }
     if (container->parent->active) {
-        textarea_handle_keypress(client, container, is_string, keysym, string, mods, XKB_KEY_DOWN);
-        
-        update_icon(client);
+        if (keysym == XKB_KEY_Tab) {
+            if (container->name == "icon_name_field") {
+                app_timeout_create(app, client, 0, switch_active, new std::string("launch_command_field"),
+                                   "icon_name_key_event");
+            } else if (container->name == "launch_command_field") {
+                app_timeout_create(app, client, 0, switch_active, new std::string("wm_class_field"),
+                                   "icon_name_key_event");
+            } else {
+                app_timeout_create(app, client, 0, switch_active, new std::string("icon_name_field"),
+                                   "icon_name_key_event");
+            }
+        } else {
+            textarea_handle_keypress(client, container, is_string, keysym, string, mods, XKB_KEY_DOWN);
+            if (container->name == "icon_name_field") {
+                update_icon(client);
+            }
+        }
     }
 }
 
@@ -374,15 +446,31 @@ static void fill_root(AppClient *client) {
     {
         Container *icon_name_label_and_field_vbox = icon_name_hbox->child(layout_type::vbox, FILL_SPACE, FILL_SPACE);
         {
-            Container *icon_name_label = icon_name_label_and_field_vbox->child(FILL_SPACE, 13 * config->dpi);
+            Container *icon_name_label_and_alternatives_hbox = icon_name_label_and_field_vbox->child(::hbox, FILL_SPACE,
+                                                                                                     13 * config->dpi);
+            PangoLayout *layout = get_cached_pango_font(client->cr, config->font, 11 * config->dpi, PANGO_WEIGHT_BOLD);
+            
+            int width;
+            int height;
+            pango_layout_set_text(layout, "Icon ", -1);
+            pango_layout_get_pixel_size_safe(layout, &width, &height);
+            Container *icon_name_label = icon_name_label_and_alternatives_hbox->child(width, FILL_SPACE);
+            icon_name_label->name = "icon_name_label";
             icon_name_label->user_data = new Label("Icon");
             icon_name_label->when_paint = paint_label;
+            
+            Container *icon_alternatives_label = icon_name_label_and_alternatives_hbox->child(FILL_SPACE, FILL_SPACE);
+            icon_alternatives_label->name = "icon_alternatives_label";
+            icon_alternatives_label->user_data = new Label("");
+            ((Label *) icon_alternatives_label->user_data)->weight = PANGO_WEIGHT_BOLD;
+            icon_alternatives_label->when_paint = paint_label;
             
             icon_name_label_and_field_vbox->child(FILL_SPACE, FILL_SPACE);
             
             Container *icon_name_field = make_textarea(app, client, icon_name_label_and_field_vbox, textarea_settings);
+            icon_name_field->name = "icon_name_field";
             icon_name_field->parent->when_paint = paint_textarea_border;
-            icon_name_field->when_key_event = icon_name_key_event;
+            icon_name_field->when_key_event = tab_key_event;
             auto icon_name_field_data = (TextAreaData *) icon_name_field->user_data;
             icon_name_field_data->state->text = pinned_icon_data->icon_name;
             icon_field_data = icon_name_field_data;
@@ -400,6 +488,8 @@ static void fill_root(AppClient *client) {
         launch_command_label_and_field->child(FILL_SPACE, FILL_SPACE);
         
         Container *launch_command_field = make_textarea(app, client, launch_command_label_and_field, textarea_settings);
+        launch_command_field->name = "launch_command_field";
+        launch_command_field->when_key_event = tab_key_event;
         launch_command_field->parent->when_paint = paint_textarea_border;
         auto launch_command_field_data = (TextAreaData *) launch_command_field->user_data;
         launch_command_field_data->state->text = pinned_icon_data->command_launched_by;
@@ -417,6 +507,8 @@ static void fill_root(AppClient *client) {
         wm_class_label_and_field->child(FILL_SPACE, FILL_SPACE);
         
         Container *wm_class_field = make_textarea(app, client, wm_class_label_and_field, textarea_settings);
+        wm_class_field->name = "wm_class_field";
+        wm_class_field->when_key_event = tab_key_event;
         wm_class_field->parent->when_paint = paint_textarea_border;
         auto wm_class_field_data = (TextAreaData *) wm_class_field->user_data;
         wm_class_field_data->state->text = pinned_icon_data->class_name;
@@ -444,10 +536,29 @@ static void fill_root(AppClient *client) {
     }
 }
 
-void start_pinned_icon_editor(Container *icon_container) {
+static void
+closed_pinned_icon(AppClient *client) {
+    if (creating_not_editing) {
+        if (saved) {
+            if (auto *taskbar = client_by_name(app, "taskbar")) {
+                if (auto *icons = container_by_name("icons", taskbar->root)) {
+                    icons->children.push_back(pinned_icon_container);
+                }
+                client_layout(app, taskbar);
+                client_paint(app, taskbar);
+            }
+        } else {
+            delete pinned_icon_container;
+        }
+    }
+}
+
+void start_pinned_icon_editor(Container *icon_container, bool creating) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    saved = false;
+    creating_not_editing = creating;
     pinned_icon_container = icon_container;
     pinned_icon_data = (LaunchableButton *) icon_container->user_data;
     if (!pinned_icon_container || !pinned_icon_data) {
@@ -468,6 +579,7 @@ void start_pinned_icon_editor(Container *icon_container) {
         std::string title = "Pinned Icon Editor";
         xcb_ewmh_set_wm_name(&app->ewmh, client->window, title.length(), title.c_str());
         client_show(app, client);
+        client->when_closed = closed_pinned_icon;
         xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, client->window, XCB_CURRENT_TIME);
     }
 }

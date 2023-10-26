@@ -2782,3 +2782,9 @@ command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, 
     }
     return cc;
 }
+
+void set_active(AppClient *client, Container *c, bool state) {
+    std::vector<Container *> containers;
+    containers.push_back(c);
+    set_active(client, containers, client->root, state);
+}

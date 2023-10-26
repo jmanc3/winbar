@@ -46,6 +46,7 @@
 #include <sys/inotify.h>
 #include <functional>
 #include "utility.h"
+#include "pinned_icon_editor.h"
 
 #define WIN7 false
 
@@ -1812,20 +1813,21 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
-paint_right_click_popup(AppClient *client, cairo_t *cr, Container *container) {
+paint_right_click_popup_item(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    auto data = (HoverableButton *) container->user_data;
     paint_hoverable_button_background(client, cr, container);
     
-    {
+    if (!data->icon.empty()) {
         // Paint search icon
         PangoLayout *layout =
                 get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         validate_layout(client, layout);
         
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-        pango_layout_set_text(layout, "\uE713", strlen("\uE83F"));
+        pango_layout_set_text(layout, data->icon.c_str(), data->icon.size());
         
         int width;
         int height;
@@ -1846,7 +1848,7 @@ paint_right_click_popup(AppClient *client, cairo_t *cr, Container *container) {
     
     int width;
     int height;
-    pango_layout_set_text(layout, "Taskbar Settings", strlen("Taskbar Settings"));
+    pango_layout_set_text(layout, data->text.c_str(), data->text.size());
     pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_taskbar_date_time_text);
@@ -1924,9 +1926,42 @@ clicked_right_click_popup(AppClient *client, cairo_t *cr, Container *container) 
     open_settings_menu(SettingsPage::Taskbar);
 }
 
+void add_window(App *app, xcb_window_t window);
+
+static void
+add_item_clicked(AppClient *popup, cairo_t *, Container *) {
+    auto *taskbar = client_by_name(app, "taskbar");
+    auto *icons = container_by_name("icons", taskbar->root);
+    
+    Container *a = new Container(50 * config->dpi, FILL_SPACE);
+    a->parent = icons;
+    if (icons->alignment == container_alignment::ALIGN_RIGHT) {
+        icons->children.erase(icons->children.begin() + (icons->children.size() - 1));
+        icons->children.insert(icons->children.begin(), a);
+    }
+    a->when_drag_end_is_click = false;
+    a->minimum_x_distance_to_move_before_drag_begins = 15;
+    a->when_mouse_enters_container = pinned_icon_mouse_enters;
+    a->when_mouse_leaves_container = pinned_icon_mouse_leaves;
+    a->when_clicked = pinned_icon_mouse_clicked;
+    a->when_mouse_down = pinned_icon_mouse_down;
+    a->when_mouse_up = pinned_icon_mouse_up;
+    a->when_drag_end = pinned_icon_drag_end;
+    a->when_drag_start = pinned_icon_drag_start;
+    a->when_drag = pinned_icon_drag;
+    auto *data = new LaunchableButton();
+    a->user_data = data;
+    data->pinned = true;
+    
+    client_layout(app, taskbar);
+    client_paint(app, taskbar);
+    start_pinned_icon_editor(a, true);
+    client_close_threaded(app, popup);
+}
+
 static void
 open_right_click_menu(AppClient *client, cairo_t *cr, Container *container) {
-    int options_count = 1;
+    int options_count = 2;
     int pad = 6 * config->dpi;
     Settings settings;
     settings.force_position = true;
@@ -1963,9 +1998,21 @@ open_right_click_menu(AppClient *client, cairo_t *cr, Container *container) {
     popup->root->wanted_bounds.w = FILL_SPACE;
     
     auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
-    l->when_paint = paint_right_click_popup;
+    l->when_paint = paint_right_click_popup_item;
+    l->when_clicked = add_item_clicked;
+    auto *data = new HoverableButton();
+//    data->icon = "\uECCD";
+//    data->icon = "\uF56E";
+    data->text = "Add Item";
+    l->user_data = data;
+    
+    l = popup->root->child(FILL_SPACE, FILL_SPACE);
+    l->when_paint = paint_right_click_popup_item;
     l->when_clicked = clicked_right_click_popup;
-    l->user_data = new HoverableButton();
+    data = new HoverableButton();
+    data->icon = "\uE713";
+    data->text = "Taskbar Settings";
+    l->user_data = data;
     
     client_show(app, popup);
 }
@@ -2886,8 +2933,6 @@ update_window_title_name(xcb_window_t window) {
 }
 
 void remove_window(App *app, xcb_window_t window);
-
-void add_window(App *app, xcb_window_t window);
 
 static bool
 window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) {

@@ -236,7 +236,7 @@ void app_main(App *app);
 
 void app_clean(App *app);
 
-void set_active(Container *c, bool state);
+void set_active(AppClient *client, Container *c, bool state);
 
 void init_xkb(App *app, AppClient *client);
 

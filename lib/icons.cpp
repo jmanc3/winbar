@@ -1086,3 +1086,30 @@ c3ic_fix_wm_class(const std::string &given_wm_class) {
 bool has_options(const std::string &name) {
     return ranges[name.c_str()].start != -1;
 }
+
+bool is_case_insensitive_substring(const std::string_view &str_view, const std::string &target) {
+    return std::search(
+            str_view.begin(), str_view.end(),
+            target.begin(), target.end(),
+            [](char a, char b) {
+                return std::tolower(a) == std::tolower(b);
+            }
+    ) != str_view.end();
+}
+
+void get_options(std::vector<std::string_view> &names, const std::string &name, int max) {
+    for (const auto &entry: ranges) {
+        if (is_case_insensitive_substring(entry.first, name)) {
+            bool only_print = true;
+            for (auto c: entry.first) {
+                if (!isprint(c))
+                    only_print = false;
+            }
+            if (only_print) {
+                names.push_back(entry.first);
+                if (names.size() > max)
+                    return;
+            }
+        }
+    }
+}

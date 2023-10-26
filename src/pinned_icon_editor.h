@@ -7,7 +7,7 @@
 
 #include "container.h"
 
-void start_pinned_icon_editor(Container *icon_container);
+void start_pinned_icon_editor(Container *icon_container, bool creating);
 
 
 #endif //WINBAR_PINNED_ICON_EDITOR_H
