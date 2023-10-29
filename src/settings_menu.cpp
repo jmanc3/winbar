@@ -433,6 +433,12 @@ bool invalidate_item_pierce(Container *container, int mouse_x, int mouse_y) {
     if (auto c = container_by_name("style_combo", container))
         if (bounds_contains(c->real_bounds, mouse_x, mouse_y))
             return false;
+    if (auto c = container_by_name("battery_expands_combo", container))
+        if (bounds_contains(c->real_bounds, mouse_x, mouse_y))
+            return false;
+    if (auto c = container_by_name("volume_expands_combo", container))
+        if (bounds_contains(c->real_bounds, mouse_x, mouse_y))
+            return false;
     if (bounds_contains(container->children[1]->real_bounds, mouse_x, mouse_y))
         return false;
     return bounds_contains(container->real_bounds, mouse_x, mouse_y);
@@ -651,6 +657,48 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
             data->text = std::to_string(winbar_settings->date_size);
             field->name = "size_field";
         }
+    } else if (n == "Volume") {
+        auto combo_data = new GenericComboBox("volume_expands_combo", "Expands: ");
+        combo_data->options.emplace_back("True");
+        combo_data->options.emplace_back("False");
+        combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
+            return winbar_settings->volume_expands_on_hover ? "True" : "False";
+        };
+        combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
+            winbar_settings->volume_expands_on_hover = ((Label *) (self->user_data))->text == "True";
+            client_close_threaded(app, client);
+        };
+        
+        std::string longest_text = "Expands: False";
+        pango_layout_set_text(layout, longest_text.c_str(), -1);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
+        
+        auto combobox = r->child(width * 1.5, FILL_SPACE);
+        combobox->name = combo_data->name;
+        combobox->when_clicked = clicked_expand_generic_combobox;
+        combobox->when_paint = paint_generic_combobox;
+        combobox->user_data = combo_data;
+    } else if (n == "Battery") {
+        auto combo_data = new GenericComboBox("battery_expands_combo", "Expands: ");
+        combo_data->options.emplace_back("True");
+        combo_data->options.emplace_back("False");
+        combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
+            return winbar_settings->battery_expands_on_hover ? "True" : "False";
+        };
+        combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
+            winbar_settings->battery_expands_on_hover = ((Label *) (self->user_data))->text == "True";
+            client_close_threaded(app, client);
+        };
+        
+        std::string longest_text = "Expands: False";
+        pango_layout_set_text(layout, longest_text.c_str(), -1);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
+        
+        auto combobox = r->child(width * 1.5, FILL_SPACE);
+        combobox->name = combo_data->name;
+        combobox->when_clicked = clicked_expand_generic_combobox;
+        combobox->when_paint = paint_generic_combobox;
+        combobox->user_data = combo_data;
     }
 }
 
@@ -917,6 +965,14 @@ void save_settings_file() {
     // Date style
     out_file << "date_size=\"" << std::to_string(winbar_settings->date_size) << "\"";
     out_file << std::endl << std::endl;
+    
+    // Volume expands
+    out_file << "volume_expands_on_hover=" << (winbar_settings->volume_expands_on_hover ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
+    // Battery expands
+    out_file << "battery_expands_on_hover=" << (winbar_settings->battery_expands_on_hover ? "true" : "false");
+    out_file << std::endl << std::endl;
 }
 
 void read_settings_file() {
@@ -998,6 +1054,19 @@ void read_settings_file() {
                         winbar_settings->date_alignment = PangoAlignment::PANGO_ALIGN_LEFT;
                     } else if (text == "right") {
                         winbar_settings->date_alignment = PangoAlignment::PANGO_ALIGN_RIGHT;
+                    }
+                }
+            } else if (key == "volume_expands_on_hover" || key == "battery_expands_on_hover") {
+                parser.until(LineParser::Token::IDENT);
+                if (parser.current_token == LineParser::Token::IDENT) {
+                    std::string text = parser.until(LineParser::Token::END_OF_LINE);
+                    trim(text);
+                    if (text == "false") {
+                        if (key == "volume_expands_on_hover") {
+                            winbar_settings->volume_expands_on_hover = false;
+                        } else {
+                            winbar_settings->battery_expands_on_hover = false;
+                        }
                     }
                 }
             } else if (key == "date_style") {
