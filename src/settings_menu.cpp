@@ -14,6 +14,7 @@
 #include "components.h"
 #include "utility.h"
 #include "simple_dbus.h"
+#include "search_menu.h"
 
 #ifdef TRACY_ENABLE
 
@@ -973,6 +974,10 @@ void save_settings_file() {
     // Battery expands
     out_file << "battery_expands_on_hover=" << (winbar_settings->battery_expands_on_hover ? "true" : "false");
     out_file << std::endl << std::endl;
+    
+    // Search tab
+    out_file << "tab=\"" << active_tab << "\"";
+    out_file << std::endl << std::endl;
 }
 
 void read_settings_file() {
@@ -1078,6 +1083,20 @@ void read_settings_file() {
                         trim(text);
                         if (!text.empty()) {
                             winbar_settings->date_style = text;
+                        }
+                    }
+                }
+            } else if (key == "tab") {
+                parser.until(LineParser::Token::QUOTE);
+                if (parser.current_token == LineParser::Token::QUOTE) {
+                    parser.next();
+                    std::string text = parser.until(LineParser::Token::QUOTE);
+                    if (parser.current_token == LineParser::Token::QUOTE) {
+                        trim(text);
+                        if (!text.empty() && text == "Apps") {
+                            active_tab = "Apps";
+                        } else {
+                            active_tab = "Scripts";
                         }
                     }
                 }

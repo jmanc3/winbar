@@ -19,6 +19,7 @@
 #include "globals.h"
 #include "defer.h"
 #include "simple_dbus.h"
+#include "settings_menu.h"
 
 #include <algorithm>
 #include <fstream>
@@ -1579,6 +1580,7 @@ search_menu_when_closed(AppClient *client) {
     write_historic_scripts();
     write_historic_apps();
     set_textarea_inactive();
+    save_settings_file();
 }
 
 void start_search_menu() {
