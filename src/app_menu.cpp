@@ -137,6 +137,13 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
             cairo_fill(cr);
         }
     }
+    
+    set_rect(cr, container->real_bounds);
+    cairo_clip(client->cr);
+    for (auto c: container->children)
+        if (c->when_paint)
+            c->when_paint(client, client->cr, c);
+    cairo_reset_clip(client->cr);
 }
 
 static void
@@ -254,8 +261,6 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     auto super = container_by_name("super", taskbar_root);
     
     if (container->parent->wanted_bounds.w != super->real_bounds.w) {
-        cairo_push_group(cr);
-        
         PangoLayout *layout =
                 get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         if (data->text == "START") {
@@ -274,18 +279,6 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
         cairo_move_to(cr, text_x, text_y);
         
         pango_cairo_show_layout(cr, layout);
-        
-        // TODO: for some reason valgrind is picking this up as a huge source of leaks
-        cairo_pop_group_to_source(cr);
-        
-        cairo_rectangle(cr,
-                        container->real_bounds.x,
-                        container->real_bounds.y,
-                        container->real_bounds.w,
-                        container->real_bounds.h);
-        cairo_clip(cr);
-        cairo_paint(cr);
-        cairo_reset_clip(cr);
     }
 }
 
@@ -668,7 +661,7 @@ left_open_timeout(App *app, AppClient *client, Timeout *, void *data) {
     if (app && app->running && valid_client(app, client) &&
         (container->state.mouse_hovering || container->state.mouse_pressing)) {
         client_create_animation(
-                app, client, &container->wanted_bounds.w, 0, 100, nullptr, 256 * config->dpi, true);
+                app, client, &container->wanted_bounds.w, 0, 100, nullptr, (int) (256 * config->dpi), true);
     }
     left_open_fd = nullptr;
 }
@@ -694,7 +687,7 @@ left_close(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     if (left_locked || !container)
         return;
-    client_create_animation(app, client, &container->wanted_bounds.w, 0, 70, nullptr, 48 * config->dpi, true);
+    client_create_animation(app, client, &container->wanted_bounds.w, 0, 70, nullptr, (int) (48 * config->dpi), true);
 }
 
 static bool
@@ -743,10 +736,10 @@ clicked_start_button(AppClient *client, cairo_t *cr, Container *container) {
         if (auto *container = container_by_name("left_buttons", client->root)) {
             if (container->real_bounds.w <= 64 * config->dpi) {
                 client_create_animation(
-                        app, client, &container->wanted_bounds.w, 0, 120, nullptr, 256 * config->dpi, true);
+                        app, client, &container->wanted_bounds.w, 0, 120, nullptr, (int) (256 * config->dpi), true);
             } else if (container->real_bounds.w > 86 * config->dpi) {
                 client_create_animation(
-                        app, client, &container->wanted_bounds.w, 0, 120, nullptr, 48 * config->dpi, true);
+                        app, client, &container->wanted_bounds.w, 0, 120, nullptr, (int) (48 * config->dpi), true);
             }
         }
     }
@@ -1233,6 +1226,7 @@ fill_root(AppClient *client) {
     left_buttons->when_paint = paint_left;
     left_buttons->when_mouse_enters_container = left_open;
     left_buttons->when_mouse_leaves_container = left_close;
+    left_buttons->automatically_paint_children = false;
     
     std::vector<std::string> list;
     list.push_back("START");
