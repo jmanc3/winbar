@@ -417,6 +417,10 @@ std::string to_lower_and_remove_non_printable(const std::string &input) {
     return result;
 }
 
+// TODO: this has to be set on scrolled by the respective parties not on pierced handling
+static long last_time_scrollpane_locked = 0;
+static long last_time_volume_locked = 0;
+
 void fill_root(AppClient *client, Container *root) {
     root->when_paint = paint_root;
     root->type = vbox;
@@ -504,7 +508,14 @@ void fill_root(AppClient *client, Container *root) {
         volume_icon->wanted_bounds.w = 55 * config->dpi;
         volume_icon->when_paint = paint_volume_icon;
         volume_icon->when_clicked = toggle_mute;
-        volume_icon->when_fine_scrolled = scroll;
+        volume_icon->when_fine_scrolled = [](AppClient *client, cairo_t *cr, Container *self, int scroll_x,
+                                             int scroll_y, bool came_from_touchpad) -> void {
+            auto current = get_current_time_in_ms();
+            if (current - last_time_scrollpane_locked < 200)
+                return;
+            last_time_volume_locked = get_current_time_in_ms();
+            scroll(client, cr, self, scroll_x, scroll_y, came_from_touchpad);
+        };
         volume_icon->parent = hbox_volume;
         hbox_volume->children.push_back(volume_icon);
         auto volume_data = new ButtonData;
@@ -522,7 +533,7 @@ void fill_root(AppClient *client, Container *root) {
         volume_bar->when_mouse_up = drag_force;
         volume_bar->draggable = true;
         volume_bar->parent = hbox_volume;
-        volume_bar->when_fine_scrolled = scroll;
+        volume_bar->when_fine_scrolled = volume_icon->when_fine_scrolled;
         hbox_volume->children.push_back(volume_bar);
         
         auto volume_amount = new Container();
@@ -530,7 +541,7 @@ void fill_root(AppClient *client, Container *root) {
         volume_amount->wanted_bounds.w = 65 * config->dpi;
         volume_amount->when_paint = paint_volume_amount;
         volume_amount->parent = hbox_volume;
-        volume_amount->when_fine_scrolled = scroll;
+        volume_amount->when_fine_scrolled = volume_icon->when_fine_scrolled;
         hbox_volume->children.push_back(volume_amount);
         
         label->parent = vbox_container;
@@ -805,9 +816,16 @@ void open_volume_menu() {
         }
         ScrollPaneSettings s(config->dpi);
         ScrollContainer *scrollpane = make_newscrollpane_as_child(root, s);
-//        scrollpane->when_fine_scrolled = nullptr;
+        scrollpane->when_fine_scrolled = [](AppClient *client, cairo_t *cr, Container *self, int scroll_x, int scroll_y,
+                                            bool came_from_touchpad) -> void {
+            auto current = get_current_time_in_ms();
+            if (current - last_time_volume_locked < 200)
+                return;
+            last_time_scrollpane_locked = get_current_time_in_ms();
+            fine_scrollpane_scrolled(client, cr, self, scroll_x, scroll_y, came_from_touchpad);
+        };
         Container *content = scrollpane->content;
-    
+        
         Container *right_thumb_container = scrollpane->right->children[1];
         right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
         right_thumb_container->when_paint = paint_right_thumb;
@@ -842,6 +860,7 @@ adjust_volume_based_on_fine_scroll(AudioClient *audio_client, AppClient *client,
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    last_time_volume_locked = get_current_time_in_ms();
     
     double current_volume = audio_client->get_volume();
     if (came_from_touchpad) {
