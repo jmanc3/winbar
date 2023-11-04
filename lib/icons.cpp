@@ -425,18 +425,7 @@ void load_data() {
     }
 }
 
-
-void check_if_cache_needs_update(App *, AppClient *, Timeout *timeout, void *);
-
-void check_cache_file();
-
-void set_icons_path_and_possibly_update(App *app) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    last_time_cached_checked = 0;
-    if (data == nullptr)
-        data = new OptionsData();
+void update_paths() {
     icon_search_paths.clear();
     
     // Setup search paths for icons
@@ -469,7 +458,26 @@ void set_icons_path_and_possibly_update(App *app) {
         }
     }
     icon_search_paths.emplace_back("/usr/share/pixmaps");
-    
+}
+
+void generate_cache() {
+    update_paths();
+    generate_data();
+    save_data();
+}
+
+void check_if_cache_needs_update(App *, AppClient *, Timeout *timeout, void *);
+
+void check_cache_file();
+
+void set_icons_path_and_possibly_update(App *app) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    last_time_cached_checked = 0;
+    if (data == nullptr)
+        data = new OptionsData();
+    update_paths();
     app_timeout_create(app, nullptr, 50000, check_if_cache_needs_update, nullptr, const_cast<char *>(__PRETTY_FUNCTION__));
     
     check_cache_file();

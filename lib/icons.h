@@ -18,6 +18,8 @@ void set_icons_path_and_possibly_update(App *app);
 // Remove all icons from memory
 void unload_icons();
 
+void generate_cache();
+
 enum IconContext {
     Actions,
     Animations,

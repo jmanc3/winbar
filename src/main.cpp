@@ -26,7 +26,15 @@ void check_config_version();
 
 void load_in_fonts();
 
-int main() {
+int main(int argc, char* argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--create-cache") == 0) {
+            printf("Creating icon cache...\n");
+            generate_cache();
+            return 0;
+        }
+    }
+    
     global = new globals;
     
     // Open connection to app
@@ -127,7 +135,7 @@ int main() {
     
     if (restart) {
         restart = false;
-        main();
+        main(argc, argv);
     } else {
         dbus_end();
     }
