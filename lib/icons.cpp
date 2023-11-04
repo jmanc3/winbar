@@ -5,6 +5,7 @@
 #include "icons.h"
 #include "utility.h"
 #include "../src/config.h"
+#include "audio.h"
 
 #include <string>
 #include <vector>
@@ -565,8 +566,10 @@ void check_cache_file() {
                 second_message = "We are re-caching all icons, so this may take a while. Subsequent launches won't do this, so they'll be faster.";
                 third_message = "We'll start WinBar when we are done! (Feel free to close this window)";
                 client_show(temp_app, c);
+                allow_audio_thread_creation = false;
                 app_main(temp_app);
                 app_clean(temp_app);
+                allow_audio_thread_creation = true;
             });
             if (t.joinable())
                 t.join();
@@ -595,8 +598,10 @@ void check_cache_file() {
             second_message = "We are caching all icons so this may take a while. Subsequent launches will be faster.";
             third_message = "We'll start WinBar when we are done! (Feel free to close this window)";
             client_show(temp_app, c);
+            allow_audio_thread_creation = false;
             app_main(temp_app);
             app_clean(temp_app);
+            allow_audio_thread_creation = true;
         });
         if (t.joinable())
             t.join();

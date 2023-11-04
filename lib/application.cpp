@@ -706,7 +706,18 @@ client_new(App *app, Settings settings, const std::string &name) {
     }
     if (primary_screen_info == nullptr) {
         if (screens.empty()) {
-            assert(primary_screen_info != nullptr);
+            auto psi = new ScreenInformation;
+            psi->root_window = screen->root;
+            psi->width_in_pixels = screen->width_in_pixels;
+            psi->width_in_millimeters = screen->width_in_millimeters;
+            psi->height_in_pixels = screen->height_in_pixels;
+            psi->height_in_millimeters = screen->height_in_millimeters;
+            psi->is_primary = true;
+            psi->dpi_scale = 1;
+            psi->x = 0;
+            psi->y = 0;
+            screens.push_back(psi);
+            primary_screen_info = screens[0];
         } else {
             primary_screen_info = screens[0];
         }

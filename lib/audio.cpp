@@ -31,6 +31,7 @@
 // Global stuff
 bool audio_running = false;
 std::thread audio_thread;
+bool allow_audio_thread_creation = true;
 
 static App *app;
 

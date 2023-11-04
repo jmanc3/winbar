@@ -13,6 +13,7 @@
 
 extern bool audio_running;
 extern std::thread audio_thread;
+extern bool allow_audio_thread_creation;
 
 struct AudioClient {
     int index = PA_INVALID_INDEX;
