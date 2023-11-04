@@ -79,7 +79,6 @@ int main() {
 
     // Start the pulseaudio connection
     audio_state_change_callback(updates);
-    audio_start(app);
     
     // We need to register as the systray
     register_as_systray();

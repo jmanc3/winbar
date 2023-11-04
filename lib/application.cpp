@@ -12,6 +12,7 @@
 #include "defer.h"
 #include "../src/config.h"
 #include "../src/root.h"
+#include "audio.h"
 
 #include <algorithm>
 #include <iostream>
@@ -450,7 +451,7 @@ static void deliver_fine_scroll_event(App *app, int horizontal, int vertical, bo
             }
             set_active(client, mouse_downed, client->root, false);
             
-            client_paint(app, client);
+            request_refresh(app, client);
         }
     }
 }
@@ -1104,8 +1105,11 @@ void request_refresh(App *app, AppClient *client) {
 #endif
     if (app == nullptr || client == nullptr || client->refresh_already_queued)
         return;
+    float fps = client->fps;
+    if (fps != 0)
+        fps = 1000 / fps;
     client->refresh_already_queued = true;
-    app_timeout_create(app, client, 0, paint_client_timeout, nullptr, "request_refresh(app, client)");
+    app_timeout_create(app, client, fps, paint_client_timeout, nullptr, "request_refresh(app, client)");
 }
 
 void client_animation_paint(App *app, AppClient *client, Timeout *, void *user_data);
@@ -1362,6 +1366,10 @@ void paint_container(App *app, AppClient *client, Container *container) {
     }
 }
 
+static xcb_generic_event_t *event;
+void handle_xcb_event(App *app);
+void handle_event(App *app);
+
 // TODO: double buffering not really working
 void client_paint(App *app, AppClient *client, bool force_repaint) {
 #ifdef TRACY_ENABLE
@@ -1398,8 +1406,6 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
 void client_paint(App *app, AppClient *client) {
     client_paint(app, client, false);
 }
-
-static xcb_generic_event_t *event;
 
 void fill_list_with_concerned(std::vector<Container *> &containers, Container *parent) {
     if (parent->type == ::newscroll) {
@@ -1600,7 +1606,7 @@ void mouse_motion_timeout(App *app, AppClient *client, Timeout *timeout, void *u
     if (valid_client(app, client)) {
         client->motion_event_timeout = nullptr;
         handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
-        client_paint(app, client, true);
+        request_refresh(app, client);
     }
 }
 
@@ -1620,7 +1626,7 @@ void handle_mouse_motion(App *app) {
     
     if (client->motion_events_per_second == 0) {
         handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
-        client_paint(app, client, true);
+        request_refresh(app, client);
     } else if (client->motion_event_timeout == nullptr) {
         float fps = client->motion_events_per_second;
         if (fps != 0)
@@ -1629,7 +1635,7 @@ void handle_mouse_motion(App *app) {
                                                           const_cast<char *>(__PRETTY_FUNCTION__));
         
         handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
-        client_paint(app, client, true);
+        request_refresh(app, client);
     }
 }
 
@@ -2223,8 +2229,54 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
     }
     
     if (auto client = client_by_window(app, window_number)) {
-        client_paint(app, client, true);
+        request_refresh(app, client);
     }
+}
+
+void handle_event(App *app) {
+    if (auto window = get_window(event)) {
+        bool event_consumed_by_custom_handler = false;
+        for (auto handler: app->handlers) {
+            // If the handler's target window is INT_MAX that means it wants to see every event
+            if (handler->target_window == INT_MAX) {
+                if (handler->event_handler(app, event, handler->target_window)) {
+                    // TODO: is this supposed to be called twice? I doubt it
+//                        handler->event_handler(app, event);
+                    event_consumed_by_custom_handler = true;
+                }
+            } else if (handler->target_window ==
+                       window) { // If the target window and the window of this event matches, then send the handler the
+                if (handler->event_handler(app, event, handler->target_window)) {
+                    event_consumed_by_custom_handler = true;
+                }
+            }
+        }
+        if (event_consumed_by_custom_handler) {
+        
+        } else {
+            if (auto client = client_by_window(app, window)) {
+                handle_xcb_event(app, client->window, event, false);
+            } else if (window == app->screen->root) {
+                for (auto c: app->clients) {
+                    if (c->wants_popup_events) {
+                        handle_xcb_event(app, c->window, event, true);
+                    }
+                }
+                // An event from a window for which is not a client
+            }
+        }
+    } else {
+        for (auto handler: app->handlers) {
+            // If the handler's target window is INT_MAX that means it wants to see every event
+            if (handler->target_window == INT_MAX) {
+                if (handler->event_handler(app, event, handler->target_window)) {
+                
+                }
+            }
+        }
+    }
+    
+    free(event);
 }
 
 void handle_xcb_event(App *app) {
@@ -2236,49 +2288,7 @@ void handle_xcb_event(App *app) {
     std::lock_guard lock(app->thread_mutex);
     
     while ((event = xcb_poll_for_event(app->connection))) {
-        if (auto window = get_window(event)) {
-            bool event_consumed_by_custom_handler = false;
-            for (auto handler: app->handlers) {
-                // If the handler's target window is INT_MAX that means it wants to see every event
-                if (handler->target_window == INT_MAX) {
-                    if (handler->event_handler(app, event, handler->target_window)) {
-                        // TODO: is this supposed to be called twice? I doubt it
-//                        handler->event_handler(app, event);
-                        event_consumed_by_custom_handler = true;
-                    }
-                } else if (handler->target_window ==
-                           window) { // If the target window and the window of this event matches, then send the handler the
-                    if (handler->event_handler(app, event, handler->target_window)) {
-                        event_consumed_by_custom_handler = true;
-                    }
-                }
-            }
-            if (event_consumed_by_custom_handler) {
-            
-            } else {
-                if (auto client = client_by_window(app, window)) {
-                    handle_xcb_event(app, client->window, event, false);
-                } else if (window == app->screen->root) {
-                    for (auto c: app->clients) {
-                        if (c->wants_popup_events) {
-                            handle_xcb_event(app, c->window, event, true);
-                        }
-                    }
-                    // An event from a window for which is not a client
-                }
-            }
-        } else {
-            for (auto handler: app->handlers) {
-                // If the handler's target window is INT_MAX that means it wants to see every event
-                if (handler->target_window == INT_MAX) {
-                    if (handler->event_handler(app, event, handler->target_window)) {
-        
-                    }
-                }
-            }
-        }
-        
-        free(event);
+        handle_event(app);
     }
 }
 
@@ -2292,6 +2302,9 @@ void app_main(App *app) {
         assert(app != nullptr);
         return;
     }
+    
+    // Audio thread
+    audio_start(app);
     
     int MAX_POLLING_EVENTS_AT_THE_SAME_TIME = 1000;
     pollfd fds[MAX_POLLING_EVENTS_AT_THE_SAME_TIME];
@@ -2373,6 +2386,9 @@ void app_main(App *app) {
     for (AppClient *client: app->clients) {
         client_close(app, client);
     }
+    
+    audio_stop();
+    audio_thread.join();
 }
 
 void app_clean(App *app) {
@@ -2643,6 +2659,8 @@ bool client_set_position_and_size(App *app, AppClient *client, int x, int y, int
 }
 
 void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void *user_data) {
+    while ((event = xcb_poll_for_event(app->connection)))
+        handle_event(app);
 #ifdef TRACY_ENABLE
     FrameMarkStart("Animation Paint");
 #endif
@@ -2698,7 +2716,7 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
 #ifdef TRACY_ENABLE
         ZoneScopedN("paint");
 #endif
-        client_paint(app, client, true);
+        request_refresh(app, client);
     }
     
     {

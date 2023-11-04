@@ -467,7 +467,7 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
     auto r = reorder_list->child(::hbox, FILL_SPACE, 28 * config->dpi);
     r->when_paint = paint_reordable_item;
     r->receive_events_even_if_obstructed_by_one = true;
-    r->clip = true;
+//    r->clip = true;
     r->when_drag_start = dragged_list_start;
     r->when_drag = dragged_list_item;
     r->when_drag_end = dragged_list_item_end;
@@ -645,7 +645,7 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
         
         {
             auto parent = r->child(38 * config->dpi, FILL_SPACE);
-            parent->clip = true;
+//            parent->clip = true;
             parent->wanted_pad.y = 3 * config->dpi;
             parent->wanted_pad.h = 2 * config->dpi;
             FieldSettings field_settings;

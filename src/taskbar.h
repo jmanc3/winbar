@@ -35,6 +35,12 @@ public:
     ~IconButton() { cairo_surface_destroy(surface); }
 };
 
+class VolumeButton : public IconButton {
+public:
+    double volume = 1;
+    bool muted = false;
+};
+
 struct ActionCenterButtonData : public IconButton {
     bool some_unseen = false;
     double slide_anim = 0;

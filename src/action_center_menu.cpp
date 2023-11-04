@@ -421,7 +421,7 @@ static void fill_root(AppClient *client, Container *root) {
     settings.right_show_amount = 2;
     auto scroll_pane = make_newscrollpane_as_child(r, settings);
     scroll_pane->when_paint = paint_prompt;
-    scroll_pane->clip = true;
+//    scroll_pane->clip = true;
     scroll_pane->name = "scroll_pane";
     auto content = scroll_pane->content;
     content->name = "content";

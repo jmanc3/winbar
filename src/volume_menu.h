@@ -12,7 +12,7 @@
 void open_volume_menu();
 
 void
-adjust_volume_based_on_fine_scroll(Audio_Client *audio_client,
+adjust_volume_based_on_fine_scroll(AudioClient *audio_client,
                                    AppClient *client,
                                    cairo_t *cr,
                                    Container *container,

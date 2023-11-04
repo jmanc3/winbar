@@ -220,16 +220,10 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     container->real_bounds.h -= 2;
     paint_hoverable_button_background(client, cr, container);
     container->real_bounds = start;
+    auto *data = (VolumeButton *) container->user_data;
     
-    int val = 100;
-    bool mute_state = false;
-    for (auto c: audio_clients) {
-        if (c->is_master_volume()) {
-            val = round(c->get_volume() * 100);
-            mute_state = c->is_muted();
-            break;
-        }
-    }
+    int val = std::round(data->volume * 100);
+    bool mute_state = data->muted;
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -1423,7 +1417,7 @@ scrolled_volume(AppClient *client_entity,
                 Container *container,
                 int horizontal_scroll,
                 int vertical_scroll, bool came_from_touchpad) {
-    if (audio_backend_data->audio_backend == Audio_Backend::NONE)
+    if (!audio_running)
         return;
     if (audio_clients.empty())
         return;
@@ -1433,18 +1427,14 @@ scrolled_volume(AppClient *client_entity,
         volume_open_because_of_scroll = true;
     }
     
-    for (auto c: audio_clients) {
-        if (c->is_master_volume()) {
-            if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO) {
-                if (!c->default_sink) {
-                    continue;
-                }
+    audio([&client_entity, &cr, &container, horizontal_scroll, vertical_scroll, came_from_touchpad]() {
+        for (auto c: audio_clients) {
+            if (c->is_master_volume()) {
+                adjust_volume_based_on_fine_scroll(c, client_entity, cr, container, horizontal_scroll, vertical_scroll,
+                                                   came_from_touchpad);
             }
-            
-            adjust_volume_based_on_fine_scroll(c, client_entity, cr, container, horizontal_scroll, vertical_scroll,
-                                               came_from_touchpad);
         }
-    }
+    });
 }
 
 static void
@@ -2800,7 +2790,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_volume->when_fine_scrolled = scrolled_volume;
     button_volume->when_mouse_leaves_container = mouse_leaves_volume;
     button_volume->name = "volume";
-    auto volume_data = new IconButton;
+    auto volume_data = new VolumeButton;
     volume_data->invalidate_button_press_if_client_with_this_name_is_open = "volume";
     button_volume->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_volume->user_data = volume_data;
@@ -3320,8 +3310,6 @@ create_taskbar(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    audio_start(app);
-    
     // Set window startup settings
     Settings settings;
     settings.window_transparent = true;
@@ -3389,10 +3377,7 @@ create_taskbar(App *app) {
     
     load_pinned_icons();
     
-    if (audio_backend_data->audio_backend == Audio_Backend::PULSEAUDIO) {
-        audio_update_list_of_clients();
-        update_taskbar_volume_icon();
-    }
+    update_taskbar_volume_icon();
     
     uint32_t version = 5;
     xcb_change_property(app->connection, XCB_PROP_MODE_REPLACE, taskbar->window, get_cached_atom(app, "XdndAware"),
@@ -4201,14 +4186,7 @@ late_classes_update(App *app, AppClient *client, Timeout *timeout, void *data) {
 }
 
 void update_taskbar_volume_icon() {
-    std::thread t([]() {
-        std::lock_guard lock(app->running_mutex);
-        if (auto *client = client_by_name(app, "taskbar")) {
-            client_layout(app, client);
-            client_paint(app, client);
-        }
-    });
-    t.detach();
+    request_refresh(app, client_by_name(app, "taskbar"));
 }
 
 void set_textarea_active() {
@@ -4223,6 +4201,9 @@ void set_textarea_active() {
         client_layout(app, client);
         request_refresh(client->app, client);
     }
+    xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
+    xcb_flush(app->connection);
+    xcb_aux_sync(app->connection);
 }
 
 void set_textarea_inactive() {

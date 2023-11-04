@@ -334,6 +334,7 @@ scroll(AppClient *client, cairo_t *cr, Container *container, int scroll_x, int s
                                                   [](App *, AppClient *, Timeout *, void *user_data) {
                                                       file_descriptor = -1000000;
                                                       auto *brightness = (double *) user_data;
+                                                      set_brightness_visual(*brightness);
                                                       set_brightness(*brightness);
                                                       delete brightness;
                                                   }, new_brigtness, const_cast<char *>(__PRETTY_FUNCTION__));
@@ -352,6 +353,7 @@ scroll(AppClient *client, cairo_t *cr, Container *container, int scroll_x, int s
                                                   [](App *, AppClient *, Timeout *, void *user_data) {
                                                       file_descriptor = -1000000;
                                                       auto *brightness = (double *) user_data;
+                                                      set_brightness_visual(*brightness);
                                                       set_brightness(*brightness);
                                                       delete brightness;
                                                   }, new_brigtness, const_cast<char *>(__PRETTY_FUNCTION__));
