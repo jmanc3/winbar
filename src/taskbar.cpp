@@ -53,6 +53,7 @@
 static Container *active_container = nullptr;
 static xcb_window_t active_window = 0;
 static xcb_window_t backup_active_window = 0;
+static bool someone_is_fullscreen_and_covering = false;
 
 static std::string time_text("N/A");
 
@@ -1095,10 +1096,25 @@ void active_window_changed(xcb_window_t new_active_window) {
 #endif
     if (new_active_window == active_window)
         return;
+    active_window = new_active_window;
+    auto cookie = xcb_get_property(app->connection, 0, new_active_window, get_cached_atom(app, "_NET_WM_STATE"),
+                                   XCB_ATOM_ATOM, 0, BUFSIZ);
+    xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, nullptr);
+    if (reply) {
+        if (reply->type == XCB_ATOM_ATOM) {
+            auto *state_atoms = (xcb_atom_t *) xcb_get_property_value(reply);
+            bool found_fullscreen = false;
+            for (unsigned int a = 0; a < sizeof(xcb_atom_t); a++)
+                if (state_atoms[a] == get_cached_atom(app, "_NET_WM_STATE_FULLSCREEN"))
+                    found_fullscreen = true;
+            someone_is_fullscreen_and_covering = found_fullscreen;
+        }
+        if (reply)
+            free(reply);
+    }
     auto *new_active_container = get_pinned_icon_representing_window(new_active_window);
     if (new_active_container == active_container)
         return;
-    active_window = new_active_window;
     
     if (auto c = client_by_name(app, "taskbar")) {
         if (active_container) {
@@ -1417,6 +1433,8 @@ scrolled_volume(AppClient *client_entity,
                 Container *container,
                 int horizontal_scroll,
                 int vertical_scroll, bool came_from_touchpad) {
+    if (someone_is_fullscreen_and_covering)
+        return;
     if (!audio_running)
         return;
     if (audio_clients.empty())
@@ -1443,6 +1461,8 @@ scrolled_battery(AppClient *client,
                  Container *container,
                  int horizontal_scroll,
                  int vertical_scroll, bool came_from_touchpad) {
+    if (someone_is_fullscreen_and_covering)
+        return;
     if (client_by_name(app, "battery_menu") == nullptr) {
         start_battery_menu();
         battery_open_because_of_scroll = true;
@@ -3039,6 +3059,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                     if (reply->type == XCB_ATOM_ATOM) {
                         auto *state_atoms = (xcb_atom_t *) xcb_get_property_value(reply);
                         bool attention = false;
+                        bool found_fullscreen = false;
                         for (unsigned int a = 0; a < sizeof(xcb_atom_t); a++) {
                             if (state_atoms[a] == get_cached_atom(app, "_NET_WM_STATE_DEMANDS_ATTENTION")) {
                                 attention = true;
@@ -3063,8 +3084,12 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                                 free(reply);
                                 reply = nullptr;
                                 break;
+                            } else if (state_atoms[a] == get_cached_atom(app, "_NET_WM_STATE_FULLSCREEN")) {
+                                found_fullscreen = true;
                             }
                         }
+                        if (active_window == e->window)
+                            someone_is_fullscreen_and_covering = found_fullscreen;
                         if (!attention) {
                             if (auto client = client_by_name(app, "taskbar")) {
                                 if (client->root) {
