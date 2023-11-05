@@ -2351,6 +2351,7 @@ void update_battery_status_timeout(App *app, AppClient *client, Timeout *timeout
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    // Improvement: could use a conditional variable and thread since this takes about 70ms
     if (timeout) {
         timeout->keep_running = true;
     }
@@ -2571,7 +2572,7 @@ make_battery_button(Container *parent, AppClient *client_entity) {
         if (getline(capacity, line)) {
             if (line != "UPS") {
                 parent->children.push_back(c);
-                app_timeout_create(app, client_entity, 15000, update_battery_status_timeout, data,
+                app_timeout_create(app, client_entity, 30000, update_battery_status_timeout, data,
                                    const_cast<char *>(__PRETTY_FUNCTION__));
                 update_battery_status_timeout(app, client_entity, nullptr, data);
                 
@@ -4377,6 +4378,10 @@ void WindowsData::take_screenshot() {
 #endif
     if (!mapped)
         return;
+    for (auto c: app->clients)
+        if (this->id == c->window)
+            if (c->skip_taskbar)
+                return;
     
     if (gtk_left_margin == 0 && gtk_right_margin == 0 && gtk_top_margin == 0 && gtk_bottom_margin == 0) {
         cairo_set_source_surface(raw_thumbnail_cr, window_surface, 0, 0);

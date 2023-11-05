@@ -9,6 +9,7 @@
 #include "notifications.h"
 #include "taskbar.h"
 #include "bluetooth_menu.h"
+#include "root.h"
 
 #include <dbus/dbus.h>
 #include <defer.h>
@@ -897,6 +898,18 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
         dbus_message_iter_next(&args);
         dbus_message_iter_get_basic(&args, &body);
         dbus_message_iter_next(&args);
+        if (std::string(summary) == "winbaractivate") {
+            DBusMessage *reply = dbus_message_new_method_return(message);
+            defer(dbus_message_unref(reply));
+            defer(meta_pressed(0));
+            dbus_message_iter_init_append(reply, &args);
+            const dbus_uint32_t current_id = -1;
+            if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &current_id) ||
+                !dbus_connection_send(connection, reply, NULL)) {
+                return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+            }
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
         
         auto notification_info = new NotificationInfo;
         int actions_count = dbus_message_iter_get_element_count(&args);

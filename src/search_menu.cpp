@@ -66,6 +66,14 @@ public:
     std::string name;
 };
 
+template<class T>
+void sort_and_add(std::vector<T> *sortables,
+                  Container *bottom,
+                  std::string text,
+                  const std::vector<HistoricalNameUsed *> &history);
+
+void update_options();
+
 static void
 paint_top(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, correct_opaqueness(client, config->color_search_tab_bar_background));
@@ -756,6 +764,42 @@ paint_open_in_folder(AppClient *client, cairo_t *cr, Container *container) {
     paint_sub_option(client, cr, container, "Open file location", "\uED43");
 }
 
+void update_options() {
+    if (auto taskbar_client = client_by_name(app, "taskbar")) {
+        if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
+            if (auto *search_menu_client = client_by_name(app, "search_menu")) {
+                auto *data = (TextAreaData *) textarea->user_data;
+                
+                auto *bottom = container_by_name("bottom", search_menu_client->root);
+                if (bottom) {
+                    for (auto *c: bottom->children)
+                        delete c;
+                    bottom->children.clear();
+                    bottom->children.shrink_to_fit();
+                    if (!data->state->text.empty()) {
+                        active_item = 0;
+                        scroll_amount = 0;
+                        
+                        if (active_tab == "Scripts") {
+                            sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
+                        } else if (active_tab == "Apps") {
+                            // We create a copy because app_menu relies on the order
+                            std::vector<Launcher *> launchers_copy;
+                            for (auto *l: launchers) {
+                                launchers_copy.push_back(l);
+                            }
+                            sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text,
+                                                     global->history_apps);
+                        }
+                    }
+                    client_layout(app, search_menu_client);
+                    client_paint(app, search_menu_client);
+                }
+            }
+        }
+    }
+}
+
 static void
 launch_item(AppClient *client, Container *item) {
     SearchItemData *data = (SearchItemData *) item->user_data;
@@ -1046,43 +1090,12 @@ clicked_right_item(AppClient *client, cairo_t *cr, Container *container) {
     request_refresh(app, client);
 }
 
-template<class T>
-void sort_and_add(std::vector<T> *sortables,
-                  Container *bottom,
-                  std::string text,
-                  const std::vector<HistoricalNameUsed *> &history);
-
 static void
 clicked_tab_timeout(App *app, AppClient *client, Timeout *, void *user_data) {
     auto *container = (Container *) user_data;
     auto *tab_data = (TabData *) container->user_data;
     active_tab = tab_data->name;
-    auto *taskbar_client = client_by_name(app, "taskbar");
-    if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
-        auto *data = (TextAreaData *) textarea->user_data;
-        
-        auto *bottom = container_by_name("bottom", client->root);
-        if (bottom) {
-            for (auto *c: bottom->children)
-                delete c;
-            bottom->children.clear();
-            bottom->children.shrink_to_fit();
-            if (!data->state->text.empty()) {
-                if (active_tab == "Scripts") {
-                    sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
-                } else if (active_tab == "Apps") {
-                    // We create a copy because app_menu relies on the order
-                    std::vector<Launcher *> launchers_copy;
-                    for (auto *l: launchers) {
-                        launchers_copy.push_back(l);
-                    }
-                    sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, global->history_apps);
-                }
-            }
-            client_layout(app, client);
-            client_paint(app, client);
-        }
-    }
+    update_options();
 }
 
 static void
@@ -1348,31 +1361,7 @@ when_key_event(AppClient *client,
             return;
         } else if (keysym == XKB_KEY_Tab) {
             active_tab = active_tab == "Apps" ? "Scripts" : "Apps";
-            if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
-                auto *data = (TextAreaData *) textarea->user_data;
-                
-                auto *bottom = container_by_name("bottom", client->root);
-                if (bottom) {
-                    for (auto *c: bottom->children)
-                        delete c;
-                    bottom->children.clear();
-                    bottom->children.shrink_to_fit();
-                    if (!data->state->text.empty()) {
-                        if (active_tab == "Scripts") {
-                            sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
-                        } else if (active_tab == "Apps") {
-                            // We create a copy because app_menu relies on the order
-                            std::vector<Launcher *> launchers_copy;
-                            for (auto *l: launchers) {
-                                launchers_copy.push_back(l);
-                            }
-                            sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, global->history_apps);
-                        }
-                    }
-                    client_layout(app, client);
-                    client_paint(app, client);
-                }
-            }
+            update_options();
             return;
         } else if (keysym == XKB_KEY_Return) {
             // launch active item
@@ -1388,32 +1377,7 @@ when_key_event(AppClient *client,
     
     if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
         textarea_handle_keypress(client, textarea, is_string, keysym, string, mods, direction);
-        client_layout(app, taskbar_client);
-        request_refresh(app, taskbar_client);
-        
-        auto *data = (TextAreaData *) textarea->user_data;
-        
-        auto *bottom = container_by_name("bottom", search_menu_client->root);
-        if (bottom) {
-            for (auto *c: bottom->children)
-                delete c;
-            bottom->children.clear();
-            bottom->children.shrink_to_fit();
-            if (!data->state->text.empty()) {
-                if (active_tab == "Scripts") {
-                    sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
-                } else if (active_tab == "Apps") {
-                    // We create a copy because app_menu relies on the order
-                    std::vector<Launcher *> launchers_copy;
-                    for (auto *l: launchers) {
-                        launchers_copy.push_back(l);
-                    }
-                    sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text, global->history_apps);
-                }
-            }
-            client_layout(app, search_menu_client);
-            client_paint(app, search_menu_client);
-        }
+        update_options();
     }
 }
 
@@ -1682,7 +1646,7 @@ void load_scripts() {
                         if (!(FLAG('q'))) {
                             bool already_have_this_script = false;
                             std::string name = std::string(dp->d_name);
-                            for (auto *script: scripts) {
+                            for (auto *script: temp_scripts) {
                                 if (script->name == name) {
                                     already_have_this_script = true;
                                     break;
@@ -1730,40 +1694,8 @@ void load_scripts() {
         for (auto sc: temp_scripts) {
             scripts.push_back(sc);
         }
-
-        if (auto taskbar_client = client_by_name(app, "taskbar")) {
-            if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
-                if (auto *search_menu_client = client_by_name(app, "search_menu")) {
-                    auto *data = (TextAreaData *) textarea->user_data;
-
-                    auto *bottom = container_by_name("bottom", search_menu_client->root);
-                    if (bottom) {
-                        for (auto *c: bottom->children)
-                            delete c;
-                        bottom->children.clear();
-                        bottom->children.shrink_to_fit();
-                        if (!data->state->text.empty()) {
-                            active_item = 0;
-                            scroll_amount = 0;
-
-                            if (active_tab == "Scripts") {
-                                sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
-                            } else if (active_tab == "Apps") {
-                                // We create a copy because app_menu relies on the order
-                                std::vector<Launcher *> launchers_copy;
-                                for (auto *l: launchers) {
-                                    launchers_copy.push_back(l);
-                                }
-                                sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text,
-                                                         global->history_apps);
-                            }
-                        }
-                        client_layout(app, search_menu_client);
-                        client_paint(app, search_menu_client);
-                    }
-                }
-            }
-        }
+        
+        update_options();
     });
     t.detach();
 }
