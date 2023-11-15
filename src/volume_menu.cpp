@@ -508,14 +508,6 @@ void fill_root(AppClient *client, Container *root) {
         volume_icon->wanted_bounds.w = 55 * config->dpi;
         volume_icon->when_paint = paint_volume_icon;
         volume_icon->when_clicked = toggle_mute;
-        volume_icon->when_fine_scrolled = [](AppClient *client, cairo_t *cr, Container *self, int scroll_x,
-                                             int scroll_y, bool came_from_touchpad) -> void {
-            auto current = get_current_time_in_ms();
-            if (current - last_time_scrollpane_locked < 200)
-                return;
-            last_time_volume_locked = get_current_time_in_ms();
-            scroll(client, cr, self, scroll_x, scroll_y, came_from_touchpad);
-        };
         volume_icon->parent = hbox_volume;
         hbox_volume->children.push_back(volume_icon);
         auto volume_data = new ButtonData;
@@ -533,7 +525,14 @@ void fill_root(AppClient *client, Container *root) {
         volume_bar->when_mouse_up = drag_force;
         volume_bar->draggable = true;
         volume_bar->parent = hbox_volume;
-        volume_bar->when_fine_scrolled = volume_icon->when_fine_scrolled;
+        volume_bar->when_fine_scrolled = [](AppClient *client, cairo_t *cr, Container *self, int scroll_x,
+                                            int scroll_y, bool came_from_touchpad) -> void {
+            auto current = get_current_time_in_ms();
+            if (current - last_time_scrollpane_locked < 200)
+                return;
+            last_time_volume_locked = get_current_time_in_ms();
+            scroll(client, cr, self, scroll_x, scroll_y, came_from_touchpad);
+        };
         hbox_volume->children.push_back(volume_bar);
         
         auto volume_amount = new Container();
@@ -541,7 +540,6 @@ void fill_root(AppClient *client, Container *root) {
         volume_amount->wanted_bounds.w = 65 * config->dpi;
         volume_amount->when_paint = paint_volume_amount;
         volume_amount->parent = hbox_volume;
-        volume_amount->when_fine_scrolled = volume_icon->when_fine_scrolled;
         hbox_volume->children.push_back(volume_amount);
         
         label->parent = vbox_container;
@@ -618,18 +616,22 @@ void updates() {
     if (!thread_created) {
         thread_created = true;
         to_update = std::thread([]() {
-            defer(thread_created = false);
-            while (audio_running) {
-                {
-                    std::unique_lock<std::mutex> lock(to_update_mutex);
-                    condition.wait(lock, []() { return actually_needs_to_wake; });
-                    actually_needs_to_wake = false;
+            try {
+                defer(thread_created = false);
+                while (audio_running) {
+                    {
+                        std::unique_lock<std::mutex> lock(to_update_mutex);
+                        condition.wait(lock, []() { return actually_needs_to_wake; });
+                        actually_needs_to_wake = false;
+                    }
+                    
+                    std::lock_guard<std::mutex> second(app->running_mutex);
+                    audio_read([]() {
+                        total_update();
+                    });
                 }
-
-                std::lock_guard<std::mutex> second(app->running_mutex);
-                audio_read([](){
-                    total_update();
-                });
+            } catch (...) {
+                thread_created = false;
             }
         });
         to_update.detach();
@@ -875,8 +877,9 @@ adjust_volume_based_on_fine_scroll(AudioClient *audio_client, AppClient *client,
     
     audio_client->cached_volume =
             audio_client->cached_volume < 0 ? 0 : audio_client->cached_volume > 1 ? 1 : audio_client->cached_volume;
-    
-    if (((int) std::round(current_volume * 100)) != ((int) std::round(audio_client->cached_volume * 100))) {
+
+//    if (((int) std::round(current_volume * 100)) != ((int) std::round(audio_client->cached_volume * 100))) {
+    if (current_volume != audio_client->cached_volume) {
         if (audio_client->is_muted())
             audio_client->set_mute(false);
         

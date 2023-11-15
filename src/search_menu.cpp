@@ -590,8 +590,11 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
     pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
+    int x = (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2);
+    if (x < container->real_bounds.x)
+        x = container->real_bounds.x;
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  x,
                   (int) (container->real_bounds.y + 106 * config->dpi - height / 2));
     pango_cairo_show_layout(cr, layout);
     
@@ -663,8 +666,11 @@ paint_right_active_title_for_no_results(AppClient *client, cairo_t *cr, Containe
     pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_search_content_text_primary);
+    int x = (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2);
+    if (x < container->real_bounds.x)
+        x = container->real_bounds.x;
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                  x,
                   (int) (container->real_bounds.y + 106 * config->dpi - height / 2));
     pango_cairo_show_layout(cr, layout);
     
@@ -691,6 +697,8 @@ paint_right_active_title_for_no_results(AppClient *client, cairo_t *cr, Containe
                                  container->real_bounds.y + 21 * config->dpi);
         cairo_paint(cr);
     }
+    
+    
 }
 
 static void
@@ -1377,6 +1385,7 @@ when_key_event(AppClient *client,
     
     if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
         textarea_handle_keypress(client, textarea, is_string, keysym, string, mods, direction);
+        request_refresh(app, taskbar_client);
         update_options();
     }
 }

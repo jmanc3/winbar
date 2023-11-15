@@ -30,7 +30,6 @@
 
 // Global stuff
 bool audio_running = false;
-std::thread audio_thread;
 bool allow_audio_thread_creation = true;
 
 static App *app;
@@ -499,14 +498,17 @@ bool try_establishing_connection_with_alsa() {
     return true;
 }
 
+static std::vector<std::thread> threads;
+
 void audio_start(App *app_ref) {
     app = app_ref;
     
-    audio_thread = std::thread([]() -> void {
+    auto t = std::thread([]() -> void {
         if (backend != AudioBackend::UNSET)
             return;
         if (try_establishing_connection_with_pulseaudio()) {
             backend = AudioBackend::PULSEAUDIO;
+            audio_thread_id = std::this_thread::get_id();
             while (audio_running) {
                 iterate_pulseaudio_mainloop();
             }
@@ -522,9 +524,10 @@ void audio_start(App *app_ref) {
             backend = AudioBackend::ALSA;
             audio_running = true;
             ready = true;
+            audio_thread_id = std::this_thread::get_id();
         }
     });
-    audio_thread_id = audio_thread.get_id();
+    threads.push_back(std::move(t));
 }
 
 void audio_stop() {
@@ -548,6 +551,12 @@ void audio_stop() {
         audio_clients.clear();
     }
     backend = AudioBackend::UNSET;
+}
+
+void audio_join() {
+    for (int i = 0; i < threads.size(); ++i)
+        threads[i].join();
+    threads.clear();
 }
 
 void audio(const std::function<void()> &callback) {

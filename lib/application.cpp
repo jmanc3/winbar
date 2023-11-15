@@ -2399,7 +2399,7 @@ void app_main(App *app) {
     }
     
     audio_stop();
-    audio_thread.join();
+    audio_join();
 }
 
 void app_clean(App *app) {

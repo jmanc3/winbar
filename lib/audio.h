@@ -12,7 +12,6 @@
 #include <pulse/pulseaudio.h>
 
 extern bool audio_running;
-extern std::thread audio_thread;
 extern bool allow_audio_thread_creation;
 
 struct AudioClient {
@@ -46,6 +45,8 @@ extern std::vector<AudioClient *> audio_clients;
 void audio_start(App *app);
 
 void audio_stop();
+
+void audio_join();
 
 void audio(const std::function<void()> &callback);
 
