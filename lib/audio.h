@@ -46,6 +46,8 @@ void audio_start(App *app);
 
 void audio_stop();
 
+void audio_sort();
+
 void audio_join();
 
 void audio(const std::function<void()> &callback);

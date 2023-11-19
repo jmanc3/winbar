@@ -71,12 +71,17 @@ void (*audio_change_callback)() = nullptr;
 
 std::vector<AudioClient *> audio_clients;
 
+void sort();
+
 static void on_stream_suspend(pa_stream *s, void *data) {
     auto *client = (AudioClient *) data;
     
     if (pa_stream_is_suspended(s)) {
-        client->peak = 0;
-        client->last_time_peak_changed = get_current_time_in_ms();
+        if (client->peak != 0) {
+            client->peak = 0;
+            client->last_time_peak_changed = get_current_time_in_ms();
+        }
+        sort();
         if (audio_change_callback)
             audio_change_callback();
     }
@@ -99,14 +104,18 @@ static void on_stream_update(pa_stream *stream, size_t length, void *data) {
     
     double v = ((const float *) buffer)[length / sizeof(float) - 1];
     pa_stream_drop(stream);
-    client->last_time_peak_changed = get_current_time_in_ms();
+    if (client->peak != std::min(std::max(v, 0.0), 1.0)) {
+        client->last_time_peak_changed = get_current_time_in_ms();
+    }
     client->peak = std::min(std::max(v, 0.0), 1.0);
+    sort();
     if (audio_change_callback)
         audio_change_callback();
 }
 
 void sort() {
-    std::sort(audio_clients.begin(), audio_clients.end(), [](AudioClient *a, AudioClient *b) {
+    auto time = get_current_time_in_ms();
+    std::sort(audio_clients.begin(), audio_clients.end(), [time](AudioClient *a, AudioClient *b) {
         // order: master who is default sink, masters with older indexes first, sink inputs with lower index first
         if (a->is_master && b->is_master) {
             if (a->title == default_sink_name) {
@@ -121,7 +130,18 @@ void sort() {
         } else if (b->is_master && !a->is_master) {
             return false;
         } else {
-            return a->index < b->index;
+            if ((a->peak == 0 && b->peak == 0) || (a->peak != 0 && b->peak != 0)) {
+                if (a->peak != 0) {
+                    if ((time - a->last_time_peak_changed < 1300) && (time - b->last_time_peak_changed > 1300)) {
+                        return true;
+                    } else if ((time - b->last_time_peak_changed < 1300) && (time - a->last_time_peak_changed > 1300)) {
+                        return false;
+                    }
+                }
+                return a->index < b->index;
+            } else {
+                return a->peak != 0;
+            }
         }
     });
 }
@@ -500,6 +520,10 @@ bool try_establishing_connection_with_alsa() {
 
 static std::vector<std::thread> threads;
 
+void audio_sort() {
+    sort();
+}
+
 void audio_start(App *app_ref) {
     app = app_ref;
     
@@ -641,7 +665,7 @@ void meter_watching_start() {
             pa_sample_spec spec;
             spec.channels = 1;
             spec.format = PA_SAMPLE_FLOAT32;
-            spec.rate = 25;
+            spec.rate = 120;
             
             pa_buffer_attr attr;
             memset(&attr, 0, sizeof(attr));

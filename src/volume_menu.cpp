@@ -41,6 +41,7 @@ public:
     double peak = 0;
     std::string title;
     std::string icon_name;
+    int sort_index = 0; // the higher means it comes first (based on total size of client list)
     
     long last_update = get_current_time_in_ms();
     double rolling_avg = 0;
@@ -235,8 +236,10 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     double marker_height = 24 * config->dpi;
     double marker_width = 8 * config->dpi;
     double volume = data->volume;
-    double peak = data->peak;
-    
+    long current = get_current_time_in_ms();
+    long delta = current - data->last_time_peak_set;
+    double scalar = std::min(1.0, delta / 250.0);
+    double peak = data->peak * (1 - scalar);
     double marker_position = volume * container->real_bounds.w;
     
     double line_height = 2 * config->dpi;
@@ -611,6 +614,58 @@ void total_update() {
     update_taskbar_volume_icon();
 }
 
+void sort_containers() {
+    // Re-order containers based on up-to-date containers.
+    // And delete non-existing clients
+    // Has running_mutex lock and audio lock
+    if (auto client = client_by_name(app, "volume")) {
+        if (auto vbox = container_by_name("vbox_container", client->root)) {
+            for (auto child: vbox->children) {
+                if (auto *data = (option_data *) child->user_data) {
+                    data->sort_index = -1;
+                    
+                    for (int i = 0; i < audio_clients.size(); ++i) {
+                        auto c = audio_clients[i];
+                        if (c->index == data->unique_client_id) {
+                            data->sort_index = audio_clients.size() - i;
+                        }
+                    }
+                }
+            }
+            
+            std::vector<Container *> temp;
+            for (auto c: vbox->children)
+                temp.push_back(c);
+            vbox->children.clear();
+            
+            // remove temp container if sort_index stayed -1 as that means it wasn't found in audio_client
+            for (int i = temp.size() - 1; i >= 0; --i) {
+                auto c = temp[i];
+                if (auto *data = (option_data *) c->user_data) {
+                    if (data->sort_index == -1) {
+                        delete c;
+                        temp.erase(temp.begin() + i);
+                    }
+                }
+            }
+            
+            // sort temp based on sort_index
+            std::sort(temp.begin(), temp.end(), [](Container *a, Container *b){
+                auto dataA = (option_data *) a->user_data;
+                auto dataB = (option_data *) b->user_data;
+                return dataA->sort_index > dataB->sort_index;
+            });
+            
+            for (auto c: temp)
+                vbox->children.push_back(c);
+            client_layout(app, client);
+            request_refresh(app, client);
+        }
+    }
+    
+    
+}
+
 void updates() {
 //     if thread created
     if (!thread_created) {
@@ -628,6 +683,7 @@ void updates() {
                     std::lock_guard<std::mutex> second(app->running_mutex);
                     audio_read([]() {
                         total_update();
+                        sort_containers();
                     });
                 }
             } catch (...) {
