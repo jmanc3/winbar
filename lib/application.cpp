@@ -2195,6 +2195,13 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
             break;
         }
         
+        case XCB_FOCUS_IN: {
+            if (auto client = client_by_window(app, window_number)) {
+                update_keymap(client->keyboard);
+            }
+            break;
+        }
+        
         case XCB_FOCUS_OUT: {
             if (auto client = client_by_window(app, window_number)) {
                 if (client->child_popup) {
