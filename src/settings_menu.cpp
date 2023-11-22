@@ -751,6 +751,12 @@ void merge_order_with_taskbar() {
         ADD("Search Field", "field_search")
         ADD("Workspace", "workspace")
         ADD("Pinned Icons", "icons")
+        if (s.name == "Systray") {
+            // Add all containers whose name ends with .plugin
+            for (auto c: taskbar->root->children)
+                if (c->name.find(".plugin") != std::string::npos)
+                    containers.push_back(c);
+        }
         ADD("Systray", "systray")
         ADD("Bluetooth", "bluetooth")
         ADD("Wifi", "wifi")

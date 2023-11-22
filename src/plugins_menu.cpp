@@ -976,7 +976,8 @@ void add_plugin(const std::string &path) {
     if (auto *client = client_by_name(app, "taskbar")) {
         Container *button_plugin = nullptr;
         // remove .plugin from path
-        std::string name_without_extension = path.substr(0, path.length() - 7);
+//        std::string name_without_extension = path.substr(0, path.length() - 7);
+        std::string name_without_extension = path;
         if (auto *button = container_by_name(name_without_extension, client->root)) {
             auto *plugin_data = (PluginData *) button->user_data;
             plugin_data->cc->kill(false);
