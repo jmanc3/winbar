@@ -5,6 +5,7 @@
 #include "config.h"
 #include "main.h"
 #include "taskbar.h"
+#include "settings_menu.h"
 
 #include <cstdio>
 #include <ctime>
@@ -610,6 +611,7 @@ clicked_agenda(AppClient *client, cairo_t *cr, Container *container) {
         }
         xcb_flush(app->connection);
         agenda_showing = !agenda_showing;
+        winbar_settings->show_agenda = agenda_showing;
     }
 }
 
@@ -964,6 +966,7 @@ read_agenda_from_disk(AppClient *client) {
 static void
 date_menu_closed(AppClient *client) {
     write_agenda_to_disk(client);
+    save_settings_file();
 }
 
 static bool time_update_thread_updated = false;
@@ -977,6 +980,7 @@ static void paint_date_menu(App *app, AppClient *client, Timeout *timeout, void 
 }
 
 void start_date_menu() {
+    agenda_showing = winbar_settings->show_agenda;
     Settings settings;
     settings.w = 360 * config->dpi;
     if (agenda_showing) {

@@ -974,6 +974,10 @@ void save_settings_file() {
     out_file << std::endl << std::endl;
     
     // Volume expands
+    out_file << "show_agenda=" << (winbar_settings->show_agenda ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
+    // Volume expands
     out_file << "volume_expands_on_hover=" << (winbar_settings->volume_expands_on_hover ? "true" : "false");
     out_file << std::endl << std::endl;
     
@@ -1067,13 +1071,16 @@ void read_settings_file() {
                         winbar_settings->date_alignment = PangoAlignment::PANGO_ALIGN_RIGHT;
                     }
                 }
-            } else if (key == "volume_expands_on_hover" || key == "battery_expands_on_hover") {
+            } else if (key == "volume_expands_on_hover" || key == "battery_expands_on_hover" ||
+                       key == "show_agenda") {
                 parser.until(LineParser::Token::IDENT);
                 if (parser.current_token == LineParser::Token::IDENT) {
                     std::string text = parser.until(LineParser::Token::END_OF_LINE);
                     trim(text);
                     if (text == "false") {
-                        if (key == "volume_expands_on_hover") {
+                        if (key == "show_agenda") {
+                            winbar_settings->show_agenda = false;
+                        } else if (key == "volume_expands_on_hover") {
                             winbar_settings->volume_expands_on_hover = false;
                         } else {
                             winbar_settings->battery_expands_on_hover = false;

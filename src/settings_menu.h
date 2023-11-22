@@ -27,6 +27,7 @@ struct WinbarSettings {
     int date_size = 9;
     bool battery_expands_on_hover = true;
     bool volume_expands_on_hover = true;
+    bool show_agenda = true;
 };
 
 extern WinbarSettings *winbar_settings;
