@@ -731,6 +731,25 @@ void layout(AppClient *client, cairo_t *cr, Container *container, const Bounds &
             child->children_bounds.h = round(child->children_bounds.h);
         }
     }
+    
+    if (container->distribute_overflow_to_children) {
+        if (!container->children.empty()) {
+            double overflow = 0;
+            int i = 0;
+            do {
+                auto last = container->children[container->children.size() - 1];
+                auto right = (last->real_bounds.x + last->real_bounds.w) - container->real_bounds.x;
+                overflow = right - container->real_bounds.w;
+                overflow--;
+                container->children[i]->real_bounds.w -= 1;
+                for (int l = i + 1; l < container->children.size(); l++)
+                    container->children[l]->real_bounds.x -= 1;
+                i++;
+                if (i == container->children.size())
+                    i = 0;
+            } while (overflow >  0);
+        }
+    }
 
 //    if (generate_event) {
 //        if (container->when_layout) {
@@ -926,6 +945,7 @@ Container::Container(const Container &c) {
     when_mouse_down = c.when_mouse_down;
     when_mouse_up = c.when_mouse_up;
     when_clicked = c.when_clicked;
+    distribute_overflow_to_children = c.distribute_overflow_to_children;
 }
 
 Container::~Container() {

@@ -2780,6 +2780,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     container_icons->name = "icons";
     container_icons->when_paint = paint_all_icons;
     container_icons->when_clicked = clicked_icons_background;
+    container_icons->distribute_overflow_to_children = true;
     
     button_systray->when_paint = paint_systray;
     auto button_systray_data = new IconButton;

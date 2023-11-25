@@ -406,6 +406,9 @@ struct Container {
     
     bool draggable = true;
     
+    // If set to true, after layout of children, will check if there was overflow, if so, will distribute one pixel at a time
+    bool distribute_overflow_to_children = false;
+    
     // Is set to true when the container is the active last interacted with
     bool active = false;
     
