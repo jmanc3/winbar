@@ -739,10 +739,10 @@ void merge_order_with_taskbar() {
         return;
 
 #define ADD(button_name, container_name) if (s.name == button_name) { \
-       auto container = container_by_name(container_name, taskbar->root); \
+       if (auto container = container_by_name(container_name, taskbar->root)) { \
        container->exists = s.on; \
        containers.push_back(container); \
-       continue; \
+       continue; } \
     }
     
     std::vector<Container *> containers;
