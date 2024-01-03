@@ -618,7 +618,9 @@ App *app_new() {
     app->bounds.y = 0;
     app->bounds.w = app->screen->width_in_pixels;
     app->bounds.h = app->screen->height_in_pixels;
-    
+
+    app->wayland = std::getenv("WAYLAND_DISPLAY") != nullptr;
+
     xcb_intern_atom_cookie_t *c = xcb_ewmh_init_atoms(app->connection, &app->ewmh);
     if (!xcb_ewmh_init_atoms_replies(&app->ewmh, c, NULL))
         return nullptr;
@@ -1755,11 +1757,19 @@ void handle_mouse_button_press(App *app) {
         
         // Check if its a scroll event and call when_scrolled if so
         if (e->detail >= 4 && e->detail <= 7) {
-            if (p->when_scrolled) {
+            if (p->when_scrolled || app->wayland) {
                 if (e->detail == 4 || e->detail == 5) {
-                    p->when_scrolled(client, client->cr, p, 0, e->detail == 4 ? 1 : -1);
+                    if (app->wayland && p->when_fine_scrolled) {
+                        p->when_fine_scrolled(client, client->cr, p, 0, e->detail == 4 ? 1 * 12 * 3 * config->dpi: -1 * 12 * 3 * config->dpi, false);
+                    } else if (p->when_scrolled) {
+                        p->when_scrolled(client, client->cr, p, 0, e->detail == 4 ? 1 * 12 * 3 * config->dpi: -1 * 12 * 3 * config->dpi);
+                    }
                 } else {
-                    p->when_scrolled(client, client->cr, p, e->detail == 6 ? 1 : -1, 0);
+                    if (app->wayland && p->when_fine_scrolled) {
+                        p->when_fine_scrolled(client, client->cr, p, e->detail == 6 ? 1 * 12 * 3 * config->dpi: -1 * 12 * 3 * config->dpi, 0, false);
+                    } else if (p->when_scrolled)  {
+                        p->when_scrolled(client, client->cr, p, e->detail == 6 ? 1 * 12 * 3 * config->dpi: -1 * 12 * 3 * config->dpi, 0);
+                    }
                 }
             }
             handle_mouse_motion(app, client, e->event_x, e->event_y);
@@ -2146,7 +2156,7 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
                 e->event_x -= client->bounds->x;
                 e->event_y -= client->bounds->y;
             }
-    
+
             send_key(app, client, client->root);
             break;
         }
