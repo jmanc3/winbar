@@ -1122,7 +1122,7 @@ void request_refresh(App *app, AppClient *client) {
     if (fps != 0)
         fps = 1000 / fps;
     client->refresh_already_queued = true;
-    app_timeout_create(app, client, fps, paint_client_timeout, nullptr, "request_refresh(app, client)");
+    app_timeout_create(app, client, client->limit_fps ? fps : 0, paint_client_timeout, nullptr, "request_refresh(app, client)");
 }
 
 void client_animation_paint(App *app, AppClient *client, Timeout *, void *user_data);

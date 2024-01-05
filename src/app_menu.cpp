@@ -868,6 +868,12 @@ when_key_event(AppClient *client,
         app->grab_window = -1;
         xcb_aux_sync(app->connection);
         set_textarea_inactive();
+    } else if (keysym == XKB_KEY_Up) {
+        auto scroll_pane = container_by_name("scroll_pane", client->root);
+        fine_scrollpane_scrolled(client, client->cr, scroll_pane, 0, 100 * config->dpi, false);
+    } else if (keysym == XKB_KEY_Down) {
+        auto scroll_pane = container_by_name("scroll_pane", client->root);
+        fine_scrollpane_scrolled(client, client->cr, scroll_pane, 0, -100 * config->dpi, false);
     }
 }
 
@@ -1805,6 +1811,7 @@ void start_app_menu() {
         popup_settings.name = "app_menu";
         popup_settings.takes_input_focus = true;
         auto client = taskbar->create_popup(popup_settings, settings);
+        client->limit_fps = false;
         
         client->when_closed = app_menu_closed;
         

@@ -278,6 +278,7 @@ struct AppClient {
     std::vector<ClientAnimation> animations;
     int animations_running = 0;
     float fps = 144;
+    bool limit_fps = true;
     
     bool automatically_resize_on_dpi_change = false;
     

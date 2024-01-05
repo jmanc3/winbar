@@ -1640,6 +1640,7 @@ void start_search_menu() {
 
         can_pop = true;
         client->when_closed = search_menu_when_closed;
+        client->limit_fps = false;
         fill_root(client);
         client_show(app, client);
         set_textarea_active();
