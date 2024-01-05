@@ -55,6 +55,7 @@ std::vector<Script *> scripts;
 
 std::string active_tab = "Apps";
 static int active_item = 0;
+static int max_items = 0;
 static int scroll_amount = 0;
 
 static cairo_surface_t *script_16 = nullptr;
@@ -1215,6 +1216,9 @@ void sort_and_add(std::vector<T> *sortables,
         if (active_item > sorted.size() - 1) {
             active_item = sorted.size() - 1;
         }
+        max_items = sorted.size() - 1;
+        if (max_items < 0)
+            max_items = 0;
         
         if (sorted.empty()) {
             Container *title = content->child(::hbox, FILL_SPACE, 32 * config->dpi);
@@ -1355,14 +1359,57 @@ when_key_event(AppClient *client,
     if (!is_string) {
         if (keysym == XKB_KEY_Up) {
             active_item--;
+            if (active_item < 0)
+                active_item = 0;
             // TODO set correct scroll_amount
+            if (Container *container = container_by_name("content", search_menu_client->root)) {
+                for (int i = 0; i < container->children.size(); i++) {
+                    if (i == 0 || i == 2) // Skipping non items
+                        continue;
+                    Container *child = container->children[i];
+                    SearchItemData *data = (SearchItemData *) child->user_data;
+                    if (data->item_number == active_item) {
+                        auto scroll_pane = container_by_name("content", search_menu_client->root)->parent;
+                        int offset = -scroll_pane->scroll_v_real;
+                        if (child->real_bounds.y - child->real_bounds.h < scroll_pane->real_bounds.y)
+                            offset -= (scroll_pane->real_bounds.y - child->real_bounds.y) + child->real_bounds.h;
+                        if (active_item == 0)
+                            offset = 0;
+                        scroll_pane->scroll_v_real = -offset;
+                        scroll_pane->scroll_v_visual = scroll_pane->scroll_v_real;
+                    }
+                }
+            }
             client_layout(app, search_menu_client);
             request_refresh(app, search_menu_client);
+            return;
         } else if (keysym == XKB_KEY_Down) {
             active_item++;
+            if (max_items == 0)
+                active_item = 0;
+            if (active_item >= max_items)
+                active_item = max_items;
             // TODO set correct scroll_amount
+            if (Container *container = container_by_name("content", search_menu_client->root)) {
+                for (int i = 0; i < container->children.size(); i++) {
+                    if (i == 0 || i == 2) // Skipping non items
+                        continue;
+                    Container *child = container->children[i];
+                    SearchItemData *data = (SearchItemData *) child->user_data;
+                    if (data->item_number == active_item) {
+                        auto scroll_pane = container_by_name("content", search_menu_client->root)->parent;
+                        int offset = -scroll_pane->scroll_v_real;
+                        if (child->real_bounds.y + child->real_bounds.h > scroll_pane->real_bounds.y + scroll_pane->real_bounds.h)
+                            offset += child->real_bounds.h;
+                        scroll_pane->scroll_v_real = -offset;
+                        scroll_pane->scroll_v_visual = scroll_pane->scroll_v_real;
+                    }
+                }
+            }
+            
             client_layout(app, search_menu_client);
             request_refresh(app, search_menu_client);
+            return;
         } else if (keysym == XKB_KEY_Escape) {
             client_close(app, search_menu_client);
             set_textarea_inactive();
