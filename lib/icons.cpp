@@ -356,11 +356,13 @@ void load_data() {
         }
 
         unsigned long index_into_file = 0;
-        char buffer[NAME_MAX];
+        char buffer[PATH_MAX * 2];
+        size_t max = sizeof(buffer) - 1;
         long len;
 
 #define READ_STRING(tess) \
-        strcpy(buffer, icon_cache_data + index_into_file); \
+        strncpy(buffer, icon_cache_data + index_into_file, max); \
+        buffer[max] = '\0'; \
         len = strlen(buffer); \
         index_into_file += len + 1; \
         std::string tess = std::string(buffer, std::max(len, (long) 0));
@@ -398,7 +400,8 @@ void load_data() {
         unsigned long names_buffer_index = 0;
         unsigned long option_data_index = 0;
         for (int i = 0; i < optionsSize; ++i) {
-            strcpy(buffer, icon_cache_data + index_into_file);
+            strncpy(buffer, icon_cache_data + index_into_file, max);
+            buffer[max] = '\0';
             len = strlen(buffer);
             strncpy(name_buffer + names_buffer_index, icon_cache_data + index_into_file, len);
             index_into_file += len + 1;
