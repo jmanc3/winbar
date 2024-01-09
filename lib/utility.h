@@ -105,9 +105,10 @@ struct CachedFont {
 
 struct LineParser {
     enum Token {
-        UNSET, WHITESPACE, IDENT, COMMA, EQUAL, QUOTE, END_OF_LINE
+        UNSET, WHITESPACE, IDENT, COMMA, EQUAL, QUOTE, END_OF_LINE, NEWLINE
     };
     
+    bool simple = false;
     std::string line;
     size_t current_index = -1;
     Token current_token = LineParser::Token::UNSET;
@@ -119,6 +120,9 @@ struct LineParser {
     }
     
     void next() {
+        if (current_token == LineParser::Token::END_OF_LINE)
+            return;
+        
         previous_index = current_index;
         previous_token = current_token;
         while (previous_token == current_token) {
@@ -128,19 +132,31 @@ struct LineParser {
                 current_index = line.size();
                 break;
             } else {
-                if (line[current_index] == '=') {
-                    current_token = LineParser::Token::EQUAL;
-                    break; // We shouldn't join '+' with previous
-                } else if (line[current_index] == ',') {
-                    current_token = LineParser::Token::COMMA;
-                    break; // We shouldn't join ',' with previous
-                } else if (line[current_index] == '"') {
-                    current_token = LineParser::Token::QUOTE;
-                    break; // We shouldn't join '"' with previous
-                } else if (isspace(line[current_index])) {
-                    current_token = LineParser::Token::WHITESPACE;
+                if (simple) {
+                    if (line[current_index] == '\n' || line[current_index] == '\r') {
+                        current_token = LineParser::Token::NEWLINE;
+                    } else if (isspace(line[current_index])) {
+                        current_token = LineParser::Token::WHITESPACE;
+                    } else {
+                        current_token = LineParser::Token::IDENT;
+                    }
                 } else {
-                    current_token = LineParser::Token::IDENT;
+                    if (line[current_index] == '=') {
+                        current_token = LineParser::Token::EQUAL;
+                        break; // We shouldn't join '+' with previous
+                    } else if (line[current_index] == '\n' || line[current_index] == '\r') {
+                        current_token = LineParser::Token::NEWLINE;
+                    } else if (line[current_index] == ',') {
+                        current_token = LineParser::Token::COMMA;
+                        break; // We shouldn't join ',' with previous
+                    } else if (line[current_index] == '"') {
+                        current_token = LineParser::Token::QUOTE;
+                        break; // We shouldn't join '"' with previous
+                    } else if (isspace(line[current_index])) {
+                        current_token = LineParser::Token::WHITESPACE;
+                    } else {
+                        current_token = LineParser::Token::IDENT;
+                    }
                 }
             }
         }

@@ -296,80 +296,73 @@ std::string get_default_wifi_interface(AppClient *client) {
     
     long current_time = get_current_time_in_ms();
     int cache_timeout = 1000 * 60;
-    if (current_time - program_start_time < 1000 * 60)
+    if (current_time - program_start_time < 1000 * 20)
         cache_timeout = 2000;
     if (current_time - previous_cache_time > cache_timeout) { // Re-cache Wifi interface every five minutes
         previous_cache_time = current_time;
         
         if (script_exists("route")) { // Try to use legacy "route" to find default interface
-            std::vector<std::string> lines;
-            
             std::string response = exec("route");
-            auto response_stream = std::stringstream{response};
-            for (std::string line; std::getline(response_stream, line, '\n');)
-                lines.push_back(line);
-            
-            if (!lines.empty()) {
-                int header_line = 0;
-                for (int i = 0; i < lines.size(); i++) {
-                    if (lines[i].rfind("Destination", 0) == 0) {
-                        header_line = i;
-                        break;
+            LineParser parser(response);
+            parser.simple = true;
+            while (parser.current_token != LineParser::END_OF_LINE) {
+                defer(parser.next());
+                auto line = parser.until(LineParser::NEWLINE);
+                auto p = LineParser(line);
+                int column = 0;
+                bool found_iface_column = false;
+                while (p.current_token != LineParser::END_OF_LINE) {
+                    defer(p.next());
+                    if (p.current_token == LineParser::IDENT) {
+                        if (p.text() == "Iface") {
+                            found_iface_column = true;
+                            break;
+                        }
+                        column++;
                     }
                 }
-                
-                std::string buf;
-                auto header = lines[header_line];
-                auto header_stream = std::stringstream{header};
-                std::vector<std::string> header_order;
-                while (header_stream >> buf)
-                    header_order.push_back(buf);
-                
-                for (int i = (header_line + 1); i < lines.size(); i++) {
-                    auto line = lines[i];
-                    auto line_stream = std::stringstream{line};
-                    int x = 0;
-                    bool default_line_found = false;
-                    
-                    while (line_stream >> buf) {
-                        if (header_order[x] == "Destination") {
-                            if (buf == "default")
-                                default_line_found = true;
-                        } else if (header_order[x] == "Iface") {
-                            if (default_line_found) {
-                                cached_interface = buf;
-                                return cached_interface;
+                if (found_iface_column) {
+                    while (parser.current_token != LineParser::END_OF_LINE) {
+                        defer(parser.next());
+                        auto line = parser.until(LineParser::NEWLINE);
+                        auto p = LineParser(line);
+                        if (p.current_token == LineParser::IDENT) {
+                            if (p.text() == "default") {
+                                int col = 0;
+                                while (p.current_token != LineParser::END_OF_LINE) {
+                                    defer(p.next());
+                                    if (p.current_token == LineParser::IDENT) {
+                                        if (col == column) {
+                                            cached_interface = p.text();
+                                            return cached_interface;
+                                        }
+                                        col++;
+                                    }
+                                }
                             }
                         }
-                        x++;
                     }
                 }
             }
         }
         
         if (script_exists("ip")) { // Try to use "ip" to find default interface
-            std::vector<std::string> lines;
-            
             std::string response = exec("ip route");
-            auto response_stream = std::stringstream{response};
-            for (std::string line; std::getline(response_stream, line, '\n');)
-                lines.push_back(line);
-            
-            std::string buf;
-            if (!lines.empty()) {
-                for (const auto &line: lines) {
-                    auto line_stream = std::stringstream{line};
-                    int x = 0;
-                    bool default_line_found = false;
-                    
-                    while (line_stream >> buf) {
-                        if (x == 0 && buf == "default")
-                            default_line_found = true;
-                        if (x == 4 && default_line_found) {
-                            cached_interface = buf;
+            LineParser parser(response);
+            parser.simple = true;
+            while (parser.current_token != LineParser::END_OF_LINE) {
+                defer(parser.next());
+                auto line = parser.until(LineParser::NEWLINE);
+                LineParser p(line);
+                if (p.current_token == LineParser::IDENT) {
+                    auto title = p.text();
+                    if (title == "default") {
+                        for (int i = 0; i < 8; ++i)
+                            p.next();
+                        if (p.current_token == LineParser::IDENT) {
+                            cached_interface = p.text();
                             return cached_interface;
                         }
-                        x++;
                     }
                 }
             }
