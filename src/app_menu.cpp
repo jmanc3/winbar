@@ -1638,13 +1638,14 @@ void load_desktop_files(std::string directory) {
             std::string name = desktop_application.Get("Desktop Entry", "Name", "");
             std::string wmclass = desktop_application.Get("Desktop Entry", "StartupWMClass", "");
             std::string exec = desktop_application.Get("Desktop Entry", "Exec", "");
+            std::string keywords = desktop_application.Get("Desktop Entry", "Keywords", "");
             std::string icon = desktop_application.Get("Desktop Entry", "Icon", "");
             std::string display = desktop_application.Get("Desktop Entry", "NoDisplay", "");
             std::string not_show_in = desktop_application.Get("Desktop Entry", "NotShowIn", "");
             std::string only_show_in = desktop_application.Get("Desktop Entry", "OnlyShowIn", "");
             
             if (exec.empty() || display == "True" ||
-                display == "true") // If we find no exec entry then there's nothing to run
+                display == "true" || keywords.find("lsp-plugins") != std::string::npos) // If we find no exec entry then there's nothing to run
                 continue;
             
             if (!current_desktop.empty()) {
