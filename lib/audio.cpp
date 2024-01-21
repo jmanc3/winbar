@@ -656,6 +656,7 @@ void audio_read(const std::function<void()> &callback) {
 }
 
 void meter_watching_start() {
+    return;
 #ifdef  TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -689,6 +690,7 @@ void meter_watching_start() {
 }
 
 void meter_watching_stop() {
+    return;
 #ifdef  TRACY_ENABLE
     ZoneScoped;
 #endif
