@@ -65,3 +65,27 @@ distribution to get that library.
 * The configuration file is located at $HOME/.config/winbar/winbar.cfg
 
 * You can change the DPI through the "dpi" variable in the configuration file.
+
+## Recommended Setup
+
+Winbar is just a taskbar. You'll need to run it on a desktop environment or windows manager. The recommended desktop environment is KDE Plasma (kwin) because it allows winbar access to features it wouldn't otherwise have: Slide animations when menu's open, window preview on hovering a thumbnail, working 'Sign out'/'Shutdown'/'Restart' buttons, and (if you activate 'blur' in your KDE settings) a nice blur which is close to 'acrylic.'
+
+To autostart winbar with your computer, do the following:
+
+```bash
+mkdir -p ~/.config/autostart/
+```
+
+And then, inside that folder, write the following, and save it as 'winbar.desktop': 
+
+```bash
+[Desktop Entry]
+Exec=winbar
+Icon=
+Name=winbar
+Path=
+Terminal=False
+Type=Application
+```
+
+Winbar should now auto start with your computer. You'll want to remove the default KDE panel by right clicking your desktop wallpaper and entering edit mode.
