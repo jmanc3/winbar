@@ -136,9 +136,29 @@ paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *con
     auto hovered_color = config->color_taskbar_button_hovered;
     auto pressed_color = config->color_taskbar_button_pressed;
     
+    bool hovered = false;
+    if (client->previous_x != -1) {
+        Bounds mouse_bounds(0, 0, 1, 1);
+        if (client->previous_x < client->motion_event_x) {
+            mouse_bounds.x = client->previous_x;
+            mouse_bounds.w = client->motion_event_x - client->previous_x;
+        } else {
+            mouse_bounds.x = client->motion_event_x;
+            mouse_bounds.w = client->previous_x - client->motion_event_x;
+        }
+        if (client->previous_y < client->motion_event_y) {
+            mouse_bounds.y = client->previous_y;
+            mouse_bounds.h = client->motion_event_y - client->previous_y;
+        } else {
+            mouse_bounds.y = client->motion_event_y;
+            mouse_bounds.h = client->previous_y - client->motion_event_y;
+        }
+        hovered = overlaps(container->real_bounds, mouse_bounds);
+    }
+    
     auto e = getEasingFunction(easing_functions::EaseOutQuad);
     double time = 0;
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+    if (container->state.mouse_pressing || container->state.mouse_hovering || hovered) {
         if (container->state.mouse_pressing) {
             if (data->previous_state != 2) {
                 data->previous_state = 2;
@@ -172,7 +192,7 @@ paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *con
                     container->real_bounds.w,
                     container->real_bounds.h);
     cairo_fill(cr);
-}
+ }
 
 static void
 paint_super(AppClient *client, cairo_t *cr, Container *container) {
@@ -462,8 +482,25 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         cairo_save(cr);
         double scale_afterwards = .81;
         double w = cairo_image_surface_get_width(data->surface);
+        
         auto scale_amount = 1 - (data->animation_zoom_amount * (1 - scale_afterwards));
+        if (data->animation_zoom_locked) {
+            auto current = get_current_time_in_ms();
+            auto elapsed = current - data->animation_zoom_locked_time;
+            double total_time = 500;
+            elapsed %= (long) total_time;
+            elapsed -= total_time / 2;
+            double scalar = ((double) elapsed) / (total_time / 2);
+            if (scalar < 0)
+                scalar = -scalar;
+            auto grow_factor = .22 * scalar;
+            
+            auto new_amount = 1 - (data->animation_zoom_locked * (1 - .61)) + grow_factor;
+            
+            scale_amount = (new_amount + scale_amount) / 2;
+        }
         double current_w = w * scale_amount;
+        
         double xpos = container->real_bounds.x + container->real_bounds.w / 2 -
                       cairo_image_surface_get_width(data->surface) / 2;
         double ypos = container->real_bounds.y + container->real_bounds.h / 2 -
@@ -748,6 +785,7 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
     }
 }
 
+
 static void
 paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
@@ -775,6 +813,25 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     bool active = active_container == container || (data->type == selector_type::OPEN_CLICKED);
     bool pressed = container->state.mouse_pressing;
     bool hovered = container->state.mouse_hovering || (data->type != selector_type::CLOSED);
+    if (client->previous_x != -1) {
+        Bounds mouse_bounds(0, 0, 1, 1);
+        if (client->previous_x < client->motion_event_x) {
+            mouse_bounds.x = client->previous_x;
+            mouse_bounds.w = client->motion_event_x - client->previous_x;
+        } else {
+            mouse_bounds.x = client->mouse_current_x;
+            mouse_bounds.w = client->previous_x - client->motion_event_x;
+        }
+        if (client->previous_y < client->motion_event_y) {
+            mouse_bounds.y = client->previous_y;
+            mouse_bounds.h = client->motion_event_y - client->previous_y;
+        } else {
+            mouse_bounds.y = client->mouse_current_y;
+            mouse_bounds.h = client->previous_y - client->motion_event_y;
+        }
+        hovered = overlaps(container->real_bounds, mouse_bounds);
+    }
+//    hovered = true;
     bool dragging = container->state.mouse_dragging;
     double active_amount = data->active_amount;
     if (data->type == selector_type::OPEN_CLICKED) active_amount = 1;
@@ -1481,7 +1538,15 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     client_create_animation(app, client, &data->animation_zoom_amount, 0, 85 * data->animation_zoom_amount, nullptr, 0);
     
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
-        if (data->windows_data_list.empty()) {
+        if (data->windows_data_list.empty() && !data->animation_zoom_locked) {
+            app_timeout_create(app, client, 4000, [](App *app, AppClient *client, Timeout *timeout, void *user_data){
+                auto data = (LaunchableButton *) user_data;
+                data->animation_zoom_locked = 0;
+                data->animation_zoom_locked_time = get_current_time_in_ms();
+                client_unregister_animation(app, client);
+            }, data, "zoom_lock");
+            data->animation_zoom_locked = 1;
+            client_register_animation(app, client);
             launch_command(data->command_launched_by);
             app_timeout_stop(client->app, client, data->possibly_open_timeout);
             data->possibly_open_timeout = nullptr;
@@ -1501,7 +1566,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                 }
             }
             start_windows_selector(container, selector_type::OPEN_CLICKED);
-        } else {
+        } else if (!data->animation_zoom_locked) {
             // TODO: choose window if there are more then one
             app_timeout_stop(client->app, client, data->possibly_open_timeout);
             data->possibly_open_timeout = nullptr;
@@ -2948,6 +3013,47 @@ update_window_title_name(xcb_window_t window) {
 
 void remove_window(App *app, xcb_window_t window);
 
+void clear_thumbnails() {
+    if (auto client = client_by_name(app, "taskbar")) {
+        if (client->root) {
+            if (auto icons = container_by_name("icons", client->root)) {
+                for (auto icon: icons->children) {
+                    auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                    for (auto windows_data: data->windows_data_list) {
+                        // update the size of the surface
+                        if (windows_data->window_surface) {
+                            cairo_xcb_surface_set_size(windows_data->window_surface,
+                                                       windows_data->width, windows_data->height);
+                            
+                            cairo_surface_destroy(windows_data->raw_thumbnail_surface);
+                            cairo_destroy(windows_data->raw_thumbnail_cr);
+                            cairo_surface_destroy(windows_data->scaled_thumbnail_surface);
+                            cairo_destroy(windows_data->scaled_thumbnail_cr);
+                            
+                            windows_data->raw_thumbnail_surface = accelerated_surface(app,
+                                                                                      client_by_name(
+                                                                                              app,
+                                                                                              "taskbar"),
+                                                                                      windows_data->width,
+                                                                                      windows_data->height);
+                            windows_data->raw_thumbnail_cr = cairo_create(
+                                    windows_data->raw_thumbnail_surface);
+                            windows_data->scaled_thumbnail_surface = accelerated_surface(app,
+                                                                                         client_by_name(
+                                                                                                 app,
+                                                                                                 "taskbar"),
+                                                                                         option_width,
+                                                                                         option_height);
+                            windows_data->scaled_thumbnail_cr = cairo_create(
+                                    windows_data->scaled_thumbnail_surface);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 static bool
 window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) {
     for (auto c: app->clients)
@@ -3603,6 +3709,7 @@ void add_window(App *app, xcb_window_t window) {
             }
             
             data->windows_data_list.push_back(new WindowsData(app, window));
+            data->animation_zoom_locked = 0;
             update_window_title_name(window);
             update_minimize_icon_positions();
             request_refresh(app, client);
@@ -4377,7 +4484,7 @@ void WindowsData::take_screenshot() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (!mapped)
+    if (!winbar_settings->thumbnails || !mapped)
         return;
     for (auto c: app->clients)
         if (this->id == c->window)
@@ -4405,6 +4512,8 @@ void WindowsData::rescale(double scale_w, double scale_h) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (!winbar_settings->thumbnails)
+        return;
     last_rescale_timestamp = get_current_time_in_ms();
     
     cairo_pattern_t *pattern = cairo_pattern_create_for_surface(raw_thumbnail_surface);

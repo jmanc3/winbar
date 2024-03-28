@@ -866,6 +866,27 @@ fill_root(AppClient *client, Container *root) {
         x->when_paint = paint_centered_text;
         x->user_data = new Label("Reset to default");
         x->when_clicked = clicked_reset;
+        
+        root->child(FILL_SPACE, 6 * config->dpi);
+        
+        auto a = root->child(::hbox, FILL_SPACE, 28 * config->dpi);
+        a->when_paint = paint_centered_text;
+        if (winbar_settings->thumbnails) {
+            a->user_data = new Label("Turn off thumbnails");
+        } else {
+            a->user_data = new Label("Turn on thumbnails");
+        }
+        a->when_clicked = [](AppClient *, cairo_t *cr, Container *self){
+            auto *data = (Label *) self->user_data;
+            winbar_settings->thumbnails = !winbar_settings->thumbnails;
+            if (!winbar_settings->thumbnails)
+                clear_thumbnails();
+            if (winbar_settings->thumbnails) {
+                data->text = "Turn off thumbnails";
+            } else {
+                data->text = "Turn on thumbnails";
+            }
+        };
     }
 }
 
@@ -981,6 +1002,10 @@ void save_settings_file() {
     out_file << "volume_expands_on_hover=" << (winbar_settings->volume_expands_on_hover ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    // Thumbnails
+    out_file << "thumbnails=" << (winbar_settings->thumbnails ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     // Battery expands
     out_file << "battery_expands_on_hover=" << (winbar_settings->battery_expands_on_hover ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -1072,7 +1097,7 @@ void read_settings_file() {
                     }
                 }
             } else if (key == "volume_expands_on_hover" || key == "battery_expands_on_hover" ||
-                       key == "show_agenda") {
+                       key == "show_agenda" || key == "thumbnails") {
                 parser.until(LineParser::Token::IDENT);
                 if (parser.current_token == LineParser::Token::IDENT) {
                     std::string text = parser.until(LineParser::Token::END_OF_LINE);
@@ -1082,6 +1107,8 @@ void read_settings_file() {
                             winbar_settings->show_agenda = false;
                         } else if (key == "volume_expands_on_hover") {
                             winbar_settings->volume_expands_on_hover = false;
+                        } else if (key == "thumbnails") {
+                            winbar_settings->thumbnails = false;
                         } else {
                             winbar_settings->battery_expands_on_hover = false;
                         }

@@ -261,6 +261,8 @@ struct AppClient {
     int mouse_initial_y = -1;
     int mouse_current_x = -1;
     int mouse_current_y = -1;
+    int previous_x = -1;
+    int previous_y = -1;
     bool left_mouse_down = false;
     
     bool mapped = true;

@@ -1519,6 +1519,8 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
     if (!valid_client(app, client)) {
         return;
     }
+    client->previous_x = client->mouse_current_x;
+    client->previous_y = client->mouse_current_y;
     client->mouse_current_x = x;
     client->mouse_current_y = y;
     std::vector<Container *> pierced = pierced_containers(app, client, x, y);
@@ -1891,6 +1893,8 @@ void handle_mouse_leave_notify(App *app) {
     client->mouse_current_y = e->event_y;
     client->motion_event_x = e->event_x;
     client->motion_event_y = e->event_y;
+    client->previous_x = -1;
+    client->previous_y = -1;
     std::vector<Container *> concerned = concerned_containers(app, client);
     
     handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);

@@ -40,6 +40,10 @@ double dbus_get_kde_max_brightness();
 
 double dbus_get_kde_current_brightness();
 
+void highlight_windows(const std::vector<std::string> &windows);
+
+void highlight_window(std::string window_id_as_string);
+
 /// Number from 0 to 1
 bool dbus_kde_set_brightness(double percentage);
 

@@ -626,6 +626,32 @@ double dbus_get_kde_current_brightness() {
     return 0;
 }
 
+void highlight_windows(const std::vector<std::string> &windows) {
+    // Submit an array of strings
+    if (!dbus_connection_session) return;
+    
+    DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.KWin.HighlightWindow",
+                                                         "/org/kde/KWin/HighlightWindow",
+                                                         "org.kde.KWin.HighlightWindow",
+                                                         "highlightWindows");
+    defer(dbus_message_unref(dbus_msg));
+    DBusMessageIter iter;
+    dbus_message_iter_init_append(dbus_msg, &iter);
+    
+    DBusMessageIter array_iter;
+    dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "s", &array_iter);
+    for (auto &item: windows)
+        dbus_message_iter_append_basic(&array_iter, DBUS_TYPE_STRING, &item);
+    dbus_message_iter_close_container(&iter, &array_iter);
+    
+    dbus_connection_send(dbus_connection_session, dbus_msg, NULL);
+}
+
+void highlight_window(std::string window_id_as_string) {
+    std::vector<std::string> ids = {window_id_as_string};
+    highlight_windows(ids);
+}
+
 static void dbus_kde_set_brightness_response(DBusPendingCall *call, void *) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
