@@ -52,6 +52,7 @@ struct Settings {
     bool skip_taskbar = true;
     bool no_input_focus = false;
     bool dock = false;
+    bool tooltip = false;
     bool sticky = false;
     bool window_transparent = true;
     bool override_redirect = false;

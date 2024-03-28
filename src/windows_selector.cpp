@@ -11,6 +11,7 @@
 #include "config.h"
 #include "main.h"
 #include "taskbar.h"
+#include "simple_dbus.h"
 
 #include <pango/pangocairo.h>
 #include <xcb/xcb_image.h>
@@ -479,12 +480,41 @@ void when_leave(AppClient *client, cairo_t *cr, Container *self) {
     }
 }
 
+static void paint_root(AppClient *client, cairo_t *, Container *root) {
+    auto pii = (PinnedIconInfo *) root->user_data;
+    
+    static xcb_window_t currently_previewing = -1;
+    xcb_window_t currently_hovered = -1;
+    for (int i = 0; i < root->children.size(); i++) {
+        auto c = root->children[i];
+        bool hovered = false;
+        bool pressed = false;
+        paint_option_hovered_or_pressed(c, hovered, pressed);
+        if (hovered)
+            currently_hovered = pii->data->windows_data_list[i]->id;
+    }
+    if (currently_hovered == -1) {
+        if (currently_previewing != -1) {
+            currently_previewing = -1;
+            highlight_window("");
+        }
+    } else {
+        if (currently_hovered != currently_previewing) {
+            currently_previewing = currently_hovered;
+            std::vector<std::string> windows;
+            windows.push_back(std::to_string(currently_hovered));
+            highlight_windows(windows);
+        }
+    }
+}
+
 static void
 fill_root(AppClient *client, Container *root) {
     auto pii = (PinnedIconInfo *) root->user_data;
     root->receive_events_even_if_obstructed = true;
     root->when_mouse_enters_container = when_enter;
     root->when_mouse_leaves_container = when_leave;
+    root->when_paint = paint_root;
     
     if (screen_has_transparency(app)) {
         for (auto window_data: pii->data->windows_data_list) {
@@ -573,6 +603,7 @@ static void when_closed(AppClient *client) {
         request_refresh(app, c);
     }
     drag_and_dropping = false;
+    highlight_window("");
 }
 
 void start_windows_selector(Container *container, selector_type selector_state) {
@@ -588,6 +619,7 @@ void start_windows_selector(Container *container, selector_type selector_state) 
         xcb_flush(app->connection);
     }
     auto data = (LaunchableButton *) container->user_data;
+    
     auto pii = new PinnedIconInfo;
     pii->data_container = container;
     pii->data = data;
@@ -614,6 +646,7 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     settings.decorations = false;
     settings.skip_taskbar = true;
     settings.override_redirect = true;
+    settings.tooltip = true;
     
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;

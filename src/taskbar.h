@@ -130,6 +130,8 @@ public:
     double target = 0;
     
     double animation_zoom_amount = 0;
+    double animation_zoom_locked = 0;
+    long animation_zoom_locked_time = 0;
     
     int animation_bounce_direction = 0; // 0 is down, 1 is up
     double animation_bounce_amount = 0;
@@ -171,5 +173,7 @@ void taskbar_launch_index(int index);
 xcb_window_t get_active_window();
 
 void update_time(App *app, AppClient *client, Timeout *timeout, void *data);
+
+void clear_thumbnails();
 
 #endif// TASKBAR_H

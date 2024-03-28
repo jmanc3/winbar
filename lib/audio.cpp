@@ -2,7 +2,6 @@
 // Created by jmanc3 on 9/30/21.
 //
 
-#include <cmath>
 #include "audio.h"
 #include "application.h"
 #include "volume_mapping.h"
@@ -67,7 +66,7 @@ static bool free_to_continue = true;
 static std::string default_sink_name;
 static std::thread::id audio_thread_id;
 
-void (*audio_change_callback)() = nullptr;
+static void (*audio_change_callback)() = nullptr;
 
 std::vector<AudioClient *> audio_clients;
 
@@ -146,7 +145,7 @@ void sort() {
     });
 }
 
-void on_sink(pa_context *, const pa_sink_info *l, int eol, void *) {
+static void on_sink(pa_context *, const pa_sink_info *l, int eol, void *) {
     if (eol != 0 || l == nullptr)
         return;
     defer(if (audio_change_callback) audio_change_callback());
@@ -178,7 +177,7 @@ void on_sink(pa_context *, const pa_sink_info *l, int eol, void *) {
     }
 }
 
-void on_sink_input(pa_context *, const pa_sink_input_info *l, int eol, void *) {
+static void on_sink_input(pa_context *, const pa_sink_input_info *l, int eol, void *) {
     if (eol != 0 || l == nullptr)
         return;
     defer(if (audio_change_callback) audio_change_callback());
@@ -258,7 +257,7 @@ void on_sink_input(pa_context *, const pa_sink_input_info *l, int eol, void *) {
     }
 }
 
-void on_server(pa_context *, const pa_server_info *i, void *) {
+static void on_server(pa_context *, const pa_server_info *i, void *) {
     if (i == nullptr)
         return;
     defer(if (audio_change_callback) audio_change_callback());
@@ -267,7 +266,7 @@ void on_server(pa_context *, const pa_server_info *i, void *) {
 }
 
 // Callback function to handle volume events
-void change_callback(pa_context *c, pa_subscription_event_type_t event_type, uint32_t index, void *userdata) {
+static void change_callback(pa_context *c, pa_subscription_event_type_t event_type, uint32_t index, void *userdata) {
     pa_subscription_event_type_t event_type_masked;
     pa_operation *o;
     
@@ -323,7 +322,7 @@ void change_callback(pa_context *c, pa_subscription_event_type_t event_type, uin
     }
 }
 
-void iterate_pulseaudio_mainloop() {
+static void iterate_pulseaudio_mainloop() {
     if (pa_mainloop_prepare(mainloop, -1) < 0) {
         audio_running = false;
         return;
@@ -354,7 +353,7 @@ void iterate_pulseaudio_mainloop() {
     }
 }
 
-bool try_establishing_connection_with_pulseaudio() {
+static bool try_establishing_connection_with_pulseaudio() {
     mainloop = pa_mainloop_new();
     if (!mainloop) return false;
     mainloop_api = pa_mainloop_get_api(mainloop);
