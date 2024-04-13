@@ -480,6 +480,8 @@ void when_leave(AppClient *client, cairo_t *cr, Container *self) {
     }
 }
 
+static Timeout *timeout_running = nullptr;
+
 static void paint_root(AppClient *client, cairo_t *, Container *root) {
     auto pii = (PinnedIconInfo *) root->user_data;
     
@@ -500,10 +502,41 @@ static void paint_root(AppClient *client, cairo_t *, Container *root) {
         }
     } else {
         if (currently_hovered != currently_previewing) {
-            currently_previewing = currently_hovered;
-            std::vector<std::string> windows;
-            windows.push_back(std::to_string(currently_hovered));
-            highlight_windows(windows);
+            static int about_to_be = 0;
+            if (currently_previewing != -1) {
+                currently_previewing = currently_hovered;
+                std::vector<std::string> windows;
+                windows.push_back(std::to_string(currently_hovered));
+                highlight_windows(windows);
+                printf("fast change\n");
+            } else {
+                if (!timeout_running) {
+                    about_to_be = currently_hovered;
+                    auto timeout = app_timeout_create(client->app, client, 300,
+                                                      [](App *, AppClient *, Timeout *timeout, void *user_data) {
+                                                          auto *root = (Container *) user_data;
+                                                          auto pii = (PinnedIconInfo *) root->user_data;
+                                                          xcb_window_t currently_hovered = -1;
+                                                          for (int i = 0; i < root->children.size(); i++) {
+                                                              auto c = root->children[i];
+                                                              bool hovered = false;
+                                                              bool pressed = false;
+                                                              paint_option_hovered_or_pressed(c, hovered, pressed);
+                                                              if (hovered)
+                                                                  currently_hovered = pii->data->windows_data_list[i]->id;
+                                                          }
+                                                          
+                                                          timeout_running = nullptr;
+                                                          if (currently_hovered) {
+                                                              currently_previewing = about_to_be;
+                                                              highlight_window(std::to_string(about_to_be));
+                                                          }
+                                                          about_to_be = 0;
+                                                      }, root, "windows selector window highlight timeout");
+                    timeout_running = timeout;
+                }
+            }
+            
         }
     }
 }
@@ -603,6 +636,7 @@ static void when_closed(AppClient *client) {
         request_refresh(app, c);
     }
     drag_and_dropping = false;
+    timeout_running = nullptr;
     highlight_window("");
 }
 
