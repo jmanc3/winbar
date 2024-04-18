@@ -478,6 +478,10 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
                 }
             }
             num = false;
+            
+            if (clean && (keysym == XK_R || keysym == XK_r)) {
+                start_run_window();
+            }
             clean = keysym == XK_Super_L || keysym == XK_Super_R;
         } else if (generic_event->event_type == XCB_INPUT_KEY_RELEASE) {
             auto *release = (xcb_input_key_release_event_t *) event;

@@ -924,10 +924,14 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
         dbus_message_iter_next(&args);
         dbus_message_iter_get_basic(&args, &body);
         dbus_message_iter_next(&args);
-        if (std::string(summary) == "winbaractivate") {
+        if (std::string(summary) == "winbaractivate" || std::string(summary) == "winbarrun") {
             DBusMessage *reply = dbus_message_new_method_return(message);
             defer(dbus_message_unref(reply));
-            defer(meta_pressed(0));
+            if (std::string(summary) == "winbaractivate") {
+                meta_pressed(0);
+            } else {
+                start_run_window();
+            }
             dbus_message_iter_init_append(reply, &args);
             const dbus_uint32_t current_id = -1;
             if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &current_id) ||
