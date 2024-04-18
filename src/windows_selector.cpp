@@ -9,6 +9,7 @@
 
 #include "application.h"
 #include "config.h"
+#include "settings_menu.h"
 #include "main.h"
 #include "taskbar.h"
 #include "simple_dbus.h"
@@ -548,6 +549,8 @@ fill_root(AppClient *client, Container *root) {
     root->when_mouse_enters_container = when_enter;
     root->when_mouse_leaves_container = when_leave;
     root->when_paint = paint_root;
+    if (!winbar_settings->thumbnails)
+        root->type = layout_type::vbox;
     
     if (screen_has_transparency(app)) {
         for (auto window_data: pii->data->windows_data_list) {
@@ -579,6 +582,8 @@ fill_root(AppClient *client, Container *root) {
         option_container->type = vbox;
         option_container->parent = root;
         option_container->wanted_bounds.w = width;
+        if (!winbar_settings->thumbnails)
+            option_container->wanted_bounds.w = FILL_SPACE;
         option_container->wanted_bounds.h = FILL_SPACE;
         option_container->when_paint = paint_option_background;
         option_container->name = std::to_string(w->id);
@@ -662,9 +667,16 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     pii->data->possibly_stop_timeout = nullptr;
     
     int width = get_width(pii->data);
+    if (!winbar_settings->thumbnails) {
+        width = option_width * 1.2;
+        option_height = close_height;
+    }
+//    int width = option_width;
     Settings settings;
     settings.w = width;
     settings.h = option_height;
+    if (!winbar_settings->thumbnails)
+        settings.h = option_height * data->windows_data_list.size();
     settings.x = container->real_bounds.x - settings.w / 2 + pii->data_container->real_bounds.w / 2;
     if (settings.x < 0)
         settings.x = 0;
@@ -686,6 +698,8 @@ void start_windows_selector(Container *container, selector_type selector_state) 
         PopupSettings popup_settings;
         popup_settings.name = "windows_selector";
         popup_settings.takes_input_focus = false;
+        if (!winbar_settings->thumbnails)
+            popup_settings.close_on_focus_out = false;
         auto client = taskbar->create_popup(popup_settings, settings);
     
     

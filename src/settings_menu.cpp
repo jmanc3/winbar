@@ -921,6 +921,7 @@ fill_root(AppClient *client, Container *root) {
             } else {
                 data->text = "Turn on thumbnails";
             }
+            save_settings_file();
         };
     }
 }

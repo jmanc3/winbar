@@ -3942,18 +3942,29 @@ void remove_window(App *app, xcb_window_t window) {
                             client_close(app, windows_selector_client);
                             app->grab_window = -1;
                         } else {
-                            int width = windows_selector_client->root->real_bounds.w - sub_width;
-                            
-                            double x = container->real_bounds.x - width / 2 + container->real_bounds.w / 2;
-                            if (x < 0) {
-                                x = 0;
+                            if (!winbar_settings->thumbnails) {
+                                auto x = windows_selector_client->bounds->x;
+                                auto y = windows_selector_client->bounds->y;
+                                auto w = windows_selector_client->bounds->w;
+                                auto h = windows_selector_client->bounds->h;
+                                h = option_height * parent->children.size();
+                                y += option_height;
+                                handle_configure_notify(app, windows_selector_client, x, y, w, h);
+                                client_set_position_and_size(app, windows_selector_client, x, y, w, h);
+                            } else {
+                                int width = windows_selector_client->root->real_bounds.w - sub_width;
+                                
+                                double x = container->real_bounds.x - width / 2 + container->real_bounds.w / 2;
+                                if (x < 0) {
+                                    x = 0;
+                                }
+                                double y = app->bounds.h - option_height - config->taskbar_height;
+                                double h = option_height;
+                                
+                                handle_configure_notify(app, windows_selector_client, x, y, width, h);
+                                client_set_position_and_size(app, windows_selector_client, x, y, width, h);
                             }
-                            double y = app->bounds.h - option_height - config->taskbar_height;
-                            double h = option_height;
-                            
-                            handle_configure_notify(app, windows_selector_client, x, y, width, h);
-                            client_set_position_and_size(app, windows_selector_client, x, y, width, h);
-                        }
+                         }
                     }
                 }
                 data->animation_bounce_amount = 0;
