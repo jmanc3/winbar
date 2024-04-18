@@ -22,6 +22,7 @@ struct WinbarSettings {
     std::vector<TaskbarItem> taskbar_order;
     bool bluetooth_enabled = true;
     container_alignment icons_alignment = container_alignment::ALIGN_LEFT;
+    std::string search_behaviour = "Default";
     std::string date_style = "windows 11 detailed";
     PangoAlignment date_alignment = PangoAlignment::PANGO_ALIGN_CENTER;
     int date_size = 9;

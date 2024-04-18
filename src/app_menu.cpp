@@ -850,6 +850,9 @@ when_key_event(AppClient *client,
     }
     
     if (is_string) {
+        if (winbar_settings->search_behaviour == "Fully Disabled")
+            return;
+        
         client_close(app, app_menu_client);
         app->grab_window = -1;
         xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->grab_window, XCB_MOD_MASK_ANY);
@@ -1818,7 +1821,8 @@ void start_app_menu() {
         
         fill_root(client);
         client_show(app, client);
-        set_textarea_active();
+        if (winbar_settings->search_behaviour == "Default")
+            set_textarea_active();
         xcb_set_input_focus(app->connection, XCB_NONE, client->window, XCB_CURRENT_TIME);
         xcb_flush(app->connection);
         xcb_aux_sync(app->connection);

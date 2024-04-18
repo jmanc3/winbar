@@ -507,7 +507,41 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
     auto data = new Label(n);
     label->user_data = data;
     
-    if (n == "Pinned Icons") {
+    if (n == "Search Field") {
+        auto combo_data = new GenericComboBox("combo", "Behaviour: ");
+        combo_data->options.emplace_back("Default");
+        combo_data->options.emplace_back("Fully Hidden");
+        combo_data->options.emplace_back("Fully Disabled");
+        combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
+            if (winbar_settings->search_behaviour == "Default") {
+                return "Default";
+            } else if (winbar_settings->search_behaviour == "Fully Hidden") {
+                return "Fully Hidden";
+            }
+            return "Fully Disabled";
+        };
+        combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
+            if (((Label *) (self->user_data))->text == "Default") {
+                winbar_settings->search_behaviour = "Default";
+            } else if (((Label *) (self->user_data))->text == "Fully Hidden") {
+                winbar_settings->search_behaviour = "Fully Hidden";
+            } else if (((Label *) (self->user_data))->text == "Fully Disabled") {
+                winbar_settings->search_behaviour = "Fully Disabled";
+            }
+            client_close_threaded(app, client);
+            merge_order_with_taskbar();
+        };
+        
+        std::string longest_text = "Behaviour: Fully Disabled";
+        pango_layout_set_text(layout, longest_text.c_str(), -1);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
+        
+        auto combobox = r->child(width * 1.5, FILL_SPACE);
+        combobox->name = combo_data->name;
+        combobox->when_clicked = clicked_expand_generic_combobox;
+        combobox->when_paint = paint_generic_combobox;
+        combobox->user_data = combo_data;
+    } else if (n == "Pinned Icons") {
         auto combo_data = new GenericComboBox("combo", "Alignment: ");
         combo_data->options.emplace_back("Left");
         combo_data->options.emplace_back("Right");
@@ -797,6 +831,7 @@ static void clicked_reset(AppClient *client, cairo_t *, Container *) {
         item.target_index = i;
         winbar_settings->taskbar_order.push_back(item);
     }
+    winbar_settings->search_behaviour = "Default";
     winbar_settings->icons_alignment = container_alignment::ALIGN_LEFT;
     winbar_settings->bluetooth_enabled = true;
     winbar_settings->date_alignment = PangoAlignment::PANGO_ALIGN_CENTER;
@@ -975,6 +1010,10 @@ void save_settings_file() {
     }
     out_file << std::endl << std::endl;
     
+    // Search Behaviour
+    out_file << "search_behaviour=\"" << winbar_settings->search_behaviour << "\"";
+    out_file << std::endl << std::endl;
+    
     // Date alignment
     out_file << "date_alignment=";
     if (winbar_settings->date_alignment == PangoAlignment::PANGO_ALIGN_RIGHT) {
@@ -1123,6 +1162,18 @@ void read_settings_file() {
                         trim(text);
                         if (!text.empty()) {
                             winbar_settings->date_style = text;
+                        }
+                    }
+                }
+            }  else if (key == "search_behaviour") {
+                parser.until(LineParser::Token::QUOTE);
+                if (parser.current_token == LineParser::Token::QUOTE) {
+                    parser.next();
+                    std::string text = parser.until(LineParser::Token::QUOTE);
+                    if (parser.current_token == LineParser::Token::QUOTE) {
+                        trim(text);
+                        if (!text.empty()) {
+                            winbar_settings->search_behaviour = text;
                         }
                     }
                 }
