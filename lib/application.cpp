@@ -1816,6 +1816,16 @@ void handle_mouse_button_press(App *app) {
     set_active(client, mouse_downed, client->root, false);
 }
 
+bool stopped_existing(Container *parent, std::string target_name) {
+    if (parent == nullptr)
+        return false;
+    bool found = false;
+    for (auto sx: parent->children)
+        if (sx->name == target_name)
+            found = true;
+    return !found;
+}
+
 bool handle_mouse_button_release(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -1846,17 +1856,29 @@ bool handle_mouse_button_release(App *app) {
     
     for (int i = 0; i < concerned.size(); i++) {
         auto c = concerned[i];
+        auto parent = c->parent;
+        std::string target_name;
+        if (c->name.empty()) {
+            target_name = "asdfasdfasdf";
+            c->name = target_name;
+        } else {
+            target_name = c->name;
+        }
         bool p = is_pierced(c, pierced);
         
         if (c->when_mouse_leaves_container && !p) {
             c->when_mouse_leaves_container(client, client->cr, c);
         }
+        if (stopped_existing(parent, target_name))
+            continue;
         
         if (c->when_drag_end) {
             if (c->state.mouse_dragging) {
                 c->when_drag_end(client, client->cr, c);
             }
         }
+        if (stopped_existing(parent, target_name))
+            continue;
         
         if (c->when_clicked) {
             if (c->when_drag_end_is_click && c->state.mouse_dragging && p) {
@@ -1865,11 +1887,16 @@ bool handle_mouse_button_release(App *app) {
                 c->when_clicked(client, client->cr, c);
             }
         }
+        if (stopped_existing(parent, target_name))
+            continue;
         
+        // TODO: when_clicked could've delete'd 'c' so recheck for it
         c->state.mouse_pressing = false;
         c->state.mouse_dragging = false;
         c->state.mouse_hovering = p;
         c->state.concerned = p;
+        if (c->name == "asdfasdfasdf")
+            c->name = "";
     }
     
     handle_mouse_motion(app, client, e->event_x, e->event_y);
