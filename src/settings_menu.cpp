@@ -868,7 +868,7 @@ void title(std::string text, Container *container) {
     container->child(FILL_SPACE, 32 * config->dpi);
 }
 
-struct OriginalBool {
+struct OriginalBool : public UserData {
     bool *boolean = nullptr;
     
     explicit OriginalBool(bool *boolean) : boolean(boolean) {}
@@ -893,7 +893,7 @@ void bool_checkbox(std::string text, bool *boolean, Container *container, AppCli
     auto check = full_label_container->child(size, size);
     auto data = new Checkbox;
     check->user_data = data;
-    data->on = true;
+    data->on = *boolean;
     check->when_paint = paint_on_off;
     
     auto label = full_label_container->child(FILL_SPACE, FILL_SPACE);
