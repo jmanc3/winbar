@@ -849,21 +849,152 @@ static void clicked_reset(AppClient *client, cairo_t *, Container *) {
     save_settings_file();
 }
 
-static void
-fill_root(AppClient *client, Container *root) {
-    root->when_paint = paint_root;
-    root->type = ::vbox;
-    root->wanted_pad = Bounds(24 * config->dpi, 62 * config->dpi, 24 * config->dpi, 24 * config->dpi);
+struct SelectedLabel : public Label {
+    bool selected = false;
+    int index = 0;
     
+    explicit SelectedLabel(const std::string &text) : Label(text) {}
+};
+
+void title(std::string text, Container *container) {
+    container->wanted_pad = Bounds(24 * config->dpi, 62 * config->dpi, 24 * config->dpi, 24 * config->dpi);
     {
-        auto title = root->child(FILL_SPACE, 20 * config->dpi);
-        auto data = new Label("Taskbar");
+        auto title = container->child(FILL_SPACE, 20 * config->dpi);
+        auto data = new Label(text);
         data->size = 20 * config->dpi;
         title->when_paint = paint_label;
         title->user_data = data;
     }
+    container->child(FILL_SPACE, 32 * config->dpi);
+}
+
+struct OriginalBool {
+    bool *boolean = nullptr;
     
-    root->child(FILL_SPACE, 32 * config->dpi);
+    explicit OriginalBool(bool *boolean) : boolean(boolean) {}
+};
+
+void bool_checkbox(std::string text, bool *boolean, Container *container, AppClient *client) {
+    float font_size = std::round(10 * config->dpi);
+    float pad = std::round(12 * config->dpi);
+    PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size, PANGO_WEIGHT_NORMAL);
+    int width;
+    int height;
+    pango_layout_set_text(layout, text.c_str(), text.length());
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    
+    float size = 14 * config->dpi; // of checkbox that is
+    auto full_label_container = container->child(layout_type::hbox,
+                                                 size + pad + width, 32 * config->dpi);
+    full_label_container->alignment = ALIGN_CENTER;
+    full_label_container->spacing = pad;
+    full_label_container->user_data = new OriginalBool(boolean);
+    
+    auto check = full_label_container->child(size, size);
+    auto data = new Checkbox;
+    check->user_data = data;
+    data->on = true;
+    check->when_paint = paint_on_off;
+    
+    auto label = full_label_container->child(FILL_SPACE, FILL_SPACE);
+    auto label_data = new Label(text);
+    label_data->size = font_size;
+    label->when_paint = paint_label;
+    label->user_data = label_data;
+    
+    full_label_container->when_clicked = [](AppClient *client, cairo_t *cr, Container *container) {
+        auto ours = (OriginalBool *) container->user_data;
+        auto data = (Checkbox *) container->children[0]->user_data;
+        data->on = !data->on;
+        if (ours->boolean != nullptr)
+            *ours->boolean = data->on;
+        save_settings_file();
+    };
+    full_label_container->receive_events_even_if_obstructed_by_one = true;
+}
+
+static void
+fill_root(AppClient *client, Container *root) {
+    auto real_root = root;
+    real_root->type = ::hbox;
+    real_root->when_paint = paint_root;
+    
+    auto tabs = root->child(300 * config->dpi, FILL_SPACE);
+    tabs->wanted_pad = Bounds(16 * config->dpi, 140 * config->dpi, 0, 0);
+    
+    auto root_stack = root->child(layout_type::stack, FILL_SPACE, FILL_SPACE);
+    
+    auto taskbar_order_root = root_stack->child(FILL_SPACE, FILL_SPACE);
+    title("Taskbar Order", taskbar_order_root);
+    
+    auto winbar_behaviour_root = root_stack->child(FILL_SPACE, FILL_SPACE);
+    winbar_behaviour_root->exists = false;
+    title("Winbar Behaviour", winbar_behaviour_root);
+    bool_checkbox("Thumbnails", &winbar_settings->thumbnails, winbar_behaviour_root, client);
+    
+    auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
+    other_root->exists = false;
+    title("Other", other_root);
+    
+    for (int i = 0; i < 3; ++i) {
+        auto tab = tabs->child(FILL_SPACE, 36 * config->dpi);
+        if (i == 0) {
+            tab->user_data = new SelectedLabel("Taskbar Order");
+            ((SelectedLabel *) tab->user_data)->selected = true;
+        } else if (i == 1) {
+            tab->user_data = new SelectedLabel("Winbar Behaviour");
+        } else if (i == 2) {
+            tab->user_data = new SelectedLabel("Other");
+        }
+        ((SelectedLabel *) tab->user_data)->index = i;
+        
+        tab->when_clicked = [](AppClient *client, cairo_t *cr, Container *container) {
+            for (int j = 0; j < container->parent->children.size(); ++j) {
+                auto con = container->parent->children[j];
+                auto *data = (SelectedLabel *) con->user_data;
+                data->selected = false;
+            }
+            auto *data = (SelectedLabel *) container->user_data;
+            client->root->children[1]->children[0]->exists = false;
+            client->root->children[1]->children[1]->exists = false;
+            client->root->children[1]->children[2]->exists = false;
+            client->root->children[1]->children[data->index]->exists = true;
+            client_layout(app, client);
+            data->selected = true;
+        };
+        
+        tab->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
+            auto *data = (SelectedLabel *) container->user_data;
+            
+            if (data->selected) {
+                auto a = darken(config->color_pinned_icon_editor_background, 3);
+                set_argb(cr, a);
+                rounded_rect(cr, container->real_bounds.h * .13, container->real_bounds.x, container->real_bounds.y,
+                             container->real_bounds.w, container->real_bounds.h);
+                cairo_fill(cr);
+            }
+            
+            if (data->selected) {
+                set_argb(cr, config->color_search_accent);
+                auto height = container->real_bounds.h * .55;
+                auto width = std::round(4 * config->dpi);
+                rounded_rect(cr, width * .44,
+                             container->real_bounds.x,
+                             container->real_bounds.y + container->real_bounds.h / 2 - height / 2,
+                             width, height);
+                cairo_fill(cr);
+            }
+            
+            auto start = container->real_bounds.x;
+            container->real_bounds.x += 20 * config->dpi;
+            paint_label(client, cr, container);
+            container->real_bounds.x = start;
+        };
+        
+    }
+    
+    root = taskbar_order_root;
+    root->type = ::vbox;
     
     ScrollPaneSettings scroll_settings(config->dpi);
     scroll_settings.right_width = 6 * config->dpi;
@@ -901,28 +1032,6 @@ fill_root(AppClient *client, Container *root) {
         x->when_paint = paint_centered_text;
         x->user_data = new Label("Reset to default");
         x->when_clicked = clicked_reset;
-        
-        root->child(FILL_SPACE, 6 * config->dpi);
-        
-        auto a = root->child(::hbox, FILL_SPACE, 28 * config->dpi);
-        a->when_paint = paint_centered_text;
-        if (winbar_settings->thumbnails) {
-            a->user_data = new Label("Turn off thumbnails");
-        } else {
-            a->user_data = new Label("Turn on thumbnails");
-        }
-        a->when_clicked = [](AppClient *, cairo_t *cr, Container *self){
-            auto *data = (Label *) self->user_data;
-            winbar_settings->thumbnails = !winbar_settings->thumbnails;
-            if (!winbar_settings->thumbnails)
-                clear_thumbnails();
-            if (winbar_settings->thumbnails) {
-                data->text = "Turn off thumbnails";
-            } else {
-                data->text = "Turn on thumbnails";
-            }
-            save_settings_file();
-        };
     }
 }
 

@@ -956,8 +956,12 @@ Container::~Container() {
             delete child;
         }
     }
-    auto data = static_cast<UserData *>(user_data);
-    delete data;
+//    auto data = static_cast<UserData *>(user_data);
+    auto data = (UserData *) user_data;
+    if (data != nullptr) {
+        data->destroy();
+    }
+//    ((UserData *) user_data)->destroy();
 }
 
 Container::Container() {

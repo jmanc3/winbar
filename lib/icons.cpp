@@ -311,9 +311,9 @@ void load_data() {
     data->parentPaths.clear();
     data->themes.clear();
     if (name_buffer != nullptr)
-        free(name_buffer);
+        delete[] name_buffer;
     if (option_buffer != nullptr)
-        free(option_buffer);
+        delete[] option_buffer;
     ranges.clear();
 
     // Load data from disk
@@ -633,10 +633,10 @@ void search_icons(std::vector<IconTarget> &targets) {
     
     for (int i = 0; i < targets.size(); ++i) {
         auto target = targets[i];
-
-        Range range = ranges[target.name.c_str()];
-        if (range.start == -1) // There was nothing with that name
+        
+        if (ranges.find(target.name.c_str()) == ranges.end())
             continue;
+        Range range = ranges[target.name.c_str()];
 
         std::vector<Candidate> candidates;
         for (int j = 0; j < (range.length / 3); ++j) {
@@ -935,8 +935,8 @@ void unload_icons() {
         data->options.clear();
         delete data;
         data = nullptr;
-        free(name_buffer);
-        free(option_buffer);
+        delete[] name_buffer;
+        delete[] option_buffer;
         name_buffer = nullptr;
         option_buffer = nullptr;
         ranges.clear();
@@ -1099,8 +1099,8 @@ c3ic_fix_wm_class(const std::string &given_wm_class) {
     return c3ic_fix_desktop_file_icon(given_wm_class, given_wm_class, given_wm_class, given_wm_class);
 }
 
-bool has_options(const std::string &name) {
-    return ranges[name.c_str()].start != -1;
+bool has_options(const std::string& name) {
+    return ranges.find(name.c_str()) != ranges.end();
 }
 
 bool is_case_insensitive_substring(const std::string_view &str_view, const std::string &target) {

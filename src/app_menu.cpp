@@ -167,27 +167,31 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
                 if (data->previous_state != 2) {
                     time = 40;
                     data->previous_state = 2;
-                    client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
-                    client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
-                    client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
-                    client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
+                    client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e,
+                                            pressed_color.r);
+                    client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e,
+                                            pressed_color.g);
+                    client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e,
+                                            pressed_color.b);
+                    client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e,
+                                            pressed_color.a);
                 }
             } else if (data->previous_state != 1) {
                 time = 70;
                 data->previous_state = 1;
-                client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
-                client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
-                client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
-                client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
+                client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e, hovered_color.r);
+                client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e, hovered_color.g);
+                client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e, hovered_color.b);
+                client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e, hovered_color.a);
             }
         } else if (data->previous_state != 0) {
             time = 100;
             data->previous_state = 0;
             e = getEasingFunction(easing_functions::EaseInCirc);
-            client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
-            client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
-            client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
-            client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
+            client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e, default_color.r);
+            client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e, default_color.g);
+            client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e, default_color.b);
+            client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e, default_color.a);
         }
         
         set_argb(cr, data->color);
@@ -362,27 +366,31 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
                 if (data->previous_state != 2) {
                     time = 20;
                     data->previous_state = 2;
-                    client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
-                    client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
-                    client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
-                    client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
+                    client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e,
+                                            pressed_color.r);
+                    client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e,
+                                            pressed_color.g);
+                    client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e,
+                                            pressed_color.b);
+                    client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e,
+                                            pressed_color.a);
                 }
             } else if (data->previous_state != 1) {
                 time = 30;
                 data->previous_state = 1;
-                client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
-                client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
-                client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
-                client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
+                client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e, hovered_color.r);
+                client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e, hovered_color.g);
+                client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e, hovered_color.b);
+                client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e, hovered_color.a);
             }
         } else if (data->previous_state != 0) {
             time = 50;
             data->previous_state = 0;
             e = getEasingFunction(easing_functions::EaseInCirc);
-            client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
-            client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
-            client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
-            client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
+            client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e, default_color.r);
+            client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e, default_color.g);
+            client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e, default_color.b);
+            client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e, default_color.a);
         }
         
         set_argb(cr, data->color);
@@ -596,7 +604,7 @@ when_scrollbar_mouse_enters(AppClient *client, cairo_t *cr, Container *container
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(client->app, client, &scrollbar_openess, 0, 100, 0, 1);
+    client_create_animation(client->app, client, &scrollbar_openess, client->lifetime, 0, 100, 0, 1);
 }
 
 static void
@@ -604,7 +612,7 @@ when_scrollbar_container_mouse_enters(AppClient *client, cairo_t *cr, Container 
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(client->app, client, &scrollbar_visible, 0, 100, 0, 1);
+    client_create_animation(client->app, client, &scrollbar_visible, client->lifetime, 0, 100, 0, 1);
 }
 
 static void
@@ -612,8 +620,8 @@ when_scrollbar_mouse_leaves(AppClient *client, cairo_t *cr, Container *container
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    client_create_animation(client->app, client, &scrollbar_openess, 0, 100, 0, 0);
-    client_create_animation(client->app, client, &scrollbar_visible, 0, 100, 0, 0);
+    client_create_animation(client->app, client, &scrollbar_openess, client->lifetime, 0, 100, 0, 0);
+    client_create_animation(client->app, client, &scrollbar_visible, client->lifetime, 0, 100, 0, 0);
 }
 
 static Timeout *scrollbar_leave_fd = nullptr;
@@ -628,7 +636,7 @@ scrollbar_leaves_timeout(App *app, AppClient *client, Timeout *, void *data) {
         if (scrollbar_openess != 0 && scrollbar_openess == 1 &&
             !bounds_contains(
                     container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
-            client_create_animation(client->app, client, &scrollbar_openess, 0, 100, 0, 0);
+            client_create_animation(client->app, client, &scrollbar_openess, client->lifetime, 0, 100, 0, 0);
         }
     } else {
         scrollbar_openess = 0;
@@ -641,7 +649,7 @@ when_scrollbar_mouse_leaves_slow(AppClient *client, cairo_t *cr, Container *cont
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (scrollbar_leave_fd == nullptr) {
+    if (scrollbar_leave_fd == nullptr && client_by_name(app, "app_menu")) {
         scrollbar_leave_fd = app_timeout_create(app, client, 3000, scrollbar_leaves_timeout, container, const_cast<char *>(__PRETTY_FUNCTION__));
     } else {
         app_timeout_replace(app, client, scrollbar_leave_fd, 3000, scrollbar_leaves_timeout, container);
@@ -660,8 +668,8 @@ left_open_timeout(App *app, AppClient *client, Timeout *, void *data) {
     auto *container = (Container *) data;
     if (app && app->running && valid_client(app, client) &&
         (container->state.mouse_hovering || container->state.mouse_pressing)) {
-        client_create_animation(
-                app, client, &container->wanted_bounds.w, 0, 100, nullptr, (int) (256 * config->dpi), true);
+        client_create_animation(app, client, &container->wanted_bounds.w, container->lifetime, 0, 100, nullptr,
+                                (int) (256 * config->dpi), true);
     }
     left_open_fd = nullptr;
 }
@@ -687,7 +695,7 @@ left_close(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     if (left_locked || !container)
         return;
-    client_create_animation(app, client, &container->wanted_bounds.w, 0, 70, nullptr, (int) (48 * config->dpi), true);
+    client_create_animation(app, client, &container->wanted_bounds.w, container->lifetime, 0, 70, nullptr, (int) (48 * config->dpi), true);
 }
 
 static bool
@@ -735,11 +743,9 @@ clicked_start_button(AppClient *client, cairo_t *cr, Container *container) {
     if (auto *client = client_by_name(app, "app_menu")) {
         if (auto *container = container_by_name("left_buttons", client->root)) {
             if (container->real_bounds.w <= 64 * config->dpi) {
-                client_create_animation(
-                        app, client, &container->wanted_bounds.w, 0, 120, nullptr, (int) (256 * config->dpi), true);
+                client_create_animation(app, client, &container->wanted_bounds.w, container->lifetime, 0, 120, nullptr, (int) (256 * config->dpi), true);
             } else if (container->real_bounds.w > 86 * config->dpi) {
-                client_create_animation(
-                        app, client, &container->wanted_bounds.w, 0, 120, nullptr, (int) (48 * config->dpi), true);
+                client_create_animation(app, client, &container->wanted_bounds.w, container->lifetime, 0, 120, nullptr, (int) (48 * config->dpi), true);
             }
         }
     }
@@ -853,6 +859,8 @@ when_key_event(AppClient *client,
         if (winbar_settings->search_behaviour == "Fully Disabled")
             return;
         
+        app_menu_client->animations.clear();
+        app_menu_client->animations_running = 0;
         client_close(app, app_menu_client);
         app->grab_window = -1;
         xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->grab_window, XCB_MOD_MASK_ANY);
@@ -1159,27 +1167,31 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
                 if (data->previous_state != 2) {
                     time = 40;
                     data->previous_state = 2;
-                    client_create_animation(app, client, &data->color.r, 0, time, e, pressed_color.r);
-                    client_create_animation(app, client, &data->color.g, 0, time, e, pressed_color.g);
-                    client_create_animation(app, client, &data->color.b, 0, time, e, pressed_color.b);
-                    client_create_animation(app, client, &data->color.a, 0, time, e, pressed_color.a);
+                    client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e,
+                                            pressed_color.r);
+                    client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e,
+                                            pressed_color.g);
+                    client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e,
+                                            pressed_color.b);
+                    client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e,
+                                            pressed_color.a);
                 }
             } else if (data->previous_state != 1) {
                 time = 70;
                 data->previous_state = 1;
-                client_create_animation(app, client, &data->color.r, 0, time, e, hovered_color.r);
-                client_create_animation(app, client, &data->color.g, 0, time, e, hovered_color.g);
-                client_create_animation(app, client, &data->color.b, 0, time, e, hovered_color.b);
-                client_create_animation(app, client, &data->color.a, 0, time, e, hovered_color.a);
+                client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e, hovered_color.r);
+                client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e, hovered_color.g);
+                client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e, hovered_color.b);
+                client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e, hovered_color.a);
             }
         } else if (data->previous_state != 0) {
             time = 100;
             data->previous_state = 0;
             e = getEasingFunction(easing_functions::EaseInCirc);
-            client_create_animation(app, client, &data->color.r, 0, time, e, default_color.r);
-            client_create_animation(app, client, &data->color.g, 0, time, e, default_color.g);
-            client_create_animation(app, client, &data->color.b, 0, time, e, default_color.b);
-            client_create_animation(app, client, &data->color.a, 0, time, e, default_color.a);
+            client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e, default_color.r);
+            client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e, default_color.g);
+            client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e, default_color.b);
+            client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e, default_color.a);
         }
         
         set_argb(cr, data->color);
@@ -1336,7 +1348,7 @@ fill_root(AppClient *client) {
     
     Container *content = scroll->content;
     content->spacing = 54 * config->dpi;
-    client_create_animation(app, client, &content->spacing, 0, 130, nullptr, 2 * config->dpi, true);
+    client_create_animation(app, client, &content->spacing, content->lifetime, 0, 130, nullptr, 2 * config->dpi, true);
 
     char previous_char = '\0';
     int previous_priority = 0;
@@ -1447,6 +1459,8 @@ app_menu_closed(AppClient *client) {
         client_close_threaded(app, c);
     if (auto c = client_by_name(app, "right_click_popup"))
         client_close_threaded(app, c);
+    scrollbar_leave_fd = nullptr;
+    left_open_fd = nullptr;
     set_textarea_inactive();
 }
 

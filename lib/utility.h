@@ -34,6 +34,7 @@ static bool parse_hex(std::string hex, double *a, double *r, double *g, double *
 }
 
 struct ArgbColor {
+    std::shared_ptr<bool> lifetime = std::make_shared<bool>();
     double r;
     double g;
     double b;
@@ -96,6 +97,7 @@ public:
 struct CachedFont {
     std::string name;
     int size;
+    int used_count;
     PangoWeight weight;
     PangoLayout *layout;
     cairo_t *cr; // Creator

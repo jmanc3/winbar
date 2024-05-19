@@ -196,12 +196,13 @@ void request_refresh(App *app, AppClient *client_entity);
 
 void client_register_animation(App *app, AppClient *client_entity);
 
-void client_create_animation(App *app, AppClient *client_entity, double *value, double delay, double length,
+void client_create_animation(App *app, AppClient *client_entity, double *value, std::shared_ptr<bool> lifetime, double delay, double length,
                              easingFunction easing, double target);
 
 void client_create_animation(App *app,
                              AppClient *client_entity,
                              double *value,
+                             std::shared_ptr<bool> lifetime,
                              double delay,
                              double length,
                              easingFunction easing,
@@ -209,7 +210,7 @@ void client_create_animation(App *app,
                              void (*finished)(AppClient *client));
 
 void
-client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+client_create_animation(App *app, AppClient *client, double *value, std::shared_ptr<bool> lifetime, double delay, double length, easingFunction easing,
                         double target, bool relayout);
 
 void client_unregister_animation(App *app, AppClient *client_entity);

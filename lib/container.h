@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <memory>
 #include <xcb/xcb_event.h>
 #include <xcb/xproto.h>
 #include <xkbcommon/xkbcommon-x11.h>
@@ -81,6 +82,10 @@ enum container_alignment {
 
 struct UserData {
     virtual ~UserData() {};
+    
+    void destroy() {
+        delete this;
+    }
 };
 
 struct MouseState {
@@ -190,6 +195,7 @@ struct Timeout;
 struct ClientAnimation {
     double start_value{};
     double *value = nullptr;
+    std::weak_ptr<bool> lifetime;
     double length{};
     double target{};
     easingFunction easing = nullptr;
@@ -237,6 +243,7 @@ struct Subprocess {
 
 #include <atomic>
 #include <functional>
+#include <memory>
 
 struct AppClient {
     App *app = nullptr;
@@ -253,6 +260,8 @@ struct AppClient {
     Bounds *bounds;
     
     Container *root;
+    
+    std::shared_ptr<bool> lifetime = std::make_shared<bool>();
     
     bool auto_delete_root = true;
     bool on_close_is_unmap = false;
@@ -368,6 +377,7 @@ struct Container {
     double scroll_v_real = 0;
     double scroll_h_real = 0;
     
+    std::shared_ptr<bool> lifetime = std::make_shared<bool>();
     double scroll_v_visual = 0;
     double scroll_h_visual = 0;
     

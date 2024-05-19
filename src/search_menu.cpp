@@ -1201,7 +1201,7 @@ void sort_and_add(std::vector<T> *sortables,
             if (can_pop) {
                 can_pop = false;
                 content->spacing = 16 * config->dpi;
-                client_create_animation(app, client, &content->spacing, 0, 120, nullptr, 0, true);
+                client_create_animation(app, client, &content->spacing, content->lifetime, 0, 120, nullptr, 0, true);
             }
         }
 
@@ -1594,6 +1594,15 @@ write_historic_apps() {
 
 static void
 search_menu_when_closed(AppClient *client) {
+    if (auto c = container_by_name("tab_group", client->root)) {
+        for (auto d: c->children) {
+            // TODO: delete here address sanitizer problem
+//            delete ((TabData *) (d->user_data));
+        }
+        c->children.clear();
+//        printf("here\n");
+    }
+    // delete animation
     cairo_surface_destroy(script_16);
     cairo_surface_destroy(script_32);
     cairo_surface_destroy(script_64);

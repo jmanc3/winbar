@@ -50,6 +50,7 @@ public:
     long last_time_peak_set = 0;
     
     double position = 0;
+    std::shared_ptr<bool> lifetime = std::make_shared<bool>();
     
     ~option_data() {
         if (icon) {
@@ -195,10 +196,10 @@ paint_label(AppClient *client_entity, cairo_t *cr, Container *container) {
                 animating = true;
         if (!animating) {
             if (data->position > .5) {
-                client_create_animation(app, client_entity, &data->position, 1000, 1000 + (text.size() * 30),
+                client_create_animation(app, client_entity, &data->position, data->lifetime, 1000, 1000 + (text.size() * 30),
                                         getEasingFunction(EaseInOutSine), 0);
             } else {
-                client_create_animation(app, client_entity, &data->position, 2400, 1000 + (text.size() * 30),
+                client_create_animation(app, client_entity, &data->position, data->lifetime, 2400, 1000 + (text.size() * 30),
                                         getEasingFunction(EaseInOutSine), 1);
             }
         }
@@ -260,12 +261,12 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     if (peak > data->rolling_avg) {
         data->rolling_avg = peak;
-        client_create_animation(app, client_entity, &data->rolling_avg, 0, 250, nullptr, 0);
+        client_create_animation(app, client_entity, &data->rolling_avg, data->lifetime, 0, 250, nullptr, 0);
     }
     
     if (peak > data->rolling_avg_delayed) {
         data->rolling_avg_delayed = peak;
-        client_create_animation(app, client_entity, &data->rolling_avg_delayed, 130, 1000, getEasingFunction(EaseInExpo), 0);
+        client_create_animation(app, client_entity, &data->rolling_avg_delayed, data->lifetime, 130, 1000, getEasingFunction(EaseInExpo), 0);
     }
     
     if (is_light_theme(config->color_volume_background)) {

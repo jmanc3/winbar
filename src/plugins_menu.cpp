@@ -875,25 +875,33 @@ paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *con
         if (container->state.mouse_pressing) {
             if (data->previous_state != 2) {
                 data->previous_state = 2;
-                client_create_animation(client->app, client, &data->color.r, 0, time, e, pressed_color.r);
-                client_create_animation(client->app, client, &data->color.g, 0, time, e, pressed_color.g);
-                client_create_animation(client->app, client, &data->color.b, 0, time, e, pressed_color.b);
-                client_create_animation(client->app, client, &data->color.a, 0, time, e, pressed_color.a);
+                client_create_animation(client->app, client, &data->color.r, data->color.lifetime, 0, time, e,
+                                        pressed_color.r);
+                client_create_animation(client->app, client, &data->color.g, data->color.lifetime, 0, time, e,
+                                        pressed_color.g);
+                client_create_animation(client->app, client, &data->color.b, data->color.lifetime, 0, time, e,
+                                        pressed_color.b);
+                client_create_animation(client->app, client, &data->color.a, data->color.lifetime, 0, time, e,
+                                        pressed_color.a);
             }
         } else if (data->previous_state != 1) {
             data->previous_state = 1;
-            client_create_animation(client->app, client, &data->color.r, 0, time, e, hovered_color.r);
-            client_create_animation(client->app, client, &data->color.g, 0, time, e, hovered_color.g);
-            client_create_animation(client->app, client, &data->color.b, 0, time, e, hovered_color.b);
-            client_create_animation(client->app, client, &data->color.a, 0, time, e, hovered_color.a);
+            client_create_animation(client->app, client, &data->color.r, data->color.lifetime, 0, time, e,
+                                    hovered_color.r);
+            client_create_animation(client->app, client, &data->color.g, data->color.lifetime, 0, time, e,
+                                    hovered_color.g);
+            client_create_animation(client->app, client, &data->color.b, data->color.lifetime, 0, time, e,
+                                    hovered_color.b);
+            client_create_animation(client->app, client, &data->color.a, data->color.lifetime, 0, time, e,
+                                    hovered_color.a);
         }
     } else if (data->previous_state != 0) {
         data->previous_state = 0;
         e = getEasingFunction(easing_functions::EaseInQuad);
-        client_create_animation(client->app, client, &data->color.r, 0, time, e, default_color.r);
-        client_create_animation(client->app, client, &data->color.g, 0, time, e, default_color.g);
-        client_create_animation(client->app, client, &data->color.b, 0, time, e, default_color.b);
-        client_create_animation(client->app, client, &data->color.a, 0, time, e, default_color.a);
+        client_create_animation(client->app, client, &data->color.r, data->color.lifetime, 0, time, e, default_color.r);
+        client_create_animation(client->app, client, &data->color.g, data->color.lifetime, 0, time, e, default_color.g);
+        client_create_animation(client->app, client, &data->color.b, data->color.lifetime, 0, time, e, default_color.b);
+        client_create_animation(client->app, client, &data->color.a, data->color.lifetime, 0, time, e, default_color.a);
     }
     
     set_argb(cr, data->color);

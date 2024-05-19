@@ -18,6 +18,13 @@ include_directories(wpa_ctrl)
 file(GLOB WPA_CTRL wpa_ctrl/*.c wpa_ctrl/*.h)
 
 option(PROFILE "Enable tracy profiling instrumentation" False)
+#set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS}" -fsanitize=address) ## on g++ this ensures: -std=c++11 and not -std=gnu++11
+
+#add_compile_options(-fsanitize=address)
+#add_link_options(-fsanitize=address)
+
+#add_compile_options(-fsanitize=undefined)
+#add_link_options(-fsanitize=undefined)
 
 if (PROFILE)
     # compile with profiling enabled

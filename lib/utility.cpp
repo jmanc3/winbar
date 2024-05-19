@@ -201,11 +201,18 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    for (auto font: cached_fonts) {
+	for (int i = cached_fonts.size() - 1; i >= 0; i--) {
+    	auto font = cached_fonts[i];
         if (font->name == name && font->size == pixel_height && font->weight == weight && font->cr == cr) {
             pango_layout_set_attributes(font->layout, nullptr);
+            font->used_count++;
+            if (font->used_count < 512) {
 //            printf("returned: %p\n", font->layout);
-            return font->layout;
+            	return font->layout;
+            } else {
+				delete font;
+				cached_fonts.erase(cached_fonts.begin() + i);
+            }
         }
     }
     
@@ -215,6 +222,7 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
     font->size = pixel_height;
     font->weight = weight;
     font->cr = cr;
+    font->used_count = 0;
     
     PangoLayout *layout = pango_cairo_create_layout(cr);
     PangoFontDescription *desc = pango_font_description_new();

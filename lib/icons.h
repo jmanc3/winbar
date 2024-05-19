@@ -84,7 +84,7 @@ void pick_best(std::vector<IconTarget> &targets, int size);
 
 void pick_best(std::vector<IconTarget> &targets, int size, IconContext target_context);
 
-bool has_options(const std::string &name);
+bool has_options(const std::string& name);
 
 void get_options(std::vector<std::string_view> &names, const std::string &name, int max);
 

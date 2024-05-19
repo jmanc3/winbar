@@ -10,6 +10,7 @@
 #include "taskbar.h"
 #include "bluetooth_menu.h"
 #include "root.h"
+#include "audio.h"
 
 #include <dbus/dbus.h>
 #include <defer.h>
@@ -924,13 +925,17 @@ DBusHandlerResult handle_message_cb(DBusConnection *connection, DBusMessage *mes
         dbus_message_iter_next(&args);
         dbus_message_iter_get_basic(&args, &body);
         dbus_message_iter_next(&args);
-        if (std::string(summary) == "winbaractivate" || std::string(summary) == "winbarrun") {
+        std::string summary_str = std::string(summary);
+        if (summary_str == "winbaractivate" || summary_str == "winbarrun" || summary_str == "winbaraudio") {
             DBusMessage *reply = dbus_message_new_method_return(message);
             defer(dbus_message_unref(reply));
-            if (std::string(summary) == "winbaractivate") {
+            if (summary_str == "winbaractivate") {
                 meta_pressed(0);
-            } else {
+            } else if (summary_str == "winbarrun") {
                 start_run_window();
+            } else {
+                if (!audio_running)
+                    audio_start(app);
             }
             dbus_message_iter_init_append(reply, &args);
             const dbus_uint32_t current_id = -1;
@@ -1105,7 +1110,7 @@ void notification_closed_signal(App *app, NotificationInfo *ni, NotificationReas
             if (auto co = container_by_name("action", c->root)) {
                 auto data = (ActionCenterButtonData *) co->user_data;
                 data->some_unseen = true;
-                client_create_animation(app, c, &data->slide_anim, 0, 140, nullptr, 1);
+                client_create_animation(app, c, &data->slide_anim, data->lifetime, 0, 140, nullptr, 1);
                 request_refresh(app, c);
             }
         }
@@ -1284,15 +1289,56 @@ void dbus_end() {
     dbus_connection_system = nullptr;
 }
 
+bool kde_shutdown_check_and_call(std::string func) {
+    DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.Shutdown",
+                                                         "/Shutdown",
+                                                         "org.freedesktop.DBus.Introspectable",
+                                                         "Introspect");
+    defer(dbus_message_unref(dbus_msg));
+    DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection_session, dbus_msg, 4000,
+                                                                        nullptr);
+    if (dbus_reply) {
+        defer(dbus_message_unref(dbus_reply));
+        
+        const char *output;
+        if (dbus_message_get_args(dbus_reply, NULL, DBUS_TYPE_STRING, &output, DBUS_TYPE_INVALID)) {
+            std::string o(output);
+            std::string key = "method name=\"";
+            key += func;
+            key += "\"";
+            if (o.find(key) != std::string::npos) {
+                DBusMessage *dbus_msg_logout = dbus_message_new_method_call("org.kde.Shutdown",
+                                                                            "/Shutdown",
+                                                                            "org.kde.Shutdown",
+                                                                            func.c_str());
+                defer(dbus_message_unref(dbus_msg_logout));
+                DBusMessage *dbus_reply_logout = dbus_connection_send_with_reply_and_block(dbus_connection_session,
+                                                                                           dbus_msg_logout, 4000,
+                                                                                           nullptr);
+                if (dbus_reply_logout) {
+                    defer(dbus_message_unref(dbus_reply_logout));
+                    
+                    int dbus_result = 0;
+                    if (::dbus_message_get_args(dbus_reply_logout, nullptr, DBUS_TYPE_INT32, &dbus_result,
+                                                DBUS_TYPE_INVALID)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    
+    return false;
+}
+
+bool new_dbus_computer_logoff() {
+    return kde_shutdown_check_and_call("logout");
+}
+
 void dbus_computer_logoff() {
     if (!dbus_connection_session) return;
     
-    bool found = false;
-    for (const auto &item: running_dbus_services)
-        if (item == "org.kde.ksmserver")
-            found = true;
-    if (!found)
-        return;
+    if (new_dbus_computer_logoff()) return;
     
     DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
                                                          "/KSMServer",
@@ -1318,9 +1364,6 @@ void dbus_computer_logoff() {
         return;
     }
     
-    DBusPendingCall *pending = nullptr;
-    defer(dbus_pending_call_unref(pending));
-    
     DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection_session, dbus_msg, 1000,
                                                                         nullptr);
     if (dbus_reply) {
@@ -1332,16 +1375,15 @@ void dbus_computer_logoff() {
     }
 }
 
+bool new_dbus_computer_shut_down() {
+    return kde_shutdown_check_and_call("logoutAndShutdown");
+}
+
 // All from: https://www.reddit.com/r/kde/comments/70hnzg/command_to_properly_shutdownreboot_kde_machine/
 void dbus_computer_shut_down() {
     if (!dbus_connection_session) return;
     
-    bool found = false;
-    for (const auto &item: running_dbus_services)
-        if (item == "org.kde.ksmserver")
-            found = true;
-    if (!found)
-        return;
+    if (new_dbus_computer_shut_down()) return;
     
     DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
                                                          "/KSMServer",
@@ -1367,9 +1409,6 @@ void dbus_computer_shut_down() {
         return;
     }
     
-    DBusPendingCall *pending = nullptr;
-    defer(dbus_pending_call_unref(pending));
-    
     DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection_session, dbus_msg, 1000, nullptr);
     if (dbus_reply) {
         defer(dbus_message_unref(dbus_reply));
@@ -1380,16 +1419,15 @@ void dbus_computer_shut_down() {
     }
 }
 
+bool new_dbus_computer_restart() {
+    return kde_shutdown_check_and_call("logoutAndReboot");
+}
+
 // All from: https://www.reddit.com/r/kde/comments/70hnzg/command_to_properly_shutdownreboot_kde_machine/
 void dbus_computer_restart() {
     if (!dbus_connection_session) return;
     
-    bool found = false;
-    for (const auto &item: running_dbus_services)
-        if (item == "org.kde.ksmserver")
-            found = true;
-    if (!found)
-        return;
+    if (new_dbus_computer_restart()) return;
     
     DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
                                                          "/KSMServer",
@@ -1414,9 +1452,6 @@ void dbus_computer_restart() {
         fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
         return;
     }
-    
-    DBusPendingCall *pending = nullptr;
-    defer(dbus_pending_call_unref(pending));
     
     DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection_session, dbus_msg, 1000, nullptr);
     if (dbus_reply) {

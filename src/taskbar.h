@@ -44,6 +44,7 @@ public:
 struct ActionCenterButtonData : public IconButton {
     bool some_unseen = false;
     double slide_anim = 0;
+    std::shared_ptr<bool> lifetime = std::make_shared<bool>();
 };
 
 class WindowsData {
@@ -110,6 +111,7 @@ public:
     std::string command_launched_by;
     int initial_mouse_click_before_drag_offset_x = 0;
     
+    std::shared_ptr<bool> lifetime = std::make_shared<bool>();
     double active_amount = 0;
     double hover_amount = 0;
     double double_window_amount = 0;

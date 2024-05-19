@@ -617,7 +617,7 @@ drag_timeout(App *app, AppClient *client, Timeout *timeout, void *data) {
         
         scroll->scroll_v_real += (15 * config->dpi) * scalar;
         client_create_animation(app, client,
-                                &scroll->scroll_v_visual, 0,
+                                &scroll->scroll_v_visual, scroll->lifetime, 0,
                                 scroll_anim_time, 0, scroll->scroll_v_real, true);
 //        scroll->scroll_v_visual = scroll->scroll_v_real;
         selection_drag(client, client->cr, scroll);
@@ -633,7 +633,7 @@ drag_timeout(App *app, AppClient *client, Timeout *timeout, void *data) {
         
         scroll->scroll_v_real -= (15 * config->dpi) * scalar;
         client_create_animation(app, client,
-                                &scroll->scroll_v_visual, 0,
+                                &scroll->scroll_v_visual, scroll->lifetime, 0,
                                 scroll_anim_time, 0, scroll->scroll_v_real, true);
 //        scroll->scroll_v_visual = scroll->scroll_v_real;
         selection_drag(client, client->cr, scroll);

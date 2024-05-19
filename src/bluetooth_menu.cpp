@@ -307,7 +307,7 @@ void bar_message(AppClient *client, const std::string &text, bool error) {
             double text_height = logical.height / PANGO_SCALE;
             text_height += (8 * 2) * config->dpi; // top and bottom padding
             
-            client_create_animation(app, client, &c->wanted_bounds.h, 0, 100,
+            client_create_animation(app, client, &c->wanted_bounds.h, c->lifetime, 0, 100,
                                     nullptr,
                                     text_height, true);
             // error_bar message pair failed
@@ -316,7 +316,7 @@ void bar_message(AppClient *client, const std::string &text, bool error) {
                                   void *user_data) {
                                    auto *c = (Container *) user_data;
                                    client_create_animation(app, client,
-                                                           &c->wanted_bounds.h,
+                                                           &c->wanted_bounds.h, c->lifetime,
                                                            30 * config->dpi, 100,
                                                            nullptr,
                                                            0, true);
@@ -343,7 +343,7 @@ paint_option(AppClient *, cairo_t *cr, Container *container) {
 static void
 option_entered(AppClient *client, cairo_t *, Container *container) {
 //    container->wanted_bounds.h = actual_true_height(container);
-    client_create_animation(app, client, &container->wanted_bounds.h, 0, 250, getEasingFunction(EaseOutElastic),
+    client_create_animation(app, client, &container->wanted_bounds.h, container->lifetime, 0, 250, getEasingFunction(EaseOutElastic),
                             (option_height + (button_height * (container->children.size() - 1))) * config->dpi, true);
     client_layout(app, client);
 }
@@ -359,7 +359,7 @@ option_leaves(AppClient *client, cairo_t *, Container *container) {
     }
     
     if (!keep_open) {
-        client_create_animation(app, client, &container->wanted_bounds.h, 0, 120, getEasingFunction(EaseInCirc),
+        client_create_animation(app, client, &container->wanted_bounds.h, container->lifetime, 0, 120, getEasingFunction(EaseInCirc),
                                 container->children[0]->real_bounds.h, true);
         client_layout(app, client);
     }
@@ -1268,7 +1268,7 @@ response_clicked_cancel(AppClient *client, cairo_t *cr, Container *container) {
             delete child;
         input_bar->children.clear();
         
-        client_create_animation(app, client, &input_bar->wanted_bounds.h, 0, 100, nullptr, 0, true);
+        client_create_animation(app, client, &input_bar->wanted_bounds.h, input_bar->lifetime, 0, 100, nullptr, 0, true);
     }
 }
 
@@ -1291,7 +1291,7 @@ response_clicked_reject(AppClient *client, cairo_t *cr, Container *container) {
             delete child;
         input_bar->children.clear();
         
-        client_create_animation(app, client, &input_bar->wanted_bounds.h, 0, 100, nullptr, 0, true);
+        client_create_animation(app, client, &input_bar->wanted_bounds.h, input_bar->lifetime, 0, 100, nullptr, 0, true);
     }
 }
 
@@ -1314,7 +1314,7 @@ response_clicked_matches(AppClient *client, cairo_t *cr, Container *container) {
             delete child;
         input_bar->children.clear();
         
-        client_create_animation(app, client, &input_bar->wanted_bounds.h, 0, 100, nullptr, 0, true);
+        client_create_animation(app, client, &input_bar->wanted_bounds.h, input_bar->lifetime, 0, 100, nullptr, 0, true);
     }
 }
 
@@ -1342,7 +1342,7 @@ response_clicked_submit_string(AppClient *client, cairo_t *cr, Container *contai
             delete child;
         input_bar->children.clear();
         
-        client_create_animation(app, client, &input_bar->wanted_bounds.h, 0, 100, nullptr, 0, true);
+        client_create_animation(app, client, &input_bar->wanted_bounds.h, input_bar->lifetime, 0, 100, nullptr, 0, true);
     }
 }
 
@@ -1374,7 +1374,7 @@ response_clicked_submit_uint32(AppClient *client, cairo_t *cr, Container *contai
             delete child;
         input_bar->children.clear();
         
-        client_create_animation(app, client, &input_bar->wanted_bounds.h, 0, 100, nullptr, 0, true);
+        client_create_animation(app, client, &input_bar->wanted_bounds.h, input_bar->lifetime, 0, 100, nullptr, 0, true);
     }
 }
 
@@ -1503,7 +1503,7 @@ void bluetooth_wants_response_from_user(BluetoothRequest *br) {
         }
         
         if (br->type == "Cancelled") {
-            client_create_animation(app, client, &input_bar->wanted_bounds.h, 0, 100, nullptr, 0, true);
+            client_create_animation(app, client, &input_bar->wanted_bounds.h, input_bar->lifetime, 0, 100, nullptr, 0, true);
             delete br;
             return;
         }
@@ -1607,6 +1607,6 @@ void bluetooth_wants_response_from_user(BluetoothRequest *br) {
         target_height += reject->wanted_bounds.h;
     }
     
-    client_create_animation(app, client, &input_bar->wanted_bounds.h, 0, 100, nullptr, target_height, true);
+    client_create_animation(app, client, &input_bar->wanted_bounds.h, input_bar->lifetime, 0, 100, nullptr, target_height, true);
 }
     

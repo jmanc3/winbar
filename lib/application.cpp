@@ -25,6 +25,7 @@
 #include <sys/timerfd.h>
 #include <cassert>
 #include <cmath>
+#include <utility>
 #include <xcb/xinput.h>
 #include <xcb/xcb.h>
 #include <poll.h>
@@ -348,10 +349,18 @@ void timeout_poll_wakeup(App *app, int fd, void *) {
                 timeout_stop_and_remove_timeout(app, timeout);
                 break;
             }
-            
-            if (timeout->function) {
+
+            bool had_name = false;
+            std::string name;
+            if (timeout->client) {
+                if (!timeout->client->name.empty()) {
+                    had_name = true;
+                    name = timeout->client->name;
+                }            }
+            if (timeout->function)
                 timeout->function(app, timeout->client, timeout, timeout->user_data);
-            }
+            if (had_name && !client_by_name(app, name))
+                return;
             if ((keep_running = timeout->keep_running))
                 break;
             
@@ -1207,6 +1216,7 @@ void client_close(App *app, AppClient *client) {
                 xcb_flush(app->connection);
                 xcb_aux_sync(app->connection);
             }
+            parent_client->child_popup = nullptr;
         } else {
             xcb_ungrab_button(app->connection, XCB_BUTTON_INDEX_ANY, app->screen->root, XCB_MOD_MASK_ANY);
             xcb_flush(app->connection);
@@ -1254,7 +1264,7 @@ void client_close(App *app, AppClient *client) {
     xcb_flush(app->connection);
     
     for (int i = 0; i < app->clients.size(); i++) {
-        if (app->clients[i] == client) {
+        if (app->clients[i]->window == client->window) {
             app->clients.erase(app->clients.begin() + i);
         }
     }
@@ -2314,8 +2324,6 @@ void handle_event(App *app) {
             }
         }
     }
-    
-    free(event);
 }
 
 void handle_xcb_event(App *app) {
@@ -2328,6 +2336,7 @@ void handle_xcb_event(App *app) {
     
     while ((event = xcb_poll_for_event(app->connection))) {
         handle_event(app);
+        free(event);
     }
 }
 
@@ -2367,19 +2376,20 @@ void app_main(App *app) {
         std::lock_guard m(app->running_mutex);
         app->loop++;
         
-        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+        for (int i = app->descriptors_being_polled.size() - 1; i >= 0; i--) {
             if (fds[i].revents & POLLPRI) {
                 bool found = false;
-                for (const auto &polled: app->descriptors_being_polled) {
-                    if (fds[i].fd == polled.file_descriptor) {
+                for (int x = app->descriptors_being_polled.size() - 1; x >= 0; x--) {
+                    auto polled = &app->descriptors_being_polled[x];
+                    if (fds[i].fd == polled->file_descriptor) {
                         found = true;
-                        if (polled.function) {
-                            polled.function(app, polled.file_descriptor, polled.user_data);
+                        if (polled->function) {
+                            polled->function(app, polled->file_descriptor, polled->user_data);
                         }
                     }
                 }
                 if (!found) {
-                    for (int x = 0; x < app->descriptors_being_polled.size(); x++) {
+                    for (int x = app->descriptors_being_polled.size() - 1; x >= 0; x--) {
                         if (app->descriptors_being_polled[x].file_descriptor == fds[x].fd) {
                             app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + x);
                             break;
@@ -2390,19 +2400,20 @@ void app_main(App *app) {
             }
         }
         
-        for (int i = 0; i < app->descriptors_being_polled.size(); i++) {
+        for (int i = app->descriptors_being_polled.size() - 1; i >= 0; i--) {
             if (fds[i].revents & POLLIN) {
                 bool found = false;
-                for (const auto &polled: app->descriptors_being_polled) {
-                    if (fds[i].fd == polled.file_descriptor) {
+                for (int x = app->descriptors_being_polled.size() - 1; x >= 0; x--) {
+                    auto polled = &app->descriptors_being_polled[x];
+                    if (fds[i].fd == polled->file_descriptor) {
                         found = true;
-                        if (polled.function) {
-                            polled.function(app, polled.file_descriptor, polled.user_data);
+                        if (polled->function) {
+                            polled->function(app, polled->file_descriptor, polled->user_data);
                         }
                     }
                 }
                 if (!found) {
-                    for (int x = 0; x < app->descriptors_being_polled.size(); x++) {
+                    for (int x = app->descriptors_being_polled.size() - 1; x >= 0; x--) {
                         if (app->descriptors_being_polled[x].file_descriptor == fds[x].fd) {
                             app->descriptors_being_polled.erase(app->descriptors_being_polled.begin() + x);
                             break;
@@ -2414,7 +2425,8 @@ void app_main(App *app) {
         }
         
         // TODO: we can't delete while we iterate.
-        for (AppClient *client: app->clients) {
+        for (int i = app->clients.size() - 1; i >= 0; i--) {
+            AppClient *client = app->clients[i];
             if (client->marked_to_close) {
                 client_close(app, client);
                 break;
@@ -2480,10 +2492,12 @@ void app_clean(App *app) {
 }
 
 void
-client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+client_create_animation(App *app, AppClient *client, double *value, std::shared_ptr<bool> lifetime, double delay,
+                        double length, easingFunction easing,
                         double target, void (*finished)(AppClient *), bool relayout) {
     for (auto &animation: client->animations) {
         if (animation.value == value) {
+            animation.lifetime = lifetime;
             animation.delay = delay;
             animation.length = length;
             animation.easing = easing;
@@ -2499,6 +2513,7 @@ client_create_animation(App *app, AppClient *client, double *value, double delay
     ClientAnimation animation;
     animation.delay = delay;
     animation.value = value;
+    animation.lifetime = lifetime;
     animation.length = length;
     animation.easing = easing;
     animation.target = target;
@@ -2512,26 +2527,29 @@ client_create_animation(App *app, AppClient *client, double *value, double delay
 }
 
 void
-client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+client_create_animation(App *app, AppClient *client, double *value, std::shared_ptr<bool> lifetime, double delay,
+                        double length, easingFunction easing,
                         double target) {
-    client_create_animation(app, client, value, delay, length, easing, target, nullptr, false);
+    client_create_animation(app, client, value, std::move(lifetime), delay, length, easing, target, nullptr, false);
 }
 
 void client_create_animation(App *app,
                              AppClient *client,
                              double *value,
+                             std::shared_ptr<bool> lifetime,
                              double delay,
                              double length,
                              easingFunction easing,
                              double target,
                              void (*finished)(AppClient *client)) {
-    client_create_animation(app, client, value, delay, length, easing, target, finished, false);
+    client_create_animation(app, client, value, std::move(lifetime), delay, length, easing, target, finished, false);
 }
 
 void
-client_create_animation(App *app, AppClient *client, double *value, double delay, double length, easingFunction easing,
+client_create_animation(App *app, AppClient *client, double *value, std::shared_ptr<bool> lifetime, double delay,
+                        double length, easingFunction easing,
                         double target, bool relayout) {
-    client_create_animation(app, client, value, delay, length, easing, target, nullptr, relayout);
+    client_create_animation(app, client, value, std::move(lifetime), delay, length, easing, target, nullptr, relayout);
 }
 
 bool app_timeout_stop(App *app,
@@ -2703,6 +2721,14 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
 #ifdef TRACY_ENABLE
     FrameMarkStart("Animation Paint");
 #endif
+    bool has = false;
+    for (auto c: app->clients)
+        if (c == client)
+            has = true;
+    if (!has) {
+         // timeout->keep_running = false; Not needed since if client doesn't exist, timeout has been deleted too (but then how did we get here. No clue.
+		return;
+    }
     if (!app || !app->running) return;
     
     {
@@ -2714,6 +2740,10 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
         bool wants_to_relayout = false;
         
         for (auto &animation: client->animations) {
+            if (!animation.lifetime.lock()) {
+                animation.done = true;
+                continue;
+            }
             long elapsed_time = now - (animation.start_time + animation.delay);
             if (elapsed_time < 0)
                 elapsed_time = 0;
