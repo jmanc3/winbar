@@ -349,7 +349,8 @@ static void iterate_pulseaudio_mainloop() {
             signal_met = true;
             needs_signal_condition.notify_all();
         }
-        free_to_continue_condition.wait(free_to_continue_lock, []() { return free_to_continue; });
+        free_to_continue_condition.wait_for(free_to_continue_lock, std::chrono::milliseconds(70),
+                                            []() { return free_to_continue; });
     }
 }
 
@@ -621,7 +622,7 @@ void audio(const std::function<void()> &callback) {
     {
         std::unique_lock<std::mutex> lock(signal_mutex);
         pa_mainloop_wakeup(mainloop);
-        needs_signal_condition.wait(lock, []() { return signal_met; });
+        needs_signal_condition.wait_for(lock, std::chrono::milliseconds(70), []() { return signal_met; });
         callback();
     }
     
