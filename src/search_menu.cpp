@@ -240,6 +240,8 @@ paint_item_background(AppClient *client, cairo_t *cr, Container *container, int 
         cairo_fill(cr);
         return;
     }
+    if (other_index >= container->parent->children.size())
+        return;
     bool use_other_index = false;
     Container *something = nullptr;
     if (!container->state.mouse_pressing && !container->state.mouse_hovering) {
@@ -1064,9 +1066,9 @@ static void
 clicked_right_item(AppClient *client, cairo_t *cr, Container *container) {
     if (auto *content = container_by_name("content", client->root)) {
         for (int i = 0; i < content->children.size(); i++) {
+            if (i == 0 || i == 2) continue;
             auto *child = content->children[i];
-            auto *data = (SearchItemData *) (child->user_data);
-            if (data && data->item_number == active_item) {
+            if (child->children.size() < 2) {
                 Container *right_item = child->child(49 * config->dpi, FILL_SPACE);
                 right_item->when_paint = paint_right_item;
                 right_item->when_clicked = clicked_right_item;
@@ -1369,6 +1371,8 @@ when_key_event(AppClient *client,
                     Container *child = container->children[i];
                     SearchItemData *data = (SearchItemData *) child->user_data;
                     if (data->item_number == active_item) {
+                        if (child->children.size() == 2)
+                            child->children[1]->when_clicked(client, cr, child->children[1]);
                         auto scroll_pane = container_by_name("content", search_menu_client->root)->parent;
                         int offset = -scroll_pane->scroll_v_real;
                         if (child->real_bounds.y - child->real_bounds.h < scroll_pane->real_bounds.y)
@@ -1397,6 +1401,8 @@ when_key_event(AppClient *client,
                     Container *child = container->children[i];
                     SearchItemData *data = (SearchItemData *) child->user_data;
                     if (data->item_number == active_item) {
+                        if (child->children.size() == 2)
+                            child->children[1]->when_clicked(client, cr, child->children[1]);
                         auto scroll_pane = container_by_name("content", search_menu_client->root)->parent;
                         int offset = -scroll_pane->scroll_v_real;
                         if (child->real_bounds.y + child->real_bounds.h > scroll_pane->real_bounds.y + scroll_pane->real_bounds.h)
