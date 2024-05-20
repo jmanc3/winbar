@@ -2502,6 +2502,7 @@ blink_on(App *app, AppClient *client, void *textarea) {
 void
 blink_loop(App *app, AppClient *client, Timeout *, void *textarea) {
     auto *container = (Container *) textarea;
+    if (!container->active) return;
     auto *data = (TextAreaData *) container->user_data;
     
     float cursor_blink_time = data->state->cursor_on ? CURSOR_BLINK_OFF_TIME : CURSOR_BLINK_ON_TIME;

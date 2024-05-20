@@ -73,7 +73,7 @@ update_keymap(struct ClientKeyboard *kbd) {
 void timeout_stop_and_remove_timeout(App *app, Timeout *timeout) {
     for (int timeout_index = 0; timeout_index < app->timeouts.size(); timeout_index++) {
         Timeout *t = app->timeouts[timeout_index];
-        if (t == timeout) {
+        if (t->file_descriptor == timeout->file_descriptor) {
             if (t->client) {
                 // printf("Timeout Removed: client = %s, fd = %d\n", t->client->name.data(), t->file_descriptor);
             } else {
@@ -356,7 +356,8 @@ void timeout_poll_wakeup(App *app, int fd, void *) {
                 if (!timeout->client->name.empty()) {
                     had_name = true;
                     name = timeout->client->name;
-                }            }
+                }
+            }
             if (timeout->function)
                 timeout->function(app, timeout->client, timeout, timeout->user_data);
             if (had_name && !client_by_name(app, name))
@@ -2754,6 +2755,7 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
         for (auto &animation: client->animations) {
             if (!animation.lifetime.lock()) {
                 animation.done = true;
+                client_unregister_animation(app, client);
                 continue;
             }
             long elapsed_time = now - (animation.start_time + animation.delay);

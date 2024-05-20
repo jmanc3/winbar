@@ -2406,6 +2406,8 @@ void update_battery_animation_timeout(App *app, AppClient *client, Timeout *time
     timeout->keep_running = true;
     
     auto *data = static_cast<BatteryInfo *>(userdata);
+    if (data->status != "Charging")
+        return;
     
     data->animating_capacity_index++;
     if (data->animating_capacity_index > 10)
@@ -2640,11 +2642,11 @@ make_battery_button(Container *parent, AppClient *client_entity) {
             if (line != "UPS") {
                 parent->children.push_back(c);
                 app_timeout_create(app, client_entity, 30000, update_battery_status_timeout, data,
-                                   const_cast<char *>(__PRETTY_FUNCTION__));
+                                   "update_battery_status_timeout");
                 update_battery_status_timeout(app, client_entity, nullptr, data);
                 
                 app_timeout_create(app, client_entity, 700, update_battery_animation_timeout, data,
-                                   const_cast<char *>(__PRETTY_FUNCTION__));
+                                   "update_battery_animation_timeout");
             } else {
                 delete c;
             }
@@ -3799,7 +3801,7 @@ void add_window(App *app, xcb_window_t window) {
         xcb_icccm_get_text_property_reply_t prop;
         uint8_t success = xcb_icccm_get_wm_icon_name_reply(app->connection, get_wm_icon_name_cookie, &prop, nullptr);
         if (success) {
-            icon_name = prop.name;
+            icon_name = std::string(prop.name, prop.name_len);
             xcb_icccm_get_text_property_reply_wipe(&prop);
         } else {
             icon_name = get_icon_name(window);
