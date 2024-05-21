@@ -30,6 +30,8 @@ struct WinbarSettings {
     bool volume_expands_on_hover = true;
     bool show_agenda = true;
     bool thumbnails = true;
+    bool battery_notifications = false;
+    bool pinned_icon_shortcut = false;
 };
 
 extern WinbarSettings *winbar_settings;

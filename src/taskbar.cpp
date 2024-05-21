@@ -44,7 +44,6 @@
 #include <xcb/xproto.h>
 #include <dpi.h>
 #include <sys/inotify.h>
-#include <functional>
 #include "utility.h"
 #include "pinned_icon_editor.h"
 
@@ -54,6 +53,7 @@ static Container *active_container = nullptr;
 static xcb_window_t active_window = 0;
 static xcb_window_t backup_active_window = 0;
 static bool someone_is_fullscreen_and_covering = false;
+static int times_painted = 0;
 
 static std::string time_text("N/A");
 
@@ -86,10 +86,33 @@ validate_layout(AppClient *client, PangoLayout *layout) {
 }
 
 static void
+reserve(AppClient *client, int amount) {
+    xcb_ewmh_wm_strut_partial_t wm_strut = {};
+    wm_strut.bottom = amount;
+    wm_strut.bottom_start_x = client->bounds->x;
+    wm_strut.bottom_end_x = client->bounds->w;
+    xcb_ewmh_set_wm_strut_partial(&client->app->ewmh,
+                                  client->window,
+                                  wm_strut);
+    
+    xcb_ewmh_set_wm_strut(&client->app->ewmh,
+                          client->window,
+                          0,
+                          0,
+                          0,
+                          amount);
+
+}
+
+static void
 paint_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (times_painted == 0) {
+        times_painted++;
+        reserve(client, client->bounds->h);
+    }
     
     set_rect(cr, container->real_bounds);
     set_argb(cr, correct_opaqueness(client, config->color_taskbar_background));
@@ -192,7 +215,7 @@ paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *con
                     container->real_bounds.w,
                     container->real_bounds.h);
     cairo_fill(cr);
- }
+}
 
 static void
 paint_super(AppClient *client, cairo_t *cr, Container *container) {
@@ -2503,7 +2526,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     std::string charging[] = {"\uE683", "\uE684", "\uE685", "\uE686", "\uE687", "\uE688", "\uE689", "\uE68A", "\uE68B",
                               "\uE68C", "\uE68D"};
 
-    if (config->battery_life_extender) {
+    if (winbar_settings->battery_notifications) {
         static bool full_warning = false;
         if (std::stoi(data->capacity) >= 80 && !full_warning) {
             full_warning = true;
@@ -3453,8 +3476,8 @@ create_taskbar(App *app) {
     settings.decorations = false;
     settings.dock = true;
     settings.skip_taskbar = true;
-    settings.reserve_side = true;
-    settings.reserve_bottom = config->taskbar_height;
+//    settings.reserve_side = true;
+//    settings.reserve_bottom = config->taskbar_height;
     settings.slide = true;
     settings.slide_data[0] = -1;
     settings.slide_data[1] = 3;
@@ -3496,6 +3519,7 @@ create_taskbar(App *app) {
     // Create the window
     
     AppClient *taskbar = client_new(app, settings, "taskbar");
+    times_painted = 0;
     taskbar->screen_information = primary_screen_info;
     
     taskbar->when_closed = when_taskbar_closed;

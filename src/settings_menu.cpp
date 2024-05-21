@@ -931,6 +931,10 @@ fill_root(AppClient *client, Container *root) {
     winbar_behaviour_root->exists = false;
     title("Winbar Behaviour", winbar_behaviour_root);
     bool_checkbox("Thumbnails", &winbar_settings->thumbnails, winbar_behaviour_root, client);
+    bool_checkbox("Battery warning notifications", &winbar_settings->battery_notifications, winbar_behaviour_root,
+                  client);
+    bool_checkbox("Pinned icons shortcuts: Meta+[0-9]", &winbar_settings->pinned_icon_shortcut, winbar_behaviour_root,
+                  client);
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     other_root->exists = false;
@@ -1151,6 +1155,12 @@ void save_settings_file() {
     out_file << "volume_expands_on_hover=" << (winbar_settings->volume_expands_on_hover ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "battery_notifications=" << (winbar_settings->battery_notifications ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
+    out_file << "pinned_icon_shortcut=" << (winbar_settings->pinned_icon_shortcut ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     // Thumbnails
     out_file << "thumbnails=" << (winbar_settings->thumbnails ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -1162,6 +1172,21 @@ void save_settings_file() {
     // Search tab
     out_file << "tab=\"" << active_tab << "\"";
     out_file << std::endl << std::endl;
+}
+
+void parse_bool(LineParser *parser, std::string key, std::string name, bool *target) {
+    if (key != name)
+        return;
+    parser->until(LineParser::Token::IDENT);
+    if (parser->current_token == LineParser::Token::IDENT) {
+        std::string text = parser->until(LineParser::Token::END_OF_LINE);
+        trim(text);
+        if (text == "false") {
+            *target = false;
+        } else {
+            *target = true;
+        }
+    }
 }
 
 void read_settings_file() {
@@ -1245,24 +1270,6 @@ void read_settings_file() {
                         winbar_settings->date_alignment = PangoAlignment::PANGO_ALIGN_RIGHT;
                     }
                 }
-            } else if (key == "volume_expands_on_hover" || key == "battery_expands_on_hover" ||
-                       key == "show_agenda" || key == "thumbnails") {
-                parser.until(LineParser::Token::IDENT);
-                if (parser.current_token == LineParser::Token::IDENT) {
-                    std::string text = parser.until(LineParser::Token::END_OF_LINE);
-                    trim(text);
-                    if (text == "false") {
-                        if (key == "show_agenda") {
-                            winbar_settings->show_agenda = false;
-                        } else if (key == "volume_expands_on_hover") {
-                            winbar_settings->volume_expands_on_hover = false;
-                        } else if (key == "thumbnails") {
-                            winbar_settings->thumbnails = false;
-                        } else {
-                            winbar_settings->battery_expands_on_hover = false;
-                        }
-                    }
-                }
             } else if (key == "date_style") {
                 parser.until(LineParser::Token::QUOTE);
                 if (parser.current_token == LineParser::Token::QUOTE) {
@@ -1320,6 +1327,15 @@ void read_settings_file() {
                         }
                     }
                 }
+            } else {
+                if (key.empty())
+                    continue;
+                parse_bool(&parser, key, "battery_notifications", &winbar_settings->battery_notifications);
+                parse_bool(&parser, key, "pinned_icon_shortcut", &winbar_settings->pinned_icon_shortcut);
+                parse_bool(&parser, key, "volume_expands_on_hover", &winbar_settings->volume_expands_on_hover);
+                parse_bool(&parser, key, "battery_expands_on_hover", &winbar_settings->battery_expands_on_hover);
+                parse_bool(&parser, key, "show_agenda", &winbar_settings->show_agenda);
+                parse_bool(&parser, key, "thumbnails", &winbar_settings->thumbnails);
             }
         }
     }

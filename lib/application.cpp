@@ -13,6 +13,7 @@
 #include "../src/config.h"
 #include "../src/root.h"
 #include "audio.h"
+#include "../src/settings_menu.h"
 
 #include <algorithm>
 #include <iostream>
@@ -483,7 +484,7 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
             
             if (clean && (press->detail >= 10 && press->detail <= 19)) {
                 num = true;
-                if (config->pinned_icon_shortcut) {
+                if (winbar_settings->pinned_icon_shortcut) {
                     meta_pressed(press->detail);
                 }
             }
