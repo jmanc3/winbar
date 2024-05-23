@@ -1139,11 +1139,21 @@ compare_priority(Sortable *first, Sortable *second) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (first->priority != second->priority) {
-        return first->priority < second->priority;
+    if (first->priority == -1 && second->priority != -1) {
+        return true;
+    } else if (second->priority == -1 && first->priority != -1) {
+        return false;
+    }
+    if (first->priority == 0 && second->priority == 0) {
+        return first->historical_ranking < second->historical_ranking;
     }
     if (first->priority == 0) {
-        return first->historical_ranking < second->historical_ranking;
+        return true;
+    } else if (second->priority == 0) {
+        return false;
+    }
+    if (first->priority != second->priority) {
+        return first->priority < second->priority;
     }
     return first->name.length() < second->name.length();
 }
@@ -1165,14 +1175,15 @@ void sort_and_add(std::vector<T> *sortables,
         std::transform(
                 lowercase_text.begin(), lowercase_text.end(), lowercase_text.begin(), ::tolower);
         
-        for (auto *s: *sortables) {
+        for (int i = 0; i < sortables->size(); i++) {
+            Sortable *s = (*sortables)[i];
             s->priority = determine_priority(s, text, lowercase_text, history);
             if (s->priority != 11) {
-                sorted.push_back(s);
+                sorted.push_back((*sortables)[i]);
             }
         }
         
-        std::sort(sorted.begin(), sorted.end(), compare_priority);
+        std::stable_sort(sorted.begin(), sorted.end(), compare_priority);
     }
     
     {
