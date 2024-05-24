@@ -34,6 +34,7 @@ struct WinbarSettings {
     bool pinned_icon_shortcut = false;
     std::string custom_desktops_directory;
     bool custom_desktops_directory_exclusive = false;
+    bool ignore_only_show_in = true;
 };
 
 extern WinbarSettings *winbar_settings;

@@ -1668,7 +1668,7 @@ void load_desktop_files(std::string directory) {
                 display == "true" || keywords.find("lsp-plugins") != std::string::npos) // If we find no exec entry then there's nothing to run
                 continue;
             
-            if (!current_desktop.empty()) {
+            if (!current_desktop.empty() && !winbar_settings->ignore_only_show_in) {
                 if (!only_show_in.empty()) {
                     std::stringstream only_input(only_show_in);
                     bool found = false;
