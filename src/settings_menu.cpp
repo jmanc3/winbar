@@ -874,7 +874,7 @@ struct OriginalBool : public UserData {
     explicit OriginalBool(bool *boolean) : boolean(boolean) {}
 };
 
-void bool_checkbox(std::string text, bool *boolean, Container *container, AppClient *client) {
+void bool_checkbox_indent(const std::string &text, int indent, bool *boolean, Container *container, AppClient *client) {
     float font_size = std::round(10 * config->dpi);
     float pad = std::round(12 * config->dpi);
     PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size, PANGO_WEIGHT_NORMAL);
@@ -885,8 +885,9 @@ void bool_checkbox(std::string text, bool *boolean, Container *container, AppCli
     
     float size = 14 * config->dpi; // of checkbox that is
     auto full_label_container = container->child(layout_type::hbox,
-                                                 size + pad + width, 32 * config->dpi);
+                                                 size + pad + width + indent, 32 * config->dpi);
     full_label_container->alignment = ALIGN_CENTER;
+    full_label_container->wanted_pad.x = indent;
     full_label_container->spacing = pad;
     full_label_container->user_data = new OriginalBool(boolean);
     
@@ -913,6 +914,83 @@ void bool_checkbox(std::string text, bool *boolean, Container *container, AppCli
     full_label_container->receive_events_even_if_obstructed_by_one = true;
 }
 
+void bool_checkbox(const std::string &text, bool *boolean, Container *container, AppClient *client) {
+    bool_checkbox_indent(text, 0, boolean, container, client);
+}
+
+static void paint_textarea_border(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (container->state.mouse_hovering || container->state.mouse_pressing || container->active) {
+        if (container->state.mouse_pressing || container->active) {
+            if (container->state.mouse_pressing && container->active) {
+                set_argb(cr, lighten(config->color_pinned_icon_editor_field_pressed_border, 7));
+            } else {
+                set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
+            }
+        } else {
+            set_argb(cr, config->color_pinned_icon_editor_field_hovered_border);
+        }
+    } else {
+        set_argb(cr, config->color_pinned_icon_editor_field_default_border);
+    }
+    paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+}
+
+struct PathHolder : public UserData {
+    explicit PathHolder(std::string *path) : path(path) {}
+    
+    std::string *path = nullptr;
+};
+
+void string_textfield(const std::string &text, std::string *path, Container *container, AppClient *client) {
+    int font_size = std::round(10 * config->dpi);
+    auto hbox = container->child(::hbox, FILL_SPACE, 26 * config->dpi);
+    hbox->user_data = new PathHolder(path);
+    hbox->alignment = ALIGN_CENTER;
+    
+    auto label = hbox->child(FILL_SPACE, FILL_SPACE);
+    auto label_data = new Label(text);
+    label_data->size = font_size;
+    label->when_paint = paint_label;
+    label->user_data = label_data;
+    
+    PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size, PANGO_WEIGHT_NORMAL);
+    int width;
+    int height;
+    pango_layout_set_text(layout, text.c_str(), -1);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    label->wanted_bounds.w = width;
+    
+    TextAreaSettings settings(config->dpi);
+    settings.single_line = true;
+    settings.bottom_show_amount = 2;
+    settings.right_show_amount = 2;
+    settings.font_size = 11 * config->dpi;
+    settings.color = config->color_pinned_icon_editor_field_default_text;
+    settings.color_cursor = config->color_pinned_icon_editor_cursor;
+    settings.pad = Bounds(4 * config->dpi, 5 * config->dpi, 8 * config->dpi, 2 * config->dpi);
+    Container *textarea = make_textarea(app, client, hbox, settings);
+    auto *data = (TextAreaData *) textarea->user_data;
+    data->state->text = *path;
+    textarea->when_key_event = [](AppClient *client, cairo_t *cr, Container *container, bool is_string, xkb_keysym_t keysym,
+                                  char string[64],
+                                  uint16_t mods, xkb_key_direction direction) {
+        if (direction == XKB_KEY_UP) {
+            return;
+        }
+        if (container->parent->active || container->active) {
+            textarea_handle_keypress(client, container, is_string, keysym, string, mods, XKB_KEY_DOWN);
+            auto *data = (TextAreaData *) container->user_data;
+            auto *holder = (PathHolder *) container->parent->parent->parent->user_data;
+            *holder->path = data->state->text;
+        }
+    };
+    textarea->parent->alignment = ALIGN_CENTER;
+    textarea->parent->when_paint = paint_textarea_border;
+}
+
 static void
 fill_root(AppClient *client, Container *root) {
     auto real_root = root;
@@ -935,6 +1013,10 @@ fill_root(AppClient *client, Container *root) {
                   client);
     bool_checkbox("Pinned icons shortcuts: Meta+[0-9]", &winbar_settings->pinned_icon_shortcut, winbar_behaviour_root,
                   client);
+    string_textfield("Custom desktop files location: ", &winbar_settings->custom_desktops_directory,
+                     winbar_behaviour_root, client);
+    bool_checkbox_indent("Make directory the exclusive source for desktop files", 16 * config->dpi,
+                         &winbar_settings->custom_desktops_directory_exclusive, winbar_behaviour_root, client);
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     other_root->exists = false;
@@ -1161,6 +1243,13 @@ void save_settings_file() {
     out_file << "pinned_icon_shortcut=" << (winbar_settings->pinned_icon_shortcut ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "custom_desktops_directory=" << winbar_settings->custom_desktops_directory;
+    out_file << std::endl << std::endl;
+    
+    out_file << "custom_desktops_directory_exclusive="
+             << (winbar_settings->custom_desktops_directory_exclusive ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     // Thumbnails
     out_file << "thumbnails=" << (winbar_settings->thumbnails ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -1327,6 +1416,13 @@ void read_settings_file() {
                         }
                     }
                 }
+            } else if (key == "custom_desktops_directory") {
+                parser.until(LineParser::Token::IDENT);
+                if (parser.current_token == LineParser::Token::IDENT) {
+                    std::string text = parser.until(LineParser::Token::END_OF_LINE);
+                    trim(text);
+                    winbar_settings->custom_desktops_directory = text;
+                }
             } else {
                 if (key.empty())
                     continue;
@@ -1336,6 +1432,8 @@ void read_settings_file() {
                 parse_bool(&parser, key, "battery_expands_on_hover", &winbar_settings->battery_expands_on_hover);
                 parse_bool(&parser, key, "show_agenda", &winbar_settings->show_agenda);
                 parse_bool(&parser, key, "thumbnails", &winbar_settings->thumbnails);
+                parse_bool(&parser, key, "custom_desktops_directory_exclusive",
+                           &winbar_settings->custom_desktops_directory_exclusive);
             }
         }
     }

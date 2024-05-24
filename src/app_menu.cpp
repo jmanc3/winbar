@@ -28,6 +28,7 @@
 #include "simple_dbus.h"
 #include "settings_menu.h"
 #include <pango/pango-layout.h>
+#include <filesystem>
 #include "utility.h"
 
 
@@ -1633,19 +1634,21 @@ void load_desktop_files(std::string directory) {
         current_desktop.push_back(parsed);
     }
     
-    DIR *dir;
-    struct dirent *ent;
-    if ((dir = opendir(directory.c_str())) != NULL) {
-        while ((ent = readdir(dir)) != NULL) {
-            if (!ends_with(ent->d_name, ".desktop")) {
+    if (!directory.empty())
+        if (directory[directory.size() - 1] != '/')
+            directory += '/';
+    try {
+        for (const auto &entry: std::filesystem::recursive_directory_iterator(directory,
+                                                                              std::filesystem::directory_options::follow_directory_symlink)) {
+            if (!entry.is_regular_file())
                 continue;
-            }
-            std::string path = directory + ent->d_name;
-            struct stat buffer{};
-            if (stat(path.c_str(), &buffer) != 0) {
-                continue;
-            }
             
+            const std::string &filename = entry.path().filename().string();
+            if (!ends_with(filename.c_str(), ".desktop")) {
+                continue;
+            }
+            std::string path = entry.path().string();
+
             // Parse desktop file
             INIReader desktop_application(path);
             if (desktop_application.ParseError() != 0) {
@@ -1709,10 +1712,17 @@ void load_desktop_files(std::string directory) {
             launcher->exec = exec;
             launcher->wmclass = wmclass;
             launcher->icon = icon;
+            struct stat buffer{};
+            if (stat(path.c_str(), &buffer) != 0) {
+                delete launcher;
+                continue;
+            }
             launcher->time_modified = buffer.st_mtim.tv_sec;
             
             launchers.push_back(launcher);
         }
+    } catch (const std::filesystem::filesystem_error &e) {
+    
     }
 }
 
@@ -1727,14 +1737,20 @@ void load_all_desktop_files() {
     launchers.clear();
     launchers.shrink_to_fit();
     
-    load_desktop_files("/usr/share/applications/");
     std::string local_desktop_files = getenv("HOME");
     local_desktop_files += "/.local/share/applications/";
-    load_desktop_files(local_desktop_files);
-    load_desktop_files("/var/lib/flatpak/exports/share/applications/");
     std::string local_flatpak_files = getenv("HOME");
     local_flatpak_files += "/.local/share/flatpak/exports/share/applications/";
+    
+    if (!winbar_settings->custom_desktops_directory.empty())
+        load_desktop_files(winbar_settings->custom_desktops_directory);
+    if (winbar_settings->custom_desktops_directory_exclusive)
+        goto skip;
+    load_desktop_files("/usr/share/applications/");
+    load_desktop_files(local_desktop_files);
+    load_desktop_files("/var/lib/flatpak/exports/share/applications/");
     load_desktop_files(local_flatpak_files);
+    skip:
     
     time_t now;
     time(&now);

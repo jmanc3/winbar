@@ -668,7 +668,6 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     
     int width = get_width(pii->data);
     if (!winbar_settings->thumbnails) {
-        width = option_width * 1.2;
         option_height = close_height;
     }
 //    int width = option_width;

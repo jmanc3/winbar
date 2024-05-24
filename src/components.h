@@ -61,6 +61,7 @@ public:
     std::string text;
     std::string prompt;
     
+    std::weak_ptr<bool> timeout_alive;
     Timeout *cursor_blink = nullptr;
     int cursor = 0;
     bool cursor_on = true;

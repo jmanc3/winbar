@@ -82,6 +82,8 @@ struct Handler;
 struct Timeout {
     int file_descriptor;
     
+    std::shared_ptr<bool> lifetime = std::make_shared<bool>();
+    
     void (*function)(App *, AppClient *, Timeout *, void *user_data);
     
     AppClient *client = nullptr;

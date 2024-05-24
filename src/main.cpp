@@ -17,6 +17,7 @@
 #include "icons.h"
 #include "dpi.h"
 #include "volume_menu.h"
+#include "settings_menu.h"
 
 App *app;
 
@@ -76,9 +77,9 @@ int main(int argc, char* argv[]) {
     
     check_config_version();
     
-    load_in_fonts();
+    read_settings_file();
     
-    active_tab = config->starting_tab_index == 0 ? "Apps" : "Scripts";
+    load_in_fonts();
     
     set_icons_path_and_possibly_update(app);
     

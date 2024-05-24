@@ -2487,13 +2487,13 @@ void
 blink_on(App *app, AppClient *client, void *textarea) {
     auto *container = (Container *) textarea;
     auto *data = (TextAreaData *) container->user_data;
-    
-    if (data->state->cursor_blink == nullptr) {
-        data->state->cursor_blink = app_timeout_create(app, client, CURSOR_BLINK_ON_TIME, blink_loop, textarea,
-                                                       const_cast<char *>(__PRETTY_FUNCTION__));
-    } else {
+    if (data->state->timeout_alive.lock()) {
         app_timeout_replace(app, client, data->state->cursor_blink,
                             CURSOR_BLINK_ON_TIME, blink_loop, textarea);
+    } else {
+        data->state->cursor_blink = app_timeout_create(app, client, CURSOR_BLINK_ON_TIME, blink_loop, textarea,
+                                                       const_cast<char *>(__PRETTY_FUNCTION__));
+        data->state->timeout_alive = data->state->cursor_blink->lifetime;
     }
     data->state->cursor_on = true;
     request_refresh(app, client);

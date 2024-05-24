@@ -3543,7 +3543,7 @@ create_taskbar(App *app) {
     
     // Lay it out
     fill_root(app, taskbar, taskbar->root);
-    read_settings_file();
+    merge_order_with_taskbar();
     
     update_time(app, taskbar, nullptr, nullptr);
     update_active_window();

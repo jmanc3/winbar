@@ -32,6 +32,8 @@ struct WinbarSettings {
     bool thumbnails = true;
     bool battery_notifications = false;
     bool pinned_icon_shortcut = false;
+    std::string custom_desktops_directory;
+    bool custom_desktops_directory_exclusive = false;
 };
 
 extern WinbarSettings *winbar_settings;
@@ -41,5 +43,7 @@ void open_settings_menu(SettingsPage page);
 void read_settings_file();
 
 void save_settings_file();
+
+void merge_order_with_taskbar();
 
 #endif //WINBAR_SETTINGS_MENU_H
