@@ -1096,6 +1096,8 @@ c3ic_fix_desktop_file_icon(const std::string &given_name,
 
 std::string
 c3ic_fix_wm_class(const std::string &given_wm_class) {
+    if (given_wm_class == "steam")
+        return given_wm_class;
     return c3ic_fix_desktop_file_icon(given_wm_class, given_wm_class, given_wm_class, given_wm_class);
 }
 
