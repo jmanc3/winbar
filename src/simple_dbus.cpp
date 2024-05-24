@@ -1335,10 +1335,71 @@ bool new_dbus_computer_logoff() {
     return kde_shutdown_check_and_call("logout");
 }
 
+bool gnome_logoff(std::string func) {
+    DBusMessage *dbus_msg = dbus_message_new_method_call("org.gnome.SessionManager",
+                                                         "/org/gnome/SessionManager",
+                                                         "org.freedesktop.DBus.Introspectable",
+                                                         "Introspect");
+    defer(dbus_message_unref(dbus_msg));
+    DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection_session, dbus_msg, 4000,
+                                                                        nullptr);
+    if (dbus_reply) {
+        defer(dbus_message_unref(dbus_reply));
+        
+        const char *output;
+        if (dbus_message_get_args(dbus_reply, NULL, DBUS_TYPE_STRING, &output, DBUS_TYPE_INVALID)) {
+            std::string o(output);
+            std::string key = "method name=\"";
+            key += func;
+            key += "\"";
+            if (o.find(key) != std::string::npos) {
+                DBusMessage *dbus_msg_logout = dbus_message_new_method_call("org.gnome.SessionManager",
+                                                                            "/org/gnome/SessionManager",
+                                                                            "org.gnome.SessionManager",
+                                                                            func.c_str());
+                defer(dbus_message_unref(dbus_msg_logout));
+                
+                if (func == "Logout") {
+                    // https://github.com/GNOME/gnome-settings-daemon/blob/master/gnome-settings-daemon/org.gnome.SessionManager.xml
+                    const unsigned int no_prompt = 1;
+                    if (!dbus_message_append_args(dbus_msg_logout, DBUS_TYPE_UINT32, &no_prompt, DBUS_TYPE_INVALID)) {
+                        fprintf(stderr, "%s\n", "In \"gnome_logoff\" couldn't append an argument to the DBus message.");
+                        return false;
+                    }
+                }
+                
+                
+                DBusMessage *dbus_reply_logout = dbus_connection_send_with_reply_and_block(dbus_connection_session,
+                                                                                           dbus_msg_logout, 4000,
+                                                                                           nullptr);
+                if (dbus_reply_logout) {
+                    defer(dbus_message_unref(dbus_reply_logout));
+                    
+                    int dbus_result = 0;
+                    if (::dbus_message_get_args(dbus_reply_logout, nullptr, DBUS_TYPE_INT32, &dbus_result,
+                                                DBUS_TYPE_INVALID)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    
+    return false;
+}
+
 void dbus_computer_logoff() {
     if (!dbus_connection_session) return;
     
     if (new_dbus_computer_logoff()) return;
+    
+    if (gnome_logoff("Logout")) return;
+    
+    const char *desktopSession = std::getenv("DESKTOP_SESSION");
+    if (desktopSession && std::strcmp(desktopSession, "openbox") == 0) {
+        system("openbox --exit");
+        return;
+    }
     
     DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
                                                          "/KSMServer",
@@ -1385,6 +1446,8 @@ void dbus_computer_shut_down() {
     
     if (new_dbus_computer_shut_down()) return;
     
+    if (gnome_logoff("Shutdown")) return;
+    
     DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
                                                          "/KSMServer",
                                                          "org.kde.KSMServerInterface",
@@ -1428,6 +1491,8 @@ void dbus_computer_restart() {
     if (!dbus_connection_session) return;
     
     if (new_dbus_computer_restart()) return;
+    
+    if (gnome_logoff("Reboot")) return;
     
     DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
                                                          "/KSMServer",

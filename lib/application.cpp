@@ -351,17 +351,10 @@ void timeout_poll_wakeup(App *app, int fd, void *) {
                 break;
             }
 
-            bool had_name = false;
-            std::string name;
-            if (timeout->client) {
-                if (!timeout->client->name.empty()) {
-                    had_name = true;
-                    name = timeout->client->name;
-                }
-            }
+			std::weak_ptr<bool> alive = timeout->lifetime;
             if (timeout->function)
                 timeout->function(app, timeout->client, timeout, timeout->user_data);
-            if (had_name && !client_by_name(app, name))
+            if (!alive.lock())
                 return;
             if ((keep_running = timeout->keep_running))
                 break;
