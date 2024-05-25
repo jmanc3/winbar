@@ -266,6 +266,7 @@ on_display_closed(AppClient *) {
     if (systray)
         for (auto icon: systray_icons)
             xcb_reparent_window(app->connection, icon->window, systray->window, 0, 0);
+    display = nullptr;
 }
 
 static void
@@ -370,8 +371,10 @@ void open_systray() {
 }
 
 void display_close_timeout(App *app, AppClient *, Timeout *, void *) {
-    client_close_threaded(app, display);
-    display = nullptr;
+    if (display) {
+        client_close_threaded(app, display);
+        display = nullptr;
+    }
 }
 
 static void
