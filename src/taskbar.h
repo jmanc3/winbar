@@ -110,6 +110,7 @@ public:
     bool has_launchable_info = false;
     std::string command_launched_by;
     int initial_mouse_click_before_drag_offset_x = 0;
+    long creation_time = get_current_time_in_ms();
     
     std::shared_ptr<bool> lifetime = std::make_shared<bool>();
     double active_amount = 0;
@@ -137,6 +138,8 @@ public:
     
     int animation_bounce_direction = 0; // 0 is down, 1 is up
     double animation_bounce_amount = 0;
+    
+    SpringAnimation spring = SpringAnimation();
     
     ~LaunchableButton() {
         for (auto w: windows_data_list)

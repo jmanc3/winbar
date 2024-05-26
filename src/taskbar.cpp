@@ -111,7 +111,10 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     if (times_painted == 0) {
         times_painted++;
-        reserve(client, client->bounds->h);
+        std::thread t([client]() -> void {
+            reserve(client, client->bounds->h);
+        });
+        t.detach();
     }
     
     set_rect(cr, container->real_bounds);
@@ -820,6 +823,17 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     auto *data = (LaunchableButton *) container->user_data;
+    if (data->animating) {
+        // TODO: use client->delta which is in long_ms (we have to convert)
+        data->spring.update((float) client->delta / 1000.0f);
+        container->real_bounds.x = data->spring.position;
+        float abs_vel = std::abs(data->spring.velocity);
+        if (abs_vel < .05) {
+            data->animating = false;
+            client_unregister_animation(app, client);
+        }
+    }
+    
     // This is the real underlying color
     // is_light_theme determines if generated secondary colors should go up or down in brightness
     bool is_light_theme = false;
@@ -1053,11 +1067,32 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
         return container->children[a]->z_index < container->children[b]->z_index;
     });
     
+    auto current = get_current_time_in_ms();
     for (auto index: render_order) {
+        double time = 250;
+        auto *data = (LaunchableButton *) container->children[index]->user_data;
+        auto delta = (double) (current - data->creation_time);
+        if (delta < time) {
+            cairo_push_group(cr);
+        }
         paint_icon_background(client_entity, cr, container->children[index]);
+        if (delta < time) {
+            cairo_pop_group_to_source(cr);
+            cairo_paint_with_alpha(cr, delta / time);
+        }
     }
     for (auto index: render_order) {
+        double time = 250;
+        auto *data = (LaunchableButton *) container->children[index]->user_data;
+        auto delta = (double) (current - data->creation_time);
+        if (delta < time) {
+            cairo_push_group(cr);
+        }
         paint_icon_surface(client_entity, cr, container->children[index]);
+        if (delta < time) {
+            cairo_pop_group_to_source(cr);
+            cairo_paint_with_alpha(cr, delta / time);
+        }
     }
 }
 
@@ -1259,28 +1294,24 @@ icons_align(AppClient *client_entity, Container *icon_container, bool all_except
         
         // we don't want to align the real_icon if its the one the user is dragging
         if (all_except_dragged && real_icon->state.mouse_dragging) {
+            if (real_data->animating)
+                client_unregister_animation(app, client_entity);
+            real_data->animating = false;
             continue;
         }
         
         if (real_data->animating) {
             if (real_data->target != laid_icon->real_bounds.x) {
-                client_create_animation(app,
-                                        client_entity,
-                                        &real_icon->real_bounds.x, real_icon->lifetime, 0,
-                                        100,
-                                        nullptr,
-                                        laid_icon->real_bounds.x,
-                                        finished_icon_animation);
+                real_data->spring = SpringAnimation(real_icon->real_bounds.x, laid_icon->real_bounds.x);
+                real_data->spring.stiffness *= 1.25;
+                real_data->spring.damping *= 1.14;
             }
         } else {
             real_data->animating = true;
-            client_create_animation(app,
-                                    client_entity,
-                                    &real_icon->real_bounds.x, real_icon->lifetime, 0,
-                                    100,
-                                    nullptr,
-                                    laid_icon->real_bounds.x,
-                                    finished_icon_animation);
+            real_data->spring = SpringAnimation(real_icon->real_bounds.x, laid_icon->real_bounds.x);
+            client_register_animation(app, client_entity);
+            real_data->spring.stiffness *= 1.25;
+            real_data->spring.damping *= 1.14;
         }
     }
 }
@@ -3519,6 +3550,8 @@ create_taskbar(App *app) {
     // Create the window
     
     AppClient *taskbar = client_new(app, settings, "taskbar");
+    
+    taskbar->creation_time = get_current_time_in_ms();
     times_painted = 0;
     taskbar->screen_information = primary_screen_info;
     
@@ -3926,8 +3959,24 @@ void add_window(App *app, xcb_window_t window) {
     update_minimize_icon_positions();
     update_pinned_items_file(false);
     
-    client_layout(app, client);
-    request_refresh(app, client);
+    auto current = get_current_time_in_ms();
+    auto delta = current - client->creation_time;
+    
+    if (delta > 5000) {
+        std::vector<double> ax;
+        for (auto c: icons->children)
+            ax.push_back(c->real_bounds.x);
+        client_layout(app, client);
+        for (int i = 0; i < ax.size() - 1; i++)
+            icons->children[i]->real_bounds.x = ax[i];
+        
+        icons_align(client, icons, false);
+        client_register_animation(app, client);
+    } else {
+        data->creation_time -= 5000;
+        client_layout(app, client);
+        request_refresh(app, client);
+    }
 }
 
 void remove_window(App *app, xcb_window_t window) {
@@ -4021,9 +4070,8 @@ void remove_window(App *app, xcb_window_t window) {
     //        }
     //    }
     
-    update_pinned_items_file(false);
     icons_align(entity, icons, false);
-    request_refresh(app, entity);
+//    request_refresh(app, entity);
 }
 
 void stacking_order_changed(xcb_window_t *all_windows, int windows_count) {

@@ -276,7 +276,9 @@ struct AppClient {
     
     bool mapped = true;
     
+    long creation_time;
     long last_repaint_time;
+    long delta;
     
     // Variables to limit how often we handle motion notify events
     float motion_events_per_second = 120;

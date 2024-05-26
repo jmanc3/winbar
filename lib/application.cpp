@@ -1406,6 +1406,10 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
 #ifdef TRACY_ENABLE
                 ZoneScopedN("paint");
 #endif
+                long current = get_current_time_in_ms();
+                client->delta = current - client->last_repaint_time;
+                client->last_repaint_time = current;
+                
                 cairo_save(client->cr);
                 cairo_push_group(client->cr);
                 

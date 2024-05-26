@@ -81,6 +81,32 @@ struct ArgbColor {
     }
 };
 
+struct SpringAnimation {
+    // Parameters for the spring motion
+    float position;
+    float velocity = 0.0;
+    float target;
+    float damping;
+    float stiffness;
+    float mass;
+    
+    // Create a spring animation with initial position 0, target position 100
+    // SpringAnimation spring(0.0f, 100.0f, 0.1f, 10.0f, 1.0f); // Adjusted for bounce
+    
+    // Simulate the spring animation
+    float dt = 0.016f; // Assuming 60 updates per second
+    
+    // Constructor to initialize the parameters
+    SpringAnimation(float pos = 0.0f, float tar = 0.0f, float damp = 29.5f, float stiff = 500.0f, float m = 1.0f)
+            : position(pos), velocity(0.0f), target(tar), damping(damp), stiffness(stiff), mass(m) {}
+    
+    // Method to update the animation state
+    void update(float deltaTime);
+    
+    // Method to set a new target position
+    void setTarget(float newTarget);
+};
+
 class Label : public UserData {
 public:
     std::string text;

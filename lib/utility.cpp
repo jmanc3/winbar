@@ -788,3 +788,22 @@ void pango_layout_get_pixel_size_safe(PangoLayout *layout, int *w, int *h) {
     *h = logical.height;
 }
 
+void SpringAnimation::update(float deltaTime) {
+    if (deltaTime < .00001)
+        deltaTime = dt;
+    if (deltaTime > dt)
+        deltaTime = dt;
+    // Calculate the force based on Hooke's Law: F = -kx
+    float force = -stiffness * (position - target);
+    // Calculate the damping force: Fd = -bv
+    float dampingForce = -damping * velocity;
+    // Sum the forces
+    float acceleration = (force + dampingForce) / mass;
+    // Integrate to get the velocity and position
+    velocity += acceleration * deltaTime;
+    position += velocity * deltaTime;
+}
+
+void SpringAnimation::setTarget(float newTarget) {
+    target = newTarget;
+}
