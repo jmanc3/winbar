@@ -1302,16 +1302,22 @@ icons_align(AppClient *client_entity, Container *icon_container, bool all_except
         
         if (real_data->animating) {
             if (real_data->target != laid_icon->real_bounds.x) {
-                real_data->spring = SpringAnimation(real_icon->real_bounds.x, laid_icon->real_bounds.x);
-                real_data->spring.stiffness *= 1.25;
-                real_data->spring.damping *= 1.14;
+                real_data->spring = SpringAnimation(real_icon->real_bounds.x,
+                                                    laid_icon->real_bounds.x);
+//                real_data->spring.stiffness = 5.0f;
+//                real_data->spring.stiffness *= 1.25;
+//                real_data->spring.damping *= 1.14;
+//                real_data->spring.velocity = abs;
             }
         } else {
             real_data->animating = true;
-            real_data->spring = SpringAnimation(real_icon->real_bounds.x, laid_icon->real_bounds.x);
+            real_data->spring = SpringAnimation(real_icon->real_bounds.x,
+                                                laid_icon->real_bounds.x);
             client_register_animation(app, client_entity);
-            real_data->spring.stiffness *= 1.25;
-            real_data->spring.damping *= 1.14;
+//            real_data->spring.stiffness = 5.0f;
+//            real_data->spring.stiffness *= 1.25;
+//            real_data->spring.damping *= 1.14;
+//            real_data->spring.velocity = abs;
         }
     }
 }
@@ -3966,16 +3972,21 @@ void add_window(App *app, xcb_window_t window) {
         std::vector<double> ax;
         for (auto c: icons->children)
             ax.push_back(c->real_bounds.x);
+        auto start = icons->should_layout_children;
+        icons->should_layout_children = true;
         client_layout(app, client);
         for (int i = 0; i < ax.size() - 1; i++)
             icons->children[i]->real_bounds.x = ax[i];
-        
+        icons->should_layout_children = start;
         icons_align(client, icons, false);
         client_register_animation(app, client);
     } else {
+        auto start = icons->parent->should_layout_children;
+        icons->should_layout_children = true;
         data->creation_time -= 5000;
         client_layout(app, client);
         request_refresh(app, client);
+        icons->should_layout_children = start;
     }
 }
 
