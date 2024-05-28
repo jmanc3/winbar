@@ -15,10 +15,8 @@
 
 #endif
 
-#include "audio.h"
-#include "defer.h"
-#include "icons.h"
-#include "utility.h"
+
+#include "../src/settings_menu.h"
 
 #include <pulse/mainloop.h>
 #include <pulse/mainloop-api.h>
@@ -655,8 +653,12 @@ void audio_read(const std::function<void()> &callback) {
     callback();
 }
 
+static bool opened = false;
+
 void meter_watching_start() {
-    return;
+    if (!winbar_settings->meter_animations)
+        return;
+    opened = true;
 #ifdef  TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -690,7 +692,11 @@ void meter_watching_start() {
 }
 
 void meter_watching_stop() {
-    return;
+    if (!winbar_settings->meter_animations)
+        return;
+    if (!opened)
+        return;
+    opened = false;
 #ifdef  TRACY_ENABLE
     ZoneScoped;
 #endif

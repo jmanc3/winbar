@@ -1018,6 +1018,7 @@ fill_root(AppClient *client, Container *root) {
     bool_checkbox_indent("Make directory the exclusive source for desktop files", 16 * config->dpi,
                          &winbar_settings->custom_desktops_directory_exclusive, winbar_behaviour_root, client);
     bool_checkbox("Ignore 'Only Show In' instruction in desktop files", &winbar_settings->ignore_only_show_in, winbar_behaviour_root, client);
+    bool_checkbox("Meter animations in volume menu", &winbar_settings->meter_animations, winbar_behaviour_root, client);
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     other_root->exists = false;
@@ -1254,6 +1255,9 @@ void save_settings_file() {
     out_file << "ignore_only_show_in=" << (winbar_settings->ignore_only_show_in ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "meter_animations=" << (winbar_settings->meter_animations ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     // Thumbnails
     out_file << "thumbnails=" << (winbar_settings->thumbnails ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -1439,6 +1443,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "custom_desktops_directory_exclusive",
                            &winbar_settings->custom_desktops_directory_exclusive);
                 parse_bool(&parser, key, "ignore_only_show_in", &winbar_settings->ignore_only_show_in);
+                parse_bool(&parser, key, "meter_animations", &winbar_settings->meter_animations);
             }
         }
     }
