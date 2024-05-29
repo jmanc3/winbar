@@ -1019,6 +1019,8 @@ fill_root(AppClient *client, Container *root) {
                          &winbar_settings->custom_desktops_directory_exclusive, winbar_behaviour_root, client);
     bool_checkbox("Ignore 'Only Show In' instruction in desktop files", &winbar_settings->ignore_only_show_in, winbar_behaviour_root, client);
     bool_checkbox("Meter animations in volume menu", &winbar_settings->meter_animations, winbar_behaviour_root, client);
+    bool_checkbox("Use default super icon", &winbar_settings->super_icon_default, winbar_behaviour_root, client);
+    
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     other_root->exists = false;
@@ -1258,6 +1260,9 @@ void save_settings_file() {
     out_file << "meter_animations=" << (winbar_settings->meter_animations ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "super_icon_default=" << (winbar_settings->super_icon_default ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     // Thumbnails
     out_file << "thumbnails=" << (winbar_settings->thumbnails ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -1444,6 +1449,7 @@ void read_settings_file() {
                            &winbar_settings->custom_desktops_directory_exclusive);
                 parse_bool(&parser, key, "ignore_only_show_in", &winbar_settings->ignore_only_show_in);
                 parse_bool(&parser, key, "meter_animations", &winbar_settings->meter_animations);
+                parse_bool(&parser, key, "super_icon_default", &winbar_settings->super_icon_default);
             }
         }
     }

@@ -220,15 +220,54 @@ paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *con
     cairo_fill(cr);
 }
 
+struct SuperButton : IconButton {
+    bool was_success = false;
+    bool already_attempted = false;
+    ArgbColor current_dye = ArgbColor(0, 0, 0, 0);
+};
+
 static void
 paint_super(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    IconButton *data = (IconButton *) container->user_data;
+    SuperButton *data = (SuperButton *) container->user_data;
     
     paint_hoverable_button_background(client, cr, container);
+    
+    if (winbar_settings->super_icon_default) {
+        float icon_size = 24 * config->dpi;
+        if (!data->already_attempted) {
+            data->already_attempted = true;
+            data->surface = accelerated_surface(app, client, icon_size, icon_size);
+            data->was_success = paint_surface_with_image(data->surface, as_resource_path("applications.png"), icon_size,nullptr);
+        }
+        if (data->surface) {
+            if (container->state.mouse_pressing) {
+                if (data->current_dye != config->color_taskbar_windows_button_pressed_icon) {
+                    data->current_dye = config->color_taskbar_windows_button_pressed_icon;
+                    dye_surface(data->surface, data->current_dye);
+                }
+            } else if (container->state.mouse_hovering) {
+                if (data->current_dye != config->color_taskbar_windows_button_hovered_icon) {
+                    data->current_dye = config->color_taskbar_windows_button_hovered_icon;
+                    dye_surface(data->surface, data->current_dye);
+                }
+            } else {
+                if (data->current_dye != config->color_taskbar_windows_button_default_icon) {
+                    data->current_dye = config->color_taskbar_windows_button_default_icon;
+                    dye_surface(data->surface, data->current_dye);
+                }
+            }
+            
+            cairo_set_source_surface(cr, data->surface,container->real_bounds.x + container->real_bounds.w / 2  - icon_size / 2,
+                          container->real_bounds.y + container->real_bounds.h / 2  - icon_size / 2);
+            cairo_paint(cr);
+        }
+        
+        if (data->was_success)
+            return;
+    }
     
     PangoLayout *layout =
             get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -2860,7 +2899,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     Container *button_minimize = root->child(5 * config->dpi, FILL_SPACE);
     
     button_super->when_paint = paint_super;
-    auto button_super_data = new IconButton;
+    auto button_super_data = new SuperButton;
     button_super_data->invalidate_button_press_if_client_with_this_name_is_open = "app_menu";
     button_super->user_data = button_super_data;
     button_super->when_mouse_down = invalidate_icon_button_press_if_window_open;

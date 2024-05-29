@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-static int acceptable_config_version = 8;
+static int acceptable_config_version = 9;
 
 std::string first_message;
 std::string second_message;
@@ -226,7 +226,7 @@ void check_config_version() {
             second_message += "\".";
             third_message = "To fix this, pull the latest https://github.com/jmanc3/winbar, compile, and install it.";
         } else if (config->config_version < acceptable_config_version) {
-            second_message = "The config version is \"";
+            second_message = "Your config version is \"";
             second_message += std::to_string(config->config_version);
             second_message += "\", which is too old compared to Winbar's acceptable config version \"";
             second_message += std::to_string(acceptable_config_version);

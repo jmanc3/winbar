@@ -36,6 +36,7 @@ struct WinbarSettings {
     bool custom_desktops_directory_exclusive = false;
     bool ignore_only_show_in = true;
     bool meter_animations = true;
+    bool super_icon_default = true;
 };
 
 extern WinbarSettings *winbar_settings;
