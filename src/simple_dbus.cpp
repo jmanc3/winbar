@@ -234,6 +234,11 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
     
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_signal(message, "org.freedesktop.DBus.Properties", "PropertiesChanged")) {
+        auto str = dbus_message_get_path(message);
+        if (std::string(str) == "/org/freedesktop/UPower/devices/DisplayDevice") {
+            battery_display_device_state_changed();
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
         for (auto *interface: bluetooth_interfaces) {
             if (dbus_message_has_path(message, interface->object_path.c_str())) {
                 DBusMessageIter args;
@@ -392,6 +397,15 @@ static void dbus_reply_to_list_names_request(DBusPendingCall *call, void *data) 
     if (dbus_error_is_set(&error)) {
         fprintf(stderr, "Couldn't watch signal NameLost because: %s\n%s\n",
                 error.name, error.message);
+    }
+    if (dbus_connection == dbus_connection_system) {
+        dbus_bus_add_match(dbus_connection_system,
+                           ("type='signal',"
+                            "sender='org.freedesktop.UPower',"
+                            "interface='org.freedesktop.DBus.Properties',"
+                            "member='PropertiesChanged',"
+                            "path='" + std::string("/org/freedesktop/UPower/devices/DisplayDevice") + "'").c_str(),
+                           &error);
     }
     if (!dbus_connection_add_filter(dbus_connection, signal_handler, nullptr, nullptr)) {
         fprintf(stderr, "Not enough memory to add connection filter\n");

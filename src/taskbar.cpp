@@ -4770,3 +4770,11 @@ std::string find_icon_string_from_window_properties(xcb_window_t window) {
 }
 
 TextAreaSettings::TextAreaSettings(float scale) : ScrollPaneSettings(scale) {}
+
+void battery_display_device_state_changed() {
+    auto client = client_by_name(app, "taskbar");
+    auto battery = container_by_name("battery", client->root);
+    if (battery && battery->user_data) {
+        update_battery_status_timeout(app, client, nullptr, battery->user_data);
+    }
+}

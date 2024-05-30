@@ -181,4 +181,6 @@ void update_time(App *app, AppClient *client, Timeout *timeout, void *data);
 
 void clear_thumbnails();
 
+void battery_display_device_state_changed();
+
 #endif// TASKBAR_H
