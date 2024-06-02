@@ -912,6 +912,9 @@ void bool_checkbox_indent(const std::string &text, int indent, bool *boolean, Co
         if (ours->boolean == &winbar_settings->super_icon_default) {
             request_refresh(app, client_by_name(app, "taskbar"));
         }
+        if (ours->boolean == &winbar_settings->label_uniform_size) {
+            request_refresh(app, client_by_name(app, "taskbar"));
+        }
         if (ours->boolean == &winbar_settings->labels) {
             label_change(client_by_name(app, "taskbar"));
         }
@@ -1027,6 +1030,8 @@ fill_root(AppClient *client, Container *root) {
     bool_checkbox("Meter animations in volume menu", &winbar_settings->meter_animations, winbar_behaviour_root, client);
     bool_checkbox("Use default super icon", &winbar_settings->super_icon_default, winbar_behaviour_root, client);
     bool_checkbox("Labels", &winbar_settings->labels, winbar_behaviour_root, client);
+    bool_checkbox_indent("Uniform pinned icon width", 16 * config->dpi,
+                         &winbar_settings->label_uniform_size, winbar_behaviour_root, client);
     
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
@@ -1273,6 +1278,9 @@ void save_settings_file() {
     out_file << "labels=" << (winbar_settings->labels ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "label_uniform_size=" << (winbar_settings->label_uniform_size ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     // Thumbnails
     out_file << "thumbnails=" << (winbar_settings->thumbnails ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -1461,6 +1469,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "meter_animations", &winbar_settings->meter_animations);
                 parse_bool(&parser, key, "super_icon_default", &winbar_settings->super_icon_default);
                 parse_bool(&parser, key, "labels", &winbar_settings->labels);
+                parse_bool(&parser, key, "label_uniform_size", &winbar_settings->label_uniform_size);
             }
         }
     }

@@ -94,7 +94,7 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
         } else {
             // start timeout
             if (data->possibly_open_timeout == nullptr) {
-                data->possibly_open_timeout = app_timeout_create(app, nullptr, 130, on_open_timeout, container,
+                data->possibly_open_timeout = app_timeout_create(app, nullptr, 130 + winbar_settings->labels ? 500 : 0, on_open_timeout, container,
                                                                  const_cast<char *>(__PRETTY_FUNCTION__));
             }
         }
