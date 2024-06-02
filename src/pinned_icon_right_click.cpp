@@ -223,8 +223,12 @@ static void
 option_clicked(AppClient *client, cairo_t *cr, Container *container) {
     // If the pinned icon with the initial starting class return
     bool found = false;
+    AppClient *taskbar = nullptr;
+    Container *icons = nullptr;
     if (auto c = client_by_name(app, "taskbar")) {
-        if (auto icons = container_by_name("icons", c->root)) {
+        if (auto ico = container_by_name("icons", c->root)) {
+            taskbar = c;
+            icons = ico;
             for (auto icon: icons->children) {
                 auto data = static_cast<LaunchableButton *>(icon->user_data);
                 if (data->class_name == pinned_icon_class) {
@@ -251,7 +255,12 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
             break;
         }
         case PIN: {
-            pinned_icon_data->pinned = true;
+            for (auto icon : icons->children) {
+                auto data = (LaunchableButton *) icon->user_data;
+                if (data->class_name == pinned_icon_data->class_name) {
+                    data->pinned = true;
+                }
+            }
             // Remove icon cache if exists
             const char *home = getenv("HOME");
             std::string itemPath(home);
@@ -300,7 +309,11 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
             break;
         }
         case UNPIN: {
-            pinned_icon_data->pinned = false;
+            for (auto icon: icons->children) {
+                auto icon_data = (LaunchableButton *) icon->user_data;
+                if (icon_data->class_name == pinned_icon_data->class_name)
+                    icon_data->pinned = false;
+            }
             const char *home = getenv("HOME");
             std::string itemPath(home);
             itemPath += "/.config/winbar/cached_icon/" + pinned_icon_data->class_name + ".png";

@@ -31,7 +31,6 @@
 #include "bluetooth_menu.h"
 #include "plugins_menu.h"
 #include "chatgpt.h"
-#include "xbacklight.h"
 #include "settings_menu.h"
 
 #include <algorithm>
@@ -539,6 +538,73 @@ paint_double_bg(cairo_t *cr, Bounds bounds, ArgbColor bg_l_c, ArgbColor bg_m_c, 
     paint_double_bg_with_opacity(cr, bounds, bg_l_c, bg_m_c, bg_r_c, 1, windows_count);
 }
 
+static int get_label_width(AppClient *client, Container *container) {
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
+    std::string title;
+    if (!data->windows_data_list.empty())
+        title = data->windows_data_list[0]->title;
+    if (winbar_settings->labels && !data->windows_data_list.empty() && !title.empty()) {
+        PangoLayout *text_layout =
+                get_cached_pango_font(client->cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        
+        auto pad = 8.0f * config->dpi;
+        pango_layout_set_text(text_layout, title.c_str(), -1);
+        pango_layout_set_wrap(text_layout, (PangoWrapMode) -1);
+        pango_cairo_update_layout(client->cr, text_layout);
+        
+        PangoRectangle ink;
+        PangoRectangle logical;
+        pango_layout_get_extents(text_layout, &ink, &logical);
+        
+        auto label_width = logical.width / PANGO_SCALE;
+        if (label_width > client->bounds->w / 12) {
+            label_width = client->bounds->w / 12;
+        }
+        return client->bounds->h + 4 * config->dpi + pad * 2 + label_width;
+    } else {
+        return client->bounds->h + 4 * config->dpi;
+    }
+}
+
+static void update_wanted_width(AppClient *client, Container *container) {
+    request_refresh(app, client);
+}
+
+static void
+paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
+    
+    if (!data->windows_data_list.empty() && winbar_settings->labels) {
+        PangoLayout *text_layout =
+                get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        
+        auto pad = 8.0f * config->dpi;
+        double xpos = 0;
+        double w = 0;
+        if (data->surface) {
+            w = cairo_image_surface_get_width(data->surface);
+            pad = container->real_bounds.h - w;
+        }
+        pango_layout_set_text(text_layout, data->windows_data_list[0]->title.c_str(), -1);
+        pango_layout_set_width(text_layout, (container->real_bounds.w - 43 * config->dpi) * PANGO_SCALE);
+        pango_layout_set_alignment(text_layout, PangoAlignment::PANGO_ALIGN_LEFT);
+        defer(pango_layout_set_width(text_layout, -1));
+        pango_layout_set_ellipsize(text_layout, PangoEllipsizeMode::PANGO_ELLIPSIZE_END);
+        pango_cairo_update_layout(cr, text_layout);
+        
+        PangoRectangle ink;
+        PangoRectangle logical;
+        pango_layout_get_extents(text_layout, &ink, &logical);
+        
+        set_argb(cr, config->color_taskbar_date_time_text);
+        cairo_move_to(cr, container->real_bounds.x + 40 * config->dpi,
+                      container->real_bounds.y + container->real_bounds.h / 2 - (logical.height / PANGO_SCALE) / 2);
+        
+        pango_cairo_show_layout(cr, text_layout);
+        pango_layout_set_width(text_layout, -1);
+    }
+}
+
 static void
 paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
     LaunchableButton *data = (LaunchableButton *) container->user_data;
@@ -546,7 +612,8 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
     if (data->surface) {
         cairo_save(cr);
         double scale_afterwards = .81;
-        double w = cairo_image_surface_get_width(data->surface);
+        int surface_width = cairo_image_surface_get_width(data->surface);
+        double w = surface_width;
         
         auto scale_amount = 1 - (data->animation_zoom_amount * (1 - scale_afterwards));
         if (data->animation_zoom_locked) {
@@ -570,6 +637,13 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
                       cairo_image_surface_get_width(data->surface) / 2;
         double ypos = container->real_bounds.y + container->real_bounds.h / 2 -
                       cairo_image_surface_get_width(data->surface) / 2;
+        if (winbar_settings->labels && !data->windows_data_list.empty()) {
+            auto title = data->windows_data_list[0]->title;
+            if (!title.empty()) {
+                xpos = container->real_bounds.x + 8 * config->dpi;
+            }
+        }
+        
         xpos += (w - current_w) / 2;
         ypos += (w - current_w) / 2;
     
@@ -862,17 +936,6 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     auto *data = (LaunchableButton *) container->user_data;
-    if (data->animating) {
-        // TODO: use client->delta which is in long_ms (we have to convert)
-        data->spring.update((float) client->delta / 1000.0f);
-        container->real_bounds.x = data->spring.position;
-        float abs_vel = std::abs(data->spring.velocity);
-        if (abs_vel < .05) {
-            data->animating = false;
-            client_unregister_animation(app, client);
-        }
-    }
-    
     // This is the real underlying color
     // is_light_theme determines if generated secondary colors should go up or down in brightness
     bool is_light_theme = false;
@@ -1095,9 +1158,221 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     config->color_taskbar_application_icons_background = original_color_taskbar_application_icons_background;
 }
 
+static void
+icons_align(AppClient *client_entity, Container *icon_container, bool all_except_dragged);
+
+static int
+calc_largest(Container *icons) {
+    int largest = 0;
+    for (auto c: icons->children)
+        if (c->real_bounds.w > largest)
+            largest = c->real_bounds.w;
+    return largest;
+}
+
+static int
+size_icons(AppClient *client, cairo_t *cr, Container *icons) {
+    int total_width = 0;
+    for (auto c: icons->children) {
+        auto w = get_label_width(client, c);
+        c->real_bounds.w = w;
+        c->real_bounds.h = client->bounds->h;
+        c->real_bounds.y = 0;
+    }
+    
+    for (auto c: icons->children) {
+        total_width += c->real_bounds.w;
+    }
+    
+    if (total_width > icons->real_bounds.w) {
+        auto overflow = total_width - icons->real_bounds.w;
+        
+        for (int i = 0; i < overflow; i++) {
+            int largest = calc_largest(icons);
+            
+            for (auto c: icons->children) {
+                if ((int) c->real_bounds.w == largest) {
+                    c->real_bounds.w -= 1;
+                    goto out;
+                }
+            }
+            out:
+        }
+        total_width = icons->real_bounds.w;
+    }
+    
+    return total_width;
+}
+
+static void
+swap_icon(Container *icons, Container *dragging, Container *other, bool before) {
+    // TODO: it's not a swap it's an insert after, or before
+    for (int i = 0; i < icons->children.size(); i++) {
+        if (icons->children[i] == dragging) {
+            icons->children.erase(icons->children.begin() + i);
+            break;
+        }
+    }
+    for (int i = 0; i < icons->children.size(); i++) {
+        if (icons->children[i] == other) {
+            if (before) {
+                icons->children.insert(icons->children.begin() + i, dragging);
+            } else {
+                icons->children.insert(icons->children.begin() + i + 1, dragging);
+            }
+            break;
+        }
+    }
+}
+
+int
+would_be_x(Container *icons, Container *target, int pos_x) {
+    for (int i = 0; i < icons->children.size(); i++) {
+        if (icons->children[i] == target) {
+            return pos_x;
+        }
+        pos_x += icons->children[i]->real_bounds.w;
+    }
+    return pos_x;
+}
+
+static void
+position_icons(AppClient *client, cairo_t *cr, Container *icons) {
+    auto total_width = size_icons(client, cr, icons);
+    
+    auto align = winbar_settings->icons_alignment;
+    int off = icons->real_bounds.x;
+    if (align == container_alignment::ALIGN_RIGHT) {
+        off += icons->real_bounds.w - total_width;
+    } else if (align == container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY) {
+        auto mid_point = client->bounds->w / 2;
+        auto left_x = mid_point - (total_width / 2);
+        auto right_x = left_x + total_width;
+        auto min = icons->real_bounds.x;
+        auto max = icons->real_bounds.x + icons->real_bounds.w;
+        if (right_x > max) {
+            left_x -= right_x - max;
+            right_x = left_x + total_width;
+        }
+        if (left_x < min) {
+            left_x += min - left_x;
+            right_x = left_x + total_width;
+        }
+        off = left_x;
+    } else if (align == container_alignment::ALIGN_CENTER_HORIZONTALLY) {
+        off += (icons->real_bounds.w - total_width) / 2;
+    }
+    for (auto c: icons->children) {
+        auto *data = (LaunchableButton *) c->user_data;
+        if (data->natural_position_x == INT_MAX) {
+            data->old_natural_position_x = off;
+        } else {
+            data->old_natural_position_x = data->natural_position_x;
+        }
+        data->natural_position_x = off;
+        off += c->real_bounds.w;
+    }
+    
+    Container *dragging = nullptr;
+    int drag_index = 0;
+    
+    // Position dragged icon based on current mouse position, and prevent it from leaving icons container
+    for (auto c: icons->children) {
+        auto *data = (LaunchableButton *) c->user_data;
+        if (c->state.mouse_dragging) {
+            dragging = c;
+            auto x = client->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
+            c->real_bounds.x = x;
+            if (c->real_bounds.x < icons->real_bounds.x) {
+                c->real_bounds.x = icons->real_bounds.x;
+            }
+            if (c->real_bounds.x + c->real_bounds.w > icons->real_bounds.x + icons->real_bounds.w) {
+                c->real_bounds.x = icons->real_bounds.x + icons->real_bounds.w - c->real_bounds.w;
+            }
+            break;
+        }
+        drag_index++;
+    }
+    
+    // Calculate 'slot' the icon is closest to and swap into it
+    if (dragging) {
+        int distance = 100000;
+        int index = 0;
+        int w_b = 0;
+        auto natural_x = ((LaunchableButton *) icons->children[0]->user_data)->natural_position_x;
+        icons->children.erase(icons->children.begin() + drag_index);
+        for (int i = 0; i < icons->children.size() + 1; i++) {
+            icons->children.insert(icons->children.begin() + i, dragging);
+            auto would_be = would_be_x(icons, dragging, natural_x);
+            auto dist = std::abs(dragging->real_bounds.x - would_be);
+            if (dist < distance) {
+                distance = dist;
+                index = i;
+                w_b = would_be;
+            }
+            icons->children.erase(icons->children.begin() + i);
+        }
+        icons->children.insert(icons->children.begin() + index, dragging);
+        auto *data = (LaunchableButton *) dragging->user_data;
+        data->old_natural_position_x = dragging->real_bounds.x;
+        data->natural_position_x = dragging->real_bounds.x;
+    }
+    
+    // Queue spring animations
+    static auto start_time = get_current_time_in_ms();
+    for (auto c: icons->children) {
+        if (c->state.mouse_dragging) continue;
+        auto *data = (LaunchableButton *) c->user_data;
+        bool needs_animation = c->real_bounds.x != data->natural_position_x;
+        
+        if (get_current_time_in_ms() - start_time < 1000) {
+            needs_animation = false;
+            c->real_bounds.x = data->natural_position_x;
+        }
+        
+        if (needs_animation) {
+            if (data->animating) {
+                if (data->old_natural_position_x != data->natural_position_x) {
+                    data->spring.target = data->natural_position_x;
+                }
+            } else {
+                data->animating = true;
+                data->spring = SpringAnimation(data->old_natural_position_x, data->natural_position_x);
+            }
+        }
+        
+        if (data->animating) {
+            data->spring.update((float) client->delta / 1000.0f);
+            c->real_bounds.x = data->spring.position;
+            float abs_vel = std::abs(data->spring.velocity);
+            if (abs_vel < .05) {
+                data->animating = false;
+                c->real_bounds.x = data->spring.target;
+            }
+        }
+    }
+    
+    // Start animating, if not already
+    static bool running = false;
+    for (auto c: icons->children) {
+        auto *data = (LaunchableButton *) c->user_data;
+        if (data->animating && !running) {
+            running = true;
+            client_register_animation(app, client);
+            return;
+        }
+    }
+    if (running) {
+        client_unregister_animation(app, client);
+        running = false;
+    }
+}
+
 // TODO order is not correct
 static void
 paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
+    position_icons(client_entity, cr, container);
+    
     std::vector<int> render_order;
     for (int i = 0; i < container->children.size(); i++) {
         render_order.push_back(i);
@@ -1123,11 +1398,13 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
     for (auto index: render_order) {
         double time = 250;
         auto *data = (LaunchableButton *) container->children[index]->user_data;
+        auto con = container->children[index];
         auto delta = (double) (current - data->creation_time);
         if (delta < time) {
             cairo_push_group(cr);
         }
-        paint_icon_surface(client_entity, cr, container->children[index]);
+        paint_icon_surface(client_entity, cr, con);
+        paint_icon_label(client_entity, cr, con);
         if (delta < time) {
             cairo_pop_group_to_source(cr);
             cairo_paint_with_alpha(cr, delta / time);
@@ -1313,52 +1590,7 @@ finished_icon_animation() {
 
 static void
 icons_align(AppClient *client_entity, Container *icon_container, bool all_except_dragged) {
-    update_pinned_items_file(false);
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    auto *icon_container_copy = new Container(*icon_container);
-    icon_container_copy->should_layout_children = true;
-    layout(client_entity, client_entity->cr, icon_container_copy, icon_container_copy->real_bounds);
-    
-    for (int i = 0; i < icon_container->children.size(); ++i) {
-        auto *real_icon = icon_container->children[i];
-        auto *real_data = static_cast<LaunchableButton *>(real_icon->user_data);
-        auto *laid_icon = icon_container_copy->children[i];
-        
-        // the real icon is already in the correct position
-        if (real_icon->real_bounds.x == laid_icon->real_bounds.x) {
-            continue;
-        }
-        
-        // we don't want to align the real_icon if its the one the user is dragging
-        if (all_except_dragged && real_icon->state.mouse_dragging) {
-            if (real_data->animating)
-                client_unregister_animation(app, client_entity);
-            real_data->animating = false;
-            continue;
-        }
-        
-        if (real_data->animating) {
-            if (real_data->target != laid_icon->real_bounds.x) {
-                real_data->spring = SpringAnimation(real_icon->real_bounds.x,
-                                                    laid_icon->real_bounds.x);
-//                real_data->spring.stiffness = 5.0f;
-//                real_data->spring.stiffness *= 1.25;
-//                real_data->spring.damping *= 1.14;
-//                real_data->spring.velocity = abs;
-            }
-        } else {
-            real_data->animating = true;
-            real_data->spring = SpringAnimation(real_icon->real_bounds.x,
-                                                laid_icon->real_bounds.x);
-            client_register_animation(app, client_entity);
-//            real_data->spring.stiffness = 5.0f;
-//            real_data->spring.stiffness *= 1.25;
-//            real_data->spring.damping *= 1.14;
-//            real_data->spring.velocity = abs;
-        }
-    }
+    request_refresh(app, client_entity);
 }
 
 static void
@@ -1391,63 +1623,6 @@ pinned_icon_drag(AppClient *client_entity, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    auto *data = static_cast<LaunchableButton *>(container->user_data);
-    container->real_bounds.x =
-            client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
-    container->real_bounds.x =
-            client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
-    container->real_bounds.x = std::max(container->parent->real_bounds.x, container->real_bounds.x);
-    container->real_bounds.x =
-            std::min(container->parent->real_bounds.x + container->parent->real_bounds.w -
-                     container->real_bounds.w,
-                     container->real_bounds.x);
-    
-    possibly_close(app, container, data);
-    
-    auto *copy_parent = new Container(*container->parent);
-    copy_parent->should_layout_children = true;
-    layout(client_entity, cr, copy_parent, copy_parent->real_bounds);
-    
-    std::vector<int> centers;
-    for (auto child: copy_parent->children) {
-        centers.push_back(child->real_bounds.x + child->real_bounds.w / 2);
-    }
-    delete copy_parent;
-    
-    int our_center = container->real_bounds.x + container->real_bounds.w / 2;
-    
-    int new_index = 0;
-    int center_diff = 100000;
-    for (int i = 0; i < centers.size(); i++) {
-        int diff = std::abs(centers[i] - our_center);
-        if (diff < center_diff) {
-            new_index = i;
-            center_diff = diff;
-        }
-    }
-    
-    for (int x = 0; x < container->parent->children.size(); x++) {
-        if (container->parent->children.at(x) == container) {
-            if (x == new_index) {
-                return;
-            }
-            container->parent->children.erase(container->parent->children.begin() + x);
-            break;
-        }
-    }
-    container->parent->children.insert(container->parent->children.begin() + new_index, container);
-    
-    container->real_bounds.x =
-            client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
-    container->real_bounds.x =
-            client_entity->mouse_current_x + data->initial_mouse_click_before_drag_offset_x;
-    container->real_bounds.x = std::max(container->parent->real_bounds.x, container->real_bounds.x);
-    container->real_bounds.x =
-            std::min(container->parent->real_bounds.x + container->parent->real_bounds.w -
-                     container->real_bounds.w,
-                     container->real_bounds.x);
-    
-    icons_align(client_entity, container->parent, true);
 }
 
 static void
@@ -2948,6 +3123,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     container_icons->name = "icons";
     container_icons->when_paint = paint_all_icons;
     container_icons->when_clicked = clicked_icons_background;
+    container_icons->should_layout_children = false;
     container_icons->distribute_overflow_to_children = true;
     
     button_systray->when_paint = paint_systray;
@@ -3111,6 +3287,7 @@ update_window_title_name(xcb_window_t window) {
                 }
             }
         }
+        request_refresh(app, client);
     }
 }
 
@@ -3805,9 +3982,18 @@ void add_window(App *app, xcb_window_t window) {
         window_class_name = c3ic_fix_wm_class(window_class_name);
     }
     
+    auto pinned = false;
     for (auto icon: icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
         if (data->class_name == window_class_name) {
+            if (winbar_settings->labels) {
+                if (data->windows_data_list.empty()) {
+                    goto out;
+                }
+                pinned = true;
+                continue;
+            }
+            out:
             if (!is_ours) {
                 const uint32_t values[] = {XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
                 xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
@@ -3875,8 +4061,17 @@ void add_window(App *app, xcb_window_t window) {
     data->windows_data_list.push_back(new WindowsData(app, window));
     data->class_name = window_class_name;
     data->icon_name = window_class_name;
+    data->pinned = pinned;
     a->user_data = data;
-    update_window_title_name(window);
+    if (winbar_settings->labels) {
+        for (auto c: icons->children) {
+            if (c == a) continue;
+            auto *d = (LaunchableButton *) c->user_data;
+            if (d->class_name == window_class_name) {
+                swap_icon(icons, a, c, false);
+            }
+        }
+    }
     
     if (pid != -1) {
         data->has_launchable_info = true;
@@ -4001,33 +4196,10 @@ void add_window(App *app, xcb_window_t window) {
         }
     }
     
+    update_window_title_name(window);
     update_minimize_icon_positions();
     update_pinned_items_file(false);
-    
-    auto current = get_current_time_in_ms();
-    auto delta = current - client->creation_time;
-    
-    if (delta > 5000) {
-        std::vector<double> ax;
-        for (auto c: icons->children)
-            ax.push_back(c->real_bounds.x);
-        auto start = icons->should_layout_children;
-        icons->should_layout_children = true;
-        client_layout(app, client);
-        for (int i = 0; i < ax.size() - 1; i++)
-            icons->children[i]->real_bounds.x = ax[i];
-        icons->should_layout_children = start;
-        icons_align(client, icons, false);
-        client_register_animation(app, client);
-    } else {
-        auto start = icons->parent->should_layout_children;
-        icons->should_layout_children = true;
-        data->creation_time -= 5000;
-        client_layout(app, client);
-        request_refresh(app, client);
-        icons->should_layout_children = start;
-    }
-}
+ }
 
 void remove_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
@@ -4101,11 +4273,20 @@ void remove_window(App *app, xcb_window_t window) {
                 delete data->windows_data_list[i];
                 data->windows_data_list.erase(data->windows_data_list.begin() + i);
                 
-                if (data->windows_data_list.empty() && !data->pinned) {
-                    if (active_container == container)
-                        active_container = nullptr;
-                    icons->children.erase(icons->children.begin() + j);
-                    delete container;
+                if (data->windows_data_list.empty()) {
+                    int count = 0;
+                    for (auto icon: icons->children) {
+                        auto icon_data = (LaunchableButton *) icon->user_data;
+                        if (icon_data->class_name == data->class_name)
+                            count++;
+                    }
+                    
+                    if (!data->pinned || count > 1) {
+                        if (active_container == container)
+                            active_container = nullptr;
+                        icons->children.erase(icons->children.begin() + j);
+                        delete container;
+                    }
                 }
                 break;
             }
@@ -4120,8 +4301,7 @@ void remove_window(App *app, xcb_window_t window) {
     //        }
     //    }
     
-    icons_align(entity, icons, false);
-//    request_refresh(app, entity);
+    request_refresh(app, entity);
 }
 
 void stacking_order_changed(xcb_window_t *all_windows, int windows_count) {
@@ -4250,6 +4430,7 @@ void update_pinned_items_timeout(App *app, AppClient *client, Timeout *timeout, 
     
     update_minimize_icon_positions();
     
+    std::map<std::string, bool> seen_before;
     int i = 0;
     for (auto icon: icons->children) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
@@ -4258,6 +4439,9 @@ void update_pinned_items_timeout(App *app, AppClient *client, Timeout *timeout, 
             continue;
         if (!data->pinned)
             continue;
+        if (seen_before.find(data->class_name) != seen_before.end())
+            continue;
+        seen_before[data->class_name] = true;
         
         itemsFile << "[PinnedIcon" << i++ << "]" << std::endl;
         
@@ -4422,6 +4606,7 @@ load_pinned_icons() {
         child->user_data = data;
         
         icons->children.push_back(child);
+        update_wanted_width(client_entity, child);
         
         i++;
     }
@@ -4777,4 +4962,31 @@ void battery_display_device_state_changed() {
     if (battery && battery->user_data) {
         update_battery_status_timeout(app, client, nullptr, battery->user_data);
     }
+}
+
+void label_change(AppClient *taskbar) {
+    if (!taskbar) return;
+    
+    request_refresh(app, taskbar);
+    
+    std::vector<xcb_window_t> windows;
+    auto *icons = container_by_name("icons", taskbar->root);
+    if (!icons) return;
+    
+    for (auto icon: icons->children) {
+        auto data = (LaunchableButton *) icon->user_data;
+        for (const auto &item: data->windows_data_list) {
+            windows.push_back(item->id);
+        }
+    }
+    
+    for (auto w: windows) {
+        remove_window(app, w);
+    }
+    
+    for (auto w: windows) {
+        add_window(app, w);
+    }
+    
+    icons_align(taskbar, icons, false);
 }

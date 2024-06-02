@@ -909,6 +909,12 @@ void bool_checkbox_indent(const std::string &text, int indent, bool *boolean, Co
         data->on = !data->on;
         if (ours->boolean != nullptr)
             *ours->boolean = data->on;
+        if (ours->boolean == &winbar_settings->super_icon_default) {
+            request_refresh(app, client_by_name(app, "taskbar"));
+        }
+        if (ours->boolean == &winbar_settings->labels) {
+            label_change(client_by_name(app, "taskbar"));
+        }
         save_settings_file();
     };
     full_label_container->receive_events_even_if_obstructed_by_one = true;
@@ -1020,6 +1026,7 @@ fill_root(AppClient *client, Container *root) {
     bool_checkbox("Ignore 'Only Show In' instruction in desktop files", &winbar_settings->ignore_only_show_in, winbar_behaviour_root, client);
     bool_checkbox("Meter animations in volume menu", &winbar_settings->meter_animations, winbar_behaviour_root, client);
     bool_checkbox("Use default super icon", &winbar_settings->super_icon_default, winbar_behaviour_root, client);
+    bool_checkbox("Labels", &winbar_settings->labels, winbar_behaviour_root, client);
     
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
@@ -1263,6 +1270,9 @@ void save_settings_file() {
     out_file << "super_icon_default=" << (winbar_settings->super_icon_default ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "labels=" << (winbar_settings->labels ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     // Thumbnails
     out_file << "thumbnails=" << (winbar_settings->thumbnails ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -1450,6 +1460,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "ignore_only_show_in", &winbar_settings->ignore_only_show_in);
                 parse_bool(&parser, key, "meter_animations", &winbar_settings->meter_animations);
                 parse_bool(&parser, key, "super_icon_default", &winbar_settings->super_icon_default);
+                parse_bool(&parser, key, "labels", &winbar_settings->labels);
             }
         }
     }

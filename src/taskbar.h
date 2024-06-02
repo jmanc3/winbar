@@ -112,6 +112,9 @@ public:
     int initial_mouse_click_before_drag_offset_x = 0;
     long creation_time = get_current_time_in_ms();
     
+    int old_natural_position_x = INT_MAX;
+    int natural_position_x = INT_MAX;
+    
     std::shared_ptr<bool> lifetime = std::make_shared<bool>();
     double active_amount = 0;
     double hover_amount = 0;
@@ -180,6 +183,8 @@ xcb_window_t get_active_window();
 void update_time(App *app, AppClient *client, Timeout *timeout, void *data);
 
 void clear_thumbnails();
+
+void label_change(AppClient *taskbar);
 
 void battery_display_device_state_changed();
 
