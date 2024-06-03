@@ -84,6 +84,22 @@ validate_layout(AppClient *client, PangoLayout *layout) {
 
 }
 
+// Trim leading and trailing whitespace from a string in-place
+std::string trim(std::string str) {
+    std::string copy = str;
+    // Remove leading whitespace
+    copy.erase(copy.begin(), std::find_if(copy.begin(), copy.end(), [](int ch) {
+        return !std::isspace(ch);
+    }));
+    
+    // Remove trailing whitespace
+    copy.erase(std::find_if(copy.rbegin(), copy.rend(), [](int ch) {
+        return !std::isspace(ch);
+    }).base(), copy.end());
+    
+    return copy;
+}
+
 static void
 reserve(AppClient *client, int amount) {
     xcb_ewmh_wm_strut_partial_t wm_strut = {};
@@ -542,7 +558,7 @@ static int get_label_width(AppClient *client, Container *container) {
     std::string title;
     if (!data->windows_data_list.empty())
         title = data->windows_data_list[0]->title;
-    if (winbar_settings->labels && !data->windows_data_list.empty() && !title.empty()) {
+    if (winbar_settings->labels && !data->windows_data_list.empty() && !trim(title).empty()) {
         PangoLayout *text_layout =
                 get_cached_pango_font(client->cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         
@@ -639,7 +655,7 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
                       cairo_image_surface_get_width(data->surface) / 2;
         if (winbar_settings->labels && !data->windows_data_list.empty()) {
             auto title = data->windows_data_list[0]->title;
-            if (!title.empty()) {
+            if (!trim(title).empty()) {
                 xpos = container->real_bounds.x + 8 * config->dpi;
             }
         }
