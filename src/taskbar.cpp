@@ -4296,10 +4296,11 @@ void remove_window(App *app, xcb_window_t window) {
                         if (icon_data->class_name == data->class_name)
                             count++;
                     }
-                    
+                    if (active_container == container) {
+                        client_create_animation(app, entity, &data->active_amount, data->lifetime, 0, 80, nullptr, 0);
+                        active_container = nullptr;
+                    }
                     if (!data->pinned || count > 1) {
-                        if (active_container == container)
-                            active_container = nullptr;
                         icons->children.erase(icons->children.begin() + j);
                         delete container;
                     }
