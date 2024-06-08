@@ -1820,6 +1820,11 @@ scrolled_battery(AppClient *client,
                                            came_from_touchpad);
 }
 
+struct ZoomData {
+    std::weak_ptr<bool> lifetime;
+    LaunchableButton *launchable = nullptr;
+};
+
 static void
 pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
@@ -1832,11 +1837,15 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
         if (data->windows_data_list.empty() && !data->animation_zoom_locked) {
             app_timeout_create(app, client, 4000, [](App *app, AppClient *client, Timeout *timeout, void *user_data){
-                auto data = (LaunchableButton *) user_data;
-                data->animation_zoom_locked = 0;
-                data->animation_zoom_locked_time = get_current_time_in_ms();
                 client_unregister_animation(app, client);
-            }, data, "zoom_lock");
+                auto data = (ZoomData *) user_data;
+                if (data->lifetime.lock()) {
+                    data->launchable->animation_zoom_locked = 0;
+                    data->launchable->animation_zoom_locked_time = get_current_time_in_ms();
+                }
+                delete data;
+            }, new ZoomData({container->lifetime, data}), "zoom_lock");
+            
             data->animation_zoom_locked = 1;
             client_register_animation(app, client);
             launch_command(data->command_launched_by);
