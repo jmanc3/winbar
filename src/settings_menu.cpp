@@ -1032,6 +1032,7 @@ fill_root(AppClient *client, Container *root) {
     bool_checkbox("Labels", &winbar_settings->labels, winbar_behaviour_root, client);
     bool_checkbox_indent("Uniform pinned icon width", 16 * config->dpi,
                          &winbar_settings->label_uniform_size, winbar_behaviour_root, client);
+    bool_checkbox("Icon minimize/maximize bounce animation", &winbar_settings->minimize_maximize_animation, winbar_behaviour_root, client);
     
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
@@ -1281,6 +1282,9 @@ void save_settings_file() {
     out_file << "label_uniform_size=" << (winbar_settings->label_uniform_size ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "minimize_maximize_animation=" << (winbar_settings->minimize_maximize_animation ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     // Thumbnails
     out_file << "thumbnails=" << (winbar_settings->thumbnails ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -1470,6 +1474,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "super_icon_default", &winbar_settings->super_icon_default);
                 parse_bool(&parser, key, "labels", &winbar_settings->labels);
                 parse_bool(&parser, key, "label_uniform_size", &winbar_settings->label_uniform_size);
+                parse_bool(&parser, key, "minimize_maximize_animation", &winbar_settings->minimize_maximize_animation);
             }
         }
     }

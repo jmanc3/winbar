@@ -39,6 +39,7 @@ struct WinbarSettings {
     bool labels = false;
     bool super_icon_default = true;
     bool label_uniform_size = false;
+    bool minimize_maximize_animation = true;
 };
 
 extern WinbarSettings *winbar_settings;

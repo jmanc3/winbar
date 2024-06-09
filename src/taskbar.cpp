@@ -684,6 +684,8 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         } else if (data->animation_bounce_direction == 1) {
             bounce_amount = -bounce_amount;
         }
+        if (!winbar_settings->minimize_maximize_animation)
+            bounce_amount = 0;
         double off = (((config->taskbar_height - w) - (2 * config->dpi)) / 2) * (bounce_amount);
         cairo_set_source_surface(cr, data->surface, xpos, ypos + off);
         cairo_paint(cr);
