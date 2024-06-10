@@ -346,6 +346,8 @@ struct AppClient {
     Subprocess *command(const std::string &command, void (*function)(Subprocess *), void *user_data);
     
     Subprocess *command(const std::string &command, int timeout_in_ms, void (*function)(Subprocess *), void *user_data);
+    
+    ~AppClient();
 };
 
 struct ScrollContainer;

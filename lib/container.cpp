@@ -1018,6 +1018,11 @@ AppClient::command(const std::string &command, int timeout_in_ms, void (*functio
     return command_with_client(this, command, timeout_in_ms, function, user_data);
 }
 
+AppClient::~AppClient() {
+    this->app->previously_closed_client = name;
+    this->app->previously_closed_client_time = get_current_time_in_ms();
+}
+
 ScrollPaneSettings::ScrollPaneSettings(float scale) {
     this->right_width = this->right_width * scale;
     this->bottom_height = this->bottom_height * scale;

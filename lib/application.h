@@ -138,6 +138,9 @@ struct App {
     
     xcb_visualtype_t *root_visualtype = nullptr;
     
+    std::string previously_closed_client;
+    long previously_closed_client_time = 0;
+    
     int screen_number = 0;
     
     xcb_screen_t *screen = nullptr;

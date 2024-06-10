@@ -2908,14 +2908,14 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
 static void invalidate_icon_button_press_if_window_open(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (IconButton *) container->user_data;
     
-    if (get_current_time_in_ms() - data->timestamp > 100) {
-        if (auto c = client_by_name(app, data->invalidate_button_press_if_client_with_this_name_is_open)) {
+    if (data->invalidate_button_press_if_client_with_this_name_is_open == app->previously_closed_client && !app->previously_closed_client.empty()) {
+        auto v = get_current_time_in_ms() - app->previously_closed_client_time;
+        if (v < 150) {
             data->invalid_button_down = true;
-        } else {
-            data->invalid_button_down = false;
+            return;
         }
-        data->timestamp = get_current_time_in_ms();
     }
+    data->invalid_button_down = false;
 }
 
 static void
