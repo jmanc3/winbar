@@ -45,13 +45,7 @@ git clone https://github.com/jmanc3/winbar
 cd winbar
 ```
 
-* Put the resources and config where they are needed or you'll have missing icons
-
-```bash
-unzip winbar.zip -d ~/.config
-```
-
-* Finally once you've done everything above, run the install script.
+* Run the install script.
 
 ```bash
 ./install.sh
@@ -62,9 +56,7 @@ distribution to get that library.
 
 ## Changes you might want to make
 
-* The configuration file is located at $HOME/.config/winbar/winbar.cfg
-
-* You can change the DPI through the "dpi" variable in the configuration file.
+* Not every setting from the legacy winbar.cfg has been ported to the new system yet (although eventually they will be), so, if you want to make those changes meanwhile, copy '/etc/winbar.cfg' into '$HOME/.config/winbar/winbar.cfg', and make the modifications you'd like.
 
 ## Recommended Setup
 

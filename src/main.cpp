@@ -27,6 +27,8 @@ void check_config_version();
 
 void load_in_fonts();
 
+bool copy_resources_from_system_to_user();
+
 int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--create-cache") == 0) {
@@ -43,6 +45,11 @@ int main(int argc, char* argv[]) {
     
     if (app == nullptr) {
         printf("Couldn't start application\n");
+        return -1;
+    }
+    
+    if (!copy_resources_from_system_to_user()) {
+        printf("Exiting. Couldn't copy winbar resources from system into $HOME/.config\n");
         return -1;
     }
     
@@ -204,8 +211,8 @@ void check_config_version() {
         client->root->when_paint = paint_wrong_version;
     
         first_message = "Couldn't start WinBar";
-        char *home = getenv("HOME");
-        std::string config_directory(home);
+        char *string = getenv("HOME");
+        std::string config_directory(string);
         config_directory += "/.config/winbar/winbar.cfg";
     
         if (!config->found_config) {
@@ -245,6 +252,7 @@ void check_config_version() {
 }
 
 #include <fontconfig/fontconfig.h>
+#include <filesystem>
 
 void load_in_fonts() {
     char *home = getenv("HOME");
@@ -256,4 +264,53 @@ void load_in_fonts() {
     const FcChar8 *file = (const FcChar8 *) font_directory.c_str();
     FcBool fontAddStatus = FcConfigAppFontAddDir(now, file);
     FcConfigBuildFonts(now);
+}
+
+bool copy_resources_from_system_to_user() {
+    const char *home = getenv("HOME");
+    std::string itemPath(home);
+    itemPath += "/.config/";
+    if (mkdir(itemPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
+        if (errno != EEXIST) {
+            printf("Couldn't mkdir %s\n", itemPath.c_str());
+            return false;
+        }
+    }
+    itemPath += "/winbar/";
+    if (mkdir(itemPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
+        if (errno != EEXIST) {
+            printf("Couldn't mkdir %s\n", itemPath.c_str());
+            return false;
+        }
+    }
+    const auto copyOptions = std::filesystem::copy_options::overwrite_existing
+                             | std::filesystem::copy_options::recursive;
+    try {
+        std::filesystem::copy("/usr/share/winbar/fonts", itemPath + "fonts", copyOptions);
+    } catch (...) {
+        return false;
+    }
+    try {
+        std::filesystem::copy("/usr/share/winbar/resources", itemPath + "resources", copyOptions);
+    } catch (...) {
+        return false;
+    }
+    try {
+        std::filesystem::copy("/usr/share/winbar/plugins", itemPath + "plugins", copyOptions);
+    } catch (...) {
+        return false;
+    }
+    try {
+        std::filesystem::copy("/usr/share/winbar/tofix.csv", itemPath + "tofix.csv", copyOptions);
+    } catch (...) {
+        return false;
+    }
+    try {
+        std::filesystem::copy("/usr/share/winbar/items_custom.ini", itemPath + "items_custom.ini", copyOptions);
+    } catch (...) {
+        return false;
+    }
+    
+    
+    return true;
 }

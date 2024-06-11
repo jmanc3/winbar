@@ -385,13 +385,16 @@ void config_load() {
 }
 
 bool config_parse(libconfig::Config &cfg) {
-    char *home = getenv("HOME");
-    
-    std::string config_directory(home);
+    char *string = getenv("HOME");
+    std::string config_directory(string);
     config_directory += "/.config/winbar";
     mkdir(config_directory.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     
     std::string config_file(config_directory + "/winbar.cfg");
+    struct stat local_config_stat{};
+    if (stat(config_file.c_str(), &local_config_stat) != 0) { // exists
+        config_file = "/etc/winbar.cfg";
+    }
     
     try {
         cfg.readFile(config_file.c_str());

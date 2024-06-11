@@ -1035,15 +1035,19 @@ void make_plugins(App *app, AppClient *client, Container *root) {
     plugins_path += "/.config/winbar/plugins/";
     
     // use c++ filesystem to recurse through the plugins directory and find executables with extension .plugin
-    for (const auto &entry: std::filesystem::recursive_directory_iterator(plugins_path)) {
-        if (entry.is_regular_file()) {
-            std::string path = entry.path();
-            if (path.size() > 7 && path.substr(path.size() - 7) == ".plugin") {
-                // check if file is executable
-                if (access(path.c_str(), X_OK) != -1) {
-                    add_plugin(path);
+    try {
+        for (const auto &entry: std::filesystem::recursive_directory_iterator(plugins_path)) {
+            if (entry.is_regular_file()) {
+                std::string path = entry.path();
+                if (path.size() > 7 && path.substr(path.size() - 7) == ".plugin") {
+                    // check if file is executable
+                    if (access(path.c_str(), X_OK) != -1) {
+                        add_plugin(path);
+                    }
                 }
             }
         }
+    } catch (...) {
+    
     }
 }

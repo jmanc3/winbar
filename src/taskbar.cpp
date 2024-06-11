@@ -1405,6 +1405,7 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
         auto *data = (LaunchableButton *) container->children[index]->user_data;
         auto delta = (double) (current - data->creation_time);
         if (delta < time) {
+            request_refresh(app, client_entity);
             cairo_push_group(cr);
         }
         paint_icon_background(client_entity, cr, container->children[index]);
