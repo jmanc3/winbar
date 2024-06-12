@@ -24,3 +24,14 @@ if [[ ! -f ~/.cache/winbar_icon_cache/icon.cache ]]; then
   ./winbar --create-cache
 fi
 
+cd ../
+unzip -o winbar.zip
+sudo mkdir -p /usr/share/winbar
+sudo cp -R winbar/fonts /usr/share/winbar
+sudo cp -R winbar/resources /usr/share/winbar
+sudo cp -R winbar/plugins /usr/share/winbar
+sudo cp winbar/tofix.csv /usr/share/winbar
+sudo cp winbar/items_custom.ini /usr/share/winbar
+sudo cp winbar/winbar.cfg /etc
+sudo rm -r winbar
+

@@ -97,35 +97,6 @@ foreach (LIB IN LISTS LIBS)
     try_to_add_dependency(D_${LIB} ${LIB})
 endforeach ()
 
-# Set the path to the zip file and the destination directory
-set(ZIP_FILE_PATH ${CMAKE_CURRENT_LIST_DIR}/winbar.zip)
-set(DESTINATION_DIR ${CMAKE_CURRENT_LIST_DIR})
-# Check if the unzip command is available
-find_program(UNZIP_EXECUTABLE unzip)
-if(NOT UNZIP_EXECUTABLE)
-    message(FATAL_ERROR "Unzip executable not found")
-endif()
-# Execute the unzip command
-execute_process(
-        COMMAND ${UNZIP_EXECUTABLE} -o ${ZIP_FILE_PATH} -d ${DESTINATION_DIR}
-        RESULT_VARIABLE unzip_result
-        OUTPUT_VARIABLE unzip_output
-        ERROR_VARIABLE unzip_error
-)
-# Check if the unzip command was successful
-if(NOT unzip_result EQUAL "0")
-    message(FATAL_ERROR "Unzipping failed: ${unzip_error}")
-else()
-    message(STATUS "Unzipping succeeded: ${unzip_output}")
-endif()
-file(MAKE_DIRECTORY /usr/share/winbar)
-install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/winbar/fonts DESTINATION /usr/share/winbar)
-install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/winbar/resources DESTINATION /usr/share/winbar)
-install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/winbar/plugins DESTINATION /usr/share/winbar)
-install(FILES ${CMAKE_CURRENT_LIST_DIR}/winbar/tofix.csv DESTINATION /usr/share/winbar)
-install(FILES ${CMAKE_CURRENT_LIST_DIR}/winbar/items_custom.ini DESTINATION /usr/share/winbar)
-install(FILES ${CMAKE_CURRENT_LIST_DIR}/winbar/winbar.cfg DESTINATION /etc)
-
 # install ${project_name} executable to /usr/local/bin/${project_name}
 #
 install(TARGETS ${project_name}
