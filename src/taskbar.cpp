@@ -4069,6 +4069,16 @@ void add_window(App *app, xcb_window_t window) {
         xcb_change_window_attributes(app->connection, window, XCB_CW_EVENT_MASK, values);
         xcb_flush(app->connection);
     }
+    Container *other_with_same_class = nullptr;
+    bool has_launch_command = false;
+    for (auto c: icons->children) {
+        auto *d = (LaunchableButton *) c->user_data;
+        if (d->class_name == window_class_name) {
+            has_launch_command = d->has_launchable_info;
+            other_with_same_class = c;
+            break;
+        }
+    }
     
     Container *a = icons->child(client->bounds->h + 4 * config->dpi, FILL_SPACE);
     if (icons->alignment == container_alignment::ALIGN_RIGHT) {
@@ -4101,7 +4111,10 @@ void add_window(App *app, xcb_window_t window) {
         }
     }
     
-    if (pid != -1) {
+    if (other_with_same_class && has_launch_command) {
+        data->has_launchable_info = true;
+        data->command_launched_by = ((LaunchableButton *) other_with_same_class->user_data)->command_launched_by;
+    } else if (pid != -1) {
         data->has_launchable_info = true;
         data->command_launched_by = command_launched_by_line;
     }
