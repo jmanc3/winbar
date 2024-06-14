@@ -613,7 +613,7 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
         pango_layout_get_extents(text_layout, &ink, &logical);
         
         set_argb(cr, config->color_taskbar_date_time_text);
-        cairo_move_to(cr, container->real_bounds.x + 16 * config->dpi + w,
+        cairo_move_to(cr, container->real_bounds.x + 14 * config->dpi + w,
                       container->real_bounds.y + container->real_bounds.h / 2 - (logical.height / PANGO_SCALE) / 2);
         
         pango_cairo_show_layout(cr, text_layout);

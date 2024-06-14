@@ -11,6 +11,7 @@
 #include "bluetooth_menu.h"
 #include "root.h"
 #include "audio.h"
+#include "settings_menu.h"
 
 #include <dbus/dbus.h>
 #include <defer.h>
@@ -1454,36 +1455,26 @@ bool new_dbus_computer_shut_down() {
     return kde_shutdown_check_and_call("logoutAndShutdown");
 }
 
-// All from: https://www.reddit.com/r/kde/comments/70hnzg/command_to_properly_shutdownreboot_kde_machine/
-void dbus_computer_shut_down() {
-    if (!dbus_connection_session) return;
-    
-    if (new_dbus_computer_shut_down()) return;
-    
-    if (gnome_logoff("Shutdown")) return;
-    
+bool kms_shutdown(int confirm, int shutdown_type, int shutdown_mode) {
     DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
                                                          "/KSMServer",
                                                          "org.kde.KSMServerInterface",
                                                          "logout");
     defer(dbus_message_unref(dbus_msg));
     
-    const int confirm = 0;
     if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &confirm, DBUS_TYPE_INVALID)) {
         fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
-        return;
+        return false;
     }
     
-    const int shutdown_type = 2;
     if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &shutdown_type, DBUS_TYPE_INVALID)) {
         fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
-        return;
+        return false;
     }
     
-    const int shutdown_mode = 2;
     if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &shutdown_mode, DBUS_TYPE_INVALID)) {
         fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
-        return;
+        return false;
     }
     
     DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection_session, dbus_msg, 1000, nullptr);
@@ -1492,7 +1483,27 @@ void dbus_computer_shut_down() {
         
         int dbus_result = 0;
         if (::dbus_message_get_args(dbus_reply, nullptr, DBUS_TYPE_INT32, &dbus_result, DBUS_TYPE_INVALID))
-            return;
+            return dbus_result;
+    }
+    return false;
+}
+
+// All from: https://www.reddit.com/r/kde/comments/70hnzg/command_to_properly_shutdownreboot_kde_machine/
+void dbus_computer_shut_down() {
+    if (!dbus_connection_session) {
+        if (!winbar_settings->shutdown_command.empty())
+            launch_command(winbar_settings->shutdown_command);
+        return;
+    }
+    
+    if (new_dbus_computer_shut_down()) return;
+    
+    if (gnome_logoff("Shutdown")) return;
+    
+    if (kms_shutdown(0, 2, 2)) return;
+    
+    if (!winbar_settings->shutdown_command.empty()) {
+        launch_command(winbar_settings->shutdown_command);
     }
 }
 
@@ -1502,43 +1513,20 @@ bool new_dbus_computer_restart() {
 
 // All from: https://www.reddit.com/r/kde/comments/70hnzg/command_to_properly_shutdownreboot_kde_machine/
 void dbus_computer_restart() {
-    if (!dbus_connection_session) return;
+    if (!dbus_connection_session) {
+        if (!winbar_settings->restart_command.empty())
+            launch_command(winbar_settings->restart_command);
+        return;
+    }
     
     if (new_dbus_computer_restart()) return;
     
     if (gnome_logoff("Reboot")) return;
     
-    DBusMessage *dbus_msg = dbus_message_new_method_call("org.kde.ksmserver",
-                                                         "/KSMServer",
-                                                         "org.kde.KSMServerInterface",
-                                                         "logout");
-    defer(dbus_message_unref(dbus_msg));
+    if (kms_shutdown(0, 1, 2)) return;
     
-    const int confirm = 0;
-    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &confirm, DBUS_TYPE_INVALID)) {
-        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
-        return;
-    }
-    
-    const int shutdown_type = 1;
-    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &shutdown_type, DBUS_TYPE_INVALID)) {
-        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
-        return;
-    }
-    
-    const int shutdown_mode = 2;
-    if (!dbus_message_append_args(dbus_msg, DBUS_TYPE_INT32, &shutdown_mode, DBUS_TYPE_INVALID)) {
-        fprintf(stderr, "%s\n", "In \"dbus_computer_logout\" couldn't append an argument to the DBus message.");
-        return;
-    }
-    
-    DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection_session, dbus_msg, 1000, nullptr);
-    if (dbus_reply) {
-        defer(dbus_message_unref(dbus_reply));
-        
-        int dbus_result = 0;
-        if (::dbus_message_get_args(dbus_reply, nullptr, DBUS_TYPE_INT32, &dbus_result, DBUS_TYPE_INVALID))
-            return;
+    if (!winbar_settings->restart_command.empty()) {
+        launch_command(winbar_settings->restart_command);
     }
 }
 

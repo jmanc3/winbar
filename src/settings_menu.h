@@ -40,6 +40,8 @@ struct WinbarSettings {
     bool super_icon_default = true;
     bool label_uniform_size = false;
     bool minimize_maximize_animation = true;
+    std::string shutdown_command;
+    std::string restart_command;
 };
 
 extern WinbarSettings *winbar_settings;

@@ -1519,7 +1519,7 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
         
         set_argb(cr, data->color_prompt);
         
-        cairo_move_to(cr, container->real_bounds.x + 100, container->real_bounds.y);
+        cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y);
         pango_cairo_show_layout(cr, prompt_layout);
         cairo_restore(cr);
     }

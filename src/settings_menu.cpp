@@ -953,7 +953,7 @@ struct PathHolder : public UserData {
     std::string *path = nullptr;
 };
 
-void string_textfield(const std::string &text, std::string *path, Container *container, AppClient *client) {
+void string_textfield(const std::string &text, std::string *path, Container *container, AppClient *client, std::string prompt = "") {
     int font_size = std::round(10 * config->dpi);
     auto hbox = container->child(::hbox, FILL_SPACE, 26 * config->dpi);
     hbox->user_data = new PathHolder(path);
@@ -976,6 +976,8 @@ void string_textfield(const std::string &text, std::string *path, Container *con
     settings.single_line = true;
     settings.bottom_show_amount = 2;
     settings.right_show_amount = 2;
+    settings.prompt = std::move(prompt);
+    settings.color_prompt = ArgbColor(.1, .1, .1, .5);
     settings.font_size = 11 * config->dpi;
     settings.color = config->color_pinned_icon_editor_field_default_text;
     settings.color_cursor = config->color_pinned_icon_editor_cursor;
@@ -1033,7 +1035,9 @@ fill_root(AppClient *client, Container *root) {
     bool_checkbox_indent("Uniform pinned icon width", 16 * config->dpi,
                          &winbar_settings->label_uniform_size, winbar_behaviour_root, client);
     bool_checkbox("Icon minimize/maximize bounce animation", &winbar_settings->minimize_maximize_animation, winbar_behaviour_root, client);
-    
+    string_textfield("Shutdown command: ", &winbar_settings->shutdown_command, winbar_behaviour_root, client, "pkexec shutdown -P now");
+    winbar_behaviour_root->child(FILL_SPACE, 6 * config->dpi);
+    string_textfield("Restart command: ", &winbar_settings->restart_command, winbar_behaviour_root, client, "pkexec reboot");
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     other_root->exists = false;
@@ -1263,6 +1267,12 @@ void save_settings_file() {
     out_file << "custom_desktops_directory=" << winbar_settings->custom_desktops_directory;
     out_file << std::endl << std::endl;
     
+    out_file << "shutdown_command=" << winbar_settings->shutdown_command;
+    out_file << std::endl << std::endl;
+    
+    out_file << "restart_command=" << winbar_settings->restart_command;
+    out_file << std::endl << std::endl;
+    
     out_file << "custom_desktops_directory_exclusive="
              << (winbar_settings->custom_desktops_directory_exclusive ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -1310,6 +1320,17 @@ void parse_bool(LineParser *parser, std::string key, std::string name, bool *tar
         } else {
             *target = true;
         }
+    }
+}
+
+void parse_string(LineParser *parser, std::string key, std::string name, std::string *target) {
+    if (key != name)
+        return;
+    parser->until(LineParser::Token::IDENT);
+    if (parser->current_token == LineParser::Token::IDENT) {
+        std::string text = parser->until(LineParser::Token::END_OF_LINE);
+        trim(text);
+       *target = text;
     }
 }
 
@@ -1451,13 +1472,6 @@ void read_settings_file() {
                         }
                     }
                 }
-            } else if (key == "custom_desktops_directory") {
-                parser.until(LineParser::Token::IDENT);
-                if (parser.current_token == LineParser::Token::IDENT) {
-                    std::string text = parser.until(LineParser::Token::END_OF_LINE);
-                    trim(text);
-                    winbar_settings->custom_desktops_directory = text;
-                }
             } else {
                 if (key.empty())
                     continue;
@@ -1475,6 +1489,9 @@ void read_settings_file() {
                 parse_bool(&parser, key, "labels", &winbar_settings->labels);
                 parse_bool(&parser, key, "label_uniform_size", &winbar_settings->label_uniform_size);
                 parse_bool(&parser, key, "minimize_maximize_animation", &winbar_settings->minimize_maximize_animation);
+                parse_string(&parser, key, "custom_desktops_directory", &winbar_settings->custom_desktops_directory);
+                parse_string(&parser, key, "shutdown_command", &winbar_settings->shutdown_command);
+                parse_string(&parser, key, "restart_command", &winbar_settings->restart_command);
             }
         }
     }
