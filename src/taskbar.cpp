@@ -621,6 +621,30 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
+double bounce_slam_animation(double input) {
+    if (input < 0.0) {
+        input = 0.0;
+    } else if (input > 1.0) {
+        input = 1.0;
+    }
+    
+    // Define segment boundaries
+    const double firstSegment = 0.25;  // 30%
+    const double secondSegment = 0.7; // 30% + 50% = 80%
+    const double lastSegment = 1.0;   // 100%
+    
+    if (input < firstSegment) {
+        auto first = input / firstSegment;
+        auto ease = getEasingFunction(easing_functions::EaseInSine);
+        return ease(first); // linearly increase from 0 to 1
+    } else if (input < secondSegment) {
+        return 1.0; // stay at 1
+    } else {
+        auto ease = getEasingFunction(easing_functions::EaseOutQuart);
+        return ease(1.0 - (input - secondSegment) / (lastSegment - secondSegment)); // linearly decrease from 1 to 0
+    }
+}
+
 static void
 paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
     LaunchableButton *data = (LaunchableButton *) container->user_data;
@@ -668,25 +692,16 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         double ypostrans = (ypos * (1 - scale_amount) / scale_amount);
         cairo_translate(cr, xpostrans, ypostrans);
         // Assumes the size of the icon to be 24x24 and tries to draw it centered
-        if (data->animation_bounce_amount == 1 || data->windows_data_list.empty()) {
+        if (data->animation_bounce_amount == 1 || data->windows_data_list.empty())
             data->animation_bounce_amount = 0;
-        }
-        auto easeBack = getEasingFunction(EaseOutBack);
-        auto easeIn = getEasingFunction(EaseInQuad);
-        if (data->animation_bounce_direction == 1) {
-            easeIn = getEasingFunction(EaseInSine);
-        }
-        double bounce_amount = easeBack(easeIn(data->animation_bounce_amount));
-        if (bounce_amount > .5)
-            bounce_amount = 1 - bounce_amount;
-        if (data->animation_bounce_direction == 0) {
-            bounce_amount = bounce_amount;
-        } else if (data->animation_bounce_direction == 1) {
+        auto amount = data->animation_bounce_amount * 1.9;
+        double bounce_amount = bounce_slam_animation(amount);
+        if (data->animation_bounce_direction)
             bounce_amount = -bounce_amount;
-        }
         if (!winbar_settings->minimize_maximize_animation)
             bounce_amount = 0;
-        double off = (((config->taskbar_height - w) - (2 * config->dpi)) / 2) * (bounce_amount);
+        
+        double off = (((config->taskbar_height - w) - (11 * config->dpi)) / 2) * (bounce_amount);
         cairo_set_source_surface(cr, data->surface, xpos, ypos + off);
         cairo_paint(cr);
         cairo_restore(cr);
@@ -1903,7 +1918,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                     data->animation_bounce_amount = 0;
                     data->animation_bounce_direction = 0;
                     client_create_animation(app, client, &data->animation_bounce_amount, data->lifetime, 0,
-                                            451.2, nullptr, 1);
+                                            651.2, nullptr, 1);
                 } else {
                     std::thread t([window]() -> void {
                         xcb_ewmh_request_change_active_window(&app->ewmh,
@@ -3582,7 +3597,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                                     data->animation_bounce_amount = 0;
                                     data->animation_bounce_direction = 0;
                                     client_create_animation(app, client, &data->animation_bounce_amount, data->lifetime, 0,
-                                                            451.2, nullptr, 1);
+                                                            651.2, nullptr, 1);
                                 }
                             }
                         }
