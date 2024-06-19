@@ -1226,10 +1226,9 @@ size_icons(AppClient *client, cairo_t *cr, Container *icons) {
             for (auto c: icons->children) {
                 if ((int) c->real_bounds.w == largest) {
                     c->real_bounds.w -= 1;
-                    goto out;
+                    break;
                 }
             }
-            out:
         }
         total_width = icons->real_bounds.w;
     }
