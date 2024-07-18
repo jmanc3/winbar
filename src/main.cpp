@@ -306,7 +306,8 @@ bool copy_resources_from_system_to_user() {
         return false;
     }
     try {
-        std::filesystem::copy("/usr/share/winbar/items_custom.ini", itemPath + "items_custom.ini", copyOptions);
+        if (!std::filesystem::exists(itemPath + "items_custom.ini"))
+            std::filesystem::copy("/usr/share/winbar/items_custom.ini", itemPath + "items_custom.ini", copyOptions);
     } catch (...) {
         return false;
     }
