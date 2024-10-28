@@ -61,6 +61,7 @@ static xcb_window_t popup_window_open = -1;
 
 static int max_resize_attempts = 10;
 static int resize_attempts = 0;
+static int pixel_spacing = 1;
 
 static void
 paint_background(AppClient *client, cairo_t *cr, Container *container);
@@ -1219,6 +1220,12 @@ size_icons(AppClient *client, cairo_t *cr, Container *icons) {
         total_width += c->real_bounds.w;
     }
     
+    // For pixel spacing between pinned icons
+    int count = icons->children.size();
+    if (count != 0)
+        count--;
+    total_width += count * pixel_spacing;
+    
     if (total_width > icons->real_bounds.w) {
         auto overflow = total_width - icons->real_bounds.w;
         
@@ -1296,6 +1303,8 @@ position_icons(AppClient *client, cairo_t *cr, Container *icons) {
     } else if (align == container_alignment::ALIGN_CENTER_HORIZONTALLY) {
         off += (icons->real_bounds.w - total_width) / 2;
     }
+    
+    // Set the 'x' for the pinned_icons, or more specifically the "natural_position_x"
     for (auto c: icons->children) {
         auto *data = (LaunchableButton *) c->user_data;
         if (data->natural_position_x == INT_MAX) {
@@ -1304,7 +1313,7 @@ position_icons(AppClient *client, cairo_t *cr, Container *icons) {
             data->old_natural_position_x = data->natural_position_x;
         }
         data->natural_position_x = off;
-        off += c->real_bounds.w;
+        off += c->real_bounds.w + pixel_spacing;
     }
     
     Container *dragging = nullptr;
