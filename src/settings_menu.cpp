@@ -698,19 +698,19 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
         combo_data->options.emplace_back("On Hover");
         combo_data->options.emplace_back("Never");
         combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
-			if (winbar_settings->volume_label_always_on) {
-    			return "Always";
-			} else {
-            	return winbar_settings->volume_expands_on_hover ? "On Hover" : "Never";
-			}
+            if (winbar_settings->volume_label_always_on) {
+                return "Always";
+            } else {
+                return winbar_settings->volume_expands_on_hover ? "On Hover" : "Never";
+            }
         };
         combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
             std::string text = ((Label *) (self->user_data))->text;
             if (text == "Always") {
-				winbar_settings->volume_label_always_on = true;
+                winbar_settings->volume_label_always_on = true;
             } else {
-				winbar_settings->volume_label_always_on = false;
-               	winbar_settings->volume_expands_on_hover = text == "On Hover";
+                winbar_settings->volume_label_always_on = false;
+                winbar_settings->volume_expands_on_hover = text == "On Hover";
             }
             client_close_threaded(app, client);
             request_refresh(app, client_by_name(app, "taskbar"));
@@ -732,18 +732,18 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
         combo_data->options.emplace_back("Never");
         combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
             if (winbar_settings->battery_label_always_on) {
-    			return "Always";
-			} else {
-            	return winbar_settings->battery_expands_on_hover ? "On Hover" : "Never";
-			}
+                return "Always";
+            } else {
+                return winbar_settings->battery_expands_on_hover ? "On Hover" : "Never";
+            }
         };
         combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
             std::string text = ((Label *) (self->user_data))->text;
             if (text == "Always") {
-				winbar_settings->battery_label_always_on = true;
+                winbar_settings->battery_label_always_on = true;
             } else {
-				winbar_settings->battery_label_always_on = false;
-               	winbar_settings->battery_expands_on_hover = text == "On Hover";
+                winbar_settings->battery_label_always_on = false;
+                winbar_settings->battery_expands_on_hover = text == "On Hover";
             }
             client_close_threaded(app, client);
             request_refresh(app, client_by_name(app, "taskbar"));
