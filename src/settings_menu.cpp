@@ -693,18 +693,30 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
             field->name = "size_field";
         }
     } else if (n == "Volume") {
-        auto combo_data = new GenericComboBox("volume_expands_combo", "Expands: ");
-        combo_data->options.emplace_back("True");
-        combo_data->options.emplace_back("False");
+        auto combo_data = new GenericComboBox("volume_expands_combo", "Label: ");
+        combo_data->options.emplace_back("Always");
+        combo_data->options.emplace_back("On Hover");
+        combo_data->options.emplace_back("Never");
         combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
-            return winbar_settings->volume_expands_on_hover ? "True" : "False";
+			if (winbar_settings->volume_label_always_on) {
+    			return "Always";
+			} else {
+            	return winbar_settings->volume_expands_on_hover ? "On Hover" : "Never";
+			}
         };
         combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
-            winbar_settings->volume_expands_on_hover = ((Label *) (self->user_data))->text == "True";
+            std::string text = ((Label *) (self->user_data))->text;
+            if (text == "Always") {
+				winbar_settings->volume_label_always_on = true;
+            } else {
+				winbar_settings->volume_label_always_on = false;
+               	winbar_settings->volume_expands_on_hover = text == "On Hover";
+            }
             client_close_threaded(app, client);
+            request_refresh(app, client_by_name(app, "taskbar"));
         };
         
-        std::string longest_text = "Expands: False";
+        std::string longest_text = "Label: On Hover";
         pango_layout_set_text(layout, longest_text.c_str(), -1);
         pango_layout_get_pixel_size_safe(layout, &width, &height);
         
@@ -714,18 +726,30 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
         combobox->when_paint = paint_generic_combobox;
         combobox->user_data = combo_data;
     } else if (n == "Battery") {
-        auto combo_data = new GenericComboBox("battery_expands_combo", "Expands: ");
-        combo_data->options.emplace_back("True");
-        combo_data->options.emplace_back("False");
+        auto combo_data = new GenericComboBox("battery_expands_combo", "Label: ");
+        combo_data->options.emplace_back("Always");
+        combo_data->options.emplace_back("On Hover");
+        combo_data->options.emplace_back("Never");
         combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
-            return winbar_settings->battery_expands_on_hover ? "True" : "False";
+            if (winbar_settings->battery_label_always_on) {
+    			return "Always";
+			} else {
+            	return winbar_settings->battery_expands_on_hover ? "On Hover" : "Never";
+			}
         };
         combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
-            winbar_settings->battery_expands_on_hover = ((Label *) (self->user_data))->text == "True";
+            std::string text = ((Label *) (self->user_data))->text;
+            if (text == "Always") {
+				winbar_settings->battery_label_always_on = true;
+            } else {
+				winbar_settings->battery_label_always_on = false;
+               	winbar_settings->battery_expands_on_hover = text == "On Hover";
+            }
             client_close_threaded(app, client);
+            request_refresh(app, client_by_name(app, "taskbar"));
         };
         
-        std::string longest_text = "Expands: False";
+        std::string longest_text = "Label: On Hover";
         pango_layout_set_text(layout, longest_text.c_str(), -1);
         pango_layout_get_pixel_size_safe(layout, &width, &height);
         
@@ -1250,12 +1274,14 @@ void save_settings_file() {
     out_file << "date_size=\"" << std::to_string(winbar_settings->date_size) << "\"";
     out_file << std::endl << std::endl;
     
-    // Volume expands
     out_file << "show_agenda=" << (winbar_settings->show_agenda ? "true" : "false");
     out_file << std::endl << std::endl;
     
     // Volume expands
     out_file << "volume_expands_on_hover=" << (winbar_settings->volume_expands_on_hover ? "true" : "false");
+    out_file << std::endl << std::endl;
+ 
+    out_file << "volume_label_always_on=" << (winbar_settings->volume_label_always_on ? "true" : "false");
     out_file << std::endl << std::endl;
     
     out_file << "battery_notifications=" << (winbar_settings->battery_notifications ? "true" : "false");
@@ -1301,6 +1327,9 @@ void save_settings_file() {
     
     // Battery expands
     out_file << "battery_expands_on_hover=" << (winbar_settings->battery_expands_on_hover ? "true" : "false");
+    out_file << std::endl << std::endl;
+
+    out_file << "battery_label_always_on=" << (winbar_settings->battery_label_always_on ? "true" : "false");
     out_file << std::endl << std::endl;
     
     // Search tab
@@ -1478,7 +1507,9 @@ void read_settings_file() {
                 parse_bool(&parser, key, "battery_notifications", &winbar_settings->battery_notifications);
                 parse_bool(&parser, key, "pinned_icon_shortcut", &winbar_settings->pinned_icon_shortcut);
                 parse_bool(&parser, key, "volume_expands_on_hover", &winbar_settings->volume_expands_on_hover);
+                parse_bool(&parser, key, "volume_label_always_on", &winbar_settings->volume_label_always_on);
                 parse_bool(&parser, key, "battery_expands_on_hover", &winbar_settings->battery_expands_on_hover);
+                parse_bool(&parser, key, "battery_label_always_on", &winbar_settings->battery_label_always_on);
                 parse_bool(&parser, key, "show_agenda", &winbar_settings->show_agenda);
                 parse_bool(&parser, key, "thumbnails", &winbar_settings->thumbnails);
                 parse_bool(&parser, key, "custom_desktops_directory_exclusive",

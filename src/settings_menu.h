@@ -27,7 +27,9 @@ struct WinbarSettings {
     PangoAlignment date_alignment = PangoAlignment::PANGO_ALIGN_CENTER;
     int date_size = 9;
     bool battery_expands_on_hover = true;
+    bool battery_label_always_on = false;
     bool volume_expands_on_hover = true;
+    bool volume_label_always_on = false;
     bool show_agenda = true;
     bool thumbnails = true;
     bool battery_notifications = false;

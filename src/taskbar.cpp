@@ -372,8 +372,9 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     static long start_time = 0;
     static int previous_volume_width = 0;
     
-    if ((container->state.mouse_hovering || container->state.mouse_pressing ||
-         container->state.mouse_dragging) && winbar_settings->volume_expands_on_hover) {
+    if (((container->state.mouse_hovering || container->state.mouse_pressing ||
+          container->state.mouse_dragging) && winbar_settings->volume_expands_on_hover) ||
+        winbar_settings->volume_label_always_on) {
         std::string text = std::to_string(val) + "%";
         // Draw percentage when hovered
         PangoLayout *percentage =
@@ -2861,8 +2862,9 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
     static long start_time = 0;
     static int previous_volume_width = 0;
     
-    if ((container->state.mouse_hovering || container->state.mouse_pressing ||
-         container->state.mouse_dragging) && winbar_settings->battery_expands_on_hover) {
+    if (((container->state.mouse_hovering || container->state.mouse_pressing ||
+          container->state.mouse_dragging) && winbar_settings->battery_expands_on_hover) ||
+        winbar_settings->battery_label_always_on) {
         // Draw percentage when hovered
         PangoLayout *percentage =
                 get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
