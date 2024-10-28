@@ -1498,6 +1498,7 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
     
     cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y);
     pango_cairo_show_layout(cr, layout);
+    pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_LEFT);
     
     if (container->parent->active == false && data->state->text.empty()) {
         cairo_save(cr);
@@ -1536,8 +1537,6 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
         cairo_fill(cr);
     }
     cairo_restore(cr);
-    
-    pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_LEFT);
 }
 
 static void
