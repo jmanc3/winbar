@@ -9,7 +9,7 @@ cd newbuild
 
 #let cmake find dependencies on system
 # NEEDS TO BE SUDO SO IT CAN INSTALL RESOURCES
-sudo cmake -DCMAKE_BUILD_TYPE=Release ../
+cmake -DCMAKE_BUILD_TYPE=Release ../
 
 #actually compile
 make -j 16
