@@ -496,7 +496,7 @@ paint_double_bar(cairo_t *cr, Container *container, ArgbColor bar_l_c, ArgbColor
     double bar_inset = squish_factor * (1 - bar_amount);
     
     Bounds bounds = container->real_bounds;
-    float height = std::round(2 * config->dpi);
+    float height = std::round(config->dpi * 2) + 1;
     // setting the appropriate height
     bounds.y = bounds.y + bounds.h - height;
     bounds.h = height;
@@ -960,6 +960,12 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
     }
 }
 
+static void
+swap_color(ArgbColor *first, ArgbColor *second) {
+    ArgbColor temp = *first;
+    *first = *second;
+    *second = temp;
+}
 
 static void
 paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
@@ -1048,11 +1054,7 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     ArgbColor color_accent_bar_left = accent;
     ArgbColor color_accent_bar_middle = darken(accent, 20);
     ArgbColor color_accent_bar_right = darken(accent, 15);
-    
-    if (screen_has_transparency(app)) {
-        background.a = config->color_taskbar_background.a;
-    }
-    
+
     // The following colors are used for the background pane
     ArgbColor color_background_pane_hovered_left = darken(background, 15);
     ArgbColor color_background_pane_hovered_middle = darken(background, 22);
@@ -1064,16 +1066,21 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     
     // The following colors are used for the foreground pane
     ArgbColor color_foreground_pane_default_left = darken(background, 10);
-    ArgbColor color_foreground_pane_default_middle = darken(background, 17);
-    ArgbColor color_foreground_pane_default_right = darken(background, 12);
-    
     ArgbColor color_foreground_pane_hovered_left = darken(background, 0);
-    ArgbColor color_foreground_pane_hovered_middle = darken(background, 7);
-    ArgbColor color_foreground_pane_hovered_right = darken(background, 2);
-    
     ArgbColor color_foreground_pane_pressed_left = darken(background, 0 + 2);
-    ArgbColor color_foreground_pane_pressed_middle = darken(background, 7 + 2);
-    ArgbColor color_foreground_pane_pressed_right = darken(background, 2 + 2);
+    if (is_light_theme) {
+        swap_color(&color_foreground_pane_pressed_left, &color_foreground_pane_default_left);
+        swap_color(&color_foreground_pane_hovered_left, &color_foreground_pane_hovered_left);
+    }
+    
+    ArgbColor color_foreground_pane_default_middle = darken(color_foreground_pane_default_left, 7);
+    ArgbColor color_foreground_pane_default_right = darken(color_foreground_pane_default_left, 2);
+    
+    ArgbColor color_foreground_pane_hovered_middle = darken(color_foreground_pane_hovered_left, 7);
+    ArgbColor color_foreground_pane_hovered_right = darken(color_foreground_pane_hovered_left, 2);
+    
+    ArgbColor color_foreground_pane_pressed_middle = darken(color_foreground_pane_pressed_left, 7);
+    ArgbColor color_foreground_pane_pressed_right = darken(color_foreground_pane_pressed_left, 2);
     
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     
