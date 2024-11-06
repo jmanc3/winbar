@@ -1592,6 +1592,8 @@ void active_window_changed(xcb_window_t new_active_window) {
                 if (state_atoms[a] == fullscreen)
                     found_fullscreen = true;
             someone_is_fullscreen_and_covering = found_fullscreen;
+            if (someone_is_fullscreen_and_covering)
+                client_close_threaded(app, client_by_name(app, "windows_selector"));
         }
         if (reply)
             free(reply);
@@ -3537,8 +3539,11 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                                 found_fullscreen = true;
                             }
                         }
-                        if (active_window == e->window)
+                        if (active_window == e->window) {
                             someone_is_fullscreen_and_covering = found_fullscreen;
+                            if (someone_is_fullscreen_and_covering)
+                                client_close_threaded(app, client_by_name(app, "windows_selector"));
+                        }
                         if (!attention) {
                             if (auto client = client_by_name(app, "taskbar")) {
                                 if (client->root) {
