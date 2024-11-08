@@ -1877,6 +1877,23 @@ struct ZoomData {
     LaunchableButton *launchable = nullptr;
 };
 
+static void start_zoom_animation(AppClient *client, Container *pinned_icon) {
+    LaunchableButton *data = (LaunchableButton *) pinned_icon->user_data;
+    
+    app_timeout_create(app, client, 4000, [](App *app, AppClient *client, Timeout *timeout, void *user_data){
+        client_unregister_animation(app, client);
+        auto data = (ZoomData *) user_data;
+        if (data->lifetime.lock()) {
+            data->launchable->animation_zoom_locked = 0;
+            data->launchable->animation_zoom_locked_time = get_current_time_in_ms();
+        }
+        delete data;
+    }, new ZoomData({pinned_icon->lifetime, data}), "zoom_lock");
+    
+    data->animation_zoom_locked = 1;
+    client_register_animation(app, client);
+}
+
 static void
 pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
@@ -1888,18 +1905,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
         if (data->windows_data_list.empty() && !data->animation_zoom_locked) {
-            app_timeout_create(app, client, 4000, [](App *app, AppClient *client, Timeout *timeout, void *user_data){
-                client_unregister_animation(app, client);
-                auto data = (ZoomData *) user_data;
-                if (data->lifetime.lock()) {
-                    data->launchable->animation_zoom_locked = 0;
-                    data->launchable->animation_zoom_locked_time = get_current_time_in_ms();
-                }
-                delete data;
-            }, new ZoomData({container->lifetime, data}), "zoom_lock");
-            
-            data->animation_zoom_locked = 1;
-            client_register_animation(app, client);
+            start_zoom_animation(client, container);
             launch_command(data->command_launched_by);
             app_timeout_stop(client->app, client, data->possibly_open_timeout);
             data->possibly_open_timeout = nullptr;
@@ -3739,6 +3745,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                         auto *data = static_cast<LaunchableButton *>(icon->user_data);
                         if (!data->command_launched_by.empty()) {
                             launch_command(data->command_launched_by + files);
+                            start_zoom_animation(client, icon);
                         }
                         break;
                     }
@@ -5153,8 +5160,10 @@ void taskbar_launch_index(int index) {
                     auto data = (LaunchableButton *) container->user_data;
                     if (data) {
                         if (data->windows_data_list.empty()) {
-                            if (!data->command_launched_by.empty())
+                            if (!data->command_launched_by.empty()) {
+                                start_zoom_animation(c, container);
                                 launch_command(data->command_launched_by);
+                            }
                         } else {
                             xcb_ewmh_request_change_active_window(&app->ewmh,
                                                                   app->screen_number,
