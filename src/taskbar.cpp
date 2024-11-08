@@ -102,6 +102,21 @@ std::string trim(std::string str) {
     return copy;
 }
 
+std::string trimnewlines(std::string str) {
+    std::string copy = str;
+    // Remove leading whitespace
+    copy.erase(copy.begin(), std::find_if(copy.begin(), copy.end(), [](int ch) {
+        return !std::isspace(ch) && ch != '\r' && ch != '\n';
+    }));
+    
+    // Remove trailing whitespace
+    copy.erase(std::find_if(copy.rbegin(), copy.rend(), [](int ch) {
+        return !std::isspace(ch) && ch != '\r' && ch != '\n';
+    }).base(), copy.end());
+    
+    return copy;
+}
+
 static void
 reserve(AppClient *client, int amount) {
     xcb_ewmh_wm_strut_partial_t wm_strut = {};
@@ -3398,6 +3413,37 @@ void clear_thumbnails() {
 }
 
 static bool
+starts_with(const std::string &str, const std::string &prefix) {
+    // Check if str is long enough to contain the prefix
+    return str.size() >= prefix.size() &&
+           str.compare(0, prefix.size(), prefix) == 0;
+}
+
+std::string decodePercentEncoding(const std::string& uri) {
+    std::string result;
+    for (std::size_t i = 0; i < uri.length(); ++i) {
+        if (uri[i] == '%' && i + 2 < uri.length()) {
+            std::istringstream hex(uri.substr(i + 1, 2));
+            int value;
+            hex >> std::hex >> value;
+            result += static_cast<char>(value);
+            i += 2;
+        } else {
+            result += uri[i];
+        }
+    }
+    return result;
+}
+
+std::string uriToFilePath(const std::string& uri) {
+    const std::string prefix = "file://";
+    if (uri.substr(0, prefix.size()) == prefix) {
+        return decodePercentEncoding(uri.substr(prefix.size()));
+    }
+    return uri;  // return as-is if no "file://" prefix
+}
+
+static bool
 window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) {
     for (auto c: app->clients)
         if (c->window == window)
@@ -3629,11 +3675,149 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
             }
             break;
         }
+        case XCB_SELECTION_NOTIFY: {
+            auto *e = (xcb_selection_notify_event_t *) event;
+            
+            if (e->property == XCB_ATOM_NONE) {
+                fprintf(stderr, "kind=error:message=couldn't convert selection");
+                break;
+            }
+            
+            xcb_get_property_cookie_t prop_cookie;
+            xcb_get_property_reply_t *prop_reply;
+            char *data = NULL;
+            
+            /* Request the property */
+            prop_cookie = xcb_get_property(
+                    app->connection,
+                    0,                                 // Delete = False
+                    e->requestor, // The window that is requesting the selection
+                    e->property,  // The property that holds the data
+                    e->target,    // Type of the property
+                    0,                                 // Offset in longs
+                    UINT32_MAX                         // Length in 32-bit words
+            );
+            prop_reply = xcb_get_property_reply(app->connection, prop_cookie, NULL);
+            
+            int len = 0;
+            if (prop_reply && xcb_get_property_value_length(prop_reply) > 0) {
+                data = (char *) xcb_get_property_value(prop_reply);
+                len = xcb_get_property_value_length(prop_reply);
+            }
+            std::string d(data, len);
+            std::istringstream stream(d);
+            std::string line;
+            std::string files;
+            while (std::getline(stream, line)) {  // Read line by line
+                if (!line.empty()) {
+                    files += " \"";
+                    files += uriToFilePath(trimnewlines(line));
+                    files += "\"";
+                }
+            }
+            
+            /* Free the property reply */
+            free(prop_reply);
+            
+            auto client = client_by_name(app, "taskbar");
+            
+            xcb_client_message_event_t status_event = {};
+            status_event.response_type = XCB_CLIENT_MESSAGE;
+            status_event.format = 32;
+            status_event.window = client->drag_and_drop_source;
+            status_event.type = get_cached_atom(app, "XdndFinished");
+            status_event.data.data32[1] = prop_reply != NULL;
+            status_event.data.data32[2] = get_cached_atom(app, "XdndActionCopy");
+            
+            xcb_send_event(app->connection, false, client->drag_and_drop_source, XCB_EVENT_MASK_NO_EVENT,
+                           reinterpret_cast<const char *> (&status_event));
+            xcb_flush(app->connection);
+            
+            if (auto icons = container_by_name("icons", client->root)) {
+                for (auto icon: icons->children) {
+                    if (icon->state.mouse_hovering && !icon->state.mouse_dragging) {
+                        auto *data = static_cast<LaunchableButton *>(icon->user_data);
+                        if (!data->command_launched_by.empty()) {
+                            launch_command(data->command_launched_by + files);
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            break;
+        }
         case XCB_CLIENT_MESSAGE: {
             auto *e = (xcb_client_message_event_t *) event;
         
             // Drag and drop stuff from: https://www.acc.umu.se/~vatten/XDND.html
-            if (e->type == get_cached_atom(app, "XdndPosition")) {
+            if (e->type == get_cached_atom(app, "XdndEnter")) {
+                if (auto client = client_by_name(app, "taskbar")) {
+                    client->drag_and_drop_source = e->data.data32[0];
+                    client->drag_and_drop_version = e->data.data32[1] >> 24;
+                    
+                    unsigned long count = 0;
+                    Atom *formats = nullptr;
+                    Atom real_formats[6];
+                    xcb_get_property_reply_t *reply;
+                    Bool list = e->data.data32[1] & 1;
+                    int format = None;
+                    if (client->drag_and_drop_version > 5)
+                        break;
+                    
+                    if (list) {
+                        xcb_atom_t actualType;
+                        int32_t actualFormat;
+                        uint32_t bytesAfter;
+                        xcb_get_property_cookie_t cookie;
+                        cookie = xcb_get_property(app->connection,
+                                                  0,                    // Delete = False
+                                                  client->drag_and_drop_source,
+                                                  get_cached_atom(app, "XdndTypeList"),
+                                                  XCB_ATOM_ATOM,        // Property type (ATOM = 4 bytes per item)
+                                                  0,
+                                                  UINT32_MAX);          // Equivalent to LONG_MAX
+                        reply = xcb_get_property_reply(app->connection, cookie, NULL);
+                        if (reply) {
+                            actualType = reply->type;
+                            actualFormat = reply->format;
+                            bytesAfter = reply->bytes_after;
+                            count = xcb_get_property_value_length(reply) / sizeof(xcb_atom_t);
+                            formats = static_cast<Atom *>(xcb_get_property_value(reply));
+                        }
+                    } else {
+                        count = 0;
+                        
+                        if (e->data.data32[2] != None)
+                            real_formats[count++] = e->data.data32[2];
+                        if (e->data.data32[3] != None)
+                            real_formats[count++] = e->data.data32[3];
+                        if (e->data.data32[4] != None)
+                            real_formats[count++] = e->data.data32[4];
+                        formats = real_formats;
+                    }
+                    
+                    auto XtextUriList = get_cached_atom(app, "XtextUriList");
+                    auto XtextPlain = get_cached_atom(app, "XtextPlain");
+                    unsigned long i = 0;
+                    client->drag_and_drop_formats.clear();
+                    for (i = 0; i < count; i++) {
+                        xcb_get_atom_name_cookie_t cookie = xcb_get_atom_name(app->connection, formats[i]);
+                        xcb_get_atom_name_reply_t *reply = xcb_get_atom_name_reply(app->connection, cookie, nullptr);
+                        if (reply) {
+                            // Extract the name from the reply
+                            int name_len = xcb_get_atom_name_name_length(reply);
+                            const char *name = xcb_get_atom_name_name(reply);
+                            std::string form(name, name_len);
+                            client->drag_and_drop_formats.push_back(form);
+                            free(reply);
+                        }
+                    }
+                    if (list && reply) {
+                        free(reply);
+                    }
+                }
+            } else if (e->type == get_cached_atom(app, "XdndPosition")) {
                 if (auto client = client_by_window(app, e->window)) {
                     if (client->name == "windows_selector") {
                         drag_and_dropping = true;
@@ -3673,6 +3857,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                 
                     xcb_send_event(xcb, false, drag_and_drop_source, XCB_EVENT_MASK_NO_EVENT,
                                    reinterpret_cast<const char *> (&status_event));
+                    xcb_flush(app->connection);
                 }
             } else if (e->type == get_cached_atom(app, "XdndLeave")) {
                 if (auto client = client_by_window(app, e->window)) {
@@ -3683,6 +3868,35 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                     client->motion_event_y = (int) -1;
                     handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
                     client_paint(app, client, true);
+                }
+            } else if (e->type == get_cached_atom(app, "XdndDrop")) {
+                Time time = CurrentTime;
+                if (auto client = client_by_name(app, "taskbar")) {
+                    if (client->drag_and_drop_version >= 1)
+                        time = e->data.data32[2];
+                    std::string form;
+                    for (const auto &format: client->drag_and_drop_formats) {
+                        if (starts_with(format, "text/plain")) {
+                            form = "text/plain";
+                            break;
+                        }
+                    }
+                    for (const auto &format: client->drag_and_drop_formats) {
+                        if (starts_with(format, "text/uri-list")) {
+                            form = "text/uri-list";
+                            break;
+                        }
+                    }
+                    if (!form.empty()) {
+                        xcb_convert_selection(app->connection,
+                                              client_by_name(app, "taskbar")->window,
+                                              get_cached_atom(app, "XdndSelection"),
+                                              get_cached_atom(app, form),
+                                              get_cached_atom(app, "XdndSelection"),
+                                              time
+                        );
+                        xcb_flush(app->connection);
+                    }
                 }
             }
             break;

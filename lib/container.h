@@ -318,6 +318,9 @@ struct AppClient {
     xcb_colormap_t colormap;
     xcb_cursor_context_t *ctx;
     xcb_cursor_t cursor = -1;
+    xcb_window_t drag_and_drop_source = -1;
+    uint32_t drag_and_drop_version = 0;
+    std::vector<std::string> drag_and_drop_formats;
     
     bool marked_to_close = false;
     
