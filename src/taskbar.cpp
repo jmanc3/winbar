@@ -3721,6 +3721,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                     files += "\"";
                 }
             }
+            bool result = prop_reply != nullptr;
             
             /* Free the property reply */
             free(prop_reply);
@@ -3732,7 +3733,10 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
             status_event.format = 32;
             status_event.window = client->drag_and_drop_source;
             status_event.type = get_cached_atom(app, "XdndFinished");
-            status_event.data.data32[1] = prop_reply != NULL;
+            status_event.data.data32[0] = client->window; // drag and drop target (us)
+            status_event.data.data32[3] = 0; // drag and drop target (us)
+            status_event.data.data32[2] = 0; // drag and drop target (us)
+            status_event.data.data32[1] = result;
             status_event.data.data32[2] = get_cached_atom(app, "XdndActionCopy");
             
             xcb_send_event(app->connection, false, client->drag_and_drop_source, XCB_EVENT_MASK_NO_EVENT,
@@ -3853,12 +3857,11 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                     status_event.window = drag_and_drop_source;
                     status_event.type = get_cached_atom(app, "XdndStatus");
                     status_event.data.data32[0] = client->window; // drag and drop target (us)
-                    int data = 0;
-                    data |= (1 << 1);
-                    status_event.data.data32[1] = data; // if we are going to accept it
-                    status_event.data.data32[2] = ((int) client->bounds->x << 16) | (int) client->bounds->y;
-                    status_event.data.data32[3] = ((int) client->bounds->w << 16) | (int) client->bounds->h;
-                    status_event.data.data32[3] = XCB_NONE;
+                    status_event.data.data32[2] = 0; // drag and drop target (us)
+                    status_event.data.data32[3] = 0; // drag and drop target (us)
+                    status_event.data.data32[1] = 1;
+                    if (client->drag_and_drop_version >= 2)
+                        status_event.data.data32[4] = get_cached_atom(app, "XdndActionCopy");
                 
                     auto xcb = app->connection;
                 
