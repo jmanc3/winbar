@@ -3743,15 +3743,27 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                            reinterpret_cast<const char *> (&status_event));
             xcb_flush(app->connection);
             
+            bool dropped_on_icon = false;
             if (auto icons = container_by_name("icons", client->root)) {
                 for (auto icon: icons->children) {
                     if (icon->state.mouse_hovering && !icon->state.mouse_dragging) {
                         auto *data = static_cast<LaunchableButton *>(icon->user_data);
                         if (!data->command_launched_by.empty()) {
+                            dropped_on_icon = true;
                             launch_command(data->command_launched_by + files);
                             start_zoom_animation(client, icon);
                         }
                         break;
+                    }
+                }
+            }
+            if (!dropped_on_icon && files_count == 1) {
+                // Add a new item, assuming the file *path* will be the 'luancher' command
+                add_item_clicked(nullptr, nullptr, nullptr);
+                if (auto c = client_by_name(app, "pinned_icon_editor")) {
+                    if (auto con = container_by_name("launch_command_field", c->root)) {
+                        auto launch_command_field_data = (TextAreaData *) con->user_data;
+                        launch_command_field_data->state->text = trim(files);
                     }
                 }
             }
