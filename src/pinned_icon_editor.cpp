@@ -25,7 +25,18 @@ static TextAreaData *icon_field_data = nullptr;
 static TextAreaData *launch_field_data = nullptr;
 static TextAreaData *wm_field_data = nullptr;
 
-static Label *icon_search_state = nullptr;
+static int active_option = 0;
+static int max_options = 0;
+
+struct NumberedLabel : UserData {
+    int number = 0;
+    Label *label = nullptr;
+    
+    ~NumberedLabel() {
+        delete label;
+    }
+};
+
 
 static void paint_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
@@ -35,6 +46,21 @@ static void paint_background(AppClient *client, cairo_t *cr, Container *containe
     set_argb(cr, config->color_pinned_icon_editor_background);
     cairo_fill(cr);
 }
+
+
+static void paint_icon_list_background(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    set_rect(cr, container->real_bounds);
+    set_argb(cr, config->color_pinned_icon_editor_background);
+    cairo_fill(cr);
+    
+    Bounds bounds = container->real_bounds;
+    set_argb(cr, config->color_pinned_icon_editor_field_default_border);
+    paint_margins_rect(client, cr, bounds, 1, 0);
+}
+
 
 static void paint_icon(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
@@ -123,6 +149,54 @@ static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
     int width;
     int height;
     pango_layout_set_text(layout, label->text.c_str(), -1);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    
+    set_argb(cr, config->color_pinned_icon_editor_button_text_default);
+    cairo_move_to(cr, container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
+                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+    pango_cairo_show_layout(cr, layout);
+}
+
+static void update_icon(AppClient *client);
+
+static void paint_icon_option(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    ArgbColor color = config->color_pinned_icon_editor_background;
+    auto label = (NumberedLabel *) container->user_data;
+    if (container->state.mouse_hovering || container->state.mouse_pressing || label->number == active_option) {
+        if (container->state.mouse_pressing) {
+            set_rect(cr, container->real_bounds);
+            set_argb(cr, darken(color, 18));
+            cairo_fill(cr);
+        } else {
+            if (label->number != active_option) {
+                active_option = label->number;
+                AppClient *editor = client_by_name(app, "pinned_icon_editor");
+                update_icon(editor);
+                request_refresh(app, editor);
+            }
+            active_option = label->number;
+            set_argb(cr, color);
+            set_rect(cr, container->real_bounds);
+            cairo_fill(cr);
+            
+            set_argb(cr, darken(color, 18));
+            paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+        }
+    } else {
+        set_rect(cr, container->real_bounds);
+        set_argb(cr, color);
+        cairo_fill(cr);
+    }
+    
+    PangoLayout *layout =
+            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    int width;
+    int height;
+    pango_layout_set_text(layout, label->label->text.c_str(), -1);
     pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     set_argb(cr, config->color_pinned_icon_editor_button_text_default);
@@ -271,25 +345,16 @@ static void update_icon(AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (auto icon_name_label = container_by_name("icon_alternatives_label", client->root)) {
-        auto *data = (Label *) icon_name_label->user_data;
-        auto *field = container_by_name("icon_name_field", client->root);
-        std::string &target = ((TextAreaData *) field->user_data)->state->text;
-        if (target.empty()) {
-            data->text = "";
-        } else {
-            std::vector<std::string_view> names;
-            get_options(names, target, 40);
-            if (names.empty()) {
-                data->text = "";
-            } else {
-                data->text = "(";
-                for (int i = 0; i < names.size(); i++) {
-                    data->text += names[i];
-                    if (i != names.size() - 1)
-                        data->text += ", ";
+    std::string active_text = icon_field_data->state->text;
+    if (auto popup = client_by_name(app, "icon_list_popup")) {
+        if (auto s = container_by_name("icon_list_scroll", popup->root)) {
+            ScrollContainer *scroll_pane = (ScrollContainer *) s;
+            
+            for (auto item: scroll_pane->content->children) {
+                auto nl = (NumberedLabel *) item->user_data;
+                if (nl->number == active_option) {
+                    active_text = nl->label->text;
                 }
-                data->text += ")";
             }
         }
     }
@@ -298,7 +363,8 @@ static void update_icon(AppClient *client) {
         auto icon_data = (IconButton *) icon->user_data;
         
         std::vector<IconTarget> targets;
-        targets.emplace_back(IconTarget(icon_field_data->state->text));
+        
+        targets.emplace_back(IconTarget(active_text));
         search_icons(targets);
         pick_best(targets, 64 * config->dpi);
         std::string icon_path = targets[0].best_full_path;
@@ -308,9 +374,7 @@ static void update_icon(AppClient *client) {
                 icon_data->surface = nullptr;
             }
             load_icon_full_path(app, client, &icon_data->surface, icon_path, 64 * config->dpi);
-            icon_search_state->text = "Found a match for: '" + icon_field_data->state->text + "'";
         } else {
-            icon_search_state->text = "Didn't find a match for: '" + icon_field_data->state->text + "'";
             // TODO: this is kind of annoying, we should instead make the surface have a cairo_t and just clear the surface
             cairo_surface_destroy(icon_data->surface);
             icon_data->surface = nullptr;
@@ -358,6 +422,110 @@ switch_active(App *, AppClient *client, Timeout *, void *data) {
 }
 
 static void
+show_icon_options() {
+    auto c = client_by_name(app, "pinned_icon_editor");
+    
+    if (client_by_name(app, "icon_list_popup") == nullptr) {
+        PopupSettings popup_settings;
+        popup_settings.close_on_focus_out = true;
+//        popup_settings.ignore_scroll = true;
+        Container *field = container_by_name("icon_name_field", c->root);
+        
+        double pad = 0 * config->dpi;
+        
+        Settings settings;
+        settings.skip_taskbar = true;
+        settings.decorations = false;
+        settings.override_redirect = true;
+        settings.force_position = true;
+        settings.x = c->bounds->x + field->parent->real_bounds.x + pad;
+        settings.y = c->bounds->y + field->parent->real_bounds.y + field->parent->real_bounds.h;
+        
+        settings.w = field->parent->real_bounds.w - pad * 2;
+//        settings.w = field->real_bounds.w;
+        settings.h = 200;
+        
+        auto popup = c->create_popup(popup_settings, settings);
+        popup->name = "icon_list_popup";
+        popup->root->when_paint = paint_icon_list_background;
+        popup->root->receive_events_even_if_obstructed = true;
+        
+        ScrollPaneSettings scroll_settings(config->dpi);
+        scroll_settings.right_width = 6 * config->dpi;
+        scroll_settings.paint_minimal = true;
+        ScrollContainer *s = make_newscrollpane_as_child(popup->root, scroll_settings);
+        s->content->wanted_pad = Bounds(4 * config->dpi, 4 * config->dpi, 4 * config->dpi, 4 * config->dpi);
+        s->content->spacing = 4 * config->dpi;
+        s->content->clip = true;
+        s->name = "icon_list_scroll";
+        client_show(app, popup);
+    }
+    auto popup = client_by_name(app, "icon_list_popup");
+    if (auto s = container_by_name("icon_list_scroll", popup->root)) {
+        ScrollContainer *scroll = (ScrollContainer *) s;
+        for (auto item: scroll->content->children)
+            delete item;
+        scroll->content->children.clear();
+        
+        auto *field = container_by_name("icon_name_field", c->root);
+        std::string &target = ((TextAreaData *) field->user_data)->state->text;
+        if (!target.empty()) {
+            std::vector<std::string_view> names;
+            get_options(names, target, 200);
+            if (!names.empty()) {
+                for (int i = 0; i < names.size(); i++) {
+                    auto view = names[i];
+                    Container *icon_option = scroll->content->child(FILL_SPACE, 27 * config->dpi);
+                    auto nl = new NumberedLabel();
+                    nl->number = i;
+                    nl->label = new Label({view.data(), view.length()});
+                    icon_option->user_data = nl;
+                    icon_option->when_paint = paint_icon_option;
+                    icon_option->when_clicked = [](AppClient *client, cairo_t *, Container *container) {
+                        auto label = (NumberedLabel *) container->user_data;
+                        auto c = client_by_name(app, "pinned_icon_editor");
+                        auto *field = container_by_name("icon_name_field", c->root);
+                        ((TextAreaData *) field->user_data)->state->text = label->label->text;
+                        
+                        client_close_threaded(app, client);
+                    };
+                }
+                max_options = names.size();
+                if (active_option > max_options - 1) {
+                    active_option = max_options - 1;
+                }
+                if (active_option < 0)
+                    active_option = 0;
+            }
+        }
+        
+        client_layout(app, popup);
+        request_refresh(app, popup);
+    }
+}
+
+static void
+scroll_for_active_option() {
+    if (auto popup = client_by_name(app, "icon_list_popup")) {
+        if (auto s = container_by_name("icon_list_scroll", popup->root)) {
+            ScrollContainer *scroll_pane = (ScrollContainer *) s;
+            
+            for (auto item: scroll_pane->content->children) {
+                auto nl = (NumberedLabel *) item->user_data;
+                if (nl->number == active_option) {
+                    int offset = -scroll_pane->scroll_v_real + item->real_bounds.y;
+                    offset -= 3 * config->dpi;
+                    scroll_pane->scroll_v_real = -offset;
+                    scroll_pane->scroll_v_visual = scroll_pane->scroll_v_real;
+                    ::layout(popup, popup->cr, scroll_pane, scroll_pane->real_bounds);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+static void
 tab_key_event(AppClient *client,
               cairo_t *cr,
               Container *container,
@@ -370,6 +538,44 @@ tab_key_event(AppClient *client,
     if (direction == XKB_KEY_UP) {
         return;
     }
+    if (container->name == "icon_name_field") {
+        if (keysym == XKB_KEY_Escape) {
+            if (auto c = client_by_name(app, "icon_list_popup")) {
+                client_close_threaded(app, c);
+            }
+            return;
+        } else if (keysym == XKB_KEY_Up) {
+            active_option--;
+            if (active_option < 0)
+                active_option = 0;
+            scroll_for_active_option();
+            update_icon(client);
+        } else if (keysym == XKB_KEY_Down) {
+            active_option++;
+            if (active_option > max_options - 1)
+                active_option = max_options - 1;
+            scroll_for_active_option();
+            update_icon(client);
+        } else if (keysym == XKB_KEY_Return || keysym == XKB_KEY_Tab) {
+            auto c = client_by_name(app, "pinned_icon_editor");
+            auto *field = container_by_name("icon_name_field", c->root);
+            if (auto popup = client_by_name(app, "icon_list_popup")) {
+                if (auto s = container_by_name("icon_list_scroll", popup->root)) {
+                    ScrollContainer *scroll_pane = (ScrollContainer *) s;
+                    for (auto item: scroll_pane->content->children) {
+                        auto nl = (NumberedLabel *) item->user_data;
+                        if (nl->number == active_option) {
+                            ((TextAreaData *) field->user_data)->state->text = nl->label->text;
+                            break;
+                        }
+                    }
+                }
+                client_close_threaded(app, popup);
+            }
+            update_icon(client);
+        }
+    }
+    
     if (container->parent->active) {
         if (keysym == XKB_KEY_Tab) {
             if (container->name == "icon_name_field") {
@@ -386,6 +592,7 @@ tab_key_event(AppClient *client,
             textarea_handle_keypress(client, container, is_string, keysym, string, mods, XKB_KEY_DOWN);
             if (container->name == "icon_name_field") {
                 update_icon(client);
+                show_icon_options();
             }
         }
     }
@@ -424,21 +631,13 @@ static void fill_root(AppClient *client) {
         std::string icon_path = targets[0].best_full_path;
         if (!icon_path.empty()) {
             load_icon_full_path(app, client, &icon_data->surface, icon_path, 64 * config->dpi);
-            icon_search_state = new Label("Found a match for: '" + pinned_icon_data->icon_name + "'");
         } else {
-            icon_search_state = new Label("Didn't find a match for: '" + pinned_icon_data->icon_name + "'");
         }
         
         icon->user_data = icon_data;
         icon->when_paint = paint_icon;
         
         centered->child(FILL_SPACE, FILL_SPACE);
-    }
-    
-    { // Icon search state label
-        Container *icon_search_state_label = root->child(FILL_SPACE, 13 * config->dpi);
-        icon_search_state_label->user_data = icon_search_state;
-        icon_search_state_label->when_paint = paint_state_label;
     }
     
     Container *icon_name_hbox = root->child(layout_type::hbox, FILL_SPACE, 64 * config->dpi);
@@ -458,12 +657,6 @@ static void fill_root(AppClient *client) {
             icon_name_label->name = "icon_name_label";
             icon_name_label->user_data = new Label("Icon");
             icon_name_label->when_paint = paint_label;
-            
-            Container *icon_alternatives_label = icon_name_label_and_alternatives_hbox->child(FILL_SPACE, FILL_SPACE);
-            icon_alternatives_label->name = "icon_alternatives_label";
-            icon_alternatives_label->user_data = new Label("");
-            ((Label *) icon_alternatives_label->user_data)->weight = PANGO_WEIGHT_BOLD;
-            icon_alternatives_label->when_paint = paint_label;
             
             icon_name_label_and_field_vbox->child(FILL_SPACE, FILL_SPACE);
             
@@ -550,6 +743,9 @@ closed_pinned_icon(AppClient *client) {
         } else {
             delete pinned_icon_container;
         }
+    }
+    if (auto p = client_by_name(app, "icon_list_popup")) {
+        client_close_threaded(app, p);
     }
 }
 

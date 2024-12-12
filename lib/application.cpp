@@ -453,7 +453,14 @@ static void deliver_fine_scroll_event(App *app, int horizontal, int vertical, bo
                 
                 handle_mouse_motion(app, client, x, y);
             }
-            set_active(client, mouse_downed, client->root, false);
+            // TODO: why did we reset the active state on scrolls? I don't think it makes sense
+//            if (client->child_popup == nullptr) {
+//                set_active(client, mouse_downed, client->root, false);
+//            } else {
+//                if (!bounds_contains(*client->child_popup->bounds, pointer_reply->root_x, pointer_reply->root_y)) {
+//                    set_active(client, mouse_downed, client->root, false);
+//                }
+//            }
             
             request_refresh(app, client);
         }

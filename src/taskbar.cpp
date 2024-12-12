@@ -2391,7 +2391,9 @@ add_item_clicked(AppClient *popup, cairo_t *, Container *) {
     client_layout(app, taskbar);
     client_paint(app, taskbar);
     start_pinned_icon_editor(a, true);
-    client_close_threaded(app, popup);
+    if (popup) {
+        client_close_threaded(app, popup);
+    }
 }
 
 static void
