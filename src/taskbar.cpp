@@ -3716,11 +3716,13 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
             std::istringstream stream(d);
             std::string line;
             std::string files;
+            int files_count = 0;
             while (std::getline(stream, line)) {  // Read line by line
                 if (!line.empty()) {
                     files += " \"";
                     files += uriToFilePath(trimnewlines(line));
                     files += "\"";
+                    files_count++;
                 }
             }
             bool result = prop_reply != nullptr;
