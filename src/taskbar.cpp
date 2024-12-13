@@ -47,7 +47,7 @@
 #include "pinned_icon_editor.h"
 
 #define WIN7 false
-#define scale_ratio (config->taskbar_height / (35 * config->dpi))
+#define scale_ratio (config->taskbar_height / (35.0 * config->dpi))
 
 static Container *active_container = nullptr;
 static xcb_window_t active_window = 0;
@@ -115,6 +115,22 @@ std::string trimnewlines(std::string str) {
     }).base(), copy.end());
     
     return copy;
+}
+
+static int
+icon_width(AppClient *client) {
+    int max_container_w = (int) (client->bounds->h + 4 * config->dpi);
+    bool max_container_even = max_container_w % 2 == 0;
+    
+    int tentative_icon_size = (int) (24.0 * config->dpi * (scale_ratio));
+    bool tentative_even = tentative_icon_size % 2 == 0;
+    
+    // So that we are pixel perfectly centered
+    if ((max_container_even && !tentative_even) || (!max_container_even && tentative_even)) {
+        tentative_icon_size++;
+    }
+    
+    return tentative_icon_size;
 }
 
 static void
@@ -268,7 +284,7 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
     
     if (winbar_settings->super_icon_default) {
-        float icon_size = 24 * config->dpi * (scale_ratio);
+        float icon_size = icon_width(client);
         if (!data->already_attempted) {
             data->already_attempted = true;
             data->surface = accelerated_surface(app, client, icon_size, icon_size);
@@ -670,7 +686,7 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
     if (data->surface) {
         cairo_save(cr);
         double scale_afterwards = .81;
-        int surface_width = cairo_image_surface_get_width(data->surface);
+        double surface_width = cairo_image_surface_get_width(data->surface);
         double w = surface_width;
         
         auto scale_amount = 1 - (data->animation_zoom_amount * (1 - scale_afterwards));
@@ -690,11 +706,9 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
             scale_amount = (new_amount + scale_amount) / 2;
         }
         double current_w = w * scale_amount;
-        
-        double xpos = container->real_bounds.x + container->real_bounds.w / 2 -
-                      cairo_image_surface_get_width(data->surface) / 2;
-        double ypos = container->real_bounds.y + container->real_bounds.h / 2 -
-                      cairo_image_surface_get_width(data->surface) / 2;
+
+        double xpos = container->real_bounds.x + container->real_bounds.w / 2 - surface_width / 2;
+        double ypos = container->real_bounds.y + container->real_bounds.h / 2 -surface_width / 2;
         if (winbar_settings->labels && !data->windows_data_list.empty()) {
             auto title = data->windows_data_list[0]->title;
             if (!trim(title).empty()) {
@@ -720,7 +734,7 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
             bounce_amount = 0;
         
         double off = (((config->taskbar_height - w) - (11 * config->dpi)) / 2) * (bounce_amount);
-        cairo_set_source_surface(cr, data->surface, xpos, ypos + off);
+        cairo_set_source_surface(cr, data->surface, xpos - 1, ypos + off);
         cairo_paint(cr);
         cairo_restore(cr);
     }
@@ -2368,7 +2382,7 @@ add_item_clicked(AppClient *popup, cairo_t *, Container *) {
     auto *taskbar = client_by_name(app, "taskbar");
     auto *icons = container_by_name("icons", taskbar->root);
     
-    Container *a = new Container(config->taskbar_height * config->dpi, FILL_SPACE);
+    Container *a = new Container(taskbar->bounds->h + 4 * config->dpi, FILL_SPACE);
     a->parent = icons;
     if (icons->alignment == container_alignment::ALIGN_RIGHT) {
         icons->children.erase(icons->children.begin() + (icons->children.size() - 1));
@@ -4399,7 +4413,7 @@ void add_window(App *app, xcb_window_t window) {
             std::vector<IconTarget> targets;
             targets.emplace_back(IconTarget(icon));
             search_icons(targets);
-            pick_best(targets, 24 * config->dpi * (scale_ratio));
+            pick_best(targets, icon_width(client));
             path = targets[0].best_full_path;
             data->icon_name = icon;
         }
@@ -4419,7 +4433,7 @@ void add_window(App *app, xcb_window_t window) {
             std::vector<IconTarget> targets;
             targets.emplace_back(IconTarget(icon_name));
             search_icons(targets);
-            pick_best(targets, 24 * config->dpi * (scale_ratio));
+            pick_best(targets, icon_width(client));
             path = targets[0].best_full_path;
             data->icon_name = icon_name;
         }
@@ -4435,7 +4449,7 @@ void add_window(App *app, xcb_window_t window) {
             std::vector<IconTarget> targets;
             targets.emplace_back(IconTarget(data->icon_name));
             search_icons(targets);
-            pick_best(targets, 24 * config->dpi * (scale_ratio));
+            pick_best(targets, icon_width(client));
             path = targets[0].best_full_path;
             xcb_icccm_get_text_property_reply_wipe(&props);
         }
@@ -4444,13 +4458,13 @@ void add_window(App *app, xcb_window_t window) {
         std::vector<IconTarget> targets;
         targets.emplace_back(IconTarget(window_class_name));
         search_icons(targets);
-        pick_best(targets, 24 * config->dpi * (scale_ratio));
+        pick_best(targets, icon_width(client));
         path = targets[0].best_full_path;
         data->icon_name = window_class_name;
     }
     
     if (!path.empty()) {
-        load_icon_full_path(app, client, &data->surface, path, 24 * config->dpi * (scale_ratio));
+        load_icon_full_path(app, client, &data->surface, path, icon_width(client));
     } else {
         xcb_generic_error_t *error;
         xcb_get_property_cookie_t c = xcb_ewmh_get_wm_icon(&app->ewmh, window);
@@ -4461,9 +4475,9 @@ void add_window(App *app, xcb_window_t window) {
         
         if (error) {
             std::free(error);
-            data->surface = accelerated_surface(app, client, 24 * config->dpi * (scale_ratio), 24 * config->dpi * (scale_ratio));
+            data->surface = accelerated_surface(app, client, icon_width(client), icon_width(client));
             paint_surface_with_image(data->surface, as_resource_path("unknown-24.svg"),
-                                     24 * config->dpi * (scale_ratio), nullptr);
+                                     icon_width(client), nullptr);
         } else {
             if (0 < xcb_ewmh_get_wm_icon_length(&wm_icon)) {
                 uint32_t width = 0;
@@ -4488,11 +4502,11 @@ void add_window(App *app, xcb_window_t window) {
                 cairo_pattern_t *pattern = cairo_pattern_create_for_surface(surface);
                 cairo_pattern_set_filter(pattern, CAIRO_FILTER_BEST);
                 
-                data->surface = accelerated_surface(app, client, 24 * config->dpi * (scale_ratio), 24 * config->dpi * (scale_ratio));
+                data->surface = accelerated_surface(app, client, icon_width(client), icon_width(client));
                 cairo_t *cr = cairo_create(data->surface);
                 
                 cairo_save(cr);
-                double taskbar_icon_size = 24 * config->dpi * (scale_ratio);
+                double taskbar_icon_size = icon_width(client);
                 cairo_scale(cr, taskbar_icon_size / (width), taskbar_icon_size / (width));
                 cairo_set_source(cr, pattern);
                 cairo_paint(cr);
@@ -4501,9 +4515,9 @@ void add_window(App *app, xcb_window_t window) {
                 cairo_destroy(cr);
                 xcb_ewmh_get_wm_icon_reply_wipe(&wm_icon);
             } else {
-                data->surface = accelerated_surface(app, client, 24 * config->dpi * (scale_ratio), 24 * config->dpi * (scale_ratio));
+                data->surface = accelerated_surface(app, client, icon_width(client), icon_width(client));
                 paint_surface_with_image(data->surface, as_resource_path("unknown-24.svg"),
-                                         24 * config->dpi * (scale_ratio), nullptr);
+                                         icon_width(client), nullptr);
             }
         }
     }
@@ -4863,7 +4877,7 @@ load_pinned_icons() {
         i++;
     }
     search_icons(targets);
-    pick_best(targets, 24 * config->dpi * (scale_ratio));
+    pick_best(targets, icon_width(client_entity));
     
     i = 0;
     for (const std::string &section_title: itemFile.Sections()) {
@@ -4903,16 +4917,16 @@ load_pinned_icons() {
         }
         
         if (!path.empty()) {
-            load_icon_full_path(app, client_entity, &data->surface, path, 24 * config->dpi * (scale_ratio));
+            load_icon_full_path(app, client_entity, &data->surface, path, icon_width(client_entity));
         } else {
-            data->surface = accelerated_surface(app, client_entity, 24 * config->dpi * (scale_ratio), 24 * config->dpi * (scale_ratio));
+            data->surface = accelerated_surface(app, client_entity, icon_width(client_entity), icon_width(client_entity));
             char *string = getenv("HOME");
             std::string home(string);
             home += "/.config/winbar/cached_icons/" + data->class_name + ".png";
-            bool b = paint_surface_with_image(data->surface, home, 24 * config->dpi * (scale_ratio), nullptr);
+            bool b = paint_surface_with_image(data->surface, home, icon_width(client_entity), nullptr);
             if (!b) {
                 paint_surface_with_image(
-                        data->surface, as_resource_path("unknown-24.svg"), 24 * config->dpi * (scale_ratio), nullptr);
+                        data->surface, as_resource_path("unknown-24.svg"), icon_width(client_entity), nullptr);
             }
         }
         
@@ -5022,7 +5036,7 @@ void update_pinned_items_icon() {
                     targets.emplace_back(IconTarget(data->icon_name));
                     targets.emplace_back(IconTarget(data->class_name));
                     search_icons(targets);
-                    pick_best(targets, 24 * config->dpi * (scale_ratio));
+                    pick_best(targets, icon_width(client));
                     path = targets[0].best_full_path;
                     if (!data->icon_name.empty()) {
                         path = targets[0].best_full_path;
@@ -5031,16 +5045,16 @@ void update_pinned_items_icon() {
                         path = targets[1].best_full_path;
                     }
                     if (!path.empty()) {
-                        load_icon_full_path(app, client, &data->surface, path, 24 * config->dpi * (scale_ratio));
+                        load_icon_full_path(app, client, &data->surface, path, icon_width(client));
                     } else {
-                        data->surface = accelerated_surface(app, client, 24 * config->dpi * (scale_ratio), 24 * config->dpi * (scale_ratio));
+                        data->surface = accelerated_surface(app, client, icon_width(client), icon_width(client));
                         char *string = getenv("HOME");
                         std::string home(string);
                         home += "/.config/winbar/cached_icons/" + data->class_name + ".png";
-                        bool b = paint_surface_with_image(data->surface, home, 24 * config->dpi * (scale_ratio), nullptr);
+                        bool b = paint_surface_with_image(data->surface, home, icon_width(client), nullptr);
                         if (!b) {
                             paint_surface_with_image(
-                                    data->surface, as_resource_path("unknown-24.svg"), 24 * config->dpi * (scale_ratio), nullptr);
+                                    data->surface, as_resource_path("unknown-24.svg"), icon_width(client), nullptr);
                         }
                     }
                 }
