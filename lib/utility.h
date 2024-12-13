@@ -325,4 +325,7 @@ rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width
 
 void pango_layout_get_pixel_size_safe(PangoLayout *layout, int *w, int *h);
 
+bool
+starts_with(const std::string &str, const std::string &prefix);
+
 #endif

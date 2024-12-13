@@ -3420,13 +3420,6 @@ void clear_thumbnails() {
     }
 }
 
-static bool
-starts_with(const std::string &str, const std::string &prefix) {
-    // Check if str is long enough to contain the prefix
-    return str.size() >= prefix.size() &&
-           str.compare(0, prefix.size(), prefix) == 0;
-}
-
 std::string decodePercentEncoding(const std::string& uri) {
     std::string result;
     for (std::size_t i = 0; i < uri.length(); ++i) {

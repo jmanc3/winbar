@@ -164,6 +164,9 @@ struct App {
     // Running on wayland
     bool wayland = false;
     
+    // Desktop environment is KDE
+    int on_kde;
+    
     App();
 };
 

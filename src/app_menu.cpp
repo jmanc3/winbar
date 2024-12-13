@@ -1660,12 +1660,22 @@ void load_desktop_files(std::string directory) {
             std::string exec = desktop_application.Get("Desktop Entry", "Exec", "");
             std::string keywords = desktop_application.Get("Desktop Entry", "Keywords", "");
             std::string icon = desktop_application.Get("Desktop Entry", "Icon", "");
-            std::string display = desktop_application.Get("Desktop Entry", "NoDisplay", "");
+            std::string no_display_text = desktop_application.Get("Desktop Entry", "NoDisplay", "");
             std::string not_show_in = desktop_application.Get("Desktop Entry", "NotShowIn", "");
             std::string only_show_in = desktop_application.Get("Desktop Entry", "OnlyShowIn", "");
+            bool no_display = false;
+            std::transform(no_display_text.begin(), no_display_text.end(), no_display_text.begin(), ::tolower);
             
-            if (exec.empty() || display == "True" ||
-                display == "true" || keywords.find("lsp-plugins") != std::string::npos) // If we find no exec entry then there's nothing to run
+            if (no_display_text == "true") {
+                if (app->on_kde) {
+                    no_display = !starts_with(filename, "kcm_");
+                } else {
+                    no_display = true;
+                }
+            }
+            
+            if (exec.empty() || no_display || keywords.find("lsp-plugins") !=
+                                              std::string::npos) // If we find no exec entry then there's nothing to run
                 continue;
             
             if (!current_desktop.empty() && !winbar_settings->ignore_only_show_in) {

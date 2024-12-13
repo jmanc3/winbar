@@ -788,6 +788,12 @@ void pango_layout_get_pixel_size_safe(PangoLayout *layout, int *w, int *h) {
     *h = logical.height;
 }
 
+bool starts_with(const std::string &str, const std::string &prefix) {
+    // Check if str is long enough to contain the prefix
+    return str.size() >= prefix.size() &&
+           str.compare(0, prefix.size(), prefix) == 0;
+}
+
 void SpringAnimation::update(float deltaTime) {
     if (deltaTime < .00001)
         deltaTime = dt;

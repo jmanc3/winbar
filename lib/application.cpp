@@ -635,6 +635,10 @@ App *app_new() {
     app->bounds.h = app->screen->height_in_pixels;
 
     app->wayland = std::getenv("WAYLAND_DISPLAY") != nullptr;
+    auto current_desktop = std::getenv("XDG_CURRENT_DESKTOP");
+    if (current_desktop != nullptr) {
+        app->on_kde = strcmp(current_desktop, "KDE") == 0;
+    }
 
     xcb_intern_atom_cookie_t *c = xcb_ewmh_init_atoms(app->connection, &app->ewmh);
     if (!xcb_ewmh_init_atoms_replies(&app->ewmh, c, NULL))
