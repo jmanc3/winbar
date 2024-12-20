@@ -634,7 +634,7 @@ void search_icons(std::vector<IconTarget> &targets) {
     for (int i = 0; i < targets.size(); ++i) {
         auto target = targets[i];
         
-        std::string_view target_name = target.name;
+        std::string_view target_name = target.name.c_str();
         if (target.name.size() > 2 && target.name[0] == ':' && target.name.find(':', 1) != std::string::npos) {
             int start = target.name.find(':', 1);
             target_name = std::string_view(target.name.data() + start + 1, target.name.size() - start - 1);
@@ -874,6 +874,7 @@ void pick_best(std::vector<IconTarget> &targets, int target_size, IconContext ta
                                       return lhs.is_part_of_target_context > rhs.is_part_of_target_context;
                                   }
                               }
+                              return lhs.is_part_of_current_theme > rhs.is_part_of_current_theme;
                           }
                           return lhs.is_part_of_preferred_theme > rhs.is_part_of_preferred_theme;
                       });
@@ -1144,7 +1145,7 @@ bool is_case_insensitive_substring(const std::string_view &str_view, const std::
 }
 
 void get_options(std::vector<std::string_view> &names, const std::string &name, int max) {
-    std::string_view icon_name_only = name;
+    std::string_view icon_name_only = name.c_str();
     if (name.size() > 2 && name[0] == ':' && name.find(':', 1) != std::string::npos) {
         int start = name.find(':', 1);
         icon_name_only = std::string_view(name.data() + start + 1, name.size() - start - 1);
