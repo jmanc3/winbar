@@ -62,6 +62,7 @@ struct Candidate {
     
     int size_index = 10;
     bool is_part_of_current_theme = false;
+    bool is_part_of_preferred_theme = false;
     bool is_part_of_target_context = false;
 };
 

@@ -634,9 +634,15 @@ void search_icons(std::vector<IconTarget> &targets) {
     for (int i = 0; i < targets.size(); ++i) {
         auto target = targets[i];
         
-        if (ranges.find(target.name.c_str()) == ranges.end())
+        std::string_view target_name = target.name;
+        if (target.name.size() > 2 && target.name[0] == ':' && target.name.find(':', 1) != std::string::npos) {
+            int start = target.name.find(':', 1);
+            target_name = std::string_view(target.name.data() + start + 1, target.name.size() - start - 1);
+        }
+        
+        if (ranges.find(target_name) == ranges.end())
             continue;
-        Range range = ranges[target.name.c_str()];
+        Range range = ranges[target_name];
 
         std::vector<Candidate> candidates;
         for (int j = 0; j < (range.length / 3); ++j) {
@@ -648,7 +654,7 @@ void search_icons(std::vector<IconTarget> &targets) {
 
             Candidate candidate;
             candidate.parent_path = data->parentPaths[getParentIndex(parentIndexAndExtension)];
-            candidate.filename = target.name;
+            candidate.filename = target_name;
             candidate.theme = data->themes[themeIndex];
             candidate.extension = getExtension(parentIndexAndExtension);
             candidate.context = IconContext::NotSet;
@@ -824,6 +830,15 @@ void pick_best(std::vector<IconTarget> &targets, int target_size, IconContext ta
     c3ic_generate_sizes(target_size, strict_sizes);
     for (int ss = 0; ss < targets.size(); ss++) {
         IconTarget *target = &targets[ss];
+        bool has_preferred_theme = false;
+        std::string_view preferred_theme;
+        if (target->name.size() > 2 && target->name[0] == ':' &&
+            target->name.find(':', 1) != std::string::npos) {
+            has_preferred_theme = true;
+            int start = target->name.find(':', 1);
+            preferred_theme = std::string_view(target->name.data() + 1, start - 1);
+        }
+        
         if (!target->name.empty() && target->name[0] == '/') {
             // If the target is just a full path, then just return the full path
             target->best_full_path = target->name;
@@ -832,6 +847,10 @@ void pick_best(std::vector<IconTarget> &targets, int target_size, IconContext ta
                 Candidate *candidate = &target->candidates[i];
                 candidate->is_part_of_current_theme = current_theme == candidate->theme;
                 candidate->is_part_of_target_context = candidate->context == target_context;
+                if (has_preferred_theme) {
+                    candidate->is_part_of_preferred_theme = candidate->theme == preferred_theme;
+                }
+               
                 if (candidate->context == IconContext::NotSet)
                     candidate->is_part_of_target_context = false;
             }
@@ -839,22 +858,24 @@ void pick_best(std::vector<IconTarget> &targets, int target_size, IconContext ta
             // Set best_full_path equal to best top option
             std::sort(target->candidates.begin(), target->candidates.end(),
                       [current_theme](Candidate lhs, Candidate rhs) {
-                          if (lhs.is_part_of_current_theme == rhs.is_part_of_current_theme) {
-                              if (lhs.is_part_of_target_context == rhs.is_part_of_target_context) {
-                                  if (lhs.size_index == rhs.size_index) {
-                                      if (lhs.extension == rhs.extension) {
-                                          return lhs.scale < rhs.scale;
+                          if (lhs.is_part_of_preferred_theme == rhs.is_part_of_preferred_theme) {
+                              if (lhs.is_part_of_current_theme == rhs.is_part_of_current_theme) {
+                                  if (lhs.is_part_of_target_context == rhs.is_part_of_target_context) {
+                                      if (lhs.size_index == rhs.size_index) {
+                                          if (lhs.extension == rhs.extension) {
+                                              return lhs.scale < rhs.scale;
+                                          } else {
+                                              return lhs.extension < rhs.extension;
+                                          }
                                       } else {
-                                          return lhs.extension < rhs.extension;
+                                          return lhs.size_index < rhs.size_index;
                                       }
                                   } else {
-                                      return lhs.size_index < rhs.size_index;
+                                      return lhs.is_part_of_target_context > rhs.is_part_of_target_context;
                                   }
-                              } else {
-                                  return lhs.is_part_of_target_context > rhs.is_part_of_target_context;
                               }
                           }
-                          return lhs.is_part_of_current_theme > rhs.is_part_of_current_theme;
+                          return lhs.is_part_of_preferred_theme > rhs.is_part_of_preferred_theme;
                       });
         
             if (!target->candidates.empty())
@@ -1102,10 +1123,17 @@ c3ic_fix_wm_class(const std::string &given_wm_class) {
 }
 
 bool has_options(const std::string& name) {
+    // Ignore preferred theme tag
+    if (name.size() > 2 && name[0] == ':' && name.find(':', 1) != std::string::npos) {
+        int start = name.find(':', 1);
+        std::string_view icon_name_only = std::string_view(name.data() + start + 1, name.size() - start - 1);
+        
+        return ranges.find(icon_name_only) != ranges.end();
+    }
     return ranges.find(name.c_str()) != ranges.end();
 }
 
-bool is_case_insensitive_substring(const std::string_view &str_view, const std::string &target) {
+bool is_case_insensitive_substring(const std::string_view &str_view, const std::string_view &target) {
     return std::search(
             str_view.begin(), str_view.end(),
             target.begin(), target.end(),
@@ -1116,8 +1144,13 @@ bool is_case_insensitive_substring(const std::string_view &str_view, const std::
 }
 
 void get_options(std::vector<std::string_view> &names, const std::string &name, int max) {
+    std::string_view icon_name_only = name;
+    if (name.size() > 2 && name[0] == ':' && name.find(':', 1) != std::string::npos) {
+        int start = name.find(':', 1);
+        icon_name_only = std::string_view(name.data() + start + 1, name.size() - start - 1);
+    }
     for (const auto &entry: ranges) {
-        if (is_case_insensitive_substring(entry.first, name)) {
+        if (is_case_insensitive_substring(entry.first, icon_name_only)) {
             bool only_print = true;
             for (auto c: entry.first) {
                 if (!isprint(c))
@@ -1125,7 +1158,7 @@ void get_options(std::vector<std::string_view> &names, const std::string &name, 
             }
             if (only_print) {
                 names.push_back(entry.first);
-                if (names.size() > max)
+                if (names.size() > max && max != 0)
                     return;
             }
         }

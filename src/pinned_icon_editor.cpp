@@ -26,6 +26,7 @@ static TextAreaData *launch_field_data = nullptr;
 static TextAreaData *wm_field_data = nullptr;
 
 static int active_option = 0;
+static bool active_option_preferred = false;
 static int max_options = 0;
 
 struct NumberedLabel : UserData {
@@ -165,7 +166,8 @@ static void paint_icon_option(AppClient *client, cairo_t *cr, Container *contain
 #endif
     ArgbColor color = config->color_pinned_icon_editor_background;
     auto label = (NumberedLabel *) container->user_data;
-    if (container->state.mouse_hovering || container->state.mouse_pressing || label->number == active_option) {
+    if (container->state.mouse_hovering || container->state.mouse_pressing ||
+        (label->number == active_option && active_option_preferred)) {
         if (container->state.mouse_pressing) {
             set_rect(cr, container->real_bounds);
             set_argb(cr, darken(color, 18));
@@ -178,6 +180,7 @@ static void paint_icon_option(AppClient *client, cairo_t *cr, Container *contain
                 request_refresh(app, editor);
             }
             active_option = label->number;
+            active_option_preferred = true;
             set_argb(cr, color);
             set_rect(cr, container->real_bounds);
             cairo_fill(cr);
@@ -352,7 +355,7 @@ static void update_icon(AppClient *client) {
             
             for (auto item: scroll_pane->content->children) {
                 auto nl = (NumberedLabel *) item->user_data;
-                if (nl->number == active_option) {
+                if (nl->number == active_option && active_option_preferred) {
                     active_text = nl->label->text;
                 }
             }
@@ -449,6 +452,19 @@ show_icon_options() {
         popup->name = "icon_list_popup";
         popup->root->when_paint = paint_icon_list_background;
         popup->root->receive_events_even_if_obstructed = true;
+        popup->when_closed = [](AppClient *) {
+            AppClient *client = client_by_name(app, "pinned_icon_editor");
+            if (client) {
+                update_icon(client);
+                request_refresh(app, client);
+            }
+            active_option = 0;
+            max_options = 0;
+            active_option_preferred = false;
+        };
+        popup->root->when_mouse_leaves_container = [](AppClient *, cairo_t *, Container *) {
+            active_option_preferred = false;
+        };
         
         ScrollPaneSettings scroll_settings(config->dpi);
         scroll_settings.right_width = 6 * config->dpi;
@@ -472,13 +488,37 @@ show_icon_options() {
         if (!target.empty()) {
             std::vector<std::string_view> names;
             get_options(names, target, 200);
+            std::vector<IconTarget> targets;
+            for (auto view: names) {
+                targets.emplace_back(std::string(view));
+            }
+            search_icons(targets);
+            
             if (!names.empty()) {
-                for (int i = 0; i < names.size(); i++) {
-                    auto view = names[i];
+                std::vector<std::string> no_dups;
+                for (int i = 0; i < targets.size(); i++) {
+                    auto t = targets[i];
+                    for (const auto &item: t.candidates) {
+                        if (std::find(no_dups.begin(), no_dups.end(), item.filename) == no_dups.end()) {
+                            no_dups.push_back(item.filename); // Add value if not found
+                        }
+                    }
+                }
+                for (int i = 0; i < targets.size(); i++) {
+                    auto t = targets[i];
+                    for (const auto &item: t.candidates) {
+                        std::string fullname = ":" + item.theme + ":" + item.filename;
+                        if (std::find(no_dups.begin(), no_dups.end(), fullname) == no_dups.end()) {
+                            no_dups.push_back(fullname); // Add value if not found
+                        }
+                    }
+                }
+                
+                for (int i = 0; i < no_dups.size(); ++i) {
                     Container *icon_option = scroll->content->child(FILL_SPACE, 27 * config->dpi);
                     auto nl = new NumberedLabel();
                     nl->number = i;
-                    nl->label = new Label({view.data(), view.length()});
+                    nl->label = new Label(no_dups[i]);
                     icon_option->user_data = nl;
                     icon_option->when_paint = paint_icon_option;
                     icon_option->when_clicked = [](AppClient *client, cairo_t *, Container *container) {
@@ -490,7 +530,8 @@ show_icon_options() {
                         client_close_threaded(app, client);
                     };
                 }
-                max_options = names.size();
+                
+                max_options = no_dups.size();
                 if (active_option > max_options - 1) {
                     active_option = max_options - 1;
                 }
@@ -541,6 +582,7 @@ tab_key_event(AppClient *client,
     if (container->name == "icon_name_field") {
         if (keysym == XKB_KEY_Escape) {
             if (auto c = client_by_name(app, "icon_list_popup")) {
+                active_option_preferred = false;
                 client_close_threaded(app, c);
             }
             return;
@@ -550,12 +592,16 @@ tab_key_event(AppClient *client,
                 active_option = 0;
             scroll_for_active_option();
             update_icon(client);
+            active_option_preferred = true;
         } else if (keysym == XKB_KEY_Down) {
+            if (active_option == 0 && !active_option_preferred)
+                active_option--;
             active_option++;
             if (active_option > max_options - 1)
                 active_option = max_options - 1;
             scroll_for_active_option();
             update_icon(client);
+            active_option_preferred = true;
         } else if (keysym == XKB_KEY_Return || keysym == XKB_KEY_Tab) {
             auto c = client_by_name(app, "pinned_icon_editor");
             auto *field = container_by_name("icon_name_field", c->root);
@@ -566,6 +612,7 @@ tab_key_event(AppClient *client,
                         auto nl = (NumberedLabel *) item->user_data;
                         if (nl->number == active_option) {
                             ((TextAreaData *) field->user_data)->state->text = nl->label->text;
+                            ((TextAreaData *) field->user_data)->state->cursor = nl->label->text.size();
                             break;
                         }
                     }
