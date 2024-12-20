@@ -758,7 +758,34 @@ static std::string get_current_theme_name() {
             return current_theme;
         }
     }
-
+    
+    auto current_desktop = std::getenv("XDG_CURRENT_DESKTOP");
+    if (current_desktop != nullptr) {
+        if (strcmp(current_desktop, "KDE") == 0) {
+            std::string kde_settings(getenv("HOME"));
+            kde_settings += "/.config/kdeglobals";
+            
+            std::ifstream in(kde_settings);
+            std::string line;
+            const char *target_title = "[Icons]";
+            const char *target_child = "Theme=";
+            bool foundFirstTarget = false;
+            while (std::getline(in, line)) {
+                if (!foundFirstTarget) {
+                    if (line.find(target_title) != std::string::npos) {
+                        foundFirstTarget = true;
+                    }
+                } else {
+                    if (line.find(target_child) != std::string::npos) {
+                        previous_time_cached = get_current_time_in_ms();
+                        current_theme = line.substr(strlen(target_child));
+                        return current_theme;
+                    }
+                }
+            }
+        }
+    }
+    
     std::string gtk_settings_file_path(getenv("HOME"));
     gtk_settings_file_path += "/.config/gtk-3.0/settings.ini";
 
