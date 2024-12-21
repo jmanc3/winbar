@@ -4396,9 +4396,21 @@ void add_window(App *app, xcb_window_t window) {
         }
     }
     
+    bool has_wm_based_launch_command = false;
+    std::string wm_based_launcher;
+    for (const auto &item: launchers) {
+        if (!item->wmclass.empty() && item->wmclass == window_class_name && !item->exec.empty()) {
+            has_wm_based_launch_command = true;
+            wm_based_launcher = item->exec;
+        }
+    }
+    
     if (other_with_same_class && has_launch_command) {
         data->has_launchable_info = true;
         data->command_launched_by = ((LaunchableButton *) other_with_same_class->user_data)->command_launched_by;
+    } else if (has_wm_based_launch_command) {
+        data->has_launchable_info = true;
+        data->command_launched_by = wm_based_launcher;
     } else if (pid != -1) {
         data->has_launchable_info = true;
         data->command_launched_by = command_launched_by_line;
@@ -4406,6 +4418,19 @@ void add_window(App *app, xcb_window_t window) {
     
     std::string path;
     std::string icon_name;
+    
+    if (path.empty()) {
+        for (const auto &item: launchers) {
+            if (!item->wmclass.empty() && item->wmclass == window_class_name && !item->icon.empty()) {
+                std::vector<IconTarget> targets;
+                targets.emplace_back(IconTarget(item->icon));
+                search_icons(targets);
+                pick_best(targets, icon_width(client));
+                path = targets[0].best_full_path;
+                data->icon_name = item->icon;
+            }
+        }
+    }
     
     if (path.empty()) {
         std::string icon = find_icon_string_from_window_properties(window);
@@ -4452,18 +4477,6 @@ void add_window(App *app, xcb_window_t window) {
             pick_best(targets, icon_width(client));
             path = targets[0].best_full_path;
             xcb_icccm_get_text_property_reply_wipe(&props);
-        }
-    }
-    if (path.empty()) {
-        for (const auto &item: launchers) {
-            if (!item->wmclass.empty() && item->wmclass == window_class_name && !item->icon.empty()) {
-                std::vector<IconTarget> targets;
-                targets.emplace_back(IconTarget(item->icon));
-                search_icons(targets);
-                pick_best(targets, icon_width(client));
-                path = targets[0].best_full_path;
-                data->icon_name = item->icon;
-            }
         }
     }
     
