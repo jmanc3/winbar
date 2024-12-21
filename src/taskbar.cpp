@@ -4455,6 +4455,19 @@ void add_window(App *app, xcb_window_t window) {
         }
     }
     if (path.empty()) {
+        for (const auto &item: launchers) {
+            if (!item->wmclass.empty() && item->wmclass == window_class_name && !item->icon.empty()) {
+                std::vector<IconTarget> targets;
+                targets.emplace_back(IconTarget(item->icon));
+                search_icons(targets);
+                pick_best(targets, icon_width(client));
+                path = targets[0].best_full_path;
+                data->icon_name = item->icon;
+            }
+        }
+    }
+    
+    if (path.empty()) {
         std::vector<IconTarget> targets;
         targets.emplace_back(IconTarget(window_class_name));
         search_icons(targets);
