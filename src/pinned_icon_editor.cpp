@@ -538,10 +538,6 @@ show_icon_options() {
             active_option = 0;
             max_options = 0;
             active_option_preferred = false;
-            icon_field_data = nullptr;
-            launch_field_data = nullptr;
-            wm_field_data = nullptr;
-            name_field_data = nullptr;
         };
         popup->root->when_mouse_leaves_container = [](AppClient *, cairo_t *, Container *) {
             active_option_preferred = false;
@@ -935,6 +931,10 @@ closed_pinned_icon(AppClient *client) {
     if (auto p = client_by_name(app, "icon_list_popup")) {
         client_close_threaded(app, p);
     }
+    icon_field_data = nullptr;
+    launch_field_data = nullptr;
+    wm_field_data = nullptr;
+    name_field_data = nullptr;
 }
 
 void start_pinned_icon_editor(Container *icon_container, bool creating) {
