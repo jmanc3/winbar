@@ -10,6 +10,11 @@
 #include "config.h"
 #include "taskbar.h"
 #include "icons.h"
+#include "app_menu.h"
+#include <sys/stat.h>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 
 #ifdef TRACY_ENABLE
 
@@ -24,6 +29,7 @@ static bool saved = false;
 static TextAreaData *icon_field_data = nullptr;
 static TextAreaData *launch_field_data = nullptr;
 static TextAreaData *wm_field_data = nullptr;
+static TextAreaData *name_field_data = nullptr;
 
 static int active_option = 0;
 static bool active_option_preferred = false;
@@ -159,6 +165,8 @@ static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void update_icon(AppClient *client);
+
+static bool has_desktop_file();
 
 static void paint_icon_option(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
@@ -305,6 +313,75 @@ static Container *make_button(AppClient *client, Container *parent, std::string 
     button->wanted_bounds.w = width + 64 * config->dpi;
     
     return button;
+}
+
+static std::string trim(std::string str) {
+    std::string copy = str;
+    // Remove leading whitespace
+    copy.erase(copy.begin(), std::find_if(copy.begin(), copy.end(), [](int ch) {
+        return !std::isspace(ch);
+    }));
+    
+    // Remove trailing whitespace
+    copy.erase(std::find_if(copy.rbegin(), copy.rend(), [](int ch) {
+        return !std::isspace(ch);
+    }).base(), copy.end());
+    
+    return copy;
+}
+
+static void clicked_create_destroy_desktop_file(AppClient *client, cairo_t *cr, Container *container) {
+    const char *home = getenv("HOME");
+    std::string desktop_path(home);
+    desktop_path += "/.local/share/applications/" + wm_field_data->state->text + ".desktop";
+    auto label = (Label *) container->user_data;
+    
+    if (has_desktop_file()) {
+        try {
+            if (std::filesystem::exists(desktop_path)) {
+                std::filesystem::remove(desktop_path);
+            }
+        } catch (const std::exception &e) {
+            std::cerr << "Error deleting file: " << e.what() << "\n";
+        }
+        label->text = "Make Desktop File";
+    } else {
+        label->text = "Remove Desktop File";
+        // add it
+        try {
+            // Convert the file path to a filesystem path object
+            std::filesystem::path path(desktop_path);
+            
+            // Extract the parent directory path
+            std::filesystem::path parentDir = path.parent_path();
+            
+            // Create directories if they don't exist
+            if (!parentDir.empty() && !std::filesystem::exists(parentDir)) {
+                std::filesystem::create_directories(parentDir);
+            }
+            
+            // Open the file and write content
+            std::ofstream outFile(desktop_path);
+            if (!outFile) {
+                throw std::ios_base::failure("Failed to open file for writing.");
+            }
+            
+            outFile << "[Desktop Entry]\n";
+            outFile << "Icon=" << icon_field_data->state->text << "\n";
+            outFile << "Exec=" << launch_field_data->state->text << "\n";
+            outFile << "StartupWMClass=" << wm_field_data->state->text << "\n";
+            if (trim(name_field_data->state->text).empty()) {
+                outFile << "Name=" << wm_field_data->state->text << "\n";
+            } else {
+                outFile << "Name=" << name_field_data->state->text << "\n";
+            }
+            outFile.close();
+        } catch (const std::exception &e) {
+            std::cerr << "Error: " << e.what() << "\n";
+        }
+    }
+    
+    load_all_desktop_files();
 }
 
 static void clicked_save_and_quit(AppClient *client, cairo_t *cr, Container *container) {
@@ -461,6 +538,10 @@ show_icon_options() {
             active_option = 0;
             max_options = 0;
             active_option_preferred = false;
+            icon_field_data = nullptr;
+            launch_field_data = nullptr;
+            wm_field_data = nullptr;
+            name_field_data = nullptr;
         };
         popup->root->when_mouse_leaves_container = [](AppClient *, cairo_t *, Container *) {
             active_option_preferred = false;
@@ -759,10 +840,54 @@ static void fill_root(AppClient *client) {
     
     root->child(FILL_SPACE, FILL_SPACE);
     
+    
+    Container *name_label_and_field = root->child(layout_type::vbox, FILL_SPACE, 64 * config->dpi);
+    {
+        Container *name_label = name_label_and_field->child(FILL_SPACE, 13 * config->dpi);
+        name_label->user_data = new Label("Desktop file name");
+        name_label->when_paint = paint_label;
+        
+        name_label_and_field->child(FILL_SPACE, FILL_SPACE);
+        
+        Container *name_field = make_textarea(app, client, name_label_and_field, textarea_settings);
+        name_field->name = "name_field";
+        name_field->when_key_event = tab_key_event;
+        name_field->parent->when_paint = paint_textarea_border;
+        auto nf_data = (TextAreaData *) name_field->user_data;
+        nf_data->state->text = "";
+        nf_data->state->prompt = wm_field_data->state->text;
+        nf_data->color_prompt = ArgbColor(0, 0, 0, .3);
+        if (has_desktop_file()) {
+            const char *home = getenv("HOME");
+            std::string desktop_path(home);
+            desktop_path += "/.local/share/applications/" + wm_field_data->state->text + ".desktop";
+            
+            std::ifstream in(desktop_path);
+            std::string line;
+            const char *target = "Name=";
+            while (std::getline(in, line)) {
+                if (line.find(target) != std::string::npos) {
+                    nf_data->state->text = line.substr(strlen(target));
+                }
+            }
+        }
+        name_field_data = nf_data;
+        name_field->wanted_bounds.h = 32 * config->dpi;
+    }
+    
+    
     Container *button_hbox = root->child(::hbox, FILL_SPACE, 30 * config->dpi);
     button_hbox->spacing = 10 * config->dpi;
     {
-        button_hbox->child(FILL_SPACE, FILL_SPACE);
+        std::string desktop_file_text = "Make Desktop File";
+        if (has_desktop_file()) {
+            desktop_file_text = "Remove Desktop File";
+        }
+        Container *make_desktop = make_button(client, button_hbox, desktop_file_text);
+        make_desktop->when_clicked = clicked_create_destroy_desktop_file;
+        
+        // Spacer
+        button_hbox->child(FILL_SPACE, 1);
         
         Container *save_button = make_button(client, button_hbox, "Save & Quit");
         save_button->when_clicked = clicked_save_and_quit;
@@ -774,6 +899,22 @@ static void fill_root(AppClient *client) {
         Container *cancel_button = make_button(client, button_hbox, "Close");
         cancel_button->when_clicked = clicked_cancel;
     }
+}
+
+static bool has_desktop_file() {
+    // Check if the desktop folder there is a 'class_name'.desktop file
+    if (wm_field_data) {
+        const char *home = getenv("HOME");
+        std::string desktop_path(home);
+        desktop_path += "/.local/share/applications/" + wm_field_data->state->text + ".desktop";
+        
+        struct stat cache_stat{};
+        if (stat(desktop_path.c_str(), &cache_stat) == 0) { // exists
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 static void
@@ -811,8 +952,8 @@ void start_pinned_icon_editor(Container *icon_container, bool creating) {
     }
     
     Settings settings;
-    settings.w = 600 * config->dpi;
-    settings.h = 450 * config->dpi;
+    settings.w = 750 * config->dpi;
+    settings.h = 580 * config->dpi;
     settings.skip_taskbar = false;
     settings.keep_above = true;
     
