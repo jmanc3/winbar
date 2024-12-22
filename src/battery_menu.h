@@ -18,6 +18,9 @@ struct BatteryInfo : public IconButton {
     std::string capacity;
     int capacity_index = 0;
     int animating_capacity_index = 0;
+    bool already_expanded = false;
+    long start_time = 0;
+    int previous_volume_width = 0;
 };
 
 void start_battery_menu();

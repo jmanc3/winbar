@@ -399,11 +399,7 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
                          volume_icon_width / 2),
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
-
-    static bool already_expanded = false;
-    static long start_time = 0;
-    static int previous_volume_width = 0;
-    
+   
     if (((container->state.mouse_hovering || container->state.mouse_pressing ||
           container->state.mouse_dragging) && winbar_settings->volume_expands_on_hover) ||
         winbar_settings->volume_label_always_on) {
@@ -417,27 +413,27 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
         int width;
         bool resize = false;
         pango_layout_get_pixel_size_safe(percentage, &width, &height);
-        if (previous_volume_width != width) {
-            already_expanded = false;
-            previous_volume_width = width;
+        if (data->previous_volume_width != width) {
+            data->already_expanded = false;
+            data->previous_volume_width = width;
             resize = true;
         }
 
         float speed = 110.0f;
-        if (!already_expanded) {
+        if (!data->already_expanded) {
             if (resize) {
                 speed = 40.0f;
             } else {
-                start_time = get_current_time_in_ms();
+                data->start_time = get_current_time_in_ms();
             }
-
-            already_expanded = true;
+            
+            data->already_expanded = true;
             client_create_animation(app, client, &container->wanted_bounds.w, container->lifetime, 0, speed, nullptr,
                                     (config->dpi * 24) + (width + 7 * config->dpi), true);
         }
 
         ArgbColor color = config->color_taskbar_button_icons;
-        color.a = (get_current_time_in_ms() - start_time) / speed;
+        color.a = (get_current_time_in_ms() - data->start_time) / speed;
         if (color.a > 1)
             color.a = 1;
         set_argb(cr, color);
@@ -446,8 +442,8 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
                       (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
         pango_cairo_show_layout(cr, percentage);
     } else {
-        if (already_expanded) {
-            already_expanded = false;
+        if (data->already_expanded) {
+            data->already_expanded = false;
             client_create_animation(app, client, &container->wanted_bounds.w, container->lifetime, 0, 100.0f, nullptr, 24 * config->dpi, true);
         }
     }
@@ -2912,10 +2908,6 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
                          battery_icon_width / 2),
                   (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     pango_cairo_show_layout(cr, layout);
-
-    static bool already_expanded = false;
-    static long start_time = 0;
-    static int previous_volume_width = 0;
     
     if (((container->state.mouse_hovering || container->state.mouse_pressing ||
           container->state.mouse_dragging) && winbar_settings->battery_expands_on_hover) ||
@@ -2940,28 +2932,28 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
 
         bool resize = false;
         pango_layout_get_pixel_size_safe(percentage, &width, &height);
-        if (previous_volume_width != width) {
-            already_expanded = false;
-            previous_volume_width = width;
+        if (data->previous_volume_width != width) {
+            data->already_expanded = false;
+            data->previous_volume_width = width;
             resize = true;
         }
 
 
         float speed = 110.0f;
-        if (!already_expanded) {
+        if (!data->already_expanded) {
             if (resize) {
                 speed = 40.0f;
             } else {
-                start_time = get_current_time_in_ms();
+                data->start_time = get_current_time_in_ms();
             }
-
-            already_expanded = true;
+            
+            data->already_expanded = true;
             client_create_animation(app, client_entity, &container->wanted_bounds.w, container->lifetime, 0, speed, nullptr,
                                     (config->dpi * 24) + (width + 7 * config->dpi), true);
         }
 
         ArgbColor color = config->color_taskbar_button_icons;
-        color.a = (get_current_time_in_ms() - start_time) / speed;
+        color.a = (get_current_time_in_ms() - data->start_time) / speed;
         if (color.a > 1)
             color.a = 1;
         set_argb(cr, color);
@@ -2970,8 +2962,8 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
                       (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
         pango_cairo_show_layout(cr, percentage);
     } else {
-        if (already_expanded) {
-            already_expanded = false;
+        if (data->already_expanded) {
+            data->already_expanded = false;
             client_create_animation(app, client_entity, &container->wanted_bounds.w, container->lifetime, 0, 100.0f, nullptr,
                                     24 * config->dpi, true);
         }

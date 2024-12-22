@@ -39,6 +39,10 @@ class VolumeButton : public IconButton {
 public:
     double volume = 1;
     bool muted = false;
+    
+    bool already_expanded = false;
+    long start_time = 0;
+    int previous_volume_width = 0;
 };
 
 struct ActionCenterButtonData : public IconButton {
