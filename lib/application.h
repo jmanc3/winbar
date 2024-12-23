@@ -152,6 +152,8 @@ struct App {
     
     int loop = 0;
     
+    long last_touchpad_time = 0;
+    
     // TODO: move atoms into their own things
     xcb_atom_t protocols_atom = 0;
     

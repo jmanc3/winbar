@@ -687,7 +687,7 @@ tab_key_event(AppClient *client,
                     ScrollContainer *scroll_pane = (ScrollContainer *) s;
                     for (auto item: scroll_pane->content->children) {
                         auto nl = (NumberedLabel *) item->user_data;
-                        if (nl->number == active_option) {
+                        if (nl->number == active_option && active_option_preferred) {
                             ((TextAreaData *) field->user_data)->state->text = nl->label->text;
                             ((TextAreaData *) field->user_data)->state->cursor = nl->label->text.size();
                             break;

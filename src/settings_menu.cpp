@@ -625,6 +625,7 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
             combo_data->options.emplace_back("Windows 10");
             combo_data->options.emplace_back("Windows 11");
             combo_data->options.emplace_back("Windows 11 Detailed");
+            combo_data->options.emplace_back("Windows 11 Minimal");
             combo_data->options.emplace_back("Windows Vista");
             combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
                 if (winbar_settings->date_style == "windows 10") {
@@ -633,6 +634,8 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
                     return "Windows 11";
                 } else if (winbar_settings->date_style == "windows 11 detailed") {
                     return "Windows 11 Detailed";
+                } else if (winbar_settings->date_style == "windows 11 minimal") {
+                    return "Windows 11 Minimal";
                 } else if (winbar_settings->date_style == "windows vista") {
                     return "Windows Vista";
                 }
@@ -646,6 +649,9 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
                     winbar_settings->date_alignment = PangoAlignment::PANGO_ALIGN_RIGHT;
                 } else if (((Label *) (self->user_data))->text == "Windows 11 Detailed") {
                     winbar_settings->date_style = "windows 11 detailed";
+                    winbar_settings->date_alignment = PangoAlignment::PANGO_ALIGN_RIGHT;
+                } else if (((Label *) (self->user_data))->text == "Windows 11 Minimal") {
+                    winbar_settings->date_style = "windows 11 minimal";
                     winbar_settings->date_alignment = PangoAlignment::PANGO_ALIGN_RIGHT;
                 } else if (((Label *) (self->user_data))->text == "Windows Vista") {
                     winbar_settings->date_style = "windows vista";

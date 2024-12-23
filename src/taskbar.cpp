@@ -1514,7 +1514,9 @@ return_current_time_and_date() {
     auto in_time_t = std::chrono::system_clock::to_time_t(now);
     
     std::stringstream ss;
-    if (winbar_settings->date_style == "windows 11 detailed") {
+    if (winbar_settings->date_style == "windows 11 minimal") {
+        ss << std::put_time(std::localtime(&in_time_t), "%I:%M");
+    } else if (winbar_settings->date_style == "windows 11 detailed") {
         ss << std::put_time(std::localtime(&in_time_t), "%I:%M %p — %A");
     } else {
         ss << std::put_time(std::localtime(&in_time_t), "%I:%M %p");
@@ -1556,9 +1558,13 @@ return_current_time_and_date() {
     }
     
     std::stringstream year;
-    year << std::put_time(std::localtime(&in_time_t), "%Y");
-    
-    ss << real_month << "/" << real_day << "/" << year.str();
+    if (winbar_settings->date_style == "windows 11 minimal") {
+        year << std::put_time(std::localtime(&in_time_t), "%y");
+        ss << real_day << "/" << year.str();
+    } else {
+        year << std::put_time(std::localtime(&in_time_t), "%Y");
+        ss << real_month << "/" << real_day << "/" << year.str();
+    }
     
     return ss.str();
 }

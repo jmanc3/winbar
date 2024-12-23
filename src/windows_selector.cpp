@@ -94,7 +94,19 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
         } else {
             // start timeout
             if (data->possibly_open_timeout == nullptr) {
-                data->possibly_open_timeout = app_timeout_create(app, nullptr, 130 + (winbar_settings->labels ? 300 : 0), on_open_timeout, container, const_cast<char *>(__PRETTY_FUNCTION__));
+                int windows_count = data->windows_data_list.size();
+                bool recently_touchpad = get_current_time_in_ms() - app->last_touchpad_time < 400;
+                if (windows_count == 1) {
+                    data->possibly_open_timeout = app_timeout_create(app, nullptr,
+                                                                     600 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0),
+                                                                     on_open_timeout, container,
+                                                                     const_cast<char *>(__PRETTY_FUNCTION__));
+                } else {
+                    data->possibly_open_timeout = app_timeout_create(app, nullptr,
+                                                                     320 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 300 : 0),
+                                                                     on_open_timeout, container,
+                                                                     const_cast<char *>(__PRETTY_FUNCTION__));
+                }
             }
         }
     }

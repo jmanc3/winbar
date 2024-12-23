@@ -395,6 +395,8 @@ concerned_containers(App *app, AppClient *client);
 void set_active(AppClient *client, const std::vector<Container *> &active_containers, Container *c, bool state);
 
 static void deliver_fine_scroll_event(App *app, int horizontal, int vertical, bool came_from_touchpad) {
+    if (came_from_touchpad)
+        app->last_touchpad_time = get_current_time_in_ms();
     xcb_query_pointer_cookie_t pointer_cookie = xcb_query_pointer(app->connection, app->screen->root);
     xcb_query_pointer_reply_t *pointer_reply = xcb_query_pointer_reply(app->connection, pointer_cookie, nullptr);
     
@@ -1546,6 +1548,8 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
     if (!valid_client(app, client)) {
         return;
     }
+    if (client->previous_x == x && client->previous_y == y)
+        return;
     client->previous_x = client->mouse_current_x;
     client->previous_y = client->mouse_current_y;
     client->mouse_current_x = x;
