@@ -109,6 +109,7 @@ int main(int argc, char* argv[]) {
     load_all_desktop_files();
     load_historic_scripts();
     load_historic_apps();
+    load_live_tiles();
     
     client_show(app, taskbar);
     xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, taskbar->window, XCB_CURRENT_TIME);

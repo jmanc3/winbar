@@ -29,6 +29,7 @@
 #include "settings_menu.h"
 #include <pango/pango-layout.h>
 #include <filesystem>
+#include <fstream>
 #include "utility.h"
 
 
@@ -49,12 +50,37 @@ struct TooltipMenuData : public UserData {
     std::string path;
 };
 
+class LiveTileData : UserData {
+public:
+    Launcher *launcher = nullptr;
+    cairo_surface_t *surface = nullptr;
+    
+    LiveTileData(Launcher *launcher) {
+        this->launcher = launcher;
+    }
+    
+    ~LiveTileData() {
+        if (surface)
+            cairo_surface_destroy(surface);
+    }
+};
+
 // the scrollbar should only open if the mouse is in the scrollbar
 static double scrollbar_openess = 0;
 // the scrollbar should only be visible if the mouse is in the container
 static double scrollbar_visible = 0;
 // when we open the power sub menu, the left sliding menu needs to be locked
 static bool left_locked = false;
+
+static void
+paint_live_tile(AppClient *client, cairo_t *cr, Container *container);
+
+static void
+when_live_tile_clicked(AppClient *client, cairo_t *cr, Container *container);
+
+void
+get_global_coordinates(xcb_connection_t *connection, xcb_window_t window, int relative_x, int relative_y, int *global_x,
+                       int *global_y);
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
@@ -247,6 +273,10 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
             pango_layout_set_text(icon_layout, "\uE117", strlen("\uE83F"));
         } else if (data->text == "Open file location") {
             pango_layout_set_text(icon_layout, "\uED43", strlen("\uE83F"));
+        } else if (data->text == "Pin to Start") {
+            pango_layout_set_text(icon_layout, "\uE718", strlen("\uE83F"));
+        } else if (data->text == "Unpin from Start") {
+            pango_layout_set_text(icon_layout, "\uE77A", strlen("\uE83F"));
         }
     
         set_argb(cr, config->color_apps_icons);
@@ -928,6 +958,168 @@ clicked_open_in_folder(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+recurse_delete(Container *c, std::string full_path) {
+    for (auto item: c->children) {
+        recurse_delete(item, full_path);
+    }
+    for (int i = 0; i < c->children.size(); ++i) {
+        auto co = c->children[i];
+        if (co->user_data) {
+            auto d = (LiveTileData *) co->user_data;
+            if (d->launcher) {
+                if (full_path == d->launcher->full_path) {
+                    c->children.erase(c->children.begin() + i);
+                    d->launcher = nullptr;
+                    delete co;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+static void
+possibly_resize_after_pin_unpin() {
+    uint32_t value_mask =
+            XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
+    
+    bool any_pinned = false;
+    for (auto l: launchers) {
+        if (l->is_pinned) {
+            any_pinned = true;
+            break;
+        }
+    }
+    if (!winbar_settings->allow_live_tiles)
+        any_pinned = false;
+    int w = 0;
+    if (any_pinned) {
+        w = 660 * config->dpi;
+    } else {
+        w = 320 * config->dpi;
+    }
+    int h = 641 * config->dpi;
+    int x = app->bounds.x;
+    int y = app->bounds.h - h - config->taskbar_height;
+    if (auto *taskbar = client_by_name(app, "taskbar")) {
+        auto *super = container_by_name("super", taskbar->root);
+        auto field_search = container_by_name("field_search", taskbar->root);
+        if (super->exists) {
+            x = taskbar->bounds->x + super->real_bounds.x;
+        } else if (field_search->exists) {
+            x = taskbar->bounds->x + field_search->real_bounds.x;
+        } else {
+            x = taskbar->bounds->x;
+        }
+        // Make sure doesn't go off-screen right side
+        if (x + w > taskbar->screen_information->width_in_pixels) {
+            x = taskbar->screen_information->width_in_pixels - w;
+        }
+        y = taskbar->bounds->y - h;
+    }
+    uint32_t value_list_resize[] = {
+            (uint32_t) (x),
+            (uint32_t) (y),
+            (uint32_t) (w),
+            (uint32_t) (h),
+    };
+    AppClient *app_menu = client_by_name(app, "app_menu");
+    xcb_configure_window(app->connection, app_menu->window, value_mask, value_list_resize);
+}
+
+static void
+clicked_add_to_live_tiles(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *data = (ButtonData *) container->user_data;
+    for (auto item: launchers) {
+        if (item->full_path == data->full_path && item->is_pinned) {
+            item->is_pinned = false;
+            
+            auto live_scroll = (ScrollContainer *) container_by_name("live_scroll",
+                                                                     client_by_name(app, "app_menu")->root);
+            
+            recurse_delete(live_scroll->content, item->full_path);
+            
+            possibly_resize_after_pin_unpin();
+            
+            client_layout(app, client);
+            request_refresh(app, client);
+        } else if (item->full_path == data->full_path && !item->is_pinned) {
+            item->is_pinned = true;
+            
+            possibly_resize_after_pin_unpin();
+            
+            auto live_scroll = (ScrollContainer *) container_by_name("live_scroll",
+                                                                     client_by_name(app, "app_menu")->root);
+//            auto live_tile_width = (660 - 320) * config->dpi;
+            
+            if (live_scroll) {
+                bool last_line_full = false;
+                if (!live_scroll->content->children.empty()) {
+                    Container *last_line = live_scroll->content->children[live_scroll->content->children.size() - 1];
+                    last_line_full = last_line->children.size() == 3;
+                }
+                if (live_scroll->content->children.empty() || last_line_full) {
+                    live_scroll->content->child(::hbox, FILL_SPACE, 100 * config->dpi);
+//                    live_scroll->content->spacing = 4 * config->dpi;
+                    live_scroll->content->wanted_pad = Bounds(13 * config->dpi, 34 * config->dpi + 8 * config->dpi,
+                                                              13 * config->dpi, 54 * config->dpi);
+                }
+                auto last_line = live_scroll->content->children[live_scroll->content->children.size() - 1];
+//                last_line->alignment = ALIGN_CENTER_HORIZONTALLY;
+                last_line->spacing = 4 * config->dpi;
+                
+                auto live_tile = last_line->child(100 * config->dpi, 100 * config->dpi);
+                live_tile->when_paint = paint_live_tile;
+                live_tile->when_clicked = when_live_tile_clicked;
+                live_tile->when_drag = [](AppClient *client, cairo_t *, Container *c) {
+                    if (auto drag = client_by_name(app, "drag_window")) {
+                        int global_x = 0;
+                        int global_y = 0;
+                        get_global_coordinates(app->connection, client->window, client->mouse_current_x,
+                                               client->mouse_current_y, &global_x, &global_y);
+                        uint32_t value_list_resize[] = {
+                                (uint32_t) (global_x + (c->real_bounds.x - client->mouse_initial_x)),
+                                (uint32_t) (global_y + (c->real_bounds.y - client->mouse_initial_y)),
+                        };
+                        xcb_configure_window(app->connection, drag->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
+                                             value_list_resize);
+                    }
+                };
+                live_tile->when_drag_start = [](AppClient *client, cairo_t *, Container *c) {
+                    c->when_paint = nullptr;
+                    request_refresh(app, client);
+                    Settings settings;
+                    settings.force_position = true;
+                    settings.skip_taskbar = true;
+                    settings.decorations = false;
+                    settings.override_redirect = true;
+                    settings.w = 100 * config->dpi;
+                    settings.h = 100 * config->dpi;
+                    auto drag = client_new(app, settings, "drag_window");
+                    client_show(app, drag);
+                    drag->root->user_data = c->user_data;
+                    drag->root->when_paint = paint_live_tile;
+                };
+                live_tile->when_drag_end = [](AppClient *, cairo_t *, Container *c) {
+                    c->when_paint = paint_live_tile;
+                    if (auto drag = client_by_name(app, "drag_window")) {
+                        drag->root->user_data = nullptr; // So that we don't double delete
+                        client_close_threaded(app, client_by_name(app, "drag_window"));
+                    }
+                };
+                live_tile->when_drag_end_is_click = false;
+                live_tile->minimum_x_distance_to_move_before_drag_begins = 4 * config->dpi;
+                live_tile->user_data = new LiveTileData(item);
+            }
+        }
+    }
+    client_close_threaded(app, client);
+}
+
+static void
 mouse_leaves_open_file_location(AppClient *right_click_client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -1010,7 +1202,9 @@ right_clicked_application(AppClient *client, cairo_t *cr, Container *container) 
     auto *data = (ItemData *) container->user_data;
 
     int options_count = 1;
-    int pad = 1 * config->dpi;
+    if (winbar_settings->allow_live_tiles)
+        options_count++;
+    int pad = 6 * config->dpi;
     Settings settings;
     settings.force_position = true;
     settings.w = 256 * config->dpi;
@@ -1042,18 +1236,35 @@ right_clicked_application(AppClient *client, cairo_t *cr, Container *container) 
         popup->root->wanted_pad.y = pad;
         popup->root->wanted_pad.h = pad;
         popup->user_data = new RightClickMenuData;
-
-        auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
-        l->when_clicked = clicked_open_in_folder;
-        l->when_mouse_enters_container = mouse_enters_open_file_location;
-        l->when_mouse_leaves_container = mouse_leaves_open_file_location;
-        l->when_paint = paint_button;
-        auto *l_data = new ButtonData;
-        if (data->launcher)
-            l_data->full_path = data->launcher->full_path;
-        l_data->text = "Open file location";
-        l->user_data = l_data;
-
+        
+        if (winbar_settings->allow_live_tiles) {
+            auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
+            l->when_clicked = clicked_add_to_live_tiles;
+            l->when_paint = paint_button;
+            auto *l_data = new ButtonData;
+            if (data->launcher)
+                l_data->full_path = data->launcher->full_path;
+            if (data->launcher->is_pinned) {
+                l_data->text = "Unpin from Start";
+            } else {
+                l_data->text = "Pin to Start";
+            }
+            l->user_data = l_data;
+        }
+        
+        {
+            auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
+            l->when_clicked = clicked_open_in_folder;
+            l->when_mouse_enters_container = mouse_enters_open_file_location;
+            l->when_mouse_leaves_container = mouse_leaves_open_file_location;
+            l->when_paint = paint_button;
+            auto *l_data = new ButtonData;
+            if (data->launcher)
+                l_data->full_path = data->launcher->full_path;
+            l_data->text = "Open file location";
+            l->user_data = l_data;
+        }
+        
         popup->when_closed = sub_menu_closed;
         
         client_show(app, popup);
@@ -1061,6 +1272,212 @@ right_clicked_application(AppClient *client, cairo_t *cr, Container *container) 
         xcb_set_input_focus(app->connection, XCB_NONE, popup->window, XCB_CURRENT_TIME);
         xcb_flush(app->connection);
         xcb_aux_sync(app->connection);
+    }
+}
+
+static void
+right_clicked_live_tile(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *data = (LiveTileData *) container->user_data;
+    
+    int options_count = 2;
+    int pad = 6 * config->dpi;
+    Settings settings;
+    settings.force_position = true;
+    settings.w = 256 * config->dpi;
+    settings.h = ((36 * options_count) * config->dpi) + (config->dpi * (options_count - 1)) + (pad * 2);
+    settings.x = client->mouse_current_x + client->bounds->x;
+    settings.y = client->mouse_current_y + client->bounds->y;
+    settings.skip_taskbar = true;
+    settings.decorations = false;
+    settings.override_redirect = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 3;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
+    
+    if (auto app_menu = client_by_name(app, "app_menu")) {
+        PopupSettings popup_settings;
+        popup_settings.close_on_focus_out = false;
+        popup_settings.takes_input_focus = true;
+        
+        auto popup = app_menu->create_popup(popup_settings, settings);
+        popup->name = "right_click_popup";
+        
+        popup->root->when_paint = paint_power_menu;
+        popup->root->type = vbox;
+        popup->root->spacing = 1;
+        popup->root->wanted_pad.y = pad;
+        popup->root->wanted_pad.h = pad;
+        popup->user_data = new RightClickMenuData;
+        
+        {
+            auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
+            l->when_clicked = clicked_add_to_live_tiles;
+            l->when_paint = paint_button;
+            auto *l_data = new ButtonData;
+            if (data->launcher)
+                l_data->full_path = data->launcher->full_path;
+            if (data->launcher->is_pinned) {
+                l_data->text = "Unpin from Start";
+            } else {
+                l_data->text = "Pin to Start";
+            }
+            l->user_data = l_data;
+        }
+        
+        {
+            auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
+            l->when_clicked = clicked_open_in_folder;
+            l->when_mouse_enters_container = mouse_enters_open_file_location;
+            l->when_mouse_leaves_container = mouse_leaves_open_file_location;
+            l->when_paint = paint_button;
+            auto *l_data = new ButtonData;
+            if (data->launcher)
+                l_data->full_path = data->launcher->full_path;
+            l_data->text = "Open file location";
+            l->user_data = l_data;
+        }
+        
+        popup->when_closed = sub_menu_closed;
+        
+        client_show(app, popup);
+        
+        xcb_set_input_focus(app->connection, XCB_NONE, popup->window, XCB_CURRENT_TIME);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+    }
+}
+
+void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
+//    set_rect(cr, container->real_bounds);
+//    set_argb(cr, correct_opaqueness(client, config->color_apps_background));
+//    cairo_fill(cr);
+//    set_argb(cr, ArgbColor(1.0, 0.0, 0.0, 1.0));
+//    set_rect(cr, container->real_bounds);
+//    cairo_fill(cr);
+    
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    std::string text("Pinned Apps");
+    pango_layout_set_text(layout, text.c_str(), text.size());
+    
+    PangoRectangle ink;
+    PangoRectangle logical;
+    pango_layout_get_extents(layout, &ink, &logical);
+    
+    set_argb(cr, config->color_apps_text);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + 18 * config->dpi),
+                  (int) (container->real_bounds.y + 13 * config->dpi));
+    pango_cairo_show_layout(cr, layout);
+}
+
+void paint_live_tile(AppClient *client, cairo_t *cr, Container *container) {
+    set_rect(cr, container->real_bounds);
+    set_argb(cr, ArgbColor(1.0, 1.0, 1.0, 0.12));
+    cairo_fill(cr);
+    
+    if (container->state.mouse_pressing && !container->state.mouse_dragging) {
+        set_argb(cr, ArgbColor(1.0, 1.0, 1.0, 0.67));
+        paint_margins_rect(client, cr, container->real_bounds, 2 * config->dpi, 0);
+    } else if (container->state.mouse_hovering && !container->state.mouse_dragging) {
+        set_argb(cr, ArgbColor(1.0, 1.0, 1.0, 0.32));
+        paint_margins_rect(client, cr, container->real_bounds, 2 * config->dpi, 0);
+    }
+    
+    auto data = (LiveTileData *) container->user_data;
+    
+    int size = 36 * config->dpi;
+    
+    if (data->surface == nullptr) {
+        data->surface = accelerated_surface(app, client, size, size);
+        
+        std::vector<IconTarget> targets;
+        targets.emplace_back(data->launcher->icon);
+        search_icons(targets);
+        pick_best(targets, size);
+        for (const auto &item: targets[0].candidates) {
+            paint_surface_with_image(data->surface, item.full_path(), size, nullptr);
+            break;
+        }
+    }
+    
+    if (data->surface) {
+        cairo_set_source_surface(cr,
+                                 data->surface,
+                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - size / 2),
+                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - size / 2));
+        
+        cairo_paint(cr);
+    }
+    
+    
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    std::string text(data->launcher->name);
+    pango_layout_set_text(layout, text.c_str(), text.size());
+    
+    PangoRectangle ink;
+    PangoRectangle logical;
+    pango_layout_get_extents(layout, &ink, &logical);
+    
+    int text_margin = 5 * config->dpi;
+    
+    set_argb(cr, config->color_apps_text);
+//    cairo_set_line_width(cr, (container->real_bounds.w - 6 * config->dpi) * PANGO_SCALE);
+    pango_layout_set_height(layout, 2 * logical.height * PANGO_SCALE);
+    pango_layout_set_width(layout, (container->real_bounds.w - (text_margin * 2)) * PANGO_SCALE);
+    pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
+    pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
+    
+    pango_layout_get_extents(layout, &ink, &logical);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + text_margin),
+                  (int) (container->real_bounds.y + container->real_bounds.h - logical.height / PANGO_SCALE -
+                         text_margin));
+    pango_cairo_show_layout(cr, layout);
+    
+    pango_layout_set_height(layout, -1);
+    pango_layout_set_width(layout, -1);
+}
+
+void when_live_tile_clicked(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        right_clicked_live_tile(client, cr, container);
+        return;
+    }
+    // TOOD: we should take a ref to not use after free like we do in other places with shared point
+    auto data = (LiveTileData *) container->user_data;
+    if (data->launcher) {
+        launch_command(data->launcher->exec);
+        app_timeout_create(app, client, 100, [](App *, AppClient *client, Timeout *, void *) {
+            client_close_threaded(app, client);
+        }, nullptr, "Delayed closer for some sort of 'pop' animation");
+    }
+}
+
+void
+get_global_coordinates(xcb_connection_t *connection, xcb_window_t window, int relative_x, int relative_y, int *global_x,
+                       int *global_y) {
+    xcb_translate_coordinates_cookie_t translate_cookie;
+    xcb_translate_coordinates_reply_t *translate_reply;
+    
+    // Translate the window's (0, 0) to the root window's coordinates
+    translate_cookie = xcb_translate_coordinates(connection, window,
+                                                 xcb_setup_roots_iterator(xcb_get_setup(connection)).data->root, 0, 0);
+    translate_reply = xcb_translate_coordinates_reply(connection, translate_cookie, NULL);
+    
+    if (translate_reply) {
+        *global_x = translate_reply->dst_x + relative_x;
+        *global_y = translate_reply->dst_y + relative_y;
+        free(translate_reply);
+    } else {
+        fprintf(stderr, "Failed to translate coordinates.\n");
     }
 }
 
@@ -1236,7 +1653,83 @@ fill_root(AppClient *client) {
     root->when_paint = paint_root;
     root->when_key_event = when_key_event;
     
-    Container *stack = root->child(::stack, FILL_SPACE, FILL_SPACE);
+    auto root_hbox = root->child(::hbox, FILL_SPACE, FILL_SPACE);
+    Container *stack = root_hbox->child(::stack, 320 * config->dpi, FILL_SPACE);
+    
+    // settings.w = 660 * config->dpi;
+    auto live_tile_width = (660 - 320) * config->dpi;
+    Container *live_tile_root = root_hbox->child(::hbox, live_tile_width, FILL_SPACE);
+    
+    ScrollPaneSettings tile_scroll(config->dpi);
+    ScrollContainer *live_scroll = make_newscrollpane_as_child(live_tile_root, tile_scroll);
+    live_scroll->content->spacing = 4 * config->dpi;
+    live_scroll->name = "live_scroll";
+    live_scroll->when_paint = paint_live_tile_bg;
+//    live_tile_root->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, 13 * config->dpi, 54 * config->dpi);
+//    live_tile_root->spacing = 13 * config->dpi;
+    
+    int i_off = 0;
+    for (int i = 0; i < launchers.size(); i++) {
+        if (!launchers[i]->is_pinned)
+            continue;
+        if (i_off == 0) {
+            live_scroll->content->child(::hbox, FILL_SPACE, 100 * config->dpi);
+//            live_scroll->content->spacing = 4 * config->dpi;
+//            c->wanted_bounds.h = 34 * config->dpi;
+            live_scroll->content->wanted_pad = Bounds(13 * config->dpi, 34 * config->dpi + 8 * config->dpi,
+                                                      13 * config->dpi, 54 * config->dpi);
+        }
+        
+        auto c = live_scroll->content->children[live_scroll->content->children.size() - 1];
+//        c->alignment = ALIGN_CENTER_HORIZONTALLY;
+        c->spacing = 4 * config->dpi;
+        
+        auto live_tile = c->child(100 * config->dpi, 100 * config->dpi);
+        live_tile->when_paint = paint_live_tile;
+        live_tile->when_clicked = when_live_tile_clicked;
+        live_tile->when_drag = [](AppClient *client, cairo_t *, Container *c) {
+            if (auto drag = client_by_name(app, "drag_window")) {
+                int global_x = 0;
+                int global_y = 0;
+                get_global_coordinates(app->connection, client->window, client->mouse_current_x,
+                                       client->mouse_current_y, &global_x, &global_y);
+                uint32_t value_list_resize[] = {
+                        (uint32_t) (global_x + (c->real_bounds.x - client->mouse_initial_x)),
+                        (uint32_t) (global_y + (c->real_bounds.y - client->mouse_initial_y)),
+                };
+                xcb_configure_window(app->connection, drag->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
+                                     value_list_resize);
+            }
+        };
+        live_tile->when_drag_start = [](AppClient *client, cairo_t *, Container *c) {
+            c->when_paint = nullptr;
+            request_refresh(app, client);
+            Settings settings;
+            settings.force_position = true;
+            settings.skip_taskbar = true;
+            settings.decorations = false;
+            settings.override_redirect = true;
+            settings.w = 100 * config->dpi;
+            settings.h = 100 * config->dpi;
+            auto drag = client_new(app, settings, "drag_window");
+            client_show(app, drag);
+            drag->root->user_data = c->user_data;
+            drag->root->when_paint = paint_live_tile;
+        };
+        live_tile->when_drag_end = [](AppClient *, cairo_t *, Container *c) {
+            c->when_paint = paint_live_tile;
+            if (auto drag = client_by_name(app, "drag_window")) {
+                drag->root->user_data = nullptr; // So that we don't double delete
+                client_close_threaded(app, client_by_name(app, "drag_window"));
+            }
+        };
+        live_tile->when_drag_end_is_click = false;
+        live_tile->minimum_x_distance_to_move_before_drag_begins = 4 * config->dpi;
+        live_tile->user_data = new LiveTileData(launchers[i]);
+        i_off++;
+        if (i_off == 3)
+            i_off = 0;
+    }
     
     int width = 48 * config->dpi;
     Container *left_buttons = stack->child(::vbox, width, FILL_SPACE);
@@ -1452,6 +1945,63 @@ fill_root(AppClient *client) {
     grid->child(FILL_SPACE, FILL_SPACE);
 }
 
+void
+load_live_tiles() {
+    char *home = getenv("HOME");
+    std::string path = std::string(home) + "/.config/winbar/live_tiles.data";
+    std::ifstream input_file(path);
+    
+    if (input_file.good()) {
+        std::string line;
+        while (std::getline(input_file, line)) {
+            for (auto item: launchers) {
+                if (item->full_path == line) {
+                    item->is_pinned = true;
+                }
+            }
+        }
+    }
+}
+
+static void
+recurse_save(Container *c, std::ofstream *out_file) {
+    for (int i = 0; i < c->children.size(); ++i) {
+        auto co = c->children[i];
+        if (co->user_data) {
+            auto d = (LiveTileData *) co->user_data;
+            *out_file << d->launcher->full_path;
+            *out_file << '\n';
+        }
+    }
+    
+    for (auto item: c->children) {
+        recurse_save(item, out_file);
+    }
+}
+
+void
+save_live_tiles() {
+    try {
+        char *home = getenv("HOME");
+        std::string path = std::string(home) + "/.config/winbar/live_tiles.data";
+        std::ofstream out_file(path);
+        
+        if (auto app_client = client_by_name(app, "app_menu")) {
+            auto live_scroll = container_by_name("live_scroll", app_client->root);
+            recurse_save(((ScrollContainer *) live_scroll)->content, &out_file);
+        } else {
+            for (auto item: launchers) {
+                if (item->is_pinned) {
+                    out_file << item->full_path;
+                    out_file << '\n';
+                }
+            }
+        }
+    } catch (...) {
+    
+    }
+}
+
 static void
 app_menu_closed(AppClient *client) {
     if (auto c = client_by_name(app, "tooltip_popup"))
@@ -1463,6 +2013,8 @@ app_menu_closed(AppClient *client) {
     scrollbar_leave_fd = nullptr;
     left_open_fd = nullptr;
     set_textarea_inactive();
+    
+    save_live_tiles();
 }
 
 static void
@@ -1511,12 +2063,15 @@ paint_desktop_files() {
                                                     24 * config->dpi);
             launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32 * config->dpi,
                                                     32 * config->dpi);
+            launcher->icon_48 = accelerated_surface(app, client_by_name(app, "taskbar"), 48 * config->dpi,
+                                                    48 * config->dpi);
             launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64 * config->dpi,
                                                     64 * config->dpi);
             
             std::string path16;
             std::string path24;
             std::string path32;
+            std::string path48;
             std::string path64;
             
             if (!launcher->icon.empty()) {
@@ -1527,13 +2082,15 @@ paint_desktop_files() {
                     path64 = launcher->icon;
                 } else {
                     for (const auto &icon: t.candidates) {
-                        if (!path16.empty() && !path24.empty() && !path32.empty() && !path64.empty())
+                        if (!path16.empty() && !path24.empty() && !path32.empty() && !path48.empty() && !path64.empty())
                             break;
                         if ((icon.size == 16) && path16.empty()) {
                             path16 = icon.full_path();
                         } else if (icon.size == 24 && path24.empty()) {
                             path24 = icon.full_path();
                         } else if (icon.size == 32 && path32.empty()) {
+                            path32 = icon.full_path();
+                        } else if (icon.size == 48 && path48.empty()) {
                             path32 = icon.full_path();
                         } else if (icon.size == 64 && path64.empty()) {
                             path64 = icon.full_path();
@@ -1561,6 +2118,8 @@ paint_desktop_files() {
                             path24 = icon.full_path();
                         if (path32.empty())
                             path32 = icon.full_path();
+                        if (path48.empty())
+                            path48 = icon.full_path();
                         if (path64.empty())
                             path64 = icon.full_path();
                     }
@@ -1588,7 +2147,14 @@ paint_desktop_files() {
                         launcher->icon_32, as_resource_path("unknown-32.svg"), 32 * config->dpi, nullptr);
             }
             
-            if (!path32.empty() && !launcher->icon.empty()) {
+            if (!path48.empty() && !launcher->icon.empty()) {
+                paint_surface_with_image(launcher->icon_48, path48, 48 * config->dpi, nullptr);
+            } else {
+                paint_surface_with_image(
+                        launcher->icon_48, as_resource_path("unknown-32.svg"), 48 * config->dpi, nullptr);
+            }
+            
+            if (!path64.empty() && !launcher->icon.empty()) {
                 paint_surface_with_image(launcher->icon_64, path64, 64 * config->dpi, nullptr);
             } else {
                 paint_surface_with_image(
@@ -1820,7 +2386,20 @@ void start_app_menu() {
     
     Settings settings;
     settings.force_position = true;
-    settings.w = 320 * config->dpi;
+    bool any_pinned = false;
+    for (auto l: launchers) {
+        if (l->is_pinned) {
+            any_pinned = true;
+            break;
+        }
+    }
+    if (!winbar_settings->allow_live_tiles)
+        any_pinned = false;
+    if (any_pinned) {
+        settings.w = 660 * config->dpi;
+    } else {
+        settings.w = 320 * config->dpi;
+    }
     settings.h = 641 * config->dpi;
     settings.x = app->bounds.x;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;

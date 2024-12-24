@@ -775,6 +775,25 @@ paint_open_in_folder(AppClient *client, cairo_t *cr, Container *container) {
     paint_sub_option(client, cr, container, "Open file location", "\uED43");
 }
 
+static void
+paint_live_tile_button(AppClient *client, cairo_t *cr, Container *container) {
+    auto *data = (SearchItemData *) container->parent->user_data;
+    std::string text = "Pin to Start";
+    for (const auto &item: launchers) {
+        if (item->full_path == data->sortable->full_path) {
+            if (item->is_pinned) {
+                text = "Unpin from Start";
+                break;
+            }
+        }
+    }
+    if (text == "Pin to Start") {
+        paint_sub_option(client, cr, container, text, "\uE718");
+    } else {
+        paint_sub_option(client, cr, container, text, "\uE77A");
+    }
+}
+
 void update_options() {
     if (auto taskbar_client = client_by_name(app, "taskbar")) {
         if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
@@ -901,6 +920,17 @@ static void
 clicked_open_in_folder(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (SearchItemData *) container->parent->user_data;
     dbus_open_in_folder(data->sortable->full_path);
+}
+
+static void
+clicked_live_tiles(AppClient *client, cairo_t *cr, Container *container) {
+    auto *data = (SearchItemData *) container->parent->user_data;
+    for (auto item: launchers) {
+        if (item->full_path == data->sortable->full_path) {
+            item->is_pinned = !item->is_pinned;
+        }
+    }
+    save_live_tiles();
 }
 
 static void
@@ -1333,7 +1363,12 @@ void sort_and_add(std::vector<T> *sortables,
                 Container *open_in_folder = right_fg->child(FILL_SPACE, 32 * config->dpi);
                 open_in_folder->when_paint = paint_open_in_folder;
                 open_in_folder->when_clicked = clicked_open_in_folder;
-
+                if (winbar_settings->allow_live_tiles) {
+                    Container *add_or_remove_from_live_ties = right_fg->child(FILL_SPACE, 32 * config->dpi);
+                    add_or_remove_from_live_ties->when_paint = paint_live_tile_button;
+                    add_or_remove_from_live_ties->when_clicked = clicked_live_tiles;
+                }
+                
                 right_fg->child(FILL_SPACE, 12 * config->dpi);
             } else {
                 Container *right_item = hbox->child(49 * config->dpi, FILL_SPACE);

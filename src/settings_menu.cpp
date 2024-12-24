@@ -1054,6 +1054,7 @@ fill_root(AppClient *client, Container *root) {
                   client);
     bool_checkbox("Pinned icons shortcuts: Meta+[0-9]", &winbar_settings->pinned_icon_shortcut, winbar_behaviour_root,
                   client);
+    bool_checkbox("Allow live tiles", &winbar_settings->allow_live_tiles, winbar_behaviour_root, client);
     string_textfield("Custom desktop files location: ", &winbar_settings->custom_desktops_directory,
                      winbar_behaviour_root, client);
     bool_checkbox_indent("Make directory the exclusive source for desktop files", 16 * config->dpi,
@@ -1296,6 +1297,9 @@ void save_settings_file() {
     out_file << "pinned_icon_shortcut=" << (winbar_settings->pinned_icon_shortcut ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "allow_live_tiles=" << (winbar_settings->allow_live_tiles ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     out_file << "custom_desktops_directory=" << winbar_settings->custom_desktops_directory;
     out_file << std::endl << std::endl;
     
@@ -1512,6 +1516,7 @@ void read_settings_file() {
                     continue;
                 parse_bool(&parser, key, "battery_notifications", &winbar_settings->battery_notifications);
                 parse_bool(&parser, key, "pinned_icon_shortcut", &winbar_settings->pinned_icon_shortcut);
+                parse_bool(&parser, key, "allow_live_tiles", &winbar_settings->allow_live_tiles);
                 parse_bool(&parser, key, "volume_expands_on_hover", &winbar_settings->volume_expands_on_hover);
                 parse_bool(&parser, key, "volume_label_always_on", &winbar_settings->volume_label_always_on);
                 parse_bool(&parser, key, "battery_expands_on_hover", &winbar_settings->battery_expands_on_hover);

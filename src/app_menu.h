@@ -9,6 +9,10 @@
 #include <string>
 #include <vector>
 
+class PinInfo {
+
+};
+
 class Launcher : public Sortable {
 public:
     std::string full_path;
@@ -19,12 +23,15 @@ public:
     cairo_surface_t *icon_16 = nullptr;
     cairo_surface_t *icon_32 = nullptr;
     cairo_surface_t *icon_24 = nullptr;
+    cairo_surface_t *icon_48 = nullptr;
     cairo_surface_t *icon_64 = nullptr;
     
     time_t time_modified = 0;
     int priority = 0;
     
     int app_menu_priority = 0;
+    bool is_pinned = false;
+    PinInfo info;
     
     ~Launcher() {
         if (icon_16)
@@ -33,6 +40,8 @@ public:
             cairo_surface_destroy(icon_32);
         if (icon_24)
             cairo_surface_destroy(icon_24);
+        if (icon_48)
+            cairo_surface_destroy(icon_48);
         if (icon_64)
             cairo_surface_destroy(icon_64);
     }
@@ -43,5 +52,9 @@ extern std::vector<Launcher *> launchers;
 void start_app_menu();
 
 void load_all_desktop_files();
+
+void save_live_tiles();
+
+void load_live_tiles();
 
 #endif// APP_MENU_H
