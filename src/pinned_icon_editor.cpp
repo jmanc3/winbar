@@ -382,6 +382,7 @@ static void clicked_create_destroy_desktop_file(AppClient *client, cairo_t *cr, 
     }
     
     load_all_desktop_files();
+    load_live_tiles();
 }
 
 static void clicked_save_and_quit(AppClient *client, cairo_t *cr, Container *container) {
