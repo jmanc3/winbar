@@ -150,6 +150,9 @@ struct App {
     
     std::vector<Timeout *> timeouts;
     
+    long current = 0; // Time at start of frame
+    long creation_time; // Creation time of app
+    
     int loop = 0;
     
     long last_touchpad_time = 0;

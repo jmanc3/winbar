@@ -625,6 +625,8 @@ App *app_new() {
     }
     
     auto *app = new App;
+    app->creation_time = get_current_time_in_ms();
+    app->current = app->creation_time;
     app->running_mutex.lock();
     app->connection = connection;
     app->screen_number = screen_number;
@@ -2401,6 +2403,7 @@ void app_main(App *app) {
         
         std::lock_guard m(app->running_mutex);
         app->loop++;
+        app->current = get_current_time_in_ms();
         
         for (int i = app->descriptors_being_polled.size() - 1; i >= 0; i--) {
             if (fds[i].revents & POLLPRI) {

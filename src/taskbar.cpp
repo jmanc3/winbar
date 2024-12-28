@@ -118,9 +118,6 @@ std::string trimnewlines(std::string str) {
 
 static int
 icon_width(AppClient *client) {
-    if (winbar_settings->pinned_icon_style == "win7") {
-        return 32 * config->dpi;
-    }
     int max_container_w = (int) (client->bounds->h + 4 * config->dpi);
     bool max_container_even = max_container_w % 2 == 0;
     
@@ -1142,8 +1139,9 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
 //    container->real_bounds.y -= std::floor(config->dpi * 1);
 //    container->real_bounds.h += std::floor(config->dpi * 1);
     
-    auto p = std::floor(config->dpi);
+    bool show_hover_spotlight = false;
     if (windows_count >= 3) {
+        show_hover_spotlight = true;
         auto diff = std::round(4 * config->dpi);
         Bounds b = container->real_bounds;
         b.x += b.w - diff;
@@ -1168,6 +1166,7 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
                        color_foreground_pane_default_left, color_foreground_pane_hovered_left,
                        color_foreground_pane_pressed_left, 1.0, false, b);
     } else if (windows_count == 2) {
+        show_hover_spotlight = true;
         auto diff = std::round(5 * config->dpi);
         Bounds b = container->real_bounds;
         b.x += b.w - diff;
@@ -1184,16 +1183,64 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
                        color_foreground_pane_default_left, color_foreground_pane_hovered_left,
                        color_foreground_pane_pressed_left, 1.0, false, b);
     } else if (windows_count == 1) {
+        show_hover_spotlight = true;
         draw_win7_pane(cr, container->real_bounds, active, pressed, hovered, color_background_pane_hovered_left,
                        color_background_pane_pressed_left,
                        color_foreground_pane_default_left, color_foreground_pane_hovered_left,
                        color_foreground_pane_pressed_left, 1.0, false, Bounds());
     } else if (data->attempting_to_launch_first_window &&
                ((get_current_time_in_ms() - data->attempting_to_launch_first_window_time) < 10000)) {
+        show_hover_spotlight = true;
         draw_win7_pane(cr, container->real_bounds, true, false, hovered, color_background_pane_hovered_left,
                        color_background_pane_pressed_left,
                        color_foreground_pane_default_left, color_foreground_pane_hovered_left,
                        color_foreground_pane_pressed_left, 0.42, false, Bounds());
+    } else if (data->hover_amount != 0) {
+        // Create a radial gradient pattern
+        int x = container->real_bounds.x + container->real_bounds.w / 2;
+        float r = (container->real_bounds.h * .4) * data->hover_amount;
+        int y = container->real_bounds.y + container->real_bounds.h - r * .24;
+        cairo_pattern_t* radial = cairo_pattern_create_radial(x, y, 0, x, y, r);
+        
+        // Add color stops: white (fully opaque) at the center and transparent at the edge
+        cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.1 * data->hover_amount); // White
+        cairo_pattern_add_color_stop_rgba(radial, 1.0, 1.0, 1.0, 1.0, 0.0); // Transparent
+        
+        // Set the pattern as the source
+        cairo_set_source(cr, radial);
+        
+        // Draw the circle
+        cairo_arc(cr, x, y, r, 0, 2 * M_PI);
+        cairo_fill(cr);
+        
+        // Destroy the pattern to free memory
+        cairo_pattern_destroy(radial);
+    }
+    
+    if (show_hover_spotlight && container->state.mouse_hovering) {
+        int x = client->mouse_current_x;
+        float r = container->real_bounds.w * .66 * data->hover_amount;
+        int y = container->real_bounds.y + container->real_bounds.h + r - container->real_bounds.h * .7;
+        cairo_pattern_t* radial = cairo_pattern_create_radial(x, y, 0, x, y, r);
+        
+        // Add color stops: white (fully opaque) at the center and transparent at the edge
+        cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.1 * data->hover_amount); // White
+        cairo_pattern_add_color_stop_rgba(radial, 1.0, 1.0, 1.0, 1.0, 0.0); // Transparent
+        
+        // Set the pattern as the source
+        cairo_set_source(cr, radial);
+        
+        set_rect(cr, container->real_bounds);
+        cairo_clip(cr);
+        
+        // Draw the circle
+        cairo_arc(cr, x, y, r, 0, 2 * M_PI);
+        cairo_fill(cr);
+        
+        cairo_reset_clip(cr);
+        
+        // Destroy the pattern to free memory
+        cairo_pattern_destroy(radial);
     }
     
     config->color_taskbar_application_icons_background = original_color_taskbar_application_icons_background;
@@ -1801,17 +1848,16 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
         return container->children[a]->z_index < container->children[b]->z_index;
     });
     
-    auto current = get_current_time_in_ms();
     for (auto index: render_order) {
         double time = 250;
         auto *data = (LaunchableButton *) container->children[index]->user_data;
-        auto delta = (double) (current - data->creation_time);
-        if (delta < time) {
+        auto delta = (double) (app->current - data->creation_time);
+        if (delta < time && (app->current - app->creation_time > 1000)) {
             request_refresh(app, client_entity);
             cairo_push_group(cr);
         }
         paint_icon_background(client_entity, cr, container->children[index]);
-        if (delta < time) {
+        if (delta < time && (app->current - app->creation_time > 1000)) {
             cairo_pop_group_to_source(cr);
             cairo_paint_with_alpha(cr, delta / time);
         }
@@ -1820,13 +1866,13 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
         double time = 250;
         auto *data = (LaunchableButton *) container->children[index]->user_data;
         auto con = container->children[index];
-        auto delta = (double) (current - data->creation_time);
-        if (delta < time) {
+        auto delta = (double) (app->current - data->creation_time);
+        if (delta < time && (app->current - app->creation_time > 1000)) {
             cairo_push_group(cr);
         }
         paint_icon_surface(client_entity, cr, con);
         paint_icon_label(client_entity, cr, con);
-        if (delta < time) {
+        if (delta < time && (app->current - app->creation_time > 1000)) {
             cairo_pop_group_to_source(cr);
             cairo_paint_with_alpha(cr, delta / time);
         }
@@ -1840,7 +1886,11 @@ pinned_icon_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     possibly_open(app, container, data);
-    client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 70, 0, 1);
+    if (winbar_settings->pinned_icon_style == "win7") {
+        client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 100, 0, 1);
+    } else {
+        client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 70, 0, 1);
+    }
 }
 
 static void
@@ -1850,7 +1900,11 @@ pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     possibly_close(app, container, data);
-    client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 70, 0, 0);
+    if (winbar_settings->pinned_icon_style == "win7") {
+        client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 100, 0, 0);
+    } else {
+        client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 70, 0, 0);
+    }
 }
 
 std::string
