@@ -425,6 +425,9 @@ bool invalidate_item_pierce(Container *container, int mouse_x, int mouse_y) {
     if (auto c = container_by_name("combo", container))
         if (bounds_contains(c->real_bounds, mouse_x, mouse_y))
             return false;
+    if (auto c = container_by_name("icon_combo", container))
+        if (bounds_contains(c->real_bounds, mouse_x, mouse_y))
+            return false;
     if (auto c = container_by_name("size_field", container))
         if (bounds_contains(c->real_bounds, mouse_x, mouse_y))
             return false;
@@ -542,44 +545,82 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
         combobox->when_paint = paint_generic_combobox;
         combobox->user_data = combo_data;
     } else if (n == "Pinned Icons") {
-        auto combo_data = new GenericComboBox("combo", "Alignment: ");
-        combo_data->options.emplace_back("Left");
-        combo_data->options.emplace_back("Right");
-        combo_data->options.emplace_back("Screen Center");
-        combo_data->options.emplace_back("Container Center");
-        combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
-            if (winbar_settings->icons_alignment == container_alignment::ALIGN_LEFT) {
-                return "Left";
-            } else if (winbar_settings->icons_alignment == container_alignment::ALIGN_RIGHT) {
-                return "Right";
-            } else if (winbar_settings->icons_alignment == container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY) {
-                return "Screen Center";
-            }
-            return "Container Center";
-        };
-        combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
-            if (((Label *) (self->user_data))->text == "Left") {
-                winbar_settings->icons_alignment = container_alignment::ALIGN_LEFT;
-            } else if (((Label *) (self->user_data))->text == "Right") {
-                winbar_settings->icons_alignment = container_alignment::ALIGN_RIGHT;
-            } else if (((Label *) (self->user_data))->text == "Screen Center") {
-                winbar_settings->icons_alignment = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
-            } else if (((Label *) (self->user_data))->text == "Container Center") {
-                winbar_settings->icons_alignment = container_alignment::ALIGN_CENTER_HORIZONTALLY;
-            }
-            client_close_threaded(app, client);
-            merge_order_with_taskbar();
-        };
-        
-        std::string longest_text = "Alignment: Container Center";
-        pango_layout_set_text(layout, longest_text.c_str(), -1);
-        pango_layout_get_pixel_size_safe(layout, &width, &height);
-        
-        auto combobox = r->child(width * 1.5, FILL_SPACE);
-        combobox->name = combo_data->name;
-        combobox->when_clicked = clicked_expand_generic_combobox;
-        combobox->when_paint = paint_generic_combobox;
-        combobox->user_data = combo_data;
+        {
+            auto combo_data = new GenericComboBox("combo", "Alignment: ");
+            combo_data->options.emplace_back("Left");
+            combo_data->options.emplace_back("Right");
+            combo_data->options.emplace_back("Screen Center");
+            combo_data->options.emplace_back("Container Center");
+            combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
+                if (winbar_settings->icons_alignment == container_alignment::ALIGN_LEFT) {
+                    return "Left";
+                } else if (winbar_settings->icons_alignment == container_alignment::ALIGN_RIGHT) {
+                    return "Right";
+                } else if (winbar_settings->icons_alignment == container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY) {
+                    return "Screen Center";
+                }
+                return "Container Center";
+            };
+            combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
+                if (((Label *) (self->user_data))->text == "Left") {
+                    winbar_settings->icons_alignment = container_alignment::ALIGN_LEFT;
+                } else if (((Label *) (self->user_data))->text == "Right") {
+                    winbar_settings->icons_alignment = container_alignment::ALIGN_RIGHT;
+                } else if (((Label *) (self->user_data))->text == "Screen Center") {
+                    winbar_settings->icons_alignment = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
+                } else if (((Label *) (self->user_data))->text == "Container Center") {
+                    winbar_settings->icons_alignment = container_alignment::ALIGN_CENTER_HORIZONTALLY;
+                }
+                client_close_threaded(app, client);
+                merge_order_with_taskbar();
+            };
+            
+            std::string longest_text = "Alignment: Container Center";
+            pango_layout_set_text(layout, longest_text.c_str(), -1);
+            pango_layout_get_pixel_size_safe(layout, &width, &height);
+            
+            auto combobox = r->child(width * 1.5, FILL_SPACE);
+            combobox->name = combo_data->name;
+            combobox->when_clicked = clicked_expand_generic_combobox;
+            combobox->when_paint = paint_generic_combobox;
+            combobox->user_data = combo_data;
+        }
+        r->child(14 * config->dpi, FILL_SPACE);
+        {
+            auto combo_data = new GenericComboBox("icon_combo", "Style: ");
+            combo_data->options.emplace_back("Windows 10");
+            combo_data->options.emplace_back("Windows 7");
+            combo_data->options.emplace_back("Windows 11");
+            combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
+                if (winbar_settings->pinned_icon_style == "win7") {
+                    return "Windows 7";
+                } else if (winbar_settings->pinned_icon_style == "win11") {
+                    return "Windows 11";
+                }
+                return "Windows 10";
+            };
+            combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
+                if (((Label *) (self->user_data))->text == "Windows 10") {
+                    winbar_settings->pinned_icon_style = "win10";
+                } else if (((Label *) (self->user_data))->text == "Windows 7") {
+                    winbar_settings->pinned_icon_style = "win7";
+                } else if (((Label *) (self->user_data))->text == "Windows 11") {
+                    winbar_settings->pinned_icon_style = "win11";
+                }
+                client_close_threaded(app, client);
+                merge_order_with_taskbar();
+            };
+            
+            std::string longest_text = "Style: Windows 11";
+            pango_layout_set_text(layout, longest_text.c_str(), -1);
+            pango_layout_get_pixel_size_safe(layout, &width, &height);
+            
+            auto combobox = r->child(width * 1.5, FILL_SPACE);
+            combobox->name = combo_data->name;
+            combobox->when_clicked = clicked_expand_generic_combobox;
+            combobox->when_paint = paint_generic_combobox;
+            combobox->user_data = combo_data;
+        }
     } else if (n == "Date") {
         {
             auto combo_data = new GenericComboBox("date_combo", "Alignment: ");
@@ -863,6 +904,7 @@ static void clicked_reset(AppClient *client, cairo_t *, Container *) {
     }
     winbar_settings->search_behaviour = "Default";
     winbar_settings->icons_alignment = container_alignment::ALIGN_LEFT;
+    winbar_settings->pinned_icon_style = "win10";
     winbar_settings->bluetooth_enabled = true;
     winbar_settings->date_alignment = PangoAlignment::PANGO_ALIGN_CENTER;
     winbar_settings->date_style = "windows 11 detailed";
@@ -1258,6 +1300,10 @@ void save_settings_file() {
     }
     out_file << std::endl << std::endl;
     
+    // Pinned icon style
+    out_file << "pinned_icon_style=\"" << winbar_settings->pinned_icon_style << "\"";
+    out_file << std::endl << std::endl;
+    
     // Search Behaviour
     out_file << "search_behaviour=\"" << winbar_settings->search_behaviour << "\"";
     out_file << std::endl << std::endl;
@@ -1441,6 +1487,18 @@ void read_settings_file() {
                         winbar_settings->icons_alignment = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
                     } else if (text == "center local") {
                         winbar_settings->icons_alignment = container_alignment::ALIGN_CENTER_HORIZONTALLY;
+                    }
+                }
+            } else if (key == "pinned_icon_style") {
+                parser.until(LineParser::Token::QUOTE);
+                if (parser.current_token == LineParser::Token::QUOTE) {
+                    parser.next();
+                    std::string text = parser.until(LineParser::Token::QUOTE);
+                    if (parser.current_token == LineParser::Token::QUOTE) {
+                        trim(text);
+                        if (!text.empty()) {
+                            winbar_settings->pinned_icon_style = text;
+                        }
                     }
                 }
             } else if (key == "date_alignment") {

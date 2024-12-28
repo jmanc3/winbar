@@ -126,6 +126,9 @@ public:
     double wants_attention_amount = 0;
     bool wants_attention_just_finished = false;
     
+    bool attempting_to_launch_first_window = false;
+    long attempting_to_launch_first_window_time = 0;
+    
     int color_option = 0;
     ArgbColor actual_border_color = ArgbColor(0, 0, 0, 0);
     ArgbColor actual_gradient_color = ArgbColor(0, 0, 0, 0);

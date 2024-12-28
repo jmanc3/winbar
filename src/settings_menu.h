@@ -45,6 +45,7 @@ struct WinbarSettings {
     bool minimize_maximize_animation = true;
     std::string shutdown_command;
     std::string restart_command;
+    std::string pinned_icon_style = "win10";
 };
 
 extern WinbarSettings *winbar_settings;

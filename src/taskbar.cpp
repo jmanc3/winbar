@@ -46,7 +46,6 @@
 #include "utility.h"
 #include "pinned_icon_editor.h"
 
-#define WIN7 false
 #define scale_ratio (config->taskbar_height / (35.0 * config->dpi))
 
 static Container *active_container = nullptr;
@@ -119,6 +118,9 @@ std::string trimnewlines(std::string str) {
 
 static int
 icon_width(AppClient *client) {
+    if (winbar_settings->pinned_icon_style == "win7") {
+        return 32 * config->dpi;
+    }
     int max_container_w = (int) (client->bounds->h + 4 * config->dpi);
     bool max_container_even = max_container_w % 2 == 0;
     
@@ -169,10 +171,18 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, correct_opaqueness(client, config->color_taskbar_background));
     cairo_fill(cr);
     
-    if (WIN7) {
+    if (winbar_settings->pinned_icon_style == "win11") {
         set_rect(cr, Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
                             1 * std::floor(config->dpi)));
         set_argb(cr, correct_opaqueness(client, config->color_taskbar_search_bar_default_border));
+        cairo_fill(cr);
+    } else if (winbar_settings->pinned_icon_style == "win7") {
+        auto h = 1 * std::floor(config->dpi);
+        set_rect(cr, Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w, h));
+        set_argb(cr, ArgbColor(0.0, 0.0, 0.0, 0.7));
+        cairo_fill(cr);
+        set_rect(cr, Bounds(container->real_bounds.x, container->real_bounds.y + h, container->real_bounds.w, h));
+        set_argb(cr, ArgbColor(1.0, 1.0, 1.0, 0.425));
         cairo_fill(cr);
     }
 }
@@ -607,6 +617,8 @@ static int get_label_width(AppClient *client, Container *container) {
         if (winbar_settings->label_uniform_size)
             label_width = client->bounds->w / 12;
         return client->bounds->h + 4 * config->dpi + pad * 2 + label_width;
+    } else if (winbar_settings->pinned_icon_style == "win7") {
+        return 60 * config->dpi;
     } else {
         return client->bounds->h + 4 * config->dpi;
     }
@@ -618,6 +630,9 @@ static void update_wanted_width(AppClient *client, Container *container) {
 
 static void
 paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
     if (!data->windows_data_list.empty() && winbar_settings->labels) {
@@ -632,7 +647,7 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
             pad = container->real_bounds.h - w;
         }
         pango_layout_set_text(text_layout, data->windows_data_list[0]->title.c_str(), -1);
-        pango_layout_set_width(text_layout, (container->real_bounds.w - 43 * config->dpi) * PANGO_SCALE);
+        pango_layout_set_width(text_layout, (container->real_bounds.w - 55 * config->dpi) * PANGO_SCALE);
         pango_layout_set_alignment(text_layout, PangoAlignment::PANGO_ALIGN_LEFT);
         defer(pango_layout_set_width(text_layout, -1));
         pango_layout_set_ellipsize(text_layout, PangoEllipsizeMode::PANGO_ELLIPSIZE_END);
@@ -677,6 +692,9 @@ double bounce_slam_animation(double input) {
 
 static void
 paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
     if (data->surface) {
@@ -730,7 +748,16 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
             bounce_amount = 0;
         
         double off = (((config->taskbar_height - w) - (11 * config->dpi)) / 2) * (bounce_amount);
-        cairo_set_source_surface(cr, data->surface, xpos - 1, ypos + off);
+        double draw_x = xpos - 1;
+        if (winbar_settings->pinned_icon_style == "win7") {
+            draw_x = xpos;
+            if (data->windows_data_list.size() >= 3) {
+                draw_x -= std::round(4 * config->dpi);
+            } else if (data->windows_data_list.size() == 2) {
+                draw_x -= std::round(2.5 * config->dpi);
+            }
+        }
+        cairo_set_source_surface(cr, data->surface, std::round(draw_x), ypos + off);
         cairo_paint(cr);
         cairo_restore(cr);
     }
@@ -841,7 +868,7 @@ static void paint_pinnned_icon_pane(cairo_t *cr, Bounds bounds, double radius, d
 }
 
 static void
-paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container) {
+paint_icon_background_win11(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -992,12 +1019,326 @@ swap_color(ArgbColor *first, ArgbColor *second) {
     *second = temp;
 }
 
+static void draw_win7_pane(cairo_t *cr, const Bounds &real_bounds, bool active, bool pressed, bool hovered,
+                           ArgbColor &color_background_pane_hovered_left, ArgbColor &color_background_pane_pressed_left,
+                           ArgbColor &color_foreground_pane_default_left, ArgbColor &color_foreground_pane_hovered_left,
+                           ArgbColor &color_foreground_pane_pressed_left, float alpha, bool clip, Bounds clip_bounds);
+
+static void
+paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    
+    auto *data = (LaunchableButton *) container->user_data;
+    // This is the real underlying color
+    // is_light_theme determines if generated secondary colors should go up or down in brightness
+    bool is_light_theme = false;
+    {
+        double h; // hue
+        double s; // saturation
+        double p; // perceived brightness
+        ArgbColor real = config->color_taskbar_application_icons_background;
+        rgb2hsluv(real.r, real.g, real.b, &h, &s, &p);
+        is_light_theme = p > 50; // if the perceived perceived brightness is greater than that we are a light theme
+    }
+    
+    int windows_count = data->windows_data_list.size();
+    bool active = active_container == container || (data->type == selector_type::OPEN_CLICKED);
+    bool pressed = container->state.mouse_pressing;
+    bool hovered = container->state.mouse_hovering || (data->type != selector_type::CLOSED);
+    if (client->previous_x != -1 && client->mouse_current_x > 0) {
+        Bounds mouse_bounds(0, 0, 1, 1);
+        if (client->previous_x < client->motion_event_x) {
+            mouse_bounds.x = client->previous_x;
+            mouse_bounds.w = client->motion_event_x - client->previous_x;
+        } else {
+            mouse_bounds.x = client->mouse_current_x;
+            mouse_bounds.w = client->previous_x - client->motion_event_x;
+        }
+        if (client->previous_y < client->motion_event_y) {
+            mouse_bounds.y = client->previous_y;
+            mouse_bounds.h = client->motion_event_y - client->previous_y;
+        } else {
+            mouse_bounds.y = client->mouse_current_y;
+            mouse_bounds.h = client->previous_y - client->motion_event_y;
+        }
+        hovered = overlaps(container->real_bounds, mouse_bounds);
+    }
+//    hovered = true;
+    bool dragging = container->state.mouse_dragging;
+    double active_amount = data->active_amount;
+    if (data->type == selector_type::OPEN_CLICKED) active_amount = 1;
+    
+    int highlight_height = 2;
+    
+    double bar_amount = std::max(data->hover_amount, active_amount);
+    if (data->type != selector_type::CLOSED)
+        bar_amount = 1;
+    if (data->wants_attention_amount != 0)
+        bar_amount = 1;
+    double highlight_inset = 4 * (1 - bar_amount);
+    
+    double bg_openess = highlight_inset;
+    double right_size = 0;
+    
+    ArgbColor original_color_taskbar_application_icons_background = config->color_taskbar_application_icons_background;
+    // The pinned icon is composed of three sections;
+    // The background pane, the foreground pane, and the accent bar.
+    //
+    ArgbColor accent = config->color_taskbar_application_icons_accent;
+    ArgbColor background = config->color_taskbar_application_icons_background;
+    background = ArgbColor(1, 1, 1, 1);
+    background.a = 0.14;
+    
+    if (data->wants_attention_amount != 0) {
+        double blinks = 10.5;
+        double scalar = fmod(data->wants_attention_amount, (1.0 / blinks)); // get N blinks
+        scalar *= blinks;
+        if (scalar > .5)
+            scalar = 1 - scalar;
+        scalar *= 2;
+        if (data->wants_attention_amount == 1)
+            scalar = 1;
+        accent = lerp_argb(scalar, accent, config->color_taskbar_attention_accent);
+        background = lerp_argb(scalar, background, config->color_taskbar_attention_background);
+        active_amount = 1;
+    }
+    
+    // The following colors are used on the accent bar
+    ArgbColor color_accent_bar_left = accent;
+    ArgbColor color_accent_bar_middle = darken(accent, 20);
+    ArgbColor color_accent_bar_right = darken(accent, 15);
+    
+    // The following colors are used for the background pane
+    ArgbColor color_background_pane_hovered_left = darken(background, 15);
+    ArgbColor color_background_pane_hovered_middle = darken(background, 22);
+    ArgbColor color_background_pane_hovered_right = darken(background, 17);
+    
+    ArgbColor color_background_pane_pressed_left = darken(background, 20);
+    ArgbColor color_background_pane_pressed_middle = darken(background, 27);
+    ArgbColor color_background_pane_pressed_right = darken(background, 22);
+    
+    // The following colors are used for the foreground pane
+    ArgbColor color_foreground_pane_default_left = darken(background, 10);
+    ArgbColor color_foreground_pane_hovered_left = darken(background, 0);
+    ArgbColor color_foreground_pane_pressed_left = darken(background, 0 + 2);
+    if (is_light_theme) {
+        swap_color(&color_foreground_pane_pressed_left, &color_foreground_pane_default_left);
+        swap_color(&color_foreground_pane_hovered_left, &color_foreground_pane_hovered_left);
+    }
+    
+    ArgbColor color_foreground_pane_default_middle = darken(color_foreground_pane_default_left, 7);
+    ArgbColor color_foreground_pane_default_right = darken(color_foreground_pane_default_left, 2);
+    
+    ArgbColor color_foreground_pane_hovered_middle = darken(color_foreground_pane_hovered_left, 7);
+    ArgbColor color_foreground_pane_hovered_right = darken(color_foreground_pane_hovered_left, 2);
+    
+    ArgbColor color_foreground_pane_pressed_middle = darken(color_foreground_pane_pressed_left, 7);
+    ArgbColor color_foreground_pane_pressed_right = darken(color_foreground_pane_pressed_left, 2);
+    
+    Bounds backup = container->real_bounds;
+    float pad = 0;
+//    container->real_bounds.y -= std::floor(config->dpi * 1);
+//    container->real_bounds.h += std::floor(config->dpi * 1);
+    
+    auto p = std::floor(config->dpi);
+    if (windows_count >= 3) {
+        auto diff = std::round(4 * config->dpi);
+        Bounds b = container->real_bounds;
+        b.x += b.w - diff;
+        b.w = diff;
+        draw_win7_pane(cr, container->real_bounds, active, pressed, hovered, color_background_pane_hovered_left,
+                       color_background_pane_pressed_left,
+                       color_foreground_pane_default_left, color_foreground_pane_hovered_left,
+                       color_foreground_pane_pressed_left, 0.33, true, b);
+        
+        Bounds drawB = container->real_bounds;
+        drawB.w -= diff * 1;
+        b.x -= diff;
+        draw_win7_pane(cr, drawB, active, pressed, hovered, color_background_pane_hovered_left,
+                       color_background_pane_pressed_left,
+                       color_foreground_pane_default_left, color_foreground_pane_hovered_left,
+                       color_foreground_pane_pressed_left, 0.66, true, b);
+        
+        b = container->real_bounds;
+        b.w -= diff * 2;
+        draw_win7_pane(cr, b, active, pressed, hovered, color_background_pane_hovered_left,
+                       color_background_pane_pressed_left,
+                       color_foreground_pane_default_left, color_foreground_pane_hovered_left,
+                       color_foreground_pane_pressed_left, 1.0, false, b);
+    } else if (windows_count == 2) {
+        auto diff = std::round(5 * config->dpi);
+        Bounds b = container->real_bounds;
+        b.x += b.w - diff;
+        b.w = diff;
+        draw_win7_pane(cr, container->real_bounds, active, pressed, hovered, color_background_pane_hovered_left,
+                       color_background_pane_pressed_left,
+                       color_foreground_pane_default_left, color_foreground_pane_hovered_left,
+                       color_foreground_pane_pressed_left, 0.66, true, b);
+        
+        b = container->real_bounds;
+        b.w -= diff;
+        draw_win7_pane(cr, b, active, pressed, hovered, color_background_pane_hovered_left,
+                       color_background_pane_pressed_left,
+                       color_foreground_pane_default_left, color_foreground_pane_hovered_left,
+                       color_foreground_pane_pressed_left, 1.0, false, b);
+    } else if (windows_count == 1) {
+        draw_win7_pane(cr, container->real_bounds, active, pressed, hovered, color_background_pane_hovered_left,
+                       color_background_pane_pressed_left,
+                       color_foreground_pane_default_left, color_foreground_pane_hovered_left,
+                       color_foreground_pane_pressed_left, 1.0, false, Bounds());
+    } else if (data->attempting_to_launch_first_window &&
+               ((get_current_time_in_ms() - data->attempting_to_launch_first_window_time) < 10000)) {
+        draw_win7_pane(cr, container->real_bounds, true, false, hovered, color_background_pane_hovered_left,
+                       color_background_pane_pressed_left,
+                       color_foreground_pane_default_left, color_foreground_pane_hovered_left,
+                       color_foreground_pane_pressed_left, 0.42, false, Bounds());
+    }
+    
+    config->color_taskbar_application_icons_background = original_color_taskbar_application_icons_background;
+    container->real_bounds = backup;
+}
+
+void drawRoundedRect(cairo_t *cr, double x, double y, double width, double height,
+                     double radius, double stroke_width) {
+    // Ensure the stroke width does not exceed the bounds
+    double half_stroke = stroke_width / 2.0;
+    double adjusted_radius = std::fmin(radius, std::fmin(width, height) / 2.0);
+    double inner_width = width - stroke_width;
+    double inner_height = height - stroke_width - 1;
+    
+    if (inner_width <= 0 || inner_height <= 0) {
+        // Cannot draw if the stroke width exceeds or equals the bounds
+        return;
+    }
+    
+    // Adjusted bounds to ensure the stroke remains inside
+    double adjusted_x = x + half_stroke;
+    double adjusted_y = y + half_stroke;
+    
+    // Begin path for rounded rectangle
+    cairo_new_path(cr);
+    
+    // Move to the start of the top-right corner
+    cairo_move_to(cr, adjusted_x + adjusted_radius, adjusted_y);
+    
+    // Top side
+    cairo_line_to(cr, adjusted_x + inner_width - adjusted_radius, adjusted_y);
+    
+    // Top-right corner
+    cairo_arc(cr, adjusted_x + inner_width - adjusted_radius, adjusted_y + adjusted_radius,
+              adjusted_radius, -M_PI / 2, 0);
+    
+    // Right side
+    cairo_line_to(cr, adjusted_x + inner_width, adjusted_y + inner_height - adjusted_radius);
+    
+    // Bottom-right corner
+    cairo_arc(cr, adjusted_x + inner_width - adjusted_radius, adjusted_y + inner_height - adjusted_radius,
+              adjusted_radius, 0, M_PI / 2);
+    
+    // Bottom side
+    cairo_line_to(cr, adjusted_x + adjusted_radius, adjusted_y + inner_height);
+    
+    // Bottom-left corner
+    cairo_arc(cr, adjusted_x + adjusted_radius, adjusted_y + inner_height - adjusted_radius,
+              adjusted_radius, M_PI / 2, M_PI);
+    
+    // Left side
+    cairo_line_to(cr, adjusted_x, adjusted_y + adjusted_radius);
+    
+    // Top-left corner
+    cairo_arc(cr, adjusted_x + adjusted_radius, adjusted_y + adjusted_radius,
+              adjusted_radius, M_PI, 3 * M_PI / 2);
+    
+    // Close the path
+    cairo_close_path(cr);
+    
+    // Set stroke width and stroke
+    cairo_set_line_width(cr, stroke_width);
+}
+
+static void draw_win7_pane(cairo_t *cr, const Bounds &real_bounds, bool active, bool pressed, bool hovered,
+                           ArgbColor &color_background_pane_hovered_left, ArgbColor &color_background_pane_pressed_left,
+                           ArgbColor &color_foreground_pane_default_left, ArgbColor &color_foreground_pane_hovered_left,
+                           ArgbColor &color_foreground_pane_pressed_left, float alpha, bool clip, Bounds clip_bounds) {
+    ArgbColor copy;
+    float line_w = std::floor(1 * config->dpi);
+    float pos_x = std::round(real_bounds.x);
+    float offset = .5;
+    if (((int) line_w) % 2 == 0) {
+        offset = 0;
+    }
+    float radius = 2 * config->dpi;
+    if (clip) {
+        set_rect(cr, clip_bounds);
+        cairo_clip(cr);
+    }
+    drawRoundedRect(cr, pos_x + line_w, real_bounds.y + line_w, real_bounds.w - line_w * 2, real_bounds.h - line_w * 2,
+                    radius, line_w);
+    cairo_clip(cr);
+    
+    if (hovered || pressed || active) {
+        set_rect(cr, real_bounds);
+        if (pressed || active) {
+            copy = color_background_pane_pressed_left;
+            copy.a *= alpha;
+            set_argb(cr, copy);
+        } else {
+            copy = color_background_pane_hovered_left;
+            copy.a *= alpha;
+            set_argb(cr, copy);
+        }
+        cairo_fill(cr);
+    }
+    
+    set_rect(cr, real_bounds);
+    if (hovered || pressed || active) {
+        if (pressed || active) {
+            copy = color_foreground_pane_pressed_left;
+            copy.a *= alpha;
+            set_argb(cr, copy);
+        } else {
+            copy = color_foreground_pane_hovered_left;
+            copy.a *= alpha;
+            set_argb(cr, copy);
+        }
+    } else {
+        copy = color_foreground_pane_default_left;
+        copy.a *= alpha;
+        set_argb(cr, copy);
+    }
+    cairo_fill(cr);
+    
+    cairo_reset_clip(cr);
+    
+    if (clip) {
+        set_rect(cr, clip_bounds);
+        cairo_clip(cr);
+    }
+    
+    set_argb(cr, ArgbColor(1, 1, 1, .35 * alpha));
+    drawRoundedRect(cr, pos_x + line_w, real_bounds.y + line_w, real_bounds.w - line_w * 2, real_bounds.h - line_w * 2,
+                    radius * .4, line_w);
+    cairo_stroke(cr);
+    
+    set_argb(cr, ArgbColor(0, 0, 0, .8 * alpha));
+    drawRoundedRect(cr, pos_x, real_bounds.y, real_bounds.w, real_bounds.h, radius, line_w);
+    cairo_stroke(cr);
+    if (clip) {
+        cairo_reset_clip(cr);
+    }
+}
+
 static void
 paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (WIN7) {
+    if (winbar_settings->pinned_icon_style == "win11") {
+        paint_icon_background_win11(client, cr, container);
+        return;
+    } else if (winbar_settings->pinned_icon_style == "win7") {
         paint_icon_background_win7(client, cr, container);
         return;
     }
@@ -1446,6 +1787,10 @@ position_icons(AppClient *client, cairo_t *cr, Container *icons) {
 // TODO order is not correct
 static void
 paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
+    pixel_spacing = 1;
+    if (winbar_settings->pinned_icon_style == "win7") {
+        pixel_spacing = std::floor(2 * config->dpi);
+    }
     position_icons(client_entity, cr, container);
     
     std::vector<int> render_order;
@@ -1902,6 +2247,7 @@ static void start_zoom_animation(AppClient *client, Container *pinned_icon) {
         if (data->lifetime.lock()) {
             data->launchable->animation_zoom_locked = 0;
             data->launchable->animation_zoom_locked_time = get_current_time_in_ms();
+            data->launchable->attempting_to_launch_first_window = false;
         }
         delete data;
     }, new ZoomData({pinned_icon->lifetime, data}), "zoom_lock");
@@ -1921,6 +2267,10 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
         if (data->windows_data_list.empty() && !data->animation_zoom_locked) {
+            if (data->windows_data_list.empty()) {
+                data->attempting_to_launch_first_window = true;
+                data->attempting_to_launch_first_window_time = get_current_time_in_ms();
+            }
             start_zoom_animation(client, container);
             launch_command(data->command_launched_by);
             app_timeout_stop(client->app, client, data->possibly_open_timeout);
@@ -2013,6 +2363,10 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
         }
         start_pinned_icon_right_click(container);
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_2) {
+        if (data->windows_data_list.empty()) {
+            data->attempting_to_launch_first_window = true;
+            data->attempting_to_launch_first_window_time = get_current_time_in_ms();
+        }
         launch_command(data->command_launched_by);
         app_timeout_stop(client->app, client, data->possibly_open_timeout);
         data->possibly_open_timeout = nullptr;
@@ -2028,8 +2382,9 @@ static void
 pinned_icon_mouse_down(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LaunchableButton *) container->user_data;
     
-    client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, 0, 85 * (1 - data->animation_zoom_amount),
-                            nullptr,
+    client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, 0,
+                            100 * (1 - data->animation_zoom_amount),
+                            getEasingFunction(easing_functions::EaseOutQuad),
                             1);
 }
 
@@ -4312,6 +4667,7 @@ void add_window(App *app, xcb_window_t window) {
                 xcb_flush(app->connection);
             }
             
+            data->attempting_to_launch_first_window = false;
             data->windows_data_list.push_back(new WindowsData(app, window));
             data->animation_zoom_locked = 0;
             data->animation_zoom_locked_time = get_current_time_in_ms();
@@ -4383,6 +4739,7 @@ void add_window(App *app, xcb_window_t window) {
     a->when_drag = pinned_icon_drag;
     LaunchableButton *data = new LaunchableButton();
     data->windows_data_list.push_back(new WindowsData(app, window));
+    data->attempting_to_launch_first_window = false;
     data->class_name = window_class_name;
     data->icon_name = window_class_name;
     data->pinned = pinned;
