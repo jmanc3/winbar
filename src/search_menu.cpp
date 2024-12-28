@@ -1363,7 +1363,9 @@ void sort_and_add(std::vector<T> *sortables,
                 Container *open_in_folder = right_fg->child(FILL_SPACE, 32 * config->dpi);
                 open_in_folder->when_paint = paint_open_in_folder;
                 open_in_folder->when_clicked = clicked_open_in_folder;
-                if (winbar_settings->allow_live_tiles) {
+                
+                bool in_apps_tab = active_tab == "Apps";
+                if (winbar_settings->allow_live_tiles && in_apps_tab) {
                     Container *add_or_remove_from_live_ties = right_fg->child(FILL_SPACE, 32 * config->dpi);
                     add_or_remove_from_live_ties->when_paint = paint_live_tile_button;
                     add_or_remove_from_live_ties->when_clicked = clicked_live_tiles;

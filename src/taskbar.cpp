@@ -2392,6 +2392,7 @@ add_item_clicked(AppClient *popup, cairo_t *, Container *) {
     }
     a->when_drag_end_is_click = false;
     a->minimum_x_distance_to_move_before_drag_begins = 15;
+    a->minimum_y_distance_to_move_before_drag_begins = 15 * config->dpi;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
     a->when_mouse_leaves_container = pinned_icon_mouse_leaves;
     a->when_clicked = pinned_icon_mouse_clicked;
@@ -4371,6 +4372,7 @@ void add_window(App *app, xcb_window_t window) {
     }
     a->when_drag_end_is_click = false;
     a->minimum_x_distance_to_move_before_drag_begins = 15;
+    a->minimum_y_distance_to_move_before_drag_begins = 15 * config->dpi;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
     a->when_mouse_leaves_container = pinned_icon_mouse_leaves;
     a->when_clicked = pinned_icon_mouse_clicked;
@@ -4913,6 +4915,7 @@ load_pinned_icons() {
         
         child->when_drag_end_is_click = false;
         child->minimum_x_distance_to_move_before_drag_begins = 15;
+        child->minimum_y_distance_to_move_before_drag_begins = 15 * config->dpi;
         child->when_mouse_enters_container = pinned_icon_mouse_enters;
         child->when_mouse_leaves_container = pinned_icon_mouse_leaves;
         child->when_clicked = pinned_icon_mouse_clicked;

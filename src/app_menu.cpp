@@ -126,6 +126,22 @@ paint_power_menu(AppClient *client, cairo_t *cr, Container *container) {
         set_argb(cr, correct_opaqueness(client, lighten(config->color_apps_background, 8)));
     }
     cairo_fill(cr);
+    bool is_light_theme = false;
+    {
+        double h; // hue
+        double s; // saturation
+        double p; // perceived brightness
+        ArgbColor real = config->color_apps_background;
+        rgb2hsluv(real.r, real.g, real.b, &h, &s, &p);
+        is_light_theme = p > 50; // if the perceived perceived brightness is greater than that we are a light theme
+    }
+    
+    if (is_light_theme) {
+        set_argb(cr, ArgbColor(0.0, 0.0, 0.0, 0.34));
+    } else {
+        set_argb(cr, ArgbColor(0.0, 0.0, 0.0, 0.9));
+    }
+    paint_margins_rect(client, cr, container->real_bounds, 1, 0);
 }
 
 static void
@@ -1112,6 +1128,7 @@ clicked_add_to_live_tiles(AppClient *client, cairo_t *cr, Container *container) 
                 };
                 live_tile->when_drag_end_is_click = false;
                 live_tile->minimum_x_distance_to_move_before_drag_begins = 4 * config->dpi;
+                live_tile->minimum_y_distance_to_move_before_drag_begins = 4 * config->dpi;
                 live_tile->user_data = new LiveTileData(item);
             }
         }
@@ -1724,6 +1741,7 @@ fill_root(AppClient *client) {
             }
         };
         live_tile->when_drag_end_is_click = false;
+        live_tile->minimum_y_distance_to_move_before_drag_begins = 4 * config->dpi;
         live_tile->minimum_x_distance_to_move_before_drag_begins = 4 * config->dpi;
         live_tile->user_data = new LiveTileData(launchers[i]);
         i_off++;
@@ -2225,6 +2243,7 @@ void load_desktop_files(std::string directory) {
             std::string wmclass = desktop_application.Get("Desktop Entry", "StartupWMClass", "");
             std::string exec = desktop_application.Get("Desktop Entry", "Exec", "");
             std::string keywords = desktop_application.Get("Desktop Entry", "Keywords", "");
+            std::string generic_name = desktop_application.Get("Desktop Entry", "GenericName", "");
             std::string icon = desktop_application.Get("Desktop Entry", "Icon", "");
             std::string no_display_text = desktop_application.Get("Desktop Entry", "NoDisplay", "");
             std::string not_show_in = desktop_application.Get("Desktop Entry", "NotShowIn", "");

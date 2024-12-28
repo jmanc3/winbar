@@ -1586,8 +1586,10 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
                     c->when_drag(client, client->cr, c);
                 }
             } else if (c->state.mouse_pressing) {
-                auto move_distance = abs(client->mouse_initial_x - client->mouse_current_x);
-                if (move_distance >= c->minimum_x_distance_to_move_before_drag_begins) {
+                auto move_distance_x = abs(client->mouse_initial_x - client->mouse_current_x);
+                auto move_distance_y = abs(client->mouse_initial_y - client->mouse_current_y);
+                if (move_distance_x >= c->minimum_x_distance_to_move_before_drag_begins ||
+                    move_distance_y >= c->minimum_y_distance_to_move_before_drag_begins) {
                     // handle when_drag_start
                     c->state.mouse_dragging = true;
                     if (c->when_drag_start) {

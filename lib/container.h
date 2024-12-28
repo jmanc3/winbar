@@ -437,6 +437,7 @@ struct Container {
     
     // How many pixels does a container need to be moved before dragging starts
     int minimum_x_distance_to_move_before_drag_begins = 0;
+    int minimum_y_distance_to_move_before_drag_begins = 0;
     
     // If the container should receive events through a single container above it
     // (children)
