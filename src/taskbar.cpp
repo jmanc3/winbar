@@ -4777,6 +4777,18 @@ void add_window(App *app, xcb_window_t window) {
     std::string path;
     std::string icon_name;
     
+    if (winbar_settings->labels && other_with_same_class) {
+        std::string icon = ((LaunchableButton *) other_with_same_class->user_data)->icon_name;
+        std::vector<IconTarget> targets;
+        targets.emplace_back(IconTarget(icon));
+        search_icons(targets);
+        pick_best(targets, icon_width(client));
+        if (!targets.empty()) {
+            path = targets[0].best_full_path;
+            data->icon_name = icon;
+        }
+    }
+    
     if (path.empty()) {
         for (const auto &item: launchers) {
             if (!item->wmclass.empty() && item->wmclass == window_class_name && !item->icon.empty()) {
