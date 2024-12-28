@@ -135,6 +135,18 @@ bool on_message(App *, xcb_generic_event_t *event, xcb_window_t window) {
 }
 
 void start_run_window() {
+    if (auto winbar_run = client_by_name(app, "winbar_run")) {
+        if (auto textarea = container_by_name("textarea", winbar_run->root)) {
+            auto *data = (TextAreaData *) textarea->user_data;
+            data->state->text = "";
+            data->state->cursor = 0;
+            data->state->selection_x = 0;
+            data->state->redo_stack.clear();
+            data->state->undo_stack.clear();
+        }
+        return;
+    }
+    
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PangoLayout *layout =
                 get_cached_pango_font(taskbar->cr, config->font, 10 * config->dpi, PANGO_WEIGHT_NORMAL);
@@ -206,6 +218,7 @@ void start_run_window() {
         };
         set_active(run_client, textarea->parent, true);
         
+        textarea->name = "textarea";
         textarea->when_key_event = [](AppClient *client, cairo_t *cr, Container *self, bool is_string,
                                       xkb_keysym_t keysym, char string[64], uint16_t mods,
                                       xkb_key_direction direction) {
@@ -217,8 +230,9 @@ void start_run_window() {
                 auto *data = (TextAreaData *) self->user_data;
                 launch_command(data->state->text);
             }
-            
-            textarea_handle_keypress(client, self, is_string, keysym, string, mods, direction);
+            if (!(mods & XCB_MOD_MASK_4)) {
+                textarea_handle_keypress(client, self, is_string, keysym, string, mods, direction);
+            }
         };
         app_create_custom_event_handler(app, run_client->window, on_message);
         client_show(app, run_client);
