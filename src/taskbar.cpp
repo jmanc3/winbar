@@ -1086,7 +1086,7 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
     ArgbColor accent = config->color_taskbar_application_icons_accent;
     ArgbColor background = config->color_taskbar_application_icons_background;
     background = ArgbColor(1, 1, 1, 1);
-    background.a = 0.14;
+    background.a = 0.14 + (data->active_amount * .09);
     
     if (data->wants_attention_amount != 0) {
         double blinks = 10.5;
@@ -1195,7 +1195,7 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
                        color_background_pane_pressed_left,
                        color_foreground_pane_default_left, color_foreground_pane_hovered_left,
                        color_foreground_pane_pressed_left, 0.42, false, Bounds());
-    } else if (data->hover_amount != 0) {
+    } else if (data->hover_amount != 0 && !container->state.mouse_dragging) {
         // Create a radial gradient pattern
         int x = container->real_bounds.x + container->real_bounds.w / 2;
         float r = (container->real_bounds.h * .4) * data->hover_amount;
@@ -1219,12 +1219,94 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
     
     if (show_hover_spotlight && container->state.mouse_hovering) {
         int x = client->mouse_current_x;
-        float r = container->real_bounds.w * .66 * data->hover_amount;
+        float r = container->real_bounds.w * data->hover_amount;
         int y = container->real_bounds.y + container->real_bounds.h + r - container->real_bounds.h * .7;
         cairo_pattern_t* radial = cairo_pattern_create_radial(x, y, 0, x, y, r);
         
         // Add color stops: white (fully opaque) at the center and transparent at the edge
-        cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.1 * data->hover_amount); // White
+        cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.2 * data->hover_amount); // White
+        cairo_pattern_add_color_stop_rgba(radial, 1.0, 1.0, 1.0, 1.0, 0.0); // Transparent
+        
+        // Set the pattern as the source
+        cairo_set_source(cr, radial);
+        
+        set_rect(cr, container->real_bounds);
+        cairo_clip(cr);
+        
+        // Draw the circle
+        cairo_arc(cr, x, y, r, 0, 2 * M_PI);
+        cairo_fill(cr);
+        
+        cairo_reset_clip(cr);
+        
+        // Destroy the pattern to free memory
+        cairo_pattern_destroy(radial);
+    }
+    
+    float line_w = std::floor(1 * config->dpi);
+    
+    if (data->windows_data_list.size() != data->last_frame_window_count) {
+        if (data->windows_data_list.empty()) {
+            // removed
+            client_create_animation(app, client, &data->window_opened_scalar,
+                                    data->lifetime, 0, 100, nullptr, 0);
+        } else if (data->window_opened_scalar != 1.0) {
+            // added
+            client_create_animation(app, client, &data->window_opened_scalar,
+                                    data->lifetime, 0, 200, getEasingFunction(easing_functions::EaseInQuad), 1);
+        }
+    }
+    data->last_frame_window_count = data->windows_data_list.size();
+    
+    if (windows_count >= 1) {
+        int x = container->real_bounds.x + line_w * 2;
+        float r = container->real_bounds.w;
+        int y = container->real_bounds.y + line_w * 2;
+        x += container->real_bounds.w * .1;
+        y -= container->real_bounds.w * .5;
+        cairo_pattern_t *radial = cairo_pattern_create_radial(x, y, 0, x, y, r);
+        x = container->real_bounds.x + line_w * 2;
+        y = container->real_bounds.y + line_w * 2;
+        
+        // Add color stops: white (fully opaque) at the center and transparent at the edge
+        cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.35 * data->window_opened_scalar); // White
+        cairo_pattern_add_color_stop_rgba(radial, 1.0, 1.0, 1.0, 1.0, 0.0); // Transparent
+        
+        // Set the pattern as the source
+        cairo_set_source(cr, radial);
+        
+        cairo_move_to(cr, x, y);
+        cairo_line_to(cr, x + container->real_bounds.w, y);
+        cairo_line_to(cr, x + container->real_bounds.w, y + container->real_bounds.h * .2);
+        
+        cairo_curve_to(cr,
+                       x + container->real_bounds.w,
+                       y + container->real_bounds.h * .2, // First control point (slightly above the line)
+                       x + container->real_bounds.w * .15,
+                       y + container->real_bounds.h * .15, // Second control point (slightly above the line)
+                       x + container->real_bounds.w * .1, y + container->real_bounds.h * .8); // End point
+        
+        cairo_line_to(cr, x, y + container->real_bounds.h * .8);
+
+//        cairo_line_to(cr, x, y + container->real_bounds.h);
+        cairo_line_to(cr, x, y);
+
+//        set_rect(cr, container->real_bounds);
+        cairo_clip(cr);
+        
+        // Draw the circle
+        cairo_arc(cr, x, y, r, 0, 2 * M_PI);
+        cairo_fill(cr);
+        
+        cairo_pattern_destroy(radial);
+        
+        x = container->real_bounds.x + line_w * 2;
+        r = container->real_bounds.h * .6;
+        y = container->real_bounds.y + line_w * 2;
+        radial = cairo_pattern_create_radial(x, y, 0, x, y, r);
+        
+        // Add color stops: white (fully opaque) at the center and transparent at the edge
+        cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.2 * data->window_opened_scalar); // White
         cairo_pattern_add_color_stop_rgba(radial, 1.0, 1.0, 1.0, 1.0, 0.0); // Transparent
         
         // Set the pattern as the source
@@ -1901,7 +1983,8 @@ pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     possibly_close(app, container, data);
     if (winbar_settings->pinned_icon_style == "win7") {
-        client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 100, 0, 0);
+        auto delay = 100 - (100 * data->hover_amount);
+        client_create_animation(app, client, &data->hover_amount, data->lifetime, delay, 100, 0, 0);
     } else {
         client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 70, 0, 0);
     }
