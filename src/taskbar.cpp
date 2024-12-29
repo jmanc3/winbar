@@ -746,14 +746,6 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         
         double off = (((config->taskbar_height - w) - (11 * config->dpi)) / 2) * (bounce_amount);
         double draw_x = xpos - 1;
-        if (winbar_settings->pinned_icon_style == "win7") {
-            draw_x = xpos;
-            if (data->windows_data_list.size() >= 3) {
-                draw_x -= std::round(4 * config->dpi);
-            } else if (data->windows_data_list.size() == 2) {
-                draw_x -= std::round(2.5 * config->dpi);
-            }
-        }
         cairo_set_source_surface(cr, data->surface, std::round(draw_x), ypos + off);
         cairo_paint(cr);
         cairo_restore(cr);
