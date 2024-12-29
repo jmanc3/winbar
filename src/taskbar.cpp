@@ -1013,6 +1013,9 @@ static void draw_win7_pane(cairo_t *cr, const Bounds &real_bounds, bool active, 
                            ArgbColor &color_foreground_pane_default_left, ArgbColor &color_foreground_pane_hovered_left,
                            ArgbColor &color_foreground_pane_pressed_left, float alpha, bool clip, Bounds clip_bounds);
 
+void drawRoundedRect(cairo_t *cr, double x, double y, double width, double height,
+                     double radius, double stroke_width);
+
 static void
 paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
@@ -1209,24 +1212,43 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
         cairo_pattern_destroy(radial);
     }
     
-    if (show_hover_spotlight && container->state.mouse_hovering) {
-        int x = client->mouse_current_x;
+    if (show_hover_spotlight && data->hover_amount != 0 && !data->windows_data_list.empty()) {
+//        int x = client->mouse_current_x;
+        int x = container->real_bounds.x + container->real_bounds.w / 2;
         float r = container->real_bounds.w * data->hover_amount;
-        int y = container->real_bounds.y + container->real_bounds.h + r - container->real_bounds.h * .7;
+        int y = container->real_bounds.y + container->real_bounds.h / 2;
+       
         cairo_pattern_t* radial = cairo_pattern_create_radial(x, y, 0, x, y, r);
         
+        if (!data->average_color_set) {
+            get_average_color(data->surface, &data->average_color);
+            data->average_color_set = true;
+        }
+        
         // Add color stops: white (fully opaque) at the center and transparent at the edge
-        cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.2 * data->hover_amount); // White
-        cairo_pattern_add_color_stop_rgba(radial, 1.0, 1.0, 1.0, 1.0, 0.0); // Transparent
+        if (data->average_color_set) {
+            cairo_pattern_add_color_stop_rgba(radial, 0.00, data->average_color.r, data->average_color.g,
+                                              data->average_color.b, 0.5 * data->hover_amount); // Transparent
+            cairo_pattern_add_color_stop_rgba(radial, 0.89, data->average_color.r, data->average_color.g,
+                                              data->average_color.b, 0.5 * data->hover_amount); // Transparent
+            cairo_pattern_add_color_stop_rgba(radial, 1.0, data->average_color.r, data->average_color.g,
+                                              data->average_color.b, 0.0); // Transparent
+        } else {
+            cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.2 * data->hover_amount); // White
+            cairo_pattern_add_color_stop_rgba(radial, 1.0, 1.0, 1.0, 1.0, 0.0); // Transparent
+        }
         
         // Set the pattern as the source
         cairo_set_source(cr, radial);
         
-        set_rect(cr, container->real_bounds);
+        float radius = 2 * config->dpi;
+        float line_w = std::floor(1 * config->dpi);
+        drawRoundedRect(cr, container->real_bounds.x + line_w, container->real_bounds.y + line_w,
+                        container->real_bounds.w - line_w * 2, container->real_bounds.h - line_w * 2, radius, line_w);
         cairo_clip(cr);
         
         // Draw the circle
-        cairo_arc(cr, x, y, r, 0, 2 * M_PI);
+        cairo_arc(cr, x, y, r * data->hover_amount, 0, 2 * M_PI);
         cairo_fill(cr);
         
         cairo_reset_clip(cr);

@@ -126,6 +126,9 @@ public:
     double wants_attention_amount = 0;
     bool wants_attention_just_finished = false;
     
+    bool average_color_set;
+    ArgbColor average_color;
+    
     bool attempting_to_launch_first_window = false;
     long attempting_to_launch_first_window_time = 0;
     
