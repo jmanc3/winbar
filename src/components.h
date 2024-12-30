@@ -136,6 +136,7 @@ class ButtonData : public IconButton {
 public:
     std::string text;
     std::string full_path;
+    bool valid_button = true;
 };
 
 Container *
@@ -191,5 +192,30 @@ Container *make_combobox(Container *parent, const std::vector<std::string> &item
 void
 key_event_textfield(AppClient *client, cairo_t *cr, Container *container, bool is_string, xkb_keysym_t keysym,
                     char string[64], uint16_t mods, xkb_key_direction direction);
+
+struct PopupItemDraw {
+    std::string icon0;
+    std::string icon1;
+    std::string text;
+    std::string iconend;
+    
+    PopupItemDraw(const std::string &icon0, const std::string &icon1, const std::string &text, const std::string &iconend);
+};
+
+struct PopupMenu;
+
+struct PopupItem {
+    bool has_sub_menu = false;
+    PopupMenu *sub_menu = nullptr;
+    
+    void (*before_draw)(PopupItemDraw *draw);
+    void (*on_click)(PopupItemDraw *draw, Container *container);
+};
+
+struct PopupMenu {
+    std::vector<PopupItem> items;
+    std::weak_ptr<bool> data_valid;
+    void *data;
+};
 
 #endif// SCROLL_COMPONENTS_H

@@ -50,10 +50,23 @@ struct TooltipMenuData : public UserData {
     std::string path;
 };
 
-class LiveTileData : UserData {
-public:
+struct LiveTileItemType : UserData {
+    int type = 0; // 0 = live tile, 1 = label/textfield
+};
+
+struct LiveTileButtonData : ButtonData {
+    Launcher *launcher = nullptr;
+    Container *tile = nullptr;
+    std::weak_ptr<bool> lifetime;
+};
+
+struct LiveTileData : LiveTileItemType {
     Launcher *launcher = nullptr;
     cairo_surface_t *surface = nullptr;
+    Container *tile = nullptr;
+    int w = 2;
+    int h = 2;
+    std::weak_ptr<bool> lifetime;
     
     LiveTileData(Launcher *launcher) {
         this->launcher = launcher;
@@ -190,10 +203,7 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
-paint_button(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
+paint_button_background(AppClient *client, cairo_t *cr, Container *container) {
     container->real_bounds.x += 1;
     container->real_bounds.w -= 2;
     
@@ -249,11 +259,20 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     
     container->real_bounds.x -= 1;
     container->real_bounds.w += 2;
-    
+}
+
+static void
+paint_button(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_button_background(client, cr, container);
+    auto data = (ButtonData *) container->user_data;
     if (data) {
         PangoLayout *icon_layout =
                 get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         
+        bool right = false;
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
         if (data->text == "START") {
             pango_layout_set_text(icon_layout, "\uE700", strlen("\uE83F"));
@@ -293,18 +312,41 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
             pango_layout_set_text(icon_layout, "\uE718", strlen("\uE83F"));
         } else if (data->text == "Unpin from Start") {
             pango_layout_set_text(icon_layout, "\uE77A", strlen("\uE83F"));
+        } else if (data->text == "Small") {
+            pango_layout_set_text(icon_layout, "\uE743", strlen("\uE83F"));
+        } else if (data->text == "Medium") {
+            pango_layout_set_text(icon_layout, "\uE744", strlen("\uE83F"));
+        } else if (data->text == "Wide") {
+            pango_layout_set_text(icon_layout, "\uE745", strlen("\uE83F"));
+        } else if (data->text == "Large") {
+            pango_layout_set_text(icon_layout, "\uE747", strlen("\uE83F"));
+        } else if (data->text == "Resize") {
+            right = true;
         }
     
         set_argb(cr, config->color_apps_icons);
     
         int width;
         int height;
-        pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
-    
-        cairo_move_to(cr,
-                      (int) (container->real_bounds.x + container->real_bounds.h / 2 - height / 2),
-                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-        pango_cairo_show_layout(cr, icon_layout);
+        
+        if (right) {
+            icon_layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 9 * config->dpi,
+                                                PangoWeight::PANGO_WEIGHT_NORMAL);
+            pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
+            pango_layout_set_text(icon_layout, "\uE974", strlen("\uE83F"));
+            
+            cairo_move_to(cr,
+                          (int) (container->real_bounds.x + container->real_bounds.w - container->real_bounds.h / 2 -
+                                 height / 2),
+                          (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+            pango_cairo_show_layout(cr, icon_layout);
+        } else {
+            pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
+            cairo_move_to(cr,
+                          (int) (container->real_bounds.x + container->real_bounds.h / 2 - height / 2),
+                          (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+            pango_cairo_show_layout(cr, icon_layout);
+        }
     }
     
     auto taskbar_entity = client_by_name(app, "taskbar");
@@ -873,6 +915,8 @@ sub_menu_closed(AppClient *client) {
     }
     if (auto c = client_by_name(app, "tooltip_popup"))
         client_close_threaded(app, c);
+    if (auto c = client_by_name(app, "right_click_resize_popup"))
+        client_close_threaded(app, c);
 }
 
 static void
@@ -1072,18 +1116,7 @@ clicked_add_to_live_tiles(AppClient *client, cairo_t *cr, Container *container) 
 //            auto live_tile_width = (660 - 320) * config->dpi;
             
             if (live_scroll) {
-                bool last_line_full = false;
-                if (!live_scroll->content->children.empty()) {
-                    Container *last_line = live_scroll->content->children[live_scroll->content->children.size() - 1];
-                    last_line_full = last_line->children.size() == 3;
-                }
-                if (live_scroll->content->children.empty() || last_line_full) {
-                    live_scroll->content->child(::hbox, FILL_SPACE, 100 * config->dpi);
-//                    live_scroll->content->spacing = 4 * config->dpi;
-                    live_scroll->content->wanted_pad = Bounds(13 * config->dpi, 34 * config->dpi + 8 * config->dpi,
-                                                              13 * config->dpi, 54 * config->dpi);
-                }
-                auto last_line = live_scroll->content->children[live_scroll->content->children.size() - 1];
+                auto last_line = live_scroll->content;
 //                last_line->alignment = ALIGN_CENTER_HORIZONTALLY;
                 last_line->spacing = 4 * config->dpi;
                 
@@ -1148,10 +1181,180 @@ mouse_leaves_open_file_location(AppClient *right_click_client, cairo_t *cr, Cont
     }
 }
 
+static void
+paint_resize_button(AppClient *client, cairo_t *cr, Container *container) {
+    paint_button_background(client, cr, container);
+    auto data = (LiveTileButtonData *) container->user_data;
+    
+    PangoLayout *icon_layout =
+            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    int width;
+    int height;
+    
+    bool has_checkmark = false;
+    if (data->lifetime.lock()) {
+        auto *live = (LiveTileData *) data->tile->user_data;
+        if (live->w == 1 && live->h) {
+            if (data->text == "Small") {
+                has_checkmark = true;
+            }
+        } else if (live->w == 4 && live->h == 4) {
+            if (data->text == "Large") {
+                has_checkmark = true;
+            }
+        } else if (live->w == 2 && live->h == 2) {
+            if (data->text == "Medium") {
+                has_checkmark = true;
+            }
+        } else if (live->w == 4 && live->h == 2) {
+            if (data->text == "Wide") {
+                has_checkmark = true;
+            }
+        }
+    }
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    if (has_checkmark) {
+        pango_layout_set_text(icon_layout, "\uE73E", strlen("\uE83F"));
+        set_argb(cr, config->color_apps_icons);
+        
+        pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + container->real_bounds.h / 2 - height / 2),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, icon_layout);
+    }
+    
+    if (data->text == "Small") {
+        pango_layout_set_text(icon_layout, "\uE743", strlen("\uE83F"));
+    } else if (data->text == "Medium") {
+        pango_layout_set_text(icon_layout, "\uE744", strlen("\uE83F"));
+    } else if (data->text == "Wide") {
+        pango_layout_set_text(icon_layout, "\uE745", strlen("\uE83F"));
+    } else if (data->text == "Large") {
+        pango_layout_set_text(icon_layout, "\uE747", strlen("\uE83F"));
+    }
+    
+    set_argb(cr, config->color_apps_icons);
+    pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + ((container->real_bounds.h / 2 - height / 2) * 2 + height)),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, icon_layout);
+    
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    if (data->text == "START") {
+        layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
+    }
+    
+    set_argb(cr, config->color_apps_text);
+    pango_layout_set_text(layout, data->text.c_str(), data->text.length());
+    
+    int text_x = (int) (container->real_bounds.x + ((container->real_bounds.h / 2 - height / 2) * 3) + height * 2);
+    int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+    cairo_move_to(cr, text_x, text_y);
+    
+    pango_cairo_show_layout(cr, layout);
+}
+
+template<int W, int H>
+static void
+make_resize_option_container(std::string label, Container *menu, LiveTileButtonData *data) {
+    auto option_container = menu->child(FILL_SPACE, FILL_SPACE);
+    option_container->when_clicked = [](AppClient *, cairo_t *, Container *c) {
+        auto *data = (LiveTileButtonData *) c->user_data;
+        if (data->lifetime.lock()) {
+            auto *live = (LiveTileData *) data->tile->user_data;
+            live->w = W; // Use template parameter W
+            live->h = H; // Use template parameter H
+            request_refresh(app, client_by_name(app, "app_menu"));
+            if (auto client = client_by_name(app, "live_tile_right_click_menu"))
+                client_close_threaded(app, client);
+            if (auto client = client_by_name(app, "right_click_resize_popup"))
+                client_close_threaded(app, client);
+        }
+    };
+    option_container->when_paint = paint_resize_button;
+    auto *option_data = new LiveTileButtonData;
+    option_data->full_path = data->full_path;
+    if (data->tile) {
+        option_data->lifetime = data->tile->lifetime;
+        option_data->tile = data->tile;
+    }
+    option_data->text = label;
+    option_container->user_data = option_data;
+}
+
+void live_tiles_resize_popup(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *data = (LiveTileButtonData *) container->user_data;
+    
+    int options_count = 4;
+    int pad = 6 * config->dpi;
+    Settings settings;
+    settings.force_position = true;
+    settings.w = 256 * config->dpi;
+    settings.h = ((36 * options_count) * config->dpi) + (config->dpi * (options_count - 1)) + (pad * 2);
+    settings.x = client->bounds->x + client->bounds->w - 4 * config->dpi;
+    settings.y = client->bounds->y + container->real_bounds.y;
+    settings.skip_taskbar = true;
+    settings.decorations = false;
+    settings.override_redirect = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 1;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
+    
+    if (auto live_tile_fly_out = client_by_name(app, "live_tile_right_click_menu")) {
+        PopupSettings popup_settings;
+        popup_settings.close_on_focus_out = false;
+        popup_settings.takes_input_focus = true;
+        
+        auto popup = live_tile_fly_out->create_popup(popup_settings, settings);
+        popup->name = "right_click_resize_popup";
+        popup->when_closed = [](AppClient *resize_menu) {
+            // check if mouse is currently hovering over the other popup
+            
+            if (auto c = client_by_name(app, "live_tile_right_click_menu")) {
+                int g_x = 0;
+                int g_y = 0;
+                get_global_coordinates(app->connection, resize_menu->window, resize_menu->mouse_current_x,
+                                       resize_menu->mouse_current_y, &g_x, &g_y);
+                if (!bounds_contains(*c->bounds, g_x, g_y)) {
+                    client_close_threaded(app, c);
+                }
+            }
+        };
+        
+        popup->root->when_paint = paint_power_menu;
+        popup->root->type = vbox;
+        popup->root->spacing = 1;
+        popup->root->wanted_pad.y = pad;
+        popup->root->wanted_pad.h = pad;
+        popup->user_data = new RightClickMenuData;
+        
+        make_resize_option_container<1, 1>("Small", popup->root, data);
+        make_resize_option_container<2, 2>("Medium", popup->root, data);
+        make_resize_option_container<4, 2>("Wide", popup->root, data);
+        make_resize_option_container<4, 4>("Large", popup->root, data);
+        
+        client_show(app, popup);
+        
+        xcb_set_input_focus(app->connection, XCB_NONE, popup->window, XCB_CURRENT_TIME);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
+    }
+}
+
 void something_timeout(App *app, AppClient *client, Timeout *timeout, void *user_data) {
     auto *data = (RightClickMenuData *) client->user_data;
     data->tooltip_timeout = nullptr;
-    if (!data->inside) {
+    if (!data->inside || client_by_name(app, "right_click_resize_popup") != nullptr) {
         return;
     }
     
@@ -1212,6 +1415,33 @@ mouse_enters_open_file_location(AppClient *right_click_client, cairo_t *cr, Cont
 }
 
 static void
+make_option_file_location_container(Container *root, std::string full_path) {
+    auto l = root->child(FILL_SPACE, FILL_SPACE);
+    l->when_clicked = clicked_open_in_folder;
+    l->when_mouse_enters_container = mouse_enters_open_file_location;
+    l->when_mouse_leaves_container = mouse_leaves_open_file_location;
+    l->when_paint = paint_button;
+    auto *l_data = new ButtonData;
+    l_data->full_path = full_path;
+    l_data->text = "Open file location";
+    l->user_data = l_data;
+}
+
+static void
+make_option_pin_unpin_container(Container *root, bool pinned, std::string full_path) {
+    auto l = root->child(FILL_SPACE, FILL_SPACE);
+    l->when_clicked = clicked_add_to_live_tiles;
+    l->when_paint = paint_button;
+    auto *l_data = new ButtonData;
+    l_data->full_path = full_path;
+    if (pinned) {
+        l_data->text = "Unpin from Start";
+    } else {
+        l_data->text = "Pin to Start";
+    }
+    l->user_data = l_data;
+}
+static void
 right_clicked_application(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -1234,7 +1464,7 @@ right_clicked_application(AppClient *client, cairo_t *cr, Container *container) 
     settings.override_redirect = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
-    settings.slide_data[1] = 3;
+    settings.slide_data[1] = 1;
     settings.slide_data[2] = 160;
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
@@ -1255,32 +1485,11 @@ right_clicked_application(AppClient *client, cairo_t *cr, Container *container) 
         popup->user_data = new RightClickMenuData;
         
         if (winbar_settings->allow_live_tiles) {
-            auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
-            l->when_clicked = clicked_add_to_live_tiles;
-            l->when_paint = paint_button;
-            auto *l_data = new ButtonData;
-            if (data->launcher)
-                l_data->full_path = data->launcher->full_path;
-            if (data->launcher->is_pinned) {
-                l_data->text = "Unpin from Start";
-            } else {
-                l_data->text = "Pin to Start";
-            }
-            l->user_data = l_data;
+            make_option_pin_unpin_container(popup->root, data->launcher ? data->launcher->is_pinned : false,
+                                            data->launcher ? data->launcher->full_path : "");
         }
         
-        {
-            auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
-            l->when_clicked = clicked_open_in_folder;
-            l->when_mouse_enters_container = mouse_enters_open_file_location;
-            l->when_mouse_leaves_container = mouse_leaves_open_file_location;
-            l->when_paint = paint_button;
-            auto *l_data = new ButtonData;
-            if (data->launcher)
-                l_data->full_path = data->launcher->full_path;
-            l_data->text = "Open file location";
-            l->user_data = l_data;
-        }
+        make_option_file_location_container(popup->root, data->launcher ? data->launcher->full_path : "");
         
         popup->when_closed = sub_menu_closed;
         
@@ -1299,7 +1508,7 @@ right_clicked_live_tile(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     auto *data = (LiveTileData *) container->user_data;
     
-    int options_count = 2;
+    int options_count = 3;
     int pad = 6 * config->dpi;
     Settings settings;
     settings.force_position = true;
@@ -1312,7 +1521,7 @@ right_clicked_live_tile(AppClient *client, cairo_t *cr, Container *container) {
     settings.override_redirect = true;
     settings.slide = true;
     settings.slide_data[0] = -1;
-    settings.slide_data[1] = 3;
+    settings.slide_data[1] = 1;
     settings.slide_data[2] = 160;
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
@@ -1323,7 +1532,7 @@ right_clicked_live_tile(AppClient *client, cairo_t *cr, Container *container) {
         popup_settings.takes_input_focus = true;
         
         auto popup = app_menu->create_popup(popup_settings, settings);
-        popup->name = "right_click_popup";
+        popup->name = "live_tile_right_click_menu";
         
         popup->root->when_paint = paint_power_menu;
         popup->root->type = vbox;
@@ -1332,35 +1541,26 @@ right_clicked_live_tile(AppClient *client, cairo_t *cr, Container *container) {
         popup->root->wanted_pad.h = pad;
         popup->user_data = new RightClickMenuData;
         
+        make_option_pin_unpin_container(popup->root, data->launcher ? data->launcher->is_pinned : false,
+                                        data->launcher ? data->launcher->full_path : "");
+        
         {
             auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
-            l->when_clicked = clicked_add_to_live_tiles;
+            l->when_clicked = live_tiles_resize_popup;
             l->when_paint = paint_button;
-            auto *l_data = new ButtonData;
-            if (data->launcher)
-                l_data->full_path = data->launcher->full_path;
-            if (data->launcher->is_pinned) {
-                l_data->text = "Unpin from Start";
-            } else {
-                l_data->text = "Pin to Start";
+            auto *l_data = new LiveTileButtonData;
+            l_data->launcher = data->launcher;
+            if (data->tile) {
+                l_data->lifetime = data->tile->lifetime;
+                l_data->tile = data->tile;
             }
-            l->user_data = l_data;
-        }
-        
-        {
-            auto l = popup->root->child(FILL_SPACE, FILL_SPACE);
-            l->when_clicked = clicked_open_in_folder;
-            l->when_mouse_enters_container = mouse_enters_open_file_location;
-            l->when_mouse_leaves_container = mouse_leaves_open_file_location;
-            l->when_paint = paint_button;
-            auto *l_data = new ButtonData;
             if (data->launcher)
                 l_data->full_path = data->launcher->full_path;
-            l_data->text = "Open file location";
+            l_data->text = "Resize";
             l->user_data = l_data;
         }
         
-        popup->when_closed = sub_menu_closed;
+        make_option_file_location_container(popup->root, data->launcher ? data->launcher->full_path : "");
         
         client_show(app, popup);
         
@@ -1371,39 +1571,68 @@ right_clicked_live_tile(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
-//    set_rect(cr, container->real_bounds);
-//    set_argb(cr, correct_opaqueness(client, config->color_apps_background));
-//    cairo_fill(cr);
-//    set_argb(cr, ArgbColor(1.0, 0.0, 0.0, 1.0));
-//    set_rect(cr, container->real_bounds);
-//    cairo_fill(cr);
+    auto s = (ScrollContainer *) container;
+    int line_x = 0;
+    int tallest_h_seen = 0;
+    int line_y = 0;
+    
+    float title_pad = 40 * config->dpi;
+    int x = container->real_bounds.x + (container->real_bounds.w - (100 * config->dpi) * 3) / 2;
     
     PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     std::string text("Pinned Apps");
     pango_layout_set_text(layout, text.c_str(), text.size());
-    
-    PangoRectangle ink;
-    PangoRectangle logical;
-    pango_layout_get_extents(layout, &ink, &logical);
-    
     set_argb(cr, config->color_apps_text);
     
     cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 18 * config->dpi),
-                  (int) (container->real_bounds.y + 13 * config->dpi));
+                  (int) (x + 3 * config->dpi),
+                  (int) (container->real_bounds.y + 12 * config->dpi));
     pango_cairo_show_layout(cr, layout);
+    
+    for (auto item: s->content->children) {
+        auto info = (LiveTileItemType *) item->user_data;
+        if (info->type == 0) {
+            auto live = (LiveTileData *) item->user_data;
+            
+            if (line_x + live->w > 6) {
+                line_y += tallest_h_seen;
+                line_x = 0;
+                tallest_h_seen = 0;
+            }
+            
+            float pad = 2 * config->dpi;
+            item->real_bounds.x = x + ((50 * config->dpi) * line_x) + pad;
+            item->real_bounds.y = container->real_bounds.y + ((50 * config->dpi) * line_y) + pad + title_pad;
+            item->real_bounds.w = live->w * (50 * config->dpi) - pad * 2;
+            item->real_bounds.h = live->h * (50 * config->dpi) - pad * 2;
+            
+            line_x += live->w;
+            
+            if (tallest_h_seen < live->h)
+                tallest_h_seen = live->h;
+            
+            if (line_x >= 6) {
+                line_y += tallest_h_seen;
+                line_x = 0;
+                tallest_h_seen = 0;
+            }
+            
+            paint_live_tile(client, cr, item);
+        }
+    }
 }
 
 void paint_live_tile(AppClient *client, cairo_t *cr, Container *container) {
+    auto bg = lighten(config->color_apps_background, 10);
     set_rect(cr, container->real_bounds);
-    set_argb(cr, ArgbColor(1.0, 1.0, 1.0, 0.12));
+    set_argb(cr, bg);
     cairo_fill(cr);
     
     if (container->state.mouse_pressing && !container->state.mouse_dragging) {
-        set_argb(cr, ArgbColor(1.0, 1.0, 1.0, 0.67));
+        set_argb(cr, lighten(bg, 65));
         paint_margins_rect(client, cr, container->real_bounds, 2 * config->dpi, 0);
     } else if (container->state.mouse_hovering && !container->state.mouse_dragging) {
-        set_argb(cr, ArgbColor(1.0, 1.0, 1.0, 0.32));
+        set_argb(cr, lighten(bg, 40));
         paint_margins_rect(client, cr, container->real_bounds, 2 * config->dpi, 0);
     }
     
@@ -1679,26 +1908,21 @@ fill_root(AppClient *client) {
     
     ScrollPaneSettings tile_scroll(config->dpi);
     ScrollContainer *live_scroll = make_newscrollpane_as_child(live_tile_root, tile_scroll);
+    live_scroll->content->should_layout_children = false;
     live_scroll->content->spacing = 4 * config->dpi;
     live_scroll->name = "live_scroll";
     live_scroll->when_paint = paint_live_tile_bg;
-//    live_tile_root->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, 13 * config->dpi, 54 * config->dpi);
-//    live_tile_root->spacing = 13 * config->dpi;
     
     int i_off = 0;
     for (int i = 0; i < launchers.size(); i++) {
         if (!launchers[i]->is_pinned)
             continue;
         if (i_off == 0) {
-            live_scroll->content->child(::hbox, FILL_SPACE, 100 * config->dpi);
-//            live_scroll->content->spacing = 4 * config->dpi;
-//            c->wanted_bounds.h = 34 * config->dpi;
             live_scroll->content->wanted_pad = Bounds(13 * config->dpi, 34 * config->dpi + 8 * config->dpi,
                                                       13 * config->dpi, 54 * config->dpi);
         }
         
-        auto c = live_scroll->content->children[live_scroll->content->children.size() - 1];
-//        c->alignment = ALIGN_CENTER_HORIZONTALLY;
+        auto c = live_scroll->content;
         c->spacing = 4 * config->dpi;
         
         auto live_tile = c->child(100 * config->dpi, 100 * config->dpi);
@@ -1743,7 +1967,10 @@ fill_root(AppClient *client) {
         live_tile->when_drag_end_is_click = false;
         live_tile->minimum_y_distance_to_move_before_drag_begins = 4 * config->dpi;
         live_tile->minimum_x_distance_to_move_before_drag_begins = 4 * config->dpi;
-        live_tile->user_data = new LiveTileData(launchers[i]);
+        LiveTileData *live_data = new LiveTileData(launchers[i]);
+        live_tile->user_data = live_data;
+        live_data->lifetime = live_tile->lifetime;
+        live_data->tile = live_tile;
         i_off++;
         if (i_off == 3)
             i_off = 0;
@@ -2028,6 +2255,10 @@ app_menu_closed(AppClient *client) {
         client_close_threaded(app, c);
     if (auto c = client_by_name(app, "right_click_popup"))
         client_close_threaded(app, c);
+    if (auto c = client_by_name(app, "live_tile_right_click_menu"))
+        client_close_threaded(app, c);
+    if (auto c = client_by_name(app, "right_click_resize_popup"))
+        client_close_threaded(app, c);
     scrollbar_leave_fd = nullptr;
     left_open_fd = nullptr;
     set_textarea_inactive();
@@ -2300,6 +2531,23 @@ void load_desktop_files(std::string directory) {
             launcher->full_path = path;
             launcher->name = name;
             launcher->lowercase_name = launcher->name;
+            if (!keywords.empty()) {
+                std::stringstream ss(keywords);
+                std::string item;
+                while (std::getline(ss, item, ';')) {
+                    if (!item.empty()) { // Skip empty tokens if any
+                        std::transform(item.begin(), item.end(), item.begin(),
+                                       [](unsigned char c) { return std::tolower(c); });
+                        launcher->keywords.push_back(item);
+                    }
+                }
+            }
+            if (!generic_name.empty()) {
+                std::transform(generic_name.begin(), generic_name.end(), generic_name.begin(),
+                               [](unsigned char c) { return std::tolower(c); });
+                launcher->keywords.push_back(generic_name);
+            }
+            
             std::transform(launcher->lowercase_name.begin(),
                            launcher->lowercase_name.end(),
                            launcher->lowercase_name.begin(),

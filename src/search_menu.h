@@ -12,6 +12,7 @@
 class Sortable {
 public:
     std::string name;
+    std::vector<std::string> keywords;
     std::string lowercase_name;
     int priority = -1;
     int historical_ranking = -1;

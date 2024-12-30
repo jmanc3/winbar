@@ -2839,3 +2839,6 @@ Container *make_textfield(Container *parent, FieldSettings settings, int w, int 
     
     return field;
 }
+
+PopupItemDraw::PopupItemDraw(const std::string &icon0, const std::string &icon1, const std::string &text,
+                             const std::string &iconend) : icon0(icon0), icon1(icon1), text(text), iconend(iconend) {}
