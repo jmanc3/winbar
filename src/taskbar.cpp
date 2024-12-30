@@ -1212,10 +1212,14 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
         cairo_pattern_destroy(radial);
     }
     
-    if (show_hover_spotlight && data->hover_amount != 0 && !data->windows_data_list.empty()) {
+    float hover_amount = data->hover_amount;
+    if (data->type != CLOSED) {
+        hover_amount = 1;
+    }
+    if (show_hover_spotlight && (data->hover_amount != 0 || (data->type != CLOSED)) && !data->windows_data_list.empty()) {
 //        int x = client->mouse_current_x;
         int x = container->real_bounds.x + container->real_bounds.w / 2;
-        float r = container->real_bounds.w * data->hover_amount;
+        float r = container->real_bounds.w * hover_amount;
         int y = container->real_bounds.y + container->real_bounds.h / 2;
        
         cairo_pattern_t* radial = cairo_pattern_create_radial(x, y, 0, x, y, r);
@@ -1228,13 +1232,13 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
         // Add color stops: white (fully opaque) at the center and transparent at the edge
         if (data->average_color_set) {
             cairo_pattern_add_color_stop_rgba(radial, 0.00, data->average_color.r, data->average_color.g,
-                                              data->average_color.b, 0.5 * data->hover_amount); // Transparent
+                                              data->average_color.b, 0.5 * hover_amount); // Transparent
             cairo_pattern_add_color_stop_rgba(radial, 0.89, data->average_color.r, data->average_color.g,
-                                              data->average_color.b, 0.5 * data->hover_amount); // Transparent
+                                              data->average_color.b, 0.5 * hover_amount); // Transparent
             cairo_pattern_add_color_stop_rgba(radial, 1.0, data->average_color.r, data->average_color.g,
                                               data->average_color.b, 0.0); // Transparent
         } else {
-            cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.2 * data->hover_amount); // White
+            cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.2 * hover_amount); // White
             cairo_pattern_add_color_stop_rgba(radial, 1.0, 1.0, 1.0, 1.0, 0.0); // Transparent
         }
         
@@ -1248,7 +1252,7 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
         cairo_clip(cr);
         
         // Draw the circle
-        cairo_arc(cr, x, y, r * data->hover_amount, 0, 2 * M_PI);
+        cairo_arc(cr, x, y, r * hover_amount, 0, 2 * M_PI);
         cairo_fill(cr);
         
         cairo_reset_clip(cr);
