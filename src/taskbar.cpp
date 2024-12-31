@@ -2018,7 +2018,7 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
     settings.h = height + PAD * 2;
     settings.w = width + PAD * 2;
     settings.x = client->bounds->x + container->real_bounds.x + container->real_bounds.w / 2 - settings.w / 2;
-    settings.y = client->bounds->y - settings.h - 8 * config->dpi - PAD;
+    settings.y = client->bounds->y - settings.h - 3 * config->dpi - PAD;
     
     auto c = client_new(app, settings, "tooltip_taskbar");
     c->root->user_data = new Label(text);
@@ -2048,7 +2048,7 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
                             uint32_t value_list_resize[] = {
                                     (uint32_t) (c->bounds->x + container->real_bounds.x + container->real_bounds.w / 2 -
                                                 (width + PAD * 2) / 2),
-                                    (uint32_t) (c->bounds->y - (height + PAD * 2) - 8 * config->dpi - PAD),
+                                    (uint32_t) (c->bounds->y - (height + PAD * 2) - 3 * config->dpi - PAD),
                                     (uint32_t) (width + PAD * 2),
                                     (uint32_t) (height + PAD * 2),
                             };
@@ -2066,7 +2066,9 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
     }, nullptr, "tooltip_open");
     c->root->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
         set_rect(cr, container->real_bounds);
-        set_argb(cr, correct_opaqueness(client, config->color_taskbar_background));
+        auto c = config->color_taskbar_background;
+        c.a = 1.0;
+        set_argb(cr, c);
         cairo_fill(cr);
         
         auto label = (Label *) container->user_data;
@@ -2091,11 +2093,16 @@ possibly_open_tooltip(AppClient *client, Container *container, LaunchableButton 
     if (auto c = client_by_name(app, "tooltip_taskbar")) {
         return;
     }
-    
     if (client_by_name(app, "right_click_menu")) {
         return;
     }
-    if (!data->possibly_open_tooltip_timeout) {
+    bool exists = false;
+    for (auto t: app->timeouts) {
+        if (t == data->possibly_open_tooltip_timeout) {
+            exists = true;
+        }
+    }
+    if (!exists) {
         bool recently_touchpad = get_current_time_in_ms() - app->last_touchpad_time < 400;
         data->possibly_open_tooltip_timeout = app_timeout_create(app, client,
                                                                  600 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0),
