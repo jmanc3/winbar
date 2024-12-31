@@ -239,10 +239,15 @@ deinit_keyboard(App *app, AppClient *client) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    xkb_state_unref(client->keyboard->state);
-    xkb_keymap_unref(client->keyboard->keymap);
-    xkb_context_unref(client->keyboard->ctx);
-    delete client->keyboard;
+    if (client->keyboard) {
+        if (client->keyboard->state)
+            xkb_state_unref(client->keyboard->state);
+        if (client->keyboard->keymap)
+            xkb_keymap_unref(client->keyboard->keymap);
+        if (client->keyboard->ctx)
+            xkb_context_unref(client->keyboard->ctx);
+        delete client->keyboard;
+    }
 }
 
 void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keyboard) {
@@ -2587,8 +2592,13 @@ bool app_timeout_stop(App *app,
     if (timeout == nullptr)
         return false;
     if (app == nullptr || !app->running) return false;
-    timeout->kill = true;
-    return true;
+    for (auto t: app->timeouts) {
+        if (t == timeout) {
+            timeout->kill = true;
+            return true;
+        }
+    }
+    return false;
 }
 
 Timeout *app_timeout_replace(App *app,

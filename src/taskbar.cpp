@@ -1980,11 +1980,139 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
 }
 
 static void
+on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
+#define PAD (4 * config->dpi)
+    if (auto c = client_by_name(app, "tooltip_taskbar")) {
+        return;
+    }
+    Container *container = nullptr;
+    if (auto c = client_by_name(app, "taskbar")) {
+        if (auto icons = container_by_name("icons", c->root)) {
+            for (Container *con: icons->children) {
+                auto *d = (LaunchableButton *) con->user_data;
+                if (con->state.mouse_hovering && !d->attempting_to_launch_first_window) {
+                    container = con;
+                }
+            }
+        }
+    }
+    if (container == nullptr)
+        return;
+    auto d = (LaunchableButton *) container->user_data;
+    std::string text = d->class_name;
+    if (text.empty()) {
+        return;
+    }
+    d->possibly_open_tooltip_timeout = nullptr;
+    Settings settings;
+    settings.decorations = false;
+    settings.force_position = true;
+    settings.keep_above = true;
+    settings.override_redirect = true;
+    PangoLayout *layout =
+            get_cached_pango_font(client->cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    pango_layout_set_text(layout, text.data(), text.size());
+    int width;
+    int height;
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    settings.h = height + PAD * 2;
+    settings.w = width + PAD * 2;
+    settings.x = client->bounds->x + container->real_bounds.x + container->real_bounds.w / 2 - settings.w / 2;
+    settings.y = client->bounds->y - settings.h - 8 * config->dpi - PAD;
+    
+    auto c = client_new(app, settings, "tooltip_taskbar");
+    c->root->user_data = new Label(text);
+    
+    app_timeout_create(app, c, 100, [](App *app, AppClient *tooltip, Timeout *t, void *) {
+        t->keep_running = false;
+        if (auto c = client_by_name(app, "taskbar")) {
+            if (auto icons = container_by_name("icons", c->root)) {
+                for (Container *container: icons->children) {
+                    auto data = (LaunchableButton *) container->user_data;
+                    
+                    if (container->state.mouse_hovering && data->windows_data_list.empty()) {
+                        t->keep_running = true;
+                        auto label = (Label *) tooltip->root->user_data;
+                        if (label->text != data->class_name) {
+                            label->text = data->class_name;
+                            PangoLayout *layout =
+                                    get_cached_pango_font(tooltip->cr, config->font, 12 * config->dpi,
+                                                          PangoWeight::PANGO_WEIGHT_NORMAL);
+                            pango_layout_set_text(layout, label->text.data(), label->text.size());
+                            int width;
+                            int height;
+                            pango_layout_get_pixel_size_safe(layout, &width, &height);
+                            uint32_t value_mask =
+                                    XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
+                                    XCB_CONFIG_WINDOW_HEIGHT;
+                            uint32_t value_list_resize[] = {
+                                    (uint32_t) (c->bounds->x + container->real_bounds.x + container->real_bounds.w / 2 -
+                                                (width + PAD * 2) / 2),
+                                    (uint32_t) (c->bounds->y - (height + PAD * 2) - 8 * config->dpi - PAD),
+                                    (uint32_t) (width + PAD * 2),
+                                    (uint32_t) (height + PAD * 2),
+                            };
+                            xcb_configure_window(app->connection, tooltip->window, value_mask, value_list_resize);
+                            request_refresh(app, tooltip);
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (!t->keep_running) {
+            client_close_threaded(app, tooltip);
+        }
+    }, nullptr, "tooltip_open");
+    c->root->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
+        set_rect(cr, container->real_bounds);
+        set_argb(cr, correct_opaqueness(client, config->color_taskbar_background));
+        cairo_fill(cr);
+        
+        auto label = (Label *) container->user_data;
+        
+        PangoLayout *layout =
+                get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        pango_layout_set_text(layout, label->text.data(), label->text.size());
+        int width;
+        int height;
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
+        set_argb(cr, config->color_taskbar_button_icons);
+        cairo_move_to(cr,
+                      (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        pango_cairo_show_layout(cr, layout);
+    };
+    client_show(app, c);
+}
+
+static void
+possibly_open_tooltip(AppClient *client, Container *container, LaunchableButton *data) {
+    if (auto c = client_by_name(app, "tooltip_taskbar")) {
+        return;
+    }
+    
+    if (client_by_name(app, "right_click_menu")) {
+        return;
+    }
+    if (!data->possibly_open_tooltip_timeout) {
+        bool recently_touchpad = get_current_time_in_ms() - app->last_touchpad_time < 400;
+        data->possibly_open_tooltip_timeout = app_timeout_create(app, client,
+                                                                 600 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0),
+                                                                 on_tooltip_open, container,
+                                                                 const_cast<char *>(__PRETTY_FUNCTION__));
+    }
+}
+
+static void
 pinned_icon_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
+    if (data->windows_data_list.empty()) {
+        possibly_open_tooltip(client, container, data);
+    }
     possibly_open(app, container, data);
     if (winbar_settings->pinned_icon_style == "win7") {
         client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 100, 0, 1);
@@ -2198,6 +2326,9 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
             container->real_bounds.x - client_entity->mouse_initial_x;
     container->z_index = 1;
     possibly_close(app, container, data);
+    if (auto c = client_by_name(app, "tooltip_taskbar")) {
+        client_close_threaded(app, c);
+    }
     
     icons_align(client_entity, container->parent, true);
 }
@@ -2419,6 +2550,9 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
     client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, 0, 85 * data->animation_zoom_amount, nullptr, 0);
+    if (auto c = client_by_name(app, "tooltip_taskbar")) {
+        client_close_threaded(app, c);
+    }
     
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {
         if (data->windows_data_list.empty() && !data->animation_zoom_locked) {
