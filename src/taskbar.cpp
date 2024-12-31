@@ -1990,7 +1990,7 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
         if (auto icons = container_by_name("icons", c->root)) {
             for (Container *con: icons->children) {
                 auto *d = (LaunchableButton *) con->user_data;
-                if (con->state.mouse_hovering && !d->attempting_to_launch_first_window) {
+                if (con->state.mouse_hovering && !d->attempting_to_launch_first_window && d->windows_data_list.empty()) {
                     container = con;
                 }
             }
