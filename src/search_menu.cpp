@@ -58,6 +58,9 @@ static int active_item = 0;
 static int max_items = 0;
 static int scroll_amount = 0;
 
+static int on_menu_items = 0;
+static int active_menu_item = 0;
+
 static cairo_surface_t *script_16 = nullptr;
 static cairo_surface_t *script_32 = nullptr;
 static cairo_surface_t *script_64 = nullptr;
@@ -235,9 +238,15 @@ static void
 paint_item_background(AppClient *client, cairo_t *cr, Container *container, int other_index) {
     auto *data = (SearchItemData *) container->parent->user_data;
     if (data->item_number == active_item) {
-        set_argb(cr, config->color_search_content_left_button_active);
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
+        if (on_menu_items) {
+            set_argb(cr, config->color_search_content_left_button_hovered);
+            set_rect(cr, container->real_bounds);
+            cairo_fill(cr);
+        } else {
+            set_argb(cr, config->color_search_content_left_button_active);
+            set_rect(cr, container->real_bounds);
+            cairo_fill(cr);
+        }
         return;
     }
     if (other_index >= container->parent->children.size())
@@ -716,8 +725,20 @@ paint_spacer(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_sub_option(AppClient *client, cairo_t *cr, Container *container, std::string text, std::string icon) {
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
+    int index = 0;
+    for (int i = 0; i < container->parent->children.size(); ++i) {
+        if (container->parent->children[i] == container) {
+            index = i;
+            break;
+        }
+    }
+    index -= 3;
+    
+    if (container->state.mouse_pressing || container->state.mouse_hovering ||
+        (on_menu_items && index == active_menu_item)) {
+        if (on_menu_items && index == active_menu_item) {
+            set_argb(cr, config->color_search_content_left_button_active);
+        } else if (container->state.mouse_pressing) {
             set_argb(cr, config->color_search_content_right_button_pressed);
         } else {
             set_argb(cr, config->color_search_content_right_button_hovered);
@@ -809,6 +830,8 @@ void update_options() {
                     if (!data->state->text.empty()) {
                         active_item = 0;
                         scroll_amount = 0;
+                        on_menu_items = false;
+                        active_menu_item = 0;
                         
                         if (active_tab == "Scripts") {
                             sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
@@ -1391,6 +1414,22 @@ void sort_and_add(std::vector<T> *sortables,
 }
 
 static void
+execute_active_menu_item(AppClient *client) {
+    if (auto container = container_by_name("right_fg", client->root)) {
+        for (int i = 0; i < container->children.size(); ++i) {
+            if (i - 3 == active_menu_item) {
+                auto c = container->children[i];
+                if (c->when_clicked) {
+                    c->when_clicked(client, client->cr, c);
+                }
+                request_refresh(app, client);
+                return;
+            }
+        }
+    }
+}
+
+static void
 when_key_event(AppClient *client,
                cairo_t *cr,
                Container *container,
@@ -1407,7 +1446,19 @@ when_key_event(AppClient *client,
     }
     
     if (!is_string) {
-        if (keysym == XKB_KEY_Up) {
+        if (keysym == XKB_KEY_Left) {
+            on_menu_items = false;
+            active_menu_item = 0;
+            return;
+        } else if (keysym == XKB_KEY_Right) {
+            on_menu_items = true;
+            active_menu_item = 0;
+            return;
+        } else if (keysym == XKB_KEY_Up) {
+            if (on_menu_items) {
+                active_menu_item = std::max(0, active_menu_item - 1);
+                return;
+            }
             active_item--;
             if (active_item < 0)
                 active_item = 0;
@@ -1436,6 +1487,10 @@ when_key_event(AppClient *client,
             request_refresh(app, search_menu_client);
             return;
         } else if (keysym == XKB_KEY_Down) {
+            if (on_menu_items) {
+                active_menu_item = std::min((int) winbar_settings->allow_live_tiles + (active_tab == "Apps" ? 1 : 0), active_menu_item + 1);
+                return;
+            }
             active_item++;
             if (max_items == 0)
                 active_item = 0;
@@ -1469,10 +1524,18 @@ when_key_event(AppClient *client,
             set_textarea_inactive();
             return;
         } else if (keysym == XKB_KEY_Tab) {
+            if (on_menu_items) {
+                execute_active_menu_item(search_menu_client);
+                return;
+            }
             active_tab = active_tab == "Apps" ? "Scripts" : "Apps";
             update_options();
             return;
         } else if (keysym == XKB_KEY_Return) {
+            if (on_menu_items) {
+                execute_active_menu_item(search_menu_client);
+                return;
+            }
             // launch active item
             launch_active_item();
             client_layout(app, search_menu_client);
@@ -1480,6 +1543,8 @@ when_key_event(AppClient *client,
             return;
         }
     } else {
+        on_menu_items = false;
+        active_menu_item = 0;
         active_item = 0;
         scroll_amount = 0;
     }
