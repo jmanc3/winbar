@@ -2106,7 +2106,7 @@ possibly_open_tooltip(AppClient *client, Container *container, LaunchableButton 
     if (!exists) {
         bool recently_touchpad = get_current_time_in_ms() - app->last_touchpad_time < 400;
         data->possibly_open_tooltip_timeout = app_timeout_create(app, client,
-                                                                 600 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0),
+                                                                 800 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0),
                                                                  on_tooltip_open, container,
                                                                  const_cast<char *>(__PRETTY_FUNCTION__));
     }
