@@ -186,7 +186,9 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_right_click_popup_background(AppClient *client, cairo_t *cr, Container *container) {
-    paint_background(client, cr, container);
+    set_rect(cr, container->real_bounds);
+    set_argb(cr, correct_opaqueness(client, config->color_taskbar_background));
+    cairo_fill(cr);
     bool is_light_theme = false;
     {
         double h; // hue
@@ -2578,16 +2580,60 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                 }
             }
         } else if (data->windows_data_list.size() > 1) {
-            for (auto c: app->clients) {
-                if (c->name == "windows_selector") {
-                    auto pii = (PinnedIconInfo *) c->root->user_data;
-                    if (pii->data->type == ::OPEN_HOVERED && data == pii->data) {
-                        pii->data->type = ::OPEN_CLICKED;
-                        return;
+            if (winbar_settings->click_icon_tab_next_window) {
+                for (auto c: app->clients) {
+                    if (c->name == "windows_selector") {
+                        client_close(app, c);
                     }
                 }
+                bool contains_active = false;
+                for (int i = 0; i < data->windows_data_list.size(); ++i) {
+                    if (data->windows_data_list[i]->id == active_window) {
+                        contains_active = true;
+                        xcb_window_t window;
+                        if (i == data->windows_data_list.size() - 1) {
+                            window = data->windows_data_list[0]->id;
+                        } else {
+                            window = data->windows_data_list[i + 1]->id;
+                        }
+                        std::thread t([window]() -> void {
+                            xcb_ewmh_request_change_active_window(&app->ewmh,
+                                                                  app->screen_number,
+                                                                  window,
+                                                                  XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                                                  XCB_CURRENT_TIME,
+                                                                  XCB_NONE);
+                            xcb_flush(app->connection);
+                        });
+                        t.detach();
+                        break;
+                    }
+                }
+                if (!contains_active) {
+                    xcb_window_t window = data->windows_data_list[0]->id;
+                    std::thread t([window]() -> void {
+                        xcb_ewmh_request_change_active_window(&app->ewmh,
+                                                              app->screen_number,
+                                                              window,
+                                                              XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                                              XCB_CURRENT_TIME,
+                                                              XCB_NONE);
+                        xcb_flush(app->connection);
+                    });
+                    t.detach();
+                }
+            } else {
+                for (auto c: app->clients) {
+                    if (c->name == "windows_selector") {
+                        auto pii = (PinnedIconInfo *) c->root->user_data;
+                        if (pii->data->type == ::OPEN_HOVERED && data == pii->data) {
+                            pii->data->type = ::OPEN_CLICKED;
+                            return;
+                        }
+                    }
+                }
+                start_windows_selector(container, selector_type::OPEN_CLICKED);
             }
-            start_windows_selector(container, selector_type::OPEN_CLICKED);
         } else if (!data->animation_zoom_locked) {
             // TODO: choose window if there are more then one
             app_timeout_stop(client->app, client, data->possibly_open_timeout);
