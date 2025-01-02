@@ -2622,6 +2622,8 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                     });
                     t.detach();
                 }
+                possibly_close(app, container, data);
+                possibly_open(app, container, data);
             } else {
                 for (auto c: app->clients) {
                     if (c->name == "windows_selector") {
