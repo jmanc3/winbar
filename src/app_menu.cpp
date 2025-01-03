@@ -1147,6 +1147,12 @@ clicked_add_to_live_tiles(AppClient *client, cairo_t *cr, Container *container) 
                     settings.override_redirect = true;
                     settings.w = 100 * config->dpi;
                     settings.h = 100 * config->dpi;
+                    auto data = (LiveTileData *) c->user_data;
+                    if (data->lifetime.lock()) {
+                        float pad = 2 * config->dpi;
+                        settings.w = data->w * (50 * config->dpi) - pad * 2;
+                        settings.h = data->h * (50 * config->dpi) - pad * 2;
+                    }
                     auto drag = client_new(app, settings, "drag_window");
                     client_show(app, drag);
                     drag->root->user_data = c->user_data;
@@ -1162,7 +1168,10 @@ clicked_add_to_live_tiles(AppClient *client, cairo_t *cr, Container *container) 
                 live_tile->when_drag_end_is_click = false;
                 live_tile->minimum_x_distance_to_move_before_drag_begins = 4 * config->dpi;
                 live_tile->minimum_y_distance_to_move_before_drag_begins = 4 * config->dpi;
-                live_tile->user_data = new LiveTileData(item);
+                LiveTileData *live_drag_data = new LiveTileData(item);
+                live_tile->user_data = live_drag_data;
+                live_drag_data->lifetime = live_tile->lifetime;
+                live_drag_data->tile = live_tile;
             }
         }
     }
@@ -1952,6 +1961,12 @@ fill_root(AppClient *client) {
             settings.override_redirect = true;
             settings.w = 100 * config->dpi;
             settings.h = 100 * config->dpi;
+            auto data = (LiveTileData *) c->user_data;
+            if (data->lifetime.lock()) {
+                float pad = 2 * config->dpi;
+                settings.w = data->w * (50 * config->dpi) - pad * 2;
+                settings.h = data->h * (50 * config->dpi) - pad * 2;
+            }
             auto drag = client_new(app, settings, "drag_window");
             client_show(app, drag);
             drag->root->user_data = c->user_data;
