@@ -1083,7 +1083,7 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
     ArgbColor accent = config->color_taskbar_application_icons_accent;
     ArgbColor background = config->color_taskbar_application_icons_background;
     background = ArgbColor(1, 1, 1, 1);
-    background.a = 0.14 + (data->active_amount * .09);
+    background.a = 0.11 + (data->active_amount * .05);
     
     if (data->wants_attention_amount != 0) {
         double blinks = 10.5;
@@ -1942,38 +1942,36 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
     position_icons(client_entity, cr, container);
     
-    std::vector<int> render_order;
-    for (int i = 0; i < container->children.size(); i++) {
-        render_order.push_back(i);
-    }
-    std::sort(render_order.begin(), render_order.end(), [container](int a, int b) -> bool {
-        return container->children[a]->z_index < container->children[b]->z_index;
-    });
-    
-    for (auto index: render_order) {
+    for (auto con: container->children) {
         double time = 250;
-        auto *data = (LaunchableButton *) container->children[index]->user_data;
+        auto *data = (LaunchableButton *) con->user_data;
         auto delta = (double) (app->current - data->creation_time);
         if (delta < time && (app->current - app->creation_time > 1000)) {
             request_refresh(app, client_entity);
             cairo_push_group(cr);
         }
-        paint_icon_background(client_entity, cr, container->children[index]);
+        if (con->z_index == 0) {
+            paint_icon_background(client_entity, cr, con);
+            paint_icon_surface(client_entity, cr, con);
+            paint_icon_label(client_entity, cr, con);
+        }
         if (delta < time && (app->current - app->creation_time > 1000)) {
             cairo_pop_group_to_source(cr);
             cairo_paint_with_alpha(cr, delta / time);
         }
     }
-    for (auto index: render_order) {
+    for (auto con: container->children) {
         double time = 250;
-        auto *data = (LaunchableButton *) container->children[index]->user_data;
-        auto con = container->children[index];
+        auto *data = (LaunchableButton *) con->user_data;
         auto delta = (double) (app->current - data->creation_time);
         if (delta < time && (app->current - app->creation_time > 1000)) {
             cairo_push_group(cr);
         }
-        paint_icon_surface(client_entity, cr, con);
-        paint_icon_label(client_entity, cr, con);
+        if (con->z_index != 0) {
+            paint_icon_background(client_entity, cr, con);
+            paint_icon_surface(client_entity, cr, con);
+            paint_icon_label(client_entity, cr, con);
+        }
         if (delta < time && (app->current - app->creation_time > 1000)) {
             cairo_pop_group_to_source(cr);
             cairo_paint_with_alpha(cr, delta / time);
