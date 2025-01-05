@@ -1221,8 +1221,10 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
     if (show_hover_spotlight && (data->hover_amount != 0 || (data->type != CLOSED)) && !data->windows_data_list.empty()) {
 //        int x = client->mouse_current_x;
         int x = container->real_bounds.x + container->real_bounds.w / 2;
-        float r = container->real_bounds.w * hover_amount;
+        float r = container->real_bounds.w * hover_amount * 1.5;
         int y = container->real_bounds.y + container->real_bounds.h / 2;
+        x = client->mouse_current_x;
+        y = client->mouse_current_y;
        
         cairo_pattern_t* radial = cairo_pattern_create_radial(x, y, 0, x, y, r);
         
@@ -1231,16 +1233,18 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
             data->average_color_set = true;
         }
         
+        float a = 1;
+//        float a = hover_amount;
         // Add color stops: white (fully opaque) at the center and transparent at the edge
         if (data->average_color_set) {
             cairo_pattern_add_color_stop_rgba(radial, 0.00, data->average_color.r, data->average_color.g,
-                                              data->average_color.b, 0.5 * hover_amount); // Transparent
-            cairo_pattern_add_color_stop_rgba(radial, 0.89, data->average_color.r, data->average_color.g,
-                                              data->average_color.b, 0.5 * hover_amount); // Transparent
+                                              data->average_color.b, 0.7 * a); // Transparent
+            cairo_pattern_add_color_stop_rgba(radial, 0.7, data->average_color.r, data->average_color.g,
+                                              data->average_color.b, 0.55 * a); // Transparent
             cairo_pattern_add_color_stop_rgba(radial, 1.0, data->average_color.r, data->average_color.g,
                                               data->average_color.b, 0.0); // Transparent
         } else {
-            cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.2 * hover_amount); // White
+            cairo_pattern_add_color_stop_rgba(radial, 0.0, 1.0, 1.0, 1.0, 0.2 * a); // White
             cairo_pattern_add_color_stop_rgba(radial, 1.0, 1.0, 1.0, 1.0, 0.0); // Transparent
         }
         
@@ -2138,7 +2142,7 @@ pinned_icon_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
     possibly_close(app, container, data);
     if (winbar_settings->pinned_icon_style == "win7") {
         auto delay = 100 - (100 * data->hover_amount);
-        client_create_animation(app, client, &data->hover_amount, data->lifetime, delay, 100, 0, 0);
+        client_create_animation(app, client, &data->hover_amount, data->lifetime, delay, 50, 0, 0);
     } else {
         client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 70, 0, 0);
     }
