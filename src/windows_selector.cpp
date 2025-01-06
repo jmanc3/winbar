@@ -27,6 +27,7 @@ static double close_width = 32;
 static double close_height = 32;
 static Timeout *drag_and_drop_timeout = nullptr;
 bool drag_and_dropping = false;
+bool have_drag = false;
 
 static void
 fill_root(Container *root);
@@ -97,13 +98,19 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
                 int windows_count = data->windows_data_list.size();
                 bool recently_touchpad = get_current_time_in_ms() - app->last_touchpad_time < 400;
                 if (windows_count == 1) {
+                    auto timeout_ms = 650 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0) + (winbar_settings->click_icon_tab_next_window ? 500 : 0);
+                    if (have_drag)
+                        timeout_ms = 250;
                     data->possibly_open_timeout = app_timeout_create(app, nullptr,
-                                                                     650 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0) + (winbar_settings->click_icon_tab_next_window ? 500 : 0),
+                                                                     timeout_ms,
                                                                      on_open_timeout, container,
                                                                      const_cast<char *>(__PRETTY_FUNCTION__));
                 } else {
+                    auto timeout_ms = 420 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 300 : 0) + (winbar_settings->click_icon_tab_next_window ? 500 : 0);
+                    if (have_drag)
+                        timeout_ms = 250;
                     data->possibly_open_timeout = app_timeout_create(app, nullptr,
-                                                                     420 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 300 : 0) + (winbar_settings->click_icon_tab_next_window ? 500 : 0),
+                                                                     timeout_ms,
                                                                      on_open_timeout, container,
                                                                      const_cast<char *>(__PRETTY_FUNCTION__));
                 }

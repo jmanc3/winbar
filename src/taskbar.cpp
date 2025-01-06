@@ -4551,6 +4551,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                     if (list && reply) {
                         free(reply);
                     }
+                    have_drag = true;
                 }
             } else if (e->type == get_cached_atom(app, "XdndPosition")) {
                 if (auto client = client_by_window(app, e->window)) {
@@ -4603,6 +4604,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                     handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
                     client_paint(app, client, true);
                 }
+                have_drag = true;
             } else if (e->type == get_cached_atom(app, "XdndDrop")) {
                 Time time = CurrentTime;
                 if (auto client = client_by_name(app, "taskbar")) {
@@ -4632,6 +4634,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                         xcb_flush(app->connection);
                     }
                 }
+                have_drag = true;
             }
             break;
         }
