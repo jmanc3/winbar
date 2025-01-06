@@ -4604,7 +4604,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                     handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
                     client_paint(app, client, true);
                 }
-                have_drag = true;
+                have_drag = false;
             } else if (e->type == get_cached_atom(app, "XdndDrop")) {
                 Time time = CurrentTime;
                 if (auto client = client_by_name(app, "taskbar")) {
@@ -4634,7 +4634,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                         xcb_flush(app->connection);
                     }
                 }
-                have_drag = true;
+                have_drag = false;
             }
             break;
         }
