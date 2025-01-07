@@ -2001,7 +2001,7 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
             }
         }
     }
-    if (container == nullptr)
+    if (container == nullptr || container != (Container *) data)
         return;
     auto d = (LaunchableButton *) container->user_data;
     std::string text = d->class_name;
@@ -2101,19 +2101,11 @@ possibly_open_tooltip(AppClient *client, Container *container, LaunchableButton 
     if (client_by_name(app, "right_click_menu")) {
         return;
     }
-    bool exists = false;
-    for (auto t: app->timeouts) {
-        if (t == data->possibly_open_tooltip_timeout) {
-            exists = true;
-        }
-    }
-    if (!exists) {
-        bool recently_touchpad = get_current_time_in_ms() - app->last_touchpad_time < 400;
-        data->possibly_open_tooltip_timeout = app_timeout_create(app, client,
-                                                                 800 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0),
-                                                                 on_tooltip_open, container,
-                                                                 const_cast<char *>(__PRETTY_FUNCTION__));
-    }
+    bool recently_touchpad = get_current_time_in_ms() - app->last_touchpad_time < 400;
+    data->possibly_open_tooltip_timeout = app_timeout_create(app, client,
+                                                             800 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0),
+                                                             on_tooltip_open, container,
+                                                             const_cast<char *>(__PRETTY_FUNCTION__));
 }
 
 static void
