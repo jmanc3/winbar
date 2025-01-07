@@ -802,7 +802,7 @@ paint_live_tile_button(AppClient *client, cairo_t *cr, Container *container) {
     std::string text = "Pin to Start";
     for (const auto &item: launchers) {
         if (item->full_path == data->sortable->full_path) {
-            if (item->is_pinned) {
+            if (item->get_pinned()) {
                 text = "Unpin from Start";
                 break;
             }
@@ -950,7 +950,7 @@ clicked_live_tiles(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (SearchItemData *) container->parent->user_data;
     for (auto item: launchers) {
         if (item->full_path == data->sortable->full_path) {
-            item->is_pinned = !item->is_pinned;
+            item->set_pinned(!item->get_pinned());
         }
     }
     save_live_tiles();

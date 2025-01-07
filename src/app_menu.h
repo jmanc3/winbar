@@ -10,7 +10,12 @@
 #include <vector>
 
 class PinInfo {
-
+public:
+    int page = 0;
+    int w = 2;
+    int h = 2;
+    int x = -1; // -1 means it needs to be positioned
+    int y = -1; // -1 means it needs to be positioned
 };
 
 class Launcher : public Sortable {
@@ -30,7 +35,6 @@ public:
     int priority = 0;
     
     int app_menu_priority = 0;
-    bool is_pinned = false;
     PinInfo info;
     
     ~Launcher() {
@@ -45,6 +49,21 @@ public:
         if (icon_64)
             cairo_surface_destroy(icon_64);
     }
+    
+    void set_pinned(bool pinned) {
+        info.w = 2;
+        info.h = 2;
+        info.x = -1;
+        info.y = -1;
+        this->is_pinned = pinned;
+    }
+    
+    bool get_pinned() {
+        return this->is_pinned;
+    }
+    
+private:
+    bool is_pinned = false;
 };
 
 extern std::vector<Launcher *> launchers;
