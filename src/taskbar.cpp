@@ -3574,6 +3574,16 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
                               "\uE68C", "\uE68D"};
 
     if (winbar_settings->battery_notifications) {
+        if (std::stoi(data->capacity) <= 5) {
+            set_argb(cr, config->color_taskbar_attention_background);
+            cairo_rectangle(cr,
+                            container->real_bounds.x,
+                            container->real_bounds.y,
+                            container->real_bounds.w,
+                            container->real_bounds.h);
+            cairo_fill(cr);
+        }
+        
         static bool full_warning = false;
         if (std::stoi(data->capacity) >= 80 && !full_warning) {
             full_warning = true;
