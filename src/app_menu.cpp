@@ -1111,7 +1111,7 @@ on_live_tile_drag(AppClient *client, Container *c, float scroll_h, float scroll_
     int tile_y = std::round(offset_y / (50 * config->dpi));
     tile_y = std::min((int) (live_scroll->real_bounds.h / (50 * config->dpi)) - launcher->info.h, tile_y);
     
-    if (bounds_contains(live_scroll->real_bounds, mouse_x, mouse_y)) {
+    if (bounds_contains(live_scroll->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
         launcher->info.x = tile_x;
         launcher->info.y = tile_y;
         if (pin) {
