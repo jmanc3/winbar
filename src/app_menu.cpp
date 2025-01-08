@@ -2370,7 +2370,7 @@ paint_desktop_files() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    std::lock_guard m(app->running_mutex); // No one is allowed to stop Winbar until this function finishes
+//    std::lock_guard m(app->running_mutex); // No one is allowed to stop Winbar until this function finishes
     
     std::vector<IconTarget> targets;
     for (auto *launcher: launchers) {

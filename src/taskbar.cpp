@@ -1950,7 +1950,7 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
         double time = 250;
         auto *data = (LaunchableButton *) con->user_data;
         auto delta = (double) (app->current - data->creation_time);
-        if (delta < time && (app->current - app->creation_time > 1000)) {
+        if (delta < time) {
             request_refresh(app, client_entity);
             cairo_push_group(cr);
         }
@@ -1959,7 +1959,7 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
             paint_icon_surface(client_entity, cr, con);
             paint_icon_label(client_entity, cr, con);
         }
-        if (delta < time && (app->current - app->creation_time > 1000)) {
+        if (delta < time) {
             cairo_pop_group_to_source(cr);
             cairo_paint_with_alpha(cr, delta / time);
         }
@@ -1968,7 +1968,7 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
         double time = 250;
         auto *data = (LaunchableButton *) con->user_data;
         auto delta = (double) (app->current - data->creation_time);
-        if (delta < time && (app->current - app->creation_time > 1000)) {
+        if (delta < time) {
             cairo_push_group(cr);
         }
         if (con->z_index != 0) {
@@ -1976,7 +1976,7 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
             paint_icon_surface(client_entity, cr, con);
             paint_icon_label(client_entity, cr, con);
         }
-        if (delta < time && (app->current - app->creation_time > 1000)) {
+        if (delta < time) {
             cairo_pop_group_to_source(cr);
             cairo_paint_with_alpha(cr, delta / time);
         }
