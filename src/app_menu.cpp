@@ -40,6 +40,16 @@ public:
     Launcher *launcher = nullptr;
 };
 
+struct ItemDataWithClickOffset : public UserData {
+    ItemData *item_data = nullptr;
+    int x_off = 0;
+    int y_off = 0;
+    
+    ItemDataWithClickOffset(ItemData *data) {
+        this->item_data = data;
+    }
+};
+
 struct RightClickMenuData : public UserData {
     Timeout *tooltip_timeout = nullptr;
     bool inside = false;
@@ -1090,39 +1100,37 @@ possibly_resize_after_pin_unpin() {
 }
 
 static void
-on_live_tile_drag(AppClient *client, Container *c, float scroll_h, float scroll_v, Launcher *launcher, bool pin) {
-    auto x_off = (c->real_bounds.x - client->mouse_initial_x);
-    auto y_off = (c->real_bounds.y - client->mouse_initial_y);
-    float mouse_x = client->mouse_current_x + x_off;
-    float mouse_y = client->mouse_current_y + y_off;
-    
+projected_live_tile_position_based_on_drag(const int left_edge_x, const int top_edge_y,
+                                           const int w, const int h,
+                                           int *result_x, int *result_y, Launcher *launcher, bool pin = false) {
+    auto client = (AppClient *) client_by_name(app, "app_menu");
+    if (!client) return;
     auto live_scroll = container_by_name("live_scroll", client->root);
     int x = live_scroll->real_bounds.x + (live_scroll->real_bounds.w - (100 * config->dpi) * 3) / 2;
     float title_pad = 40 * config->dpi;
     float pad = 2 * config->dpi;
-    float start_x = x + pad - scroll_h;
-    float start_y = live_scroll->real_bounds.y + pad + title_pad - scroll_v;
+    float start_x = x + pad;
+    float start_y = live_scroll->real_bounds.y + pad + title_pad;
     
-    float offset_x = std::max(0.0f, mouse_x - start_x);
-    float offset_y = std::max(0.0f, mouse_y - start_y);
-    
+    float offset_x = std::max(0.0f, left_edge_x - start_x);
+    float offset_y = std::max(0.0f, top_edge_y - start_y);
     int tile_x = std::round(offset_x / (50 * config->dpi));
-    tile_x = std::min(6 - launcher->info.w, tile_x);
+    tile_x = std::min(6 - w, tile_x);
     int tile_y = std::round(offset_y / (50 * config->dpi));
-    tile_y = std::min((int) (live_scroll->real_bounds.h / (50 * config->dpi)) - launcher->info.h, tile_y);
+    tile_y = std::min((int) (live_scroll->real_bounds.h / (50 * config->dpi)) - h, tile_y);
     
     if (bounds_contains(live_scroll->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
         launcher->info.x = tile_x;
         launcher->info.y = tile_y;
-        if (pin) {
-            for (auto l: launchers) {
-               	if (l == launcher) {
-                    l->info.x = tile_x;
-                    l->info.y = tile_y;
-               	}
-            }
-            launcher->set_pinned(true); 
+        if (result_x != nullptr) {
+            *result_x = tile_x;
+            *result_y = tile_y;
         }
+        if (pin) {
+            launcher->set_pinned(true);
+        }
+    } else if (pin) {
+        launcher->set_pinned(false);
     }
 }
 
@@ -1147,7 +1155,9 @@ clicked_add_to_live_tiles(AppClient *client, cairo_t *cr, Container *container) 
             request_refresh(app, client);
         } else if (item->full_path == data->full_path && !item->get_pinned()) {
             item->set_pinned(true);
-            
+            item->info.w = 2;
+            item->info.h = 2;
+
             possibly_resize_after_pin_unpin();
             
             auto live_scroll = (ScrollContainer *) container_by_name("live_scroll",
@@ -1177,7 +1187,14 @@ clicked_add_to_live_tiles(AppClient *client, cairo_t *cr, Container *container) 
                     }
                     auto scroll = (ScrollContainer *) c;
                     auto data = (LiveTileData *) c->user_data;
-                    on_live_tile_drag(client, c, scroll->scroll_h_real, scroll->scroll_v_real, data->launcher, false);
+                    int result_x, result_y;
+                    int left_edge_x = client->mouse_current_x - (client->mouse_initial_x - c->real_bounds.x);
+                    int top_edge_y = client->mouse_current_y - (client->mouse_initial_y - c->real_bounds.y);
+                    projected_live_tile_position_based_on_drag(left_edge_x, top_edge_y, data->launcher->info.w,
+                                                               data->launcher->info.h, &result_x, &result_y,
+                                                               data->launcher, true);
+                    data->launcher->info.x = result_x;
+                    data->launcher->info.y = result_y;
                 };
                 live_tile->when_drag_start = [](AppClient *client, cairo_t *, Container *c) {
                     c->when_paint = nullptr;
@@ -1205,6 +1222,11 @@ clicked_add_to_live_tiles(AppClient *client, cairo_t *cr, Container *container) 
                     if (auto drag = client_by_name(app, "drag_window")) {
                         drag->root->user_data = nullptr; // So that we don't double delete
                         client_close_threaded(app, client_by_name(app, "drag_window"));
+                    }
+                    if (auto c = client_by_name(app, "app_menu")) {
+                        if (auto live_scroll = container_by_name("live_scroll", c->root)) {
+                            fill_live_tiles((ScrollContainer *) live_scroll);
+                        }
                     }
                 };
                 live_tile->when_drag_end_is_click = false;
@@ -1989,6 +2011,7 @@ fill_live_tiles(ScrollContainer *live_scroll) {
         live_tile->when_paint = paint_live_tile;
         live_tile->when_clicked = when_live_tile_clicked;
         live_tile->when_drag = [](AppClient *client, cairo_t *, Container *c) {
+            auto data = (LiveTileData *) c->user_data;
             if (auto drag = client_by_name(app, "drag_window")) {
                 int global_x = 0;
                 int global_y = 0;
@@ -2000,9 +2023,14 @@ fill_live_tiles(ScrollContainer *live_scroll) {
                 };
                 xcb_configure_window(app->connection, drag->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
                                      value_list_resize);
-                auto scroll = (ScrollContainer *) c;
-                auto data = (LiveTileData *) c->user_data;
-                on_live_tile_drag(client, c, scroll->scroll_h_real, scroll->scroll_v_real, data->launcher, false);
+                int result_x, result_y;
+                int left_edge_x = client->mouse_current_x - (client->mouse_initial_x - c->real_bounds.x);
+                int top_edge_y = client->mouse_current_y - (client->mouse_initial_y - c->real_bounds.y);
+                projected_live_tile_position_based_on_drag(left_edge_x, top_edge_y, data->launcher->info.w,
+                                                           data->launcher->info.h, &result_x, &result_y,
+                                                           data->launcher, true);
+                data->launcher->info.x = result_x;
+                data->launcher->info.y = result_y;
             }
         };
         live_tile->when_drag_start = [](AppClient *client, cairo_t *, Container *c) {
@@ -2031,6 +2059,11 @@ fill_live_tiles(ScrollContainer *live_scroll) {
             if (auto drag = client_by_name(app, "drag_window")) {
                 drag->root->user_data = nullptr; // So that we don't double delete
                 client_close_threaded(app, client_by_name(app, "drag_window"));
+            }
+            if (auto c = client_by_name(app, "app_menu")) {
+                if (auto live_scroll = container_by_name("live_scroll", c->root)) {
+                    fill_live_tiles((ScrollContainer *) live_scroll);
+                }
             }
         };
         live_tile->when_drag_end_is_click = false;
@@ -2248,16 +2281,17 @@ fill_root(AppClient *client) {
 
         child->when_drag = [](AppClient *client, cairo_t *cr, Container *c) {
             if (auto drag = client_by_name(app, "drag_window")) {
+                auto *data = (ItemDataWithClickOffset *) drag->root->user_data;
                 int global_x = 0;
                 int global_y = 0;
                 get_global_coordinates(app->connection, client->window, client->mouse_current_x,
                                         client->mouse_current_y, &global_x, &global_y);
                 uint32_t value_list_resize[] = {
-                        (uint32_t) (global_x + (((c->real_bounds.x - client->mouse_initial_x) / (c->real_bounds.w)) * (100 * config->dpi))),
-                        (uint32_t) (global_y + (((c->real_bounds.y - client->mouse_initial_y) / (c->real_bounds.h)) * (100 * config->dpi))),
+                        (uint32_t) (global_x - data->x_off),
+                        (uint32_t) (global_y - data->y_off),
                 };
                 xcb_configure_window(app->connection, drag->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
-                                        value_list_resize);
+                                     value_list_resize);
             }
         };
         child->when_drag_start = [](AppClient *client, cairo_t *cr, Container *c) {
@@ -2275,32 +2309,45 @@ fill_root(AppClient *client) {
             settings.w = 100 * config->dpi;
             settings.h = 100 * config->dpi;
             float pad = 2 * config->dpi;
+            data->launcher->info.w = 2;
+            data->launcher->info.h = 2;
             settings.w = data->launcher->info.w * (50 * config->dpi) - pad * 2;
             settings.h = data->launcher->info.h * (50 * config->dpi) - pad * 2;
             auto drag = client_new(app, settings, "drag_window");
             client_show(app, drag);
-            drag->root->user_data = c->user_data;
+            auto click_off_data = new ItemDataWithClickOffset(data);
+            click_off_data->x_off =
+                    ((client->mouse_initial_x - c->real_bounds.x) / c->real_bounds.w) * (100 * config->dpi);
+            click_off_data->y_off =
+                    ((client->mouse_initial_y - c->real_bounds.y) / c->real_bounds.h) * (100 * config->dpi);
+            drag->root->user_data = click_off_data;
             drag->root->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
-                auto *data = (ItemData *) c->user_data;
-                paint_live_tile_data(client, cr, c, data->launcher->icon_32, data->launcher);
+                auto *data = (ItemDataWithClickOffset *) c->user_data;
+                paint_live_tile_data(client, cr, c, data->item_data->launcher->icon_32, data->item_data->launcher);
             };
         };
 
 	    child->when_drag_end = [](AppClient *client, cairo_t *cr, Container *c) {
-            auto data = (ItemData *) c->user_data;
-            if (!data->launcher->get_pinned()) {
-                on_live_tile_drag(client_by_name(app, "app_menu"), c, 0, 0, data->launcher, true);
-                printf("before: %d %d\n", data->launcher->info.x, data->launcher->info.y);
-                if (auto c = client_by_name(app, "app_menu")) {
-                    if (auto live_scroll = container_by_name("live_scroll", c->root)) {
-                        fill_live_tiles((ScrollContainer *) live_scroll);
+            if (auto drag = client_by_name(app, "drag_window")) {
+                auto data = (ItemDataWithClickOffset *) drag->root->user_data;
+                
+                if (!data->item_data->launcher->get_pinned()) {
+                    int result_x, result_y;
+                    int left_edge_x = client->mouse_current_x - data->x_off;
+                    int top_edge_y = client->mouse_current_y - data->y_off;
+                    projected_live_tile_position_based_on_drag(left_edge_x, top_edge_y,
+                                                               data->item_data->launcher->info.w,
+                                                               data->item_data->launcher->info.h, &result_x, &result_y,
+                                                               data->item_data->launcher, true);
+                    data->item_data->launcher->info.x = result_x;
+                    data->item_data->launcher->info.y = result_y;
+                    if (auto c = client_by_name(app, "app_menu")) {
+                        if (auto live_scroll = container_by_name("live_scroll", c->root)) {
+                            fill_live_tiles((ScrollContainer *) live_scroll);
+                        }
                     }
                 }
-                printf("after: %d %d\n", data->launcher->info.x, data->launcher->info.y);
-            }
-    	    c->when_paint = paint_item;
-            if (auto drag = client_by_name(app, "drag_window")) {
-                drag->root->user_data = nullptr; // So that we don't double delete
+                c->when_paint = paint_item;
                 client_close_threaded(app, client_by_name(app, "drag_window"));
             }
         };

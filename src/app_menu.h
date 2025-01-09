@@ -51,8 +51,6 @@ public:
     }
     
     void set_pinned(bool pinned) {
-        info.w = 2;
-        info.h = 2;
         info.x = -1;
         info.y = -1;
         this->is_pinned = pinned;

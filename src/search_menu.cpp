@@ -951,6 +951,9 @@ clicked_live_tiles(AppClient *client, cairo_t *cr, Container *container) {
     for (auto item: launchers) {
         if (item->full_path == data->sortable->full_path) {
             item->set_pinned(!item->get_pinned());
+            if (item->get_pinned())
+                item->info.w = 2;
+                item->info.h = 2;
         }
     }
     save_live_tiles();
