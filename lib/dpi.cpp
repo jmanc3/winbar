@@ -348,6 +348,8 @@ void update_information_of_all_screens(App *app) {
         delete screen;
     screens.clear();
     screens.shrink_to_fit();
+    for (auto c: app->clients)
+        c->screen_information = nullptr;
     
     // Kinda strange that we go through (count: screen count) and then 'sub' outputs.
     /* Show it */

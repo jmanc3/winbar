@@ -2952,8 +2952,10 @@ void start_app_menu() {
             settings.x = taskbar->bounds->x;
         }
         // Make sure doesn't go off-screen right side
-        if (settings.x + settings.w > taskbar->screen_information->width_in_pixels) {
-            settings.x = taskbar->screen_information->width_in_pixels - settings.w;
+        if (taskbar->screen_information) {
+            if (settings.x + settings.w > taskbar->screen_information->width_in_pixels) {
+                settings.x = taskbar->screen_information->width_in_pixels - settings.w;
+            }
         }
         settings.y = taskbar->bounds->y - settings.h;
     }
