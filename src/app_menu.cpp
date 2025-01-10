@@ -1376,6 +1376,11 @@ void live_tiles_resize_popup(AppClient *client, cairo_t *cr, Container *containe
     settings.h = ((36 * options_count) * config->dpi) + (config->dpi * (options_count - 1)) + (pad * 2);
     settings.x = client->bounds->x + client->bounds->w - 4 * config->dpi;
     settings.y = client->bounds->y + container->real_bounds.y;
+    if (app->screen) {
+        if (settings.y + settings.h > app->screen->height_in_pixels) {
+            settings.y = client->mouse_current_y + client->bounds->y - settings.h;
+        }
+    }
     settings.skip_taskbar = true;
     settings.decorations = false;
     settings.override_redirect = true;
@@ -1535,6 +1540,11 @@ right_clicked_application(AppClient *client, cairo_t *cr, Container *container) 
     // TODO: get mouse position
     settings.x = client->mouse_current_x + client->bounds->x;
     settings.y = client->mouse_current_y + client->bounds->y;
+    if (app->screen) {
+        if (settings.y + settings.h > app->screen->height_in_pixels) {
+            settings.y = client->mouse_current_y + client->bounds->y - settings.h;
+        }
+    }
     settings.skip_taskbar = true;
     settings.decorations = false;
     settings.override_redirect = true;
@@ -1592,6 +1602,11 @@ right_clicked_live_tile(AppClient *client, cairo_t *cr, Container *container) {
     settings.h = ((36 * options_count) * config->dpi) + (config->dpi * (options_count - 1)) + (pad * 2);
     settings.x = client->mouse_current_x + client->bounds->x;
     settings.y = client->mouse_current_y + client->bounds->y;
+    if (app->screen) {
+        if (settings.y + settings.h > app->screen->height_in_pixels) {
+            settings.y = client->mouse_current_y + client->bounds->y - settings.h;
+        }
+    }
     settings.skip_taskbar = true;
     settings.decorations = false;
     settings.override_redirect = true;
