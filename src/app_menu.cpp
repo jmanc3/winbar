@@ -44,9 +44,12 @@ struct ItemDataWithClickOffset : public UserData {
     ItemData *item_data = nullptr;
     int x_off = 0;
     int y_off = 0;
+    cairo_surface_t *surface = nullptr;
     
     ItemDataWithClickOffset(ItemData *data) {
         this->item_data = data;
+        if (surface)
+            cairo_surface_destroy(surface);
     }
 };
 
@@ -1102,7 +1105,7 @@ possibly_resize_after_pin_unpin() {
 static void
 projected_live_tile_position_based_on_drag(const int left_edge_x, const int top_edge_y,
                                            const int w, const int h,
-                                           int *result_x, int *result_y, Launcher *launcher, bool pin = false) {
+                                           int *result_x, int *result_y, Launcher *launcher, int scroll_v, bool pin = false) {
     auto client = (AppClient *) client_by_name(app, "app_menu");
     if (!client) return;
     auto live_scroll = container_by_name("live_scroll", client->root);
@@ -1116,8 +1119,8 @@ projected_live_tile_position_based_on_drag(const int left_edge_x, const int top_
     float offset_y = std::max(0.0f, top_edge_y - start_y);
     int tile_x = std::round(offset_x / (50 * config->dpi));
     tile_x = std::min(6 - w, tile_x);
-    int tile_y = std::round(offset_y / (50 * config->dpi));
-    tile_y = std::min((int) (live_scroll->real_bounds.h / (50 * config->dpi)) - h, tile_y);
+    int tile_y = std::round((offset_y - scroll_v) / (50 * config->dpi));
+//    tile_y = std::min((int) (live_scroll->real_bounds.h / (50 * config->dpi)) - h, tile_y);
     
     if (bounds_contains(live_scroll->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
         launcher->info.x = tile_x;
@@ -1192,7 +1195,7 @@ clicked_add_to_live_tiles(AppClient *client, cairo_t *cr, Container *container) 
                     int top_edge_y = client->mouse_current_y - (client->mouse_initial_y - c->real_bounds.y);
                     projected_live_tile_position_based_on_drag(left_edge_x, top_edge_y, data->launcher->info.w,
                                                                data->launcher->info.h, &result_x, &result_y,
-                                                               data->launcher, true);
+                                                               data->launcher, scroll->scroll_v_visual, true);
                     data->launcher->info.x = result_x;
                     data->launcher->info.y = result_y;
                 };
@@ -1677,6 +1680,9 @@ next_pin_location(int w, int h, int *x, int *y) {
 }
 
 void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
+    auto v = container->scroll_v_visual;
+    ::layout(client, cr, container, container->real_bounds);
+    container->scroll_v_visual = v;
     auto s = (ScrollContainer *) container;
     
     PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -1687,7 +1693,7 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
     int x = container->real_bounds.x + (container->real_bounds.w - (100 * config->dpi) * 3) / 2;
     cairo_move_to(cr,
                   (int) (x + 3 * config->dpi),
-                  (int) (container->real_bounds.y + 12 * config->dpi));
+                  (int) (container->real_bounds.y + 12 * config->dpi + container->scroll_v_visual));
     pango_cairo_show_layout(cr, layout);
     
     for (auto pin: launchers) {
@@ -1710,7 +1716,7 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
             
             float pad = 2 * config->dpi;
             float start_x = x + pad;
-            float start_y = container->real_bounds.y + pad + title_pad;
+            float start_y = container->real_bounds.y + pad + title_pad + container->scroll_v_visual;
             item->real_bounds.x = start_x + live->launcher->info.x * (50 * config->dpi);
             item->real_bounds.y = start_y + live->launcher->info.y * (50 * config->dpi);
             item->real_bounds.w = live->launcher->info.w * (50 * config->dpi) - pad * 2;
@@ -1736,20 +1742,6 @@ void paint_live_tile_data(AppClient *client, cairo_t *cr, Container *container, 
     }
     
     int size = 36 * config->dpi;
-    
-    if (surface == nullptr) {
-        surface = accelerated_surface(app, client, size, size);
-        
-        std::vector<IconTarget> targets;
-        targets.emplace_back(launcher->icon);
-        search_icons(targets);
-        pick_best(targets, size);
-        for (const auto &item: targets[0].candidates) {
-            paint_surface_with_image(surface, item.full_path(), size, nullptr);
-            break;
-        }
-    }
-    
     if (surface) {
         cairo_set_source_surface(cr,
                                  surface,
@@ -1788,6 +1780,20 @@ void paint_live_tile_data(AppClient *client, cairo_t *cr, Container *container, 
 
 void paint_live_tile(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LiveTileData *) container->user_data;
+    int size = 36 * config->dpi;
+    if (data->surface == nullptr) {
+        data->surface = accelerated_surface(app, client, size, size);
+
+        std::vector<IconTarget> targets;
+        targets.emplace_back(data->launcher->icon);
+        search_icons(targets);
+        pick_best(targets, size);
+        for (const auto &item: targets[0].candidates) {
+            paint_surface_with_image(data->surface, item.full_path(), size, nullptr);
+            break;
+        }
+    }
+    
     paint_live_tile_data(client, cr, container, data->surface, data->launcher);
 }
 
@@ -2001,7 +2007,7 @@ fill_live_tiles(ScrollContainer *live_scroll) {
             continue;
         if (i_off == 0) {
             live_scroll->content->wanted_pad = Bounds(13 * config->dpi, 34 * config->dpi + 8 * config->dpi,
-                                                      13 * config->dpi, 54 * config->dpi);
+                                                      13 * config->dpi, 120 * config->dpi);
         }
         
         auto c = live_scroll->content;
@@ -2026,9 +2032,10 @@ fill_live_tiles(ScrollContainer *live_scroll) {
                 int result_x, result_y;
                 int left_edge_x = client->mouse_current_x - (client->mouse_initial_x - c->real_bounds.x);
                 int top_edge_y = client->mouse_current_y - (client->mouse_initial_y - c->real_bounds.y);
+                auto scroll = (ScrollContainer *) container_by_name("live_scroll", client->root);
                 projected_live_tile_position_based_on_drag(left_edge_x, top_edge_y, data->launcher->info.w,
                                                            data->launcher->info.h, &result_x, &result_y,
-                                                           data->launcher, true);
+                                                           data->launcher, scroll->scroll_v_visual, true);
                 data->launcher->info.x = result_x;
                 data->launcher->info.y = result_y;
             }
@@ -2323,7 +2330,20 @@ fill_root(AppClient *client) {
             drag->root->user_data = click_off_data;
             drag->root->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
                 auto *data = (ItemDataWithClickOffset *) c->user_data;
-                paint_live_tile_data(client, cr, c, data->item_data->launcher->icon_32, data->item_data->launcher);
+                int size = 36 * config->dpi;
+                if (data->surface == nullptr) {
+                    data->surface = accelerated_surface(app, client, size, size);
+                    
+                    std::vector<IconTarget> targets;
+                    targets.emplace_back(data->item_data->launcher->icon);
+                    search_icons(targets);
+                    pick_best(targets, size);
+                    for (const auto &item: targets[0].candidates) {
+                        paint_surface_with_image(data->surface, item.full_path(), size, nullptr);
+                        break;
+                    }
+                }
+                paint_live_tile_data(client, cr, c, data->surface, data->item_data->launcher);
             };
         };
 
@@ -2335,10 +2355,11 @@ fill_root(AppClient *client) {
                     int result_x, result_y;
                     int left_edge_x = client->mouse_current_x - data->x_off;
                     int top_edge_y = client->mouse_current_y - data->y_off;
+                    auto scroll = (ScrollContainer *) container_by_name("live_scroll", client->root);
                     projected_live_tile_position_based_on_drag(left_edge_x, top_edge_y,
                                                                data->item_data->launcher->info.w,
                                                                data->item_data->launcher->info.h, &result_x, &result_y,
-                                                               data->item_data->launcher, true);
+                                                               data->item_data->launcher, scroll->scroll_v_visual,true);
                     data->item_data->launcher->info.x = result_x;
                     data->item_data->launcher->info.y = result_y;
                     if (auto c = client_by_name(app, "app_menu")) {

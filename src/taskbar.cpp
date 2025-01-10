@@ -1232,9 +1232,9 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
             get_average_color(data->surface, &data->average_color);
             data->average_color_set = true;
         }
-        
-        float a = 1;
-//        float a = hover_amount;
+
+//        float a = 1;
+        float a = hover_amount;
         // Add color stops: white (fully opaque) at the center and transparent at the edge
         if (data->average_color_set) {
             cairo_pattern_add_color_stop_rgba(radial, 0.00, data->average_color.r, data->average_color.g,
