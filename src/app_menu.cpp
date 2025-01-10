@@ -2599,50 +2599,60 @@ paint_desktop_files() {
                     path16 = launcher->icon;
                     path24 = launcher->icon;
                     path32 = launcher->icon;
+                    path48 = launcher->icon;
                     path64 = launcher->icon;
                 } else {
-                    for (const auto &icon: t.candidates) {
-                        if (!path16.empty() && !path24.empty() && !path32.empty() && !path48.empty() && !path64.empty())
-                            break;
-                        if ((icon.size == 16) && path16.empty()) {
-                            path16 = icon.full_path();
-                        } else if (icon.size == 24 && path24.empty()) {
-                            path24 = icon.full_path();
-                        } else if (icon.size == 32 && path32.empty()) {
-                            path32 = icon.full_path();
-                        } else if (icon.size == 48 && path48.empty()) {
-                            path32 = icon.full_path();
-                        } else if (icon.size == 64 && path64.empty()) {
-                            path64 = icon.full_path();
-                        }
+                    if (!t.candidates.empty()) {
+                        path16 = t.candidates[0].full_path();
+                        path24  = t.candidates[0].full_path();
+                        path32 = t.candidates[0].full_path();
+                        path48 = t.candidates[0].full_path();
+                        path64 = t.candidates[0].full_path();
                     }
-                    for (const auto &icon: t.candidates) {
-                        if (icon.extension == 2) {
-                            if (path16.empty())
-                                path16 = icon.full_path();
-                            if (path24.empty())
-                                path24 = icon.full_path();
-                            if (path32.empty())
-                                path32 = icon.full_path();
-                            if (path64.empty())
-                                path64 = icon.full_path();
-                            break;
-                        }
-                    }
-                    for (const auto &icon: t.candidates) {
-                        if (!path16.empty() && !path24.empty() && !path32.empty() && !path64.empty())
-                            break;
-                        if (path16.empty())
-                            path16 = icon.full_path();
-                        if (path24.empty())
-                            path24 = icon.full_path();
-                        if (path32.empty())
-                            path32 = icon.full_path();
-                        if (path48.empty())
-                            path48 = icon.full_path();
-                        if (path64.empty())
-                            path64 = icon.full_path();
-                    }
+//                    for (const auto &icon: t.candidates) {
+//                        if (!path16.empty() && !path24.empty() && !path32.empty() && !path48.empty() && !path64.empty())
+//                            break;
+//                        if ((icon.size == 16) && path16.empty()) {
+//                            path16 = icon.full_path();
+//                        } else if (icon.size == 24 && path24.empty()) {
+//                            path24 = icon.full_path();
+//                        } else if (icon.size == 32 && path32.empty()) {
+//                            path32 = icon.full_path();
+//                        } else if (icon.size == 48 && path48.empty()) {
+//                            path48 = icon.full_path();
+//                        } else if (icon.size == 64 && path64.empty()) {
+//                            path64 = icon.full_path();
+//                        }
+//                    }
+//                    for (const auto &icon: t.candidates) {
+//                        if (icon.extension == 2) {
+//                            if (path16.empty())
+//                                path16 = icon.full_path();
+//                            if (path24.empty())
+//                                path24 = icon.full_path();
+//                            if (path32.empty())
+//                                path32 = icon.full_path();
+//                            if (path48.empty())
+//                                path48 = icon.full_path();
+//                            if (path64.empty())
+//                                path64 = icon.full_path();
+//                            break;
+//                        }
+//                    }
+//                    for (const auto &icon: t.candidates) {
+//                        if (!path16.empty() && !path24.empty() && !path32.empty() && !path48.empty() && !path64.empty())
+//                            break;
+//                        if (path16.empty())
+//                            path16 = icon.full_path();
+//                        if (path24.empty())
+//                            path24 = icon.full_path();
+//                        if (path32.empty())
+//                            path32 = icon.full_path();
+//                        if (path48.empty())
+//                            path48 = icon.full_path();
+//                        if (path64.empty())
+//                            path64 = icon.full_path();
+//                    }
                 }
             }
             

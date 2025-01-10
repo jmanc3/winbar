@@ -856,6 +856,7 @@ static void c3ic_generate_sizes(int target_size, std::vector<int> &target_sizes)
     target_sizes.push_back(84);
     target_sizes.push_back(96);
     target_sizes.push_back(128);
+    target_sizes.push_back(192);
     target_sizes.push_back(256);
     target_sizes.push_back(512);
     
@@ -890,6 +891,8 @@ void pick_best(std::vector<IconTarget> &targets, int target_size, IconContext ta
     auto current_theme = get_current_theme_name();
     std::vector<int> strict_sizes;
     c3ic_generate_sizes(target_size, strict_sizes);
+    std::vector<int> large_to_small;
+    c3ic_generate_sizes(512, large_to_small);
     for (int ss = 0; ss < targets.size(); ss++) {
         IconTarget *target = &targets[ss];
         bool has_preferred_theme = false;
@@ -915,6 +918,23 @@ void pick_best(std::vector<IconTarget> &targets, int target_size, IconContext ta
                
                 if (candidate->context == IconContext::NotSet)
                     candidate->is_part_of_target_context = false;
+                candidate->size_index = strict_sizes.size() + 1;
+                for (int size_index = 0; size_index < strict_sizes.size(); size_index++) {
+                    if (starts_with(target->name, "steam_icon_")) {
+                        if (candidate->size == large_to_small[size_index]) {
+                            candidate->size_index = size_index;
+                            break;
+                        }
+                    } else {
+                        if (candidate->size == strict_sizes[size_index]) {
+                            candidate->size_index = size_index;
+                            break;
+                        }
+                    }
+                }
+                if (candidate->size == 0 && candidate->extension == 1) {
+                    candidate->size_index = strict_sizes.size() + 1;
+                }
             }
             // Sort vector based on quality and size, and current theme
             // Set best_full_path equal to best top option
