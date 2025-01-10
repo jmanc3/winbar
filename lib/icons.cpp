@@ -640,8 +640,43 @@ void search_icons(std::vector<IconTarget> &targets) {
             target_name = std::string_view(target.name.data() + start + 1, target.name.size() - start - 1);
         }
         
-        if (ranges.find(target_name) == ranges.end())
+        if (ranges.find(target_name) == ranges.end()) {
+            // Could be a path
+            if (!target_name.empty() && target_name[0] == '/') {
+                Candidate candidate;
+                
+                // Extract parent path
+                size_t last_slash = target_name.find_last_of("/");
+                candidate.parent_path = target_name.substr(0, last_slash);
+                
+                // Extract filename
+                size_t last_dot = target_name.find_last_of(".");
+                candidate.filename = target_name.substr(last_slash + 1, last_dot - last_slash - 1);
+                
+                // Determine extension
+                std::string extension_str = std::string(target_name.substr(last_dot));
+                std::transform(extension_str.begin(), extension_str.end(), extension_str.begin(), ::tolower);
+                if (extension_str == ".png") {
+                    candidate.extension = 1;
+                } else if (extension_str == ".svg") {
+                    candidate.extension = 0;
+                } else if (extension_str == ".xmp") {
+                    candidate.extension = 2;
+                } else {
+                    candidate.extension = 1; // Unknown extension
+                }
+                
+                // Set default values for other fields
+                candidate.theme = "hardcoded";
+                candidate.size = 48; // Default size
+                candidate.scale = 1; // Default scale
+                candidate.context = IconContext::Apps;
+                
+                targets[i].candidates.push_back(candidate);
+            }
+            
             continue;
+        }
         Range range = ranges[target_name];
 
         std::vector<Candidate> candidates;
