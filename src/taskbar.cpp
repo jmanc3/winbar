@@ -3883,6 +3883,17 @@ fill_root(App *app, AppClient *client, Container *root) {
     button_super->when_mouse_down = invalidate_icon_button_press_if_window_open;
     button_super->name = "super";
     button_super->when_clicked = clicked_super;
+    button_super->when_mouse_motion = [](AppClient *client, cairo_t *cr, Container *container) {
+        if (winbar_settings->open_start_menu_on_bottom_left_hover) {
+            if (bounds_contains(
+                    Bounds(container->real_bounds.x, container->real_bounds.y + container->real_bounds.h - 2, 2, 2),
+                    client->mouse_current_x, client->mouse_current_y)) {
+                if (!client_by_name(client->app, "app_menu")) {
+                    start_app_menu();
+                }
+            }
+        }
+    };
     
     field_search->when_paint = paint_search;
     field_search->when_mouse_down = clicked_search;
