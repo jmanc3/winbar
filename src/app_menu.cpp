@@ -2987,6 +2987,27 @@ void start_app_menu() {
         client->limit_fps = false;
         
         client->when_closed = app_menu_closed;
+        if (winbar_settings->open_start_menu_on_bottom_left_hover) {
+            app_timeout_create(app, client, 500, [](App *app, AppClient *, Timeout *timeout, void *) {
+                timeout->keep_running = true;
+                auto *app_menu = client_by_name(app, "app_menu");
+                auto *taskbar = client_by_name(app, "taskbar");
+                if (!taskbar || !app_menu) {
+                    client_close_threaded(app, app_menu);
+                    timeout->keep_running = false;
+                    return;
+                }
+                bool in_taskbar = bounds_contains(Bounds(0, 0, taskbar->bounds->w, taskbar->bounds->h),
+                                                  taskbar->mouse_current_x, taskbar->mouse_current_y);
+                bool in_start = bounds_contains(Bounds(0, 0, app_menu->bounds->w, app_menu->bounds->h),
+                                                app_menu->mouse_current_x, app_menu->mouse_current_y);
+                if (!in_taskbar && !in_start) {
+                    client_close_threaded(app, app_menu);
+                    timeout->keep_running = false;
+                    return;
+                }
+            }, nullptr, "check_if_mouse_has_left_start_menu");
+        }
         
         fill_root(client);
         client_show(app, client);
