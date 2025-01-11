@@ -66,7 +66,7 @@ private:
 
 extern std::vector<Launcher *> launchers;
 
-void start_app_menu();
+void start_app_menu(bool autoclose = false);
 
 void load_all_desktop_files();
 

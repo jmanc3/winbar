@@ -2916,7 +2916,7 @@ void load_all_desktop_files() {
     std::thread(paint_desktop_files).detach();
 }
 
-void start_app_menu() {
+void start_app_menu(bool autoclose) {
     scrollbar_openess = 0;
     scrollbar_visible = 0;
     left_locked = false;
@@ -2987,7 +2987,7 @@ void start_app_menu() {
         client->limit_fps = false;
         
         client->when_closed = app_menu_closed;
-        if (winbar_settings->open_start_menu_on_bottom_left_hover) {
+        if (winbar_settings->open_start_menu_on_bottom_left_hover && autoclose) {
             app_timeout_create(app, client, 100, [](App *app, AppClient *, Timeout *timeout, void *) {
                 timeout->keep_running = true;
                 auto *app_menu = client_by_name(app, "app_menu");

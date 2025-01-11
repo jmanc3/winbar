@@ -3889,7 +3889,7 @@ fill_root(App *app, AppClient *client, Container *root) {
                     Bounds(container->real_bounds.x, container->real_bounds.y + container->real_bounds.h - 2, 2, 2),
                     client->mouse_current_x, client->mouse_current_y)) {
                 if (!client_by_name(client->app, "app_menu")) {
-                    start_app_menu();
+                    start_app_menu(true);
                 }
             }
         }
