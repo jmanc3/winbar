@@ -2988,7 +2988,7 @@ void start_app_menu() {
         
         client->when_closed = app_menu_closed;
         if (winbar_settings->open_start_menu_on_bottom_left_hover) {
-            app_timeout_create(app, client, 500, [](App *app, AppClient *, Timeout *timeout, void *) {
+            app_timeout_create(app, client, 100, [](App *app, AppClient *, Timeout *timeout, void *) {
                 timeout->keep_running = true;
                 auto *app_menu = client_by_name(app, "app_menu");
                 auto *taskbar = client_by_name(app, "taskbar");
