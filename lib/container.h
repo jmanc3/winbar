@@ -580,6 +580,7 @@ struct ScrollContainer : public Container {
     ScrollPaneSettings settings;
     double scrollbar_openess = 1;
     double scrollbar_visible = 1;
+    Timeout *openess_delay_timeout = nullptr;
     
     explicit ScrollContainer(ScrollPaneSettings settings) : settings(std::move(settings)) {
         type = ::newscroll;

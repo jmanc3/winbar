@@ -1086,6 +1086,19 @@ make_scrollpane(Container *parent, ScrollPaneSettings settings) {
     return content_container;
 }
 
+void scroll_hover_timeout(App *, AppClient *client, Timeout *,
+                          void *userdata) {
+    auto *container = (Container *) userdata;
+    if (container_by_container(container, client->root)) {
+        auto *scroll = (ScrollContainer *) container;
+        scroll->openess_delay_timeout = nullptr;
+        if (!bounds_contains(scroll->right->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+            client_create_animation(client->app, client, &scroll->scrollbar_openess, scroll->lifetime,
+                                    0, 100, nullptr, 0);
+        }
+    }
+}
+
 ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPaneSettings &settings) {
     auto scrollpane = new ScrollContainer(settings);
     // setup as child of root
@@ -1122,16 +1135,27 @@ ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPane
     right_vbox->parent = scrollpane;
     right_vbox->type = ::vbox;
     right_vbox->when_fine_scrolled = fine_right_thumb_scrolled;
-    right_vbox->receive_events_even_if_obstructed = true;
     right_vbox->when_mouse_leaves_container = [](AppClient *client, cairo_t *, Container *container) {
         auto scroll = (ScrollContainer *) container->parent;
-        // if we leave, but we're still inside parent, delay by 3000
         int delay = 0;
         if (bounds_contains(scroll->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
             delay = 3000;
         }
-        client_create_animation(client->app, client, &scroll->scrollbar_openess, scroll->lifetime, delay, 100, nullptr, 0);
+        if (delay == 0) {
+            client_create_animation(client->app, client, &scroll->scrollbar_openess, scroll->lifetime,
+                                    delay, 100, nullptr, 0);
+        } else {
+            if (!scroll->openess_delay_timeout) {
+                scroll->openess_delay_timeout =
+                        app_timeout_create(client->app, client, 3000, scroll_hover_timeout,
+                                           container->parent, "scrollpane_3000ms_timeout");
+            } else {
+                scroll->openess_delay_timeout = app_timeout_replace(client->app, client, scroll->openess_delay_timeout,
+                                                                    3000, scroll_hover_timeout, container->parent);
+            }
+        }
     };
+    right_vbox->receive_events_even_if_obstructed = true;
     right_vbox->when_mouse_enters_container = [](AppClient *client, cairo_t *, Container *container) {
         auto scroll = (ScrollContainer *) container->parent;
         client_create_animation(client->app, client, &scroll->scrollbar_openess, scroll->lifetime, 0, 100, nullptr, 1);

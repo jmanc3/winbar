@@ -91,10 +91,6 @@ struct LiveTileData : LiveTileItemType {
     }
 };
 
-// the scrollbar should only open if the mouse is in the scrollbar
-static double scrollbar_openess = 0;
-// the scrollbar should only be visible if the mouse is in the container
-static double scrollbar_visible = 0;
 // when we open the power sub menu, the left sliding menu needs to be locked
 static bool left_locked = false;
 
@@ -585,178 +581,6 @@ paint_item_title(AppClient *client, cairo_t *cr, Container *container) {
     if (data->surface) {
         cairo_set_source_surface(cr, data->surface, container->real_bounds.x, container->real_bounds.y);
         cairo_paint(cr);
-    }
-}
-
-static void
-paint_scroll_bg(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    
-    set_rect(cr, container->real_bounds);
-    ArgbColor color = config->color_apps_scrollbar_gutter;
-    color.a = scrollbar_openess;
-    set_argb(cr, color);
-    cairo_fill(cr);
-}
-
-static void
-paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    auto *data = (ButtonData *) container->user_data;
-    
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            set_rect(cr, container->real_bounds);
-            ArgbColor color = config->color_apps_scrollbar_pressed_button;
-            color.a = scrollbar_openess;
-            set_argb(cr, color);
-            cairo_fill(cr);
-        } else {
-            set_rect(cr, container->real_bounds);
-            ArgbColor color = config->color_apps_scrollbar_hovered_button;
-            color.a = scrollbar_openess;
-            set_argb(cr, color);
-            cairo_fill(cr);
-        }
-    } else {
-        set_rect(cr, container->real_bounds);
-        ArgbColor color = config->color_apps_scrollbar_default_button;
-        color.a = scrollbar_openess;
-        set_argb(cr, color);
-        cairo_fill(cr);
-    }
-    
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            auto c = ArgbColor(config->color_apps_scrollbar_pressed_button_icon);
-            c.a = scrollbar_openess;
-            set_argb(cr, c);
-        } else {
-            auto c = ArgbColor(config->color_apps_scrollbar_hovered_button_icon);
-            c.a = scrollbar_openess;
-            set_argb(cr, c);
-        }
-    } else {
-        auto c = ArgbColor(config->color_apps_scrollbar_default_button_icon);
-        c.a = scrollbar_openess;
-        set_argb(cr, c);
-    }
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, data->text.data(), strlen("\uE83F"));
-    
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
-}
-
-static void
-paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    
-    paint_scroll_bg(client, cr, container);
-    
-    Container *scrollpane = container->parent->parent;
-    
-    auto right_bounds = right_thumb_bounds(scrollpane, container->real_bounds);
-    
-    right_bounds.x += right_bounds.w;
-    right_bounds.w = std::max(right_bounds.w * scrollbar_openess, 2.0);
-    right_bounds.x -= right_bounds.w;
-    right_bounds.x -= 2 * (1 - scrollbar_openess);
-    
-    set_rect(cr, right_bounds);
-    
-    if (container->state.mouse_pressing) {
-        ArgbColor color = config->color_apps_scrollbar_pressed_thumb;
-        color.a = scrollbar_visible;
-        set_argb(cr, color);
-    } else if (bounds_contains(right_bounds, client->mouse_current_x, client->mouse_current_y)) {
-        ArgbColor color = config->color_apps_scrollbar_hovered_thumb;
-        color.a = scrollbar_visible;
-        set_argb(cr, color);
-    } else if (right_bounds.w == 2.0) {
-        ArgbColor color = config->color_apps_scrollbar_default_thumb;
-        lighten(&color, 10);
-        color.a = scrollbar_visible;
-        set_argb(cr, color);
-    } else {
-        ArgbColor color = config->color_apps_scrollbar_default_thumb;
-        color.a = scrollbar_visible;
-        set_argb(cr, color);
-    }
-    
-    cairo_fill(cr);
-}
-
-static void
-when_scrollbar_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    client_create_animation(client->app, client, &scrollbar_openess, client->lifetime, 0, 100, 0, 1);
-}
-
-static void
-when_scrollbar_container_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    client_create_animation(client->app, client, &scrollbar_visible, client->lifetime, 0, 100, 0, 1);
-}
-
-static void
-when_scrollbar_mouse_leaves(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    client_create_animation(client->app, client, &scrollbar_openess, client->lifetime, 0, 100, 0, 0);
-    client_create_animation(client->app, client, &scrollbar_visible, client->lifetime, 0, 100, 0, 0);
-}
-
-static Timeout *scrollbar_leave_fd = nullptr;
-
-static void
-scrollbar_leaves_timeout(App *app, AppClient *client, Timeout *, void *data) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    if (valid_client(app, client)) {
-        auto *container = (Container *) data;
-        if (scrollbar_openess != 0 && scrollbar_openess == 1 &&
-            !bounds_contains(
-                    container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
-            client_create_animation(client->app, client, &scrollbar_openess, client->lifetime, 0, 100, 0, 0);
-        }
-    } else {
-        scrollbar_openess = 0;
-    }
-    scrollbar_leave_fd = nullptr;
-}
-
-static void
-when_scrollbar_mouse_leaves_slow(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    if (scrollbar_leave_fd == nullptr && client_by_name(app, "app_menu")) {
-        scrollbar_leave_fd = app_timeout_create(app, client, 3000, scrollbar_leaves_timeout, container, const_cast<char *>(__PRETTY_FUNCTION__));
-    } else {
-        app_timeout_replace(app, client, scrollbar_leave_fd, 3000, scrollbar_leaves_timeout, container);
     }
 }
 
@@ -2194,8 +2018,6 @@ fill_root(AppClient *client) {
     auto *right_content = right_hbox->child(::transition, FILL_SPACE, FILL_SPACE);
     right_content->receive_events_even_if_obstructed = true;
     right_content->name = "right_content";
-    right_content->when_mouse_leaves_container = when_scrollbar_mouse_leaves;
-    right_content->when_mouse_enters_container = when_scrollbar_container_mouse_enters;
     right_content->handles_pierced = right_content_handles_pierced;
     
     auto *app_list_container = right_content->child(FILL_SPACE, FILL_SPACE);
@@ -2216,24 +2038,6 @@ fill_root(AppClient *client) {
     ScrollContainer *scroll = make_newscrollpane_as_child(app_list_container, settings);
     scroll->when_fine_scrolled = scrolled_content_area;
     scroll->name = "scroll_pane";
-    Container *right_thumb_container = scroll->right->children[1];
-    right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
-    right_thumb_container->parent->when_mouse_enters_container = when_scrollbar_mouse_enters;
-    right_thumb_container->parent->when_mouse_leaves_container = when_scrollbar_mouse_leaves_slow;
-    
-    right_thumb_container->when_paint = paint_right_thumb;
-    Container *top_arrow = scroll->right->children[0];
-    top_arrow->when_paint = paint_arrow;
-    auto *top_data = new ButtonData;
-    top_data->text = "\uE971";
-    top_arrow->user_data = top_data;
-    
-    Container *bottom_arrow = scroll->right->children[2];
-    bottom_arrow->when_paint = paint_arrow;
-    auto *bottom_data = new ButtonData;
-    bottom_data->text = "\uE972";
-    bottom_arrow->user_data = bottom_data;
-    
     scroll->content->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, (settings.right_width / 2) * config->dpi,
                                          54 * config->dpi);
     
@@ -2531,7 +2335,6 @@ app_menu_closed(AppClient *client) {
         c->root->user_data = nullptr;
         client_close_threaded(app, c);
      }
-    scrollbar_leave_fd = nullptr;
     left_open_fd = nullptr;
     set_textarea_inactive();
     
@@ -2918,8 +2721,6 @@ void load_all_desktop_files() {
 }
 
 void start_app_menu(bool autoclose) {
-    scrollbar_openess = 0;
-    scrollbar_visible = 0;
     left_locked = false;
     if (auto *c = client_by_name(app, "search_menu")) {
         client_close(app, c);
