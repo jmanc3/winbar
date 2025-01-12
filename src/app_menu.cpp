@@ -2987,7 +2987,8 @@ void start_app_menu(bool autoclose) {
         client->limit_fps = false;
         
         client->when_closed = app_menu_closed;
-        if (winbar_settings->open_start_menu_on_bottom_left_hover && autoclose) {
+        if (winbar_settings->open_start_menu_on_bottom_left_hover &&
+            (autoclose && winbar_settings->autoclose_start_menu_if_hover_opened)) {
             app_timeout_create(app, client, 100, [](App *app, AppClient *, Timeout *timeout, void *) {
                 timeout->keep_running = true;
                 auto *app_menu = client_by_name(app, "app_menu");

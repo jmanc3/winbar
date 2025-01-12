@@ -35,7 +35,8 @@ struct WinbarSettings {
     bool battery_notifications = false;
     bool pinned_icon_shortcut = false;
     bool allow_live_tiles = true;
-    bool open_start_menu_on_bottom_left_hover = true;
+    bool open_start_menu_on_bottom_left_hover = false;
+    bool autoclose_start_menu_if_hover_opened = false;
     bool click_icon_tab_next_window = false;
     std::string custom_desktops_directory;
     bool custom_desktops_directory_exclusive = false;

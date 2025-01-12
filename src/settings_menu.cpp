@@ -1099,6 +1099,8 @@ fill_root(AppClient *client, Container *root) {
     bool_checkbox("Allow live tiles", &winbar_settings->allow_live_tiles, winbar_behaviour_root, client);
     bool_checkbox("Open start menu on mouse moved to corner", &winbar_settings->open_start_menu_on_bottom_left_hover,
                   winbar_behaviour_root, client);
+    bool_checkbox_indent("Autoclose on mouse leaves area", 16 * config->dpi,
+                         &winbar_settings->autoclose_start_menu_if_hover_opened, winbar_behaviour_root, client);
     bool_checkbox("Clicking icon cycles to next window", &winbar_settings->click_icon_tab_next_window, winbar_behaviour_root, client);
     string_textfield("Custom desktop files location: ", &winbar_settings->custom_desktops_directory,
                      winbar_behaviour_root, client);
@@ -1353,6 +1355,10 @@ void save_settings_file() {
              << (winbar_settings->open_start_menu_on_bottom_left_hover ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "autoclose_start_menu_if_hover_opened="
+             << (winbar_settings->autoclose_start_menu_if_hover_opened ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     out_file << "click_icon_tab_next_window=" << (winbar_settings->click_icon_tab_next_window ? "true" : "false");
     out_file << std::endl << std::endl;
     
@@ -1587,6 +1593,8 @@ void read_settings_file() {
                 parse_bool(&parser, key, "allow_live_tiles", &winbar_settings->allow_live_tiles);
                 parse_bool(&parser, key, "open_start_menu_on_bottom_left_hover",
                            &winbar_settings->open_start_menu_on_bottom_left_hover);
+                parse_bool(&parser, key, "autoclose_start_menu_if_hover_opened",
+                           &winbar_settings->autoclose_start_menu_if_hover_opened);
                 parse_bool(&parser, key, "click_icon_tab_next_window", &winbar_settings->click_icon_tab_next_window);
                 parse_bool(&parser, key, "volume_expands_on_hover", &winbar_settings->volume_expands_on_hover);
                 parse_bool(&parser, key, "volume_label_always_on", &winbar_settings->volume_label_always_on);
