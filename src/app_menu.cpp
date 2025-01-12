@@ -1069,7 +1069,7 @@ possibly_resize_after_pin_unpin() {
         any_pinned = false;
     int w = 0;
     if (any_pinned) {
-        w = 660 * config->dpi;
+        w = 662 * config->dpi;
     } else {
         w = 320 * config->dpi;
     }
@@ -2117,6 +2117,7 @@ fill_root(AppClient *client) {
     // settings.w = 660 * config->dpi;
     auto live_tile_width = (660 - 320) * config->dpi;
     Container *live_tile_root = root_hbox->child(::hbox, live_tile_width, FILL_SPACE);
+    Container *resize_edge = root_hbox->child(::hbox, 2 * config->dpi, FILL_SPACE);
     
     ScrollPaneSettings tile_scroll(config->dpi);
     ScrollContainer *live_scroll = make_newscrollpane_as_child(live_tile_root, tile_scroll);
@@ -2944,7 +2945,7 @@ void start_app_menu(bool autoclose) {
     if (!winbar_settings->allow_live_tiles)
         any_pinned = false;
     if (any_pinned) {
-        settings.w = 660 * config->dpi;
+        settings.w = 662 * config->dpi;
     } else {
         settings.w = 320 * config->dpi;
     }

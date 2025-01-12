@@ -99,10 +99,10 @@ paint_scroll_bg(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    double scrollbar_openess = 1;
+    auto scroll_container = ((ScrollContainer *) container->parent->parent);
     set_rect(cr, container->real_bounds);
     ArgbColor color = config->color_apps_scrollbar_gutter;
-    color.a = scrollbar_openess;
+    color.a = scroll_container->scrollbar_openess;
     set_argb(cr, color);
     cairo_fill(cr);
 }
@@ -113,9 +113,8 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     bool minimal = ((ScrollContainer *) container->parent->parent)->settings.paint_minimal;
+    auto scroll_container = ((ScrollContainer *) container->parent->parent);
     
-    double scrollbar_openess = 1;
-    double scrollbar_visible = 1;
     if (!minimal)
         paint_scroll_bg(client, cr, container);
     
@@ -124,28 +123,30 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
     auto right_bounds = right_thumb_bounds(scrollpane, container->real_bounds);
     
     right_bounds.x += right_bounds.w;
-    right_bounds.w = std::max(right_bounds.w * scrollbar_openess, 2.0);
+    right_bounds.w = std::max(right_bounds.w * scroll_container->scrollbar_openess, 2.0);
+    if (minimal)
+        right_bounds.w = 2.0;
     right_bounds.x -= right_bounds.w;
-    right_bounds.x -= 2 * (1 - scrollbar_openess);
+    right_bounds.x -= 2 * (1 - scroll_container->scrollbar_openess);
     
     set_rect(cr, right_bounds);
     
     if (container->state.mouse_pressing) {
         ArgbColor color = config->color_apps_scrollbar_pressed_thumb;
-        color.a = scrollbar_visible;
+        color.a = scroll_container->scrollbar_visible;
         set_argb(cr, color);
     } else if (bounds_contains(right_bounds, client->mouse_current_x, client->mouse_current_y)) {
         ArgbColor color = config->color_apps_scrollbar_hovered_thumb;
-        color.a = scrollbar_visible;
+        color.a = scroll_container->scrollbar_visible;
         set_argb(cr, color);
     } else if (right_bounds.w == 2.0) {
         ArgbColor color = config->color_apps_scrollbar_default_thumb;
         lighten(&color, 10);
-        color.a = scrollbar_visible;
+        color.a = scroll_container->scrollbar_visible;
         set_argb(cr, color);
     } else {
         ArgbColor color = config->color_apps_scrollbar_default_thumb;
-        color.a = scrollbar_visible;
+        color.a = scroll_container->scrollbar_visible;
         set_argb(cr, color);
     }
     
@@ -158,9 +159,8 @@ paint_bottom_thumb(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     bool minimal = ((ScrollContainer *) container->parent->parent)->settings.paint_minimal;
+    auto scroll_container = ((ScrollContainer *) container->parent->parent);
     
-    double scrollbar_openess = 1;
-    double scrollbar_visible = 1;
     if (!minimal)
         paint_scroll_bg(client, cr, container);
     
@@ -169,28 +169,28 @@ paint_bottom_thumb(AppClient *client, cairo_t *cr, Container *container) {
     auto bottom_bounds = bottom_thumb_bounds(scrollpane, container->real_bounds);
     
     bottom_bounds.y += bottom_bounds.h;
-    bottom_bounds.h = std::max(bottom_bounds.h * scrollbar_openess, 2.0);
+    bottom_bounds.h = std::max(bottom_bounds.h * scroll_container->scrollbar_openess, 2.0);
     bottom_bounds.y -= bottom_bounds.h;
-    bottom_bounds.y -= 2 * (1 - scrollbar_openess);
+    bottom_bounds.y -= 2 * (1 - scroll_container->scrollbar_openess);
     
     set_rect(cr, bottom_bounds);
     
     if (container->state.mouse_pressing) {
         ArgbColor color = config->color_apps_scrollbar_pressed_thumb;
-        color.a = scrollbar_visible;
+        color.a = scroll_container->scrollbar_visible;
         set_argb(cr, color);
     } else if (bounds_contains(bottom_bounds, client->mouse_current_x, client->mouse_current_y)) {
         ArgbColor color = config->color_apps_scrollbar_hovered_thumb;
-        color.a = scrollbar_visible;
+        color.a = scroll_container->scrollbar_visible;
         set_argb(cr, color);
     } else if (bottom_bounds.w == 2.0) {
         ArgbColor color = config->color_apps_scrollbar_default_thumb;
         lighten(&color, 10);
-        color.a = scrollbar_visible;
+        color.a = scroll_container->scrollbar_visible;
         set_argb(cr, color);
     } else {
         ArgbColor color = config->color_apps_scrollbar_default_thumb;
-        color.a = scrollbar_visible;
+        color.a = scroll_container->scrollbar_visible;
         set_argb(cr, color);
     }
     
@@ -205,28 +205,28 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     bool minimal = ((ScrollContainer *) container->parent->parent)->settings.paint_minimal;
     if (minimal)
         return;
+    auto scroll_container = ((ScrollContainer *) container->parent->parent);
     
-    double scrollbar_openess = 1;
     auto *data = (ButtonData *) container->user_data;
     
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
             set_rect(cr, container->real_bounds);
             ArgbColor color = config->color_apps_scrollbar_pressed_button;
-            color.a = scrollbar_openess;
+            color.a = scroll_container->scrollbar_openess;
             set_argb(cr, color);
             cairo_fill(cr);
         } else {
             set_rect(cr, container->real_bounds);
             ArgbColor color = config->color_apps_scrollbar_hovered_button;
-            color.a = scrollbar_openess;
+            color.a = scroll_container->scrollbar_openess;
             set_argb(cr, color);
             cairo_fill(cr);
         }
     } else {
         set_rect(cr, container->real_bounds);
         ArgbColor color = config->color_apps_scrollbar_default_button;
-        color.a = scrollbar_openess;
+        color.a = scroll_container->scrollbar_openess;
         set_argb(cr, color);
         cairo_fill(cr);
     }
@@ -237,16 +237,16 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
             auto c = ArgbColor(config->color_apps_scrollbar_pressed_button_icon);
-            c.a = scrollbar_openess;
+            c.a = scroll_container->scrollbar_openess;
             set_argb(cr, c);
         } else {
             auto c = ArgbColor(config->color_apps_scrollbar_hovered_button_icon);
-            c.a = scrollbar_openess;
+            c.a = scroll_container->scrollbar_openess;
             set_argb(cr, c);
         }
     } else {
         auto c = ArgbColor(config->color_apps_scrollbar_default_button_icon);
-        c.a = scrollbar_openess;
+        c.a = scroll_container->scrollbar_openess;
         set_argb(cr, c);
     }
     
@@ -1098,8 +1098,19 @@ ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPane
         scrollpane->scroll_v_real = -1000000;
         scrollpane->scroll_v_visual = -1000000;
     }
+    scrollpane->scrollbar_openess = 0;
+    scrollpane->scrollbar_visible = 0;
     if (parent)
         parent->children.push_back(scrollpane);
+    scrollpane->when_mouse_leaves_container = [](AppClient *client, cairo_t *, Container *container) {
+        auto scroll = (ScrollContainer *) container;
+        client_create_animation(client->app, client, &scroll->scrollbar_visible, scroll->lifetime, 0, 100, nullptr, 0);
+        client_create_animation(client->app, client, &scroll->scrollbar_openess, scroll->lifetime, 0, 100, nullptr, 0);
+    };
+    scrollpane->when_mouse_enters_container = [](AppClient *client, cairo_t *, Container *container) {
+        auto scroll = (ScrollContainer *) container;
+        client_create_animation(client->app, client, &scroll->scrollbar_visible, scroll->lifetime, 0, 100, nullptr, 1);
+    };
     
     auto content = new Container(::vbox, FILL_SPACE, FILL_SPACE);
     // setup as content of scrollpane
@@ -1111,6 +1122,20 @@ ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPane
     right_vbox->parent = scrollpane;
     right_vbox->type = ::vbox;
     right_vbox->when_fine_scrolled = fine_right_thumb_scrolled;
+    right_vbox->receive_events_even_if_obstructed = true;
+    right_vbox->when_mouse_leaves_container = [](AppClient *client, cairo_t *, Container *container) {
+        auto scroll = (ScrollContainer *) container->parent;
+        // if we leave, but we're still inside parent, delay by 3000
+        int delay = 0;
+        if (bounds_contains(scroll->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+            delay = 3000;
+        }
+        client_create_animation(client->app, client, &scroll->scrollbar_openess, scroll->lifetime, delay, 100, nullptr, 0);
+    };
+    right_vbox->when_mouse_enters_container = [](AppClient *client, cairo_t *, Container *container) {
+        auto scroll = (ScrollContainer *) container->parent;
+        client_create_animation(client->app, client, &scroll->scrollbar_openess, scroll->lifetime, 0, 100, nullptr, 1);
+    };
     
     auto right_top_arrow = right_vbox->child(FILL_SPACE, settings.right_arrow_height);
     right_top_arrow->user_data = new ButtonData;

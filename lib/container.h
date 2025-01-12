@@ -578,6 +578,8 @@ struct ScrollContainer : public Container {
     Container *bottom = nullptr;
     long previous_time_scrolled = 0;
     ScrollPaneSettings settings;
+    double scrollbar_openess = 1;
+    double scrollbar_visible = 1;
     
     explicit ScrollContainer(ScrollPaneSettings settings) : settings(std::move(settings)) {
         type = ::newscroll;
