@@ -2041,6 +2041,7 @@ fill_root(AppClient *client) {
         root_dragged(client, cr, c);
         client->cursor_type = XC_left_ptr;
         set_cursor(app, app->screen, client, "left_ptr", XC_left_ptr);
+        save_settings_file();
     };
     root_hbox->user_data = new PaneDragData;
     Container *stack = root_hbox->child(::stack, 320 * config->dpi, FILL_SPACE);
