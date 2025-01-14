@@ -305,4 +305,6 @@ Subprocess *
 command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, void (*function)(Subprocess *),
                     void *user_data);
 
+void set_cursor(App *app, xcb_screen_t *screen, AppClient *client, const std::string &name, uint8_t backup);
+
 #endif

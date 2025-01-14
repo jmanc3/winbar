@@ -31,6 +31,8 @@
 #include <filesystem>
 #include <fstream>
 #include "utility.h"
+#include <xcb/xcb_cursor.h>
+#include <X11/cursorfont.h>
 
 
 std::vector<Launcher *> launchers;
@@ -1925,6 +1927,60 @@ fill_live_tiles(ScrollContainer *live_scroll) {
     }
 }
 
+struct PaneDragData : UserData {
+    bool dragging = false;
+};
+
+static void
+root_dragged(AppClient *client, cairo_t *, Container *c) {
+    auto data = (PaneDragData *) c->user_data;
+    if (!data->dragging)
+        return;
+    
+    int global_x = 0;
+    int global_y = 0;
+    get_global_coordinates(app->connection, client->window, client->mouse_current_x,
+                           client->mouse_current_y, &global_x, &global_y);
+    if (client->cursor_type == XC_sb_v_double_arrow) { // vertical
+        if (global_y <= 100) {
+            global_y = 100;
+        }
+        if (global_y >= client->app->screen->height_in_pixels * .55) {
+            global_y = client->app->screen->height_in_pixels * .55;
+        }
+        uint32_t value_list_resize[] = {
+                (uint32_t) (global_y),
+                (uint32_t) (client->app->screen->height_in_pixels - (global_y + config->taskbar_height)),
+        };
+        winbar_settings->start_menu_height = value_list_resize[1] * (1 / config->dpi);
+        xcb_configure_window(app->connection, client->window, XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_HEIGHT,
+                             value_list_resize);
+    } else {
+        int w;
+        bool any_pinned = false;
+        for (auto l: launchers) {
+            if (l->get_pinned()) {
+                any_pinned = true;
+                break;
+            }
+        }
+        if (!winbar_settings->allow_live_tiles)
+            any_pinned = false;
+        if (any_pinned) {
+            w = 662 * config->dpi;
+        } else {
+            w = 320 * config->dpi;
+        }
+        if (global_x - client->bounds->x >= w) {
+            w = global_x - client->bounds->x;
+        }
+        uint32_t value_list_resize[] = {
+                (uint32_t) (w),
+        };
+        xcb_configure_window(app->connection, client->window, XCB_CONFIG_WINDOW_WIDTH, value_list_resize);
+    }
+}
+
 static void
 fill_root(AppClient *client) {
 #ifdef TRACY_ENABLE
@@ -1936,6 +1992,57 @@ fill_root(AppClient *client) {
     root->when_key_event = when_key_event;
     
     auto root_hbox = root->child(::hbox, FILL_SPACE, FILL_SPACE);
+    root_hbox->receive_events_even_if_obstructed = true;
+    root_hbox->when_mouse_motion = [](AppClient *client, cairo_t *, Container *c) {
+        bool on_right_edge = bounds_contains(Bounds(c->real_bounds.x + c->real_bounds.w - 4 * config->dpi - 2,
+                                                    c->real_bounds.y, 10 * config->dpi, c->real_bounds.h),
+                                             client->mouse_current_x, client->mouse_current_y);
+        bool on_top_edge = bounds_contains(
+                Bounds(c->real_bounds.x, c->real_bounds.y - 1, c->real_bounds.w, config->dpi * 6),
+                client->mouse_current_x, client->mouse_current_y);
+        if (!on_right_edge && !on_top_edge) {
+            if (client->cursor_type == XC_left_ptr)
+                return;
+            client->cursor_type = XC_left_ptr;
+            set_cursor(app, app->screen, client, "left_ptr", XC_left_ptr);
+        } else {
+            if (on_top_edge) {
+                if (client->cursor_type == XC_sb_v_double_arrow)
+                    return;
+                client->cursor_type = XC_sb_v_double_arrow;
+                set_cursor(app, app->screen, client, "sb_v_double_arrow", XC_sb_v_double_arrow);
+            } else {
+                if (client->cursor_type == XC_sb_h_double_arrow)
+                    return;
+                client->cursor_type = XC_sb_h_double_arrow;
+                set_cursor(app, app->screen, client, "sb_h_double_arrow", XC_sb_h_double_arrow);
+            }
+        }
+    };
+    root_hbox->when_drag_start = [](AppClient *client, cairo_t *cr, Container *c) {
+        bool on_right_edge = bounds_contains(Bounds(c->real_bounds.x + c->real_bounds.w - 4 * config->dpi - 2,
+                                                    c->real_bounds.y, 10 * config->dpi, c->real_bounds.h),
+                                             client->mouse_current_x, client->mouse_current_y);
+        bool on_top_edge = bounds_contains(
+                Bounds(c->real_bounds.x, c->real_bounds.y - 1, c->real_bounds.w, config->dpi * 6),
+                client->mouse_current_x, client->mouse_current_y);
+        ((PaneDragData *) c->user_data)->dragging = on_right_edge || on_top_edge;
+        if (auto c = client_by_name(app, "app_menu")) {
+            if (auto live_scroll = container_by_name("live_scroll", c->root)) {
+                ((ScrollContainer *) live_scroll)->scrollbar_openess = 0;
+                ((ScrollContainer *) live_scroll)->scrollbar_visible = 0;
+            }
+        }
+        root_dragged(client, cr, c);
+    };
+    root_hbox->when_drag = root_dragged;
+    root_hbox->when_drag_end = [](AppClient *client, cairo_t *cr, Container *c) {
+        ((PaneDragData *) c->user_data)->dragging = false;
+        root_dragged(client, cr, c);
+        client->cursor_type = XC_left_ptr;
+        set_cursor(app, app->screen, client, "left_ptr", XC_left_ptr);
+    };
+    root_hbox->user_data = new PaneDragData;
     Container *stack = root_hbox->child(::stack, 320 * config->dpi, FILL_SPACE);
     
     // settings.w = 660 * config->dpi;
@@ -2750,7 +2857,7 @@ void start_app_menu(bool autoclose) {
     } else {
         settings.w = 320 * config->dpi;
     }
-    settings.h = 641 * config->dpi;
+    settings.h = winbar_settings->start_menu_height * config->dpi;
     settings.x = app->bounds.x;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     if (auto *taskbar = client_by_name(app, "taskbar")) {

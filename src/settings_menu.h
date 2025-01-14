@@ -26,6 +26,7 @@ struct WinbarSettings {
     std::string date_style = "windows 11 detailed";
     PangoAlignment date_alignment = PangoAlignment::PANGO_ALIGN_CENTER;
     int date_size = 9;
+    int start_menu_height = 641;
     bool battery_expands_on_hover = true;
     bool battery_label_always_on = false;
     bool volume_expands_on_hover = true;
