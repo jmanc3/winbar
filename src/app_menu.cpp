@@ -95,6 +95,7 @@ struct LiveTileData : LiveTileItemType {
 
 // when we open the power sub menu, the left sliding menu needs to be locked
 static bool left_locked = false;
+static bool search_field_existed = false;
 
 static void
 paint_live_tile(AppClient *client, cairo_t *cr, Container *container);
@@ -2058,7 +2059,19 @@ fill_root(AppClient *client) {
         root_dragged(client, cr, c);
         client->cursor_type = XC_left_ptr;
         set_cursor(app, app->screen, client, "left_ptr", XC_left_ptr);
+        auto before = search_field_existed;
+        if (auto taskbar = client_by_name(app, "taskbar")) {
+            if (auto c = container_by_name("field_search", taskbar->root)) {
+                before = c->exists;
+                c->exists = search_field_existed;
+            }
+        }
         save_settings_file();
+        if (auto taskbar = client_by_name(app, "taskbar")) {
+            if (auto c = container_by_name("field_search", taskbar->root)) {
+                c->exists = before;
+            }
+        }
     };
     root_hbox->user_data = new PaneDragData;
     Container *stack = root_hbox->child(::stack, 320 * config->dpi, FILL_SPACE);
@@ -2914,6 +2927,11 @@ void start_app_menu(bool autoclose) {
         client->limit_fps = false;
         
         client->when_closed = app_menu_closed;
+        if (auto c = container_by_name("field_search", taskbar->root)) {
+            search_field_existed = c->exists;
+        } else {
+            search_field_existed = false;
+        }
         if (winbar_settings->open_start_menu_on_bottom_left_hover &&
             (autoclose && winbar_settings->autoclose_start_menu_if_hover_opened)) {
             app_timeout_create(app, client, 100, [](App *app, AppClient *, Timeout *timeout, void *) {
