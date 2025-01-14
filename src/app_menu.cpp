@@ -899,7 +899,7 @@ possibly_resize_after_pin_unpin() {
     } else {
         w = 320 * config->dpi;
     }
-    int h = 641 * config->dpi;
+    int h = winbar_settings->start_menu_height * config->dpi;
     int x = app->bounds.x;
     int y = app->bounds.h - h - config->taskbar_height;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
@@ -2012,7 +2012,14 @@ fill_root(AppClient *client) {
                 client->cursor_type = XC_sb_v_double_arrow;
                 set_cursor(app, app->screen, client, "sb_v_double_arrow", XC_sb_v_double_arrow);
             } else {
-                if (client->cursor_type == XC_sb_h_double_arrow)
+                bool any_pinned = false;
+                for (auto l: launchers) {
+                    if (l->get_pinned()) {
+                        any_pinned = true;
+                        break;
+                    }
+                }
+                if (client->cursor_type == XC_sb_h_double_arrow || !winbar_settings->allow_live_tiles || !any_pinned)
                     return;
                 client->cursor_type = XC_sb_h_double_arrow;
                 set_cursor(app, app->screen, client, "sb_h_double_arrow", XC_sb_h_double_arrow);
@@ -2026,14 +2033,24 @@ fill_root(AppClient *client) {
         bool on_top_edge = bounds_contains(
                 Bounds(c->real_bounds.x, c->real_bounds.y - 1, c->real_bounds.w, config->dpi * 6),
                 client->mouse_current_x, client->mouse_current_y);
-        ((PaneDragData *) c->user_data)->dragging = on_right_edge || on_top_edge;
-        if (auto c = client_by_name(app, "app_menu")) {
-            if (auto live_scroll = container_by_name("live_scroll", c->root)) {
-                ((ScrollContainer *) live_scroll)->scrollbar_openess = 0;
-                ((ScrollContainer *) live_scroll)->scrollbar_visible = 0;
+        bool any_pinned = false;
+        for (auto l: launchers) {
+            if (l->get_pinned()) {
+                any_pinned = true;
+                break;
             }
         }
-        root_dragged(client, cr, c);
+        ((PaneDragData *) c->user_data)->dragging =
+                (on_right_edge && winbar_settings->allow_live_tiles && any_pinned) || on_top_edge;
+        if (((PaneDragData *) c->user_data)->dragging) {
+            if (auto c = client_by_name(app, "app_menu")) {
+                if (auto live_scroll = container_by_name("live_scroll", c->root)) {
+                    ((ScrollContainer *) live_scroll)->scrollbar_openess = 0;
+                    ((ScrollContainer *) live_scroll)->scrollbar_visible = 0;
+                }
+            }
+            root_dragged(client, cr, c);
+        }
     };
     root_hbox->when_drag = root_dragged;
     root_hbox->when_drag_end = [](AppClient *client, cairo_t *cr, Container *c) {
