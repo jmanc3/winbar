@@ -73,19 +73,30 @@ void fine_scrollpane_scrolled(AppClient *client,
         auto *scroll = (ScrollContainer *) container;
         
         long current_time = get_current_time_in_ms();
-        auto diff = current_time - scroll->previous_time_scrolled;
+        double ms_between_scroll = current_time - scroll->previous_time_scrolled;
         scroll->previous_time_scrolled = current_time;
-        if (diff > 140) {
-            diff = 140;
-        } else if (diff < 100) {
-            diff = 100;
+        if (ms_between_scroll > 300) {
+            scroll->previous_delta_diff = -1;
+            ms_between_scroll = 300;
         }
         
-        client_create_animation(client->app, client, &container->scroll_v_visual, container->lifetime, 0, diff,
-                                getEasingFunction(EaseOutQuad),
+        double anim_time = 140;
+        if (scroll->previous_delta_diff != -1) {
+            if (scroll->previous_delta_diff < ms_between_scroll) { // we slowed
+                anim_time = 200;
+            } else if (scroll->previous_delta_diff >= ms_between_scroll) { // we sped up
+                anim_time = 100;
+            }
+        }
+        scroll->previous_delta_diff = ms_between_scroll;
+       
+        client_create_animation(client->app, client, &container->scroll_v_visual, container->lifetime, 0,
+                                anim_time,
+                                getEasingFunction(EaseOutCubic),
                                 container->scroll_v_real, true);
-        client_create_animation(client->app, client, &container->scroll_h_visual, container->lifetime, 0, diff,
-                                getEasingFunction(EaseOutQuad),
+        client_create_animation(client->app, client, &container->scroll_h_visual, container->lifetime, 0,
+                                anim_time,
+                                getEasingFunction(EaseInOutSine),
                                 container->scroll_h_real, true);
     } else {
         container->scroll_h_visual = container->scroll_h_real;
@@ -303,62 +314,6 @@ paint_show(AppClient *client, cairo_t *cr, Container *container) {
                     container->real_bounds.y + container->real_bounds.h - 1,
                     container->real_bounds.w,
                     1);
-    cairo_fill(cr);
-}
-
-static void
-paint_show_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    paint_show(client, cr, container);
-    
-    auto right = right_thumb_bounds(container->parent->parent, container->real_bounds);
-    
-    if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, ArgbColor(0, 0, 0, .3));
-        } else {
-            set_argb(cr, ArgbColor(0, 0, 0, .1));
-        }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
-    }
-    
-    if (container->parent->active)
-        set_argb(cr, ArgbColor(1, 0, 1, 1));
-    else
-        set_argb(cr, ArgbColor(0, 1, 1, 1));
-    
-    set_rect(cr, right);
-    cairo_fill(cr);
-}
-
-static void
-paint_show_bottom_thumb(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    paint_show(client, cr, container);
-    
-    auto bottom = bottom_thumb_bounds(container->parent->parent, container->real_bounds);
-    
-    if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, ArgbColor(0, 0, 0, .3));
-        } else {
-            set_argb(cr, ArgbColor(0, 0, 0, .1));
-        }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
-    }
-    
-    if (container->parent->active)
-        set_argb(cr, ArgbColor(1, 0, 1, 1));
-    else
-        set_argb(cr, ArgbColor(0, 1, 1, 1));
-    
-    set_rect(cr, bottom);
     cairo_fill(cr);
 }
 

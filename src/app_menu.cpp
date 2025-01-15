@@ -644,27 +644,6 @@ right_content_handles_pierced(Container *container, int x, int y) {
     return bounds_contains(container->real_bounds, x, y);
 }
 
-void scrolled_content_area(AppClient *client,
-                           cairo_t *cr,
-                           Container *container,
-                           int scroll_x,
-                           int scroll_y,
-                           bool came_from_touchpad) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    if (auto *client = client_by_name(app, "app_menu")) {
-        if (auto *container = container_by_name("left_buttons", client->root)) {
-            if (bounds_contains(
-                    container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
-                return;
-            }
-        }
-    }
-    
-    fine_scrollpane_scrolled(client, cr, container, scroll_x, scroll_y, came_from_touchpad);
-}
-
 static void
 clicked_start_button(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
@@ -2174,7 +2153,6 @@ fill_root(AppClient *client) {
     
     ScrollPaneSettings settings(config->dpi);
     ScrollContainer *scroll = make_newscrollpane_as_child(app_list_container, settings);
-    scroll->when_fine_scrolled = scrolled_content_area;
     scroll->name = "scroll_pane";
     scroll->content->wanted_pad = Bounds(13 * config->dpi, 8 * config->dpi, (settings.right_width / 2) * config->dpi,
                                          54 * config->dpi);
