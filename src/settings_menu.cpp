@@ -1092,32 +1092,36 @@ fill_root(AppClient *client, Container *root) {
     
     auto winbar_behaviour_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     winbar_behaviour_root->exists = false;
-    title("Winbar Behaviour", winbar_behaviour_root);
-    bool_checkbox("Thumbnails", &winbar_settings->thumbnails, winbar_behaviour_root, client);
-    bool_checkbox("Battery warning notifications", &winbar_settings->battery_notifications, winbar_behaviour_root,
+    
+    ScrollPaneSettings ss(config->dpi);
+    auto scroll_container = make_newscrollpane_as_child(winbar_behaviour_root, ss);
+    auto scroll_root = scroll_container->content;
+    title("Winbar Behaviour", scroll_root);
+    bool_checkbox("Thumbnails", &winbar_settings->thumbnails, scroll_root, client);
+    bool_checkbox("Battery warning notifications", &winbar_settings->battery_notifications, scroll_root,
                   client);
-    bool_checkbox("Pinned icons shortcuts: Meta+[0-9]", &winbar_settings->pinned_icon_shortcut, winbar_behaviour_root,
+    bool_checkbox("Pinned icons shortcuts: Meta+[0-9]", &winbar_settings->pinned_icon_shortcut, scroll_root,
                   client);
-    bool_checkbox("Allow live tiles", &winbar_settings->allow_live_tiles, winbar_behaviour_root, client);
+    bool_checkbox("Allow live tiles", &winbar_settings->allow_live_tiles, scroll_root, client);
     bool_checkbox("Open start menu on mouse moved to corner", &winbar_settings->open_start_menu_on_bottom_left_hover,
-                  winbar_behaviour_root, client);
+                  scroll_root, client);
     bool_checkbox_indent("Autoclose on mouse leaves area", 16 * config->dpi,
-                         &winbar_settings->autoclose_start_menu_if_hover_opened, winbar_behaviour_root, client);
-    bool_checkbox("Clicking icon cycles to next window", &winbar_settings->click_icon_tab_next_window, winbar_behaviour_root, client);
+                         &winbar_settings->autoclose_start_menu_if_hover_opened, scroll_root, client);
+    bool_checkbox("Clicking icon cycles to next window", &winbar_settings->click_icon_tab_next_window, scroll_root, client);
     string_textfield("Custom desktop files location: ", &winbar_settings->custom_desktops_directory,
-                     winbar_behaviour_root, client);
+                     scroll_root, client);
     bool_checkbox_indent("Make directory the exclusive source for desktop files", 16 * config->dpi,
-                         &winbar_settings->custom_desktops_directory_exclusive, winbar_behaviour_root, client);
-    bool_checkbox("Ignore 'Only Show In' instruction in desktop files", &winbar_settings->ignore_only_show_in, winbar_behaviour_root, client);
-    bool_checkbox("Meter animations in volume menu", &winbar_settings->meter_animations, winbar_behaviour_root, client);
-    bool_checkbox("Use default super icon", &winbar_settings->super_icon_default, winbar_behaviour_root, client);
-    bool_checkbox("Labels", &winbar_settings->labels, winbar_behaviour_root, client);
+                         &winbar_settings->custom_desktops_directory_exclusive, scroll_root, client);
+    bool_checkbox("Ignore 'Only Show In' instruction in desktop files", &winbar_settings->ignore_only_show_in, scroll_root, client);
+    bool_checkbox("Meter animations in volume menu", &winbar_settings->meter_animations, scroll_root, client);
+    bool_checkbox("Use default super icon", &winbar_settings->super_icon_default, scroll_root, client);
+    bool_checkbox("Labels", &winbar_settings->labels, scroll_root, client);
     bool_checkbox_indent("Uniform pinned icon width", 16 * config->dpi,
-                         &winbar_settings->label_uniform_size, winbar_behaviour_root, client);
-    bool_checkbox("Icon minimize/maximize bounce animation", &winbar_settings->minimize_maximize_animation, winbar_behaviour_root, client);
-    string_textfield("Shutdown command: ", &winbar_settings->shutdown_command, winbar_behaviour_root, client, "pkexec shutdown -P now");
-    winbar_behaviour_root->child(FILL_SPACE, 6 * config->dpi);
-    string_textfield("Restart command: ", &winbar_settings->restart_command, winbar_behaviour_root, client, "pkexec reboot");
+                         &winbar_settings->label_uniform_size, scroll_root, client);
+    bool_checkbox("Icon minimize/maximize bounce animation", &winbar_settings->minimize_maximize_animation, scroll_root, client);
+    string_textfield("Shutdown command: ", &winbar_settings->shutdown_command, scroll_root, client, "pkexec shutdown -P now");
+    scroll_root->child(FILL_SPACE, 6 * config->dpi);
+    string_textfield("Restart command: ", &winbar_settings->restart_command, scroll_root, client, "pkexec reboot");
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     other_root->exists = false;
