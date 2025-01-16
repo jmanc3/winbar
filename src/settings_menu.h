@@ -27,6 +27,7 @@ struct WinbarSettings {
     PangoAlignment date_alignment = PangoAlignment::PANGO_ALIGN_CENTER;
     int date_size = 9;
     int start_menu_height = 641;
+    int extra_live_tile_pages = 0;
     bool battery_expands_on_hover = true;
     bool battery_label_always_on = false;
     bool volume_expands_on_hover = true;

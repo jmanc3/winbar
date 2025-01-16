@@ -910,6 +910,7 @@ static void clicked_reset(AppClient *client, cairo_t *, Container *) {
     winbar_settings->date_style = "windows 11 detailed";
     winbar_settings->date_size = 9;
     winbar_settings->start_menu_height = 641;
+    winbar_settings->extra_live_tile_pages = 0;
     if (auto *c = client_by_name(app, "settings_menu")) {
         if (auto *con = container_by_name("size_field", c->root)) {
             auto *field_data = (FieldData *) con->user_data;
@@ -1333,8 +1334,12 @@ void save_settings_file() {
     out_file << "date_size=\"" << std::to_string(winbar_settings->date_size) << "\"";
     out_file << std::endl << std::endl;
 
-    // Date style
+    // Start menu height
     out_file << "start_menu_height=\"" << std::to_string(winbar_settings->start_menu_height) << "\"";
+    out_file << std::endl << std::endl;
+
+    // Extra live tile pages
+    out_file << "extra_live_tile_pages=\"" << std::to_string(winbar_settings->extra_live_tile_pages) << "\"";
     out_file << std::endl << std::endl;
     
     out_file << "show_agenda=" << (winbar_settings->show_agenda ? "true" : "false");
@@ -1599,6 +1604,20 @@ void read_settings_file() {
                         try {
                             int height = std::atoi(text.c_str());
                             winbar_settings->start_menu_height = height;
+                        } catch (...) {
+                        
+                        }
+                    }
+                }
+            } else if (key == "extra_live_tile_pages") {
+                parser.until(LineParser::Token::IDENT);
+                if (parser.current_token == LineParser::Token::IDENT) {
+                    std::string text = parser.until(LineParser::Token::END_OF_LINE);
+                    trim(text);
+                    if (!text.empty()) {
+                        try {
+                            int extra_pages = std::atoi(text.c_str());
+                            winbar_settings->extra_live_tile_pages = extra_pages;
                         } catch (...) {
                         
                         }

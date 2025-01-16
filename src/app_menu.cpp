@@ -644,6 +644,31 @@ right_content_handles_pierced(Container *container, int x, int y) {
     return bounds_contains(container->real_bounds, x, y);
 }
 
+static int
+app_menu_width() {
+    bool any_pinned = false;
+    for (auto l: launchers) {
+        if (l->get_pinned()) {
+            any_pinned = true;
+            break;
+        }
+    }
+    if (!winbar_settings->allow_live_tiles)
+        any_pinned = false;
+    if (any_pinned) {
+		int total_w = 320 * config->dpi + (342 * config->dpi) + (342 * config->dpi * winbar_settings->extra_live_tile_pages);
+		bool will_save = false;
+		while (total_w >= app->screen->width_in_pixels && winbar_settings->extra_live_tile_pages >= 1) {
+			total_w -= 342 * config->dpi;
+			winbar_settings->extra_live_tile_pages -= 1;
+			will_save = true;
+		}
+        return total_w;
+    } else {
+        return 320 * config->dpi;
+    }
+}
+
 static void
 clicked_start_button(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
@@ -864,21 +889,7 @@ possibly_resize_after_pin_unpin() {
     uint32_t value_mask =
             XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
     
-    bool any_pinned = false;
-    for (auto l: launchers) {
-        if (l->get_pinned()) {
-            any_pinned = true;
-            break;
-        }
-    }
-    if (!winbar_settings->allow_live_tiles)
-        any_pinned = false;
-    int w = 0;
-    if (any_pinned) {
-        w = 662 * config->dpi;
-    } else {
-        w = 320 * config->dpi;
-    }
+    int w = app_menu_width();
     int h = winbar_settings->start_menu_height * config->dpi;
     int x = app->bounds.x;
     int y = app->bounds.h - h - config->taskbar_height;
@@ -1936,7 +1947,7 @@ root_dragged(AppClient *client, cairo_t *, Container *c) {
         xcb_configure_window(app->connection, client->window, XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_HEIGHT,
                              value_list_resize);
     } else {
-        int w;
+        int w = 0;
         bool any_pinned = false;
         for (auto l: launchers) {
             if (l->get_pinned()) {
@@ -1951,6 +1962,7 @@ root_dragged(AppClient *client, cairo_t *, Container *c) {
         } else {
             w = 320 * config->dpi;
         }
+        int min_w = w;
         if (global_x - client->bounds->x >= w) {
             w = global_x - client->bounds->x;
         }
@@ -1958,6 +1970,7 @@ root_dragged(AppClient *client, cairo_t *, Container *c) {
                 (uint32_t) (w),
         };
         xcb_configure_window(app->connection, client->window, XCB_CONFIG_WINDOW_WIDTH, value_list_resize);
+        winbar_settings->extra_live_tile_pages = std::round((double) (w - min_w) / (342 * config->dpi));
     }
 }
 
@@ -2038,19 +2051,9 @@ fill_root(AppClient *client) {
         root_dragged(client, cr, c);
         client->cursor_type = XC_left_ptr;
         set_cursor(app, app->screen, client, "left_ptr", XC_left_ptr);
-        auto before = search_field_existed;
-        if (auto taskbar = client_by_name(app, "taskbar")) {
-            if (auto c = container_by_name("field_search", taskbar->root)) {
-                before = c->exists;
-                c->exists = search_field_existed;
-            }
-        }
-        save_settings_file();
-        if (auto taskbar = client_by_name(app, "taskbar")) {
-            if (auto c = container_by_name("field_search", taskbar->root)) {
-                c->exists = before;
-            }
-        }
+
+        possibly_resize_after_pin_unpin();
+        request_refresh(app, client);
     };
     root_hbox->user_data = new PaneDragData;
     Container *stack = root_hbox->child(::stack, 320 * config->dpi, FILL_SPACE);
@@ -2453,7 +2456,19 @@ app_menu_closed(AppClient *client) {
      }
     left_open_fd = nullptr;
     set_textarea_inactive();
-    
+    auto before = search_field_existed;
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        if (auto c = container_by_name("field_search", taskbar->root)) {
+            before = c->exists;
+            c->exists = search_field_existed;
+        }
+    }
+    save_settings_file();
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        if (auto c = container_by_name("field_search", taskbar->root)) {
+            c->exists = before;
+        }
+    }
     save_live_tiles();
 }
 
@@ -2852,20 +2867,7 @@ void start_app_menu(bool autoclose) {
     
     Settings settings;
     settings.force_position = true;
-    bool any_pinned = false;
-    for (auto l: launchers) {
-        if (l->get_pinned()) {
-            any_pinned = true;
-            break;
-        }
-    }
-    if (!winbar_settings->allow_live_tiles)
-        any_pinned = false;
-    if (any_pinned) {
-        settings.w = 662 * config->dpi;
-    } else {
-        settings.w = 320 * config->dpi;
-    }
+	settings.w = app_menu_width();
     settings.h = winbar_settings->start_menu_height * config->dpi;
     settings.x = app->bounds.x;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
