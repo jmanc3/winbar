@@ -925,17 +925,24 @@ adjust_volume_based_on_fine_scroll(AudioClient *audio_client, AppClient *client,
     if (came_from_touchpad) {
         audio_client->cached_volume += vertical_scroll / 2400.0;
     } else {
-        if (vertical_scroll > 0) {
-            audio_client->cached_volume += .05;
-        } else if (vertical_scroll < 0) {
-            audio_client->cached_volume -= .05;
-        }
+        // When changing volume with mouse, round to next, 0, 5, 3, or 7
+        int full = ((int) (audio_client->cached_volume * 100));
+        int last_digit;
+        do {
+            if (vertical_scroll > 0) {
+                full++;
+            } else if (vertical_scroll < 0) {
+                full--;
+            }
+            last_digit = full % 10;
+        } while (!(last_digit == 0 || last_digit == 3 || last_digit == 5 || last_digit == 7));
+        
+        audio_client->cached_volume = ((double) full) / 100.0;
     }
     
     audio_client->cached_volume =
             audio_client->cached_volume < 0 ? 0 : audio_client->cached_volume > 1 ? 1 : audio_client->cached_volume;
 
-//    if (((int) std::round(current_volume * 100)) != ((int) std::round(audio_client->cached_volume * 100))) {
     if (current_volume != audio_client->cached_volume) {
         if (audio_client->is_muted())
             audio_client->set_mute(false);
