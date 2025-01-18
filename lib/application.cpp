@@ -1555,7 +1555,8 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
     if (!valid_client(app, client)) {
         return;
     }
-    if (client->previous_x == x && client->previous_y == y)
+    // Disabled because of scrolls
+    if (false && client->previous_x == x && client->previous_y == y)
         return;
     client->previous_x = client->mouse_current_x;
     client->previous_y = client->mouse_current_y;

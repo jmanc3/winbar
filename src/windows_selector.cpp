@@ -395,9 +395,10 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     auto pii = (PinnedIconInfo *) client_entity->root->user_data;
     if (pii->icon_surface != nullptr) {
+        auto height = cairo_image_surface_get_height(pii->icon_surface);
         cairo_set_source_surface(cr, pii->icon_surface,
                                  container->real_bounds.x + (8 * config->dpi),
-                                 container->real_bounds.y + (8 * config->dpi));
+                                 container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
         cairo_paint(cr);
     }
     
@@ -670,6 +671,9 @@ void start_windows_selector(Container *container, selector_type selector_state) 
     option_pad = 8 * config->dpi;
     close_width = 32 * config->dpi;
     close_height = 32 * config->dpi;
+    if (!winbar_settings->thumbnails) {
+        close_height = 42 * config->dpi;
+    }
     
     if (auto c = client_by_name(app, "windows_selector")) {
         client_close(app, c);
