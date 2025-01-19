@@ -4964,6 +4964,33 @@ void add_window(App *app, xcb_window_t window) {
     if (is_ours && skip_taskbar)
         return;
     
+    xcb_generic_error_t *err = nullptr;
+    cookie = xcb_get_property(app->connection, 0, window, get_cached_atom(app, "_NET_WM_STATE"), XCB_ATOM_ATOM, 0,
+                              BUFSIZ);
+    xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, &err);
+    if (reply) {
+        if (reply->type == XCB_ATOM_ATOM) {
+            xcb_atom_t *state_atoms = (xcb_atom_t *) xcb_get_property_value(reply);
+            for (unsigned int a = 0; a < reply->length; a++) {
+                // TODO: on first launch xterm has this true????
+                if (state_atoms[a] == get_cached_atom(app, "_NET_WM_STATE_SKIP_TASKBAR")) {
+                    free(reply);
+                    return;
+                } else if (state_atoms[a] == get_cached_atom(app, "_NET_WM_STATE_SKIP_PAGER")) {
+                    free(reply);
+                    return;
+                } else if (state_atoms[a] ==
+                           get_cached_atom(app, "_NET_WM_STATE_DEMANDS_ATTENTION")) {
+                }
+            }
+        }
+        free(reply);
+    }
+    if (err) {
+        free(err);
+        err = nullptr;
+    }
+    
     auto cookie_get_wm_desktop = xcb_ewmh_get_wm_desktop(&app->ewmh, window);
     uint32_t desktop = 0;
     xcb_ewmh_get_wm_desktop_from_reply(&desktop, NULL);
@@ -5039,33 +5066,6 @@ void add_window(App *app, xcb_window_t window) {
             request_refresh(app, client);
             return;
         }
-    }
-    
-    xcb_generic_error_t *err = nullptr;
-    cookie = xcb_get_property(app->connection, 0, window, get_cached_atom(app, "_NET_WM_STATE"), XCB_ATOM_ATOM, 0,
-                              BUFSIZ);
-    xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, &err);
-    if (reply) {
-        if (reply->type == XCB_ATOM_ATOM) {
-            xcb_atom_t *state_atoms = (xcb_atom_t *) xcb_get_property_value(reply);
-            for (unsigned int a = 0; a < reply->length; a++) {
-                // TODO: on first launch xterm has this true????
-                if (state_atoms[a] == get_cached_atom(app, "_NET_WM_STATE_SKIP_TASKBAR")) {
-                    free(reply);
-                    return;
-                } else if (state_atoms[a] == get_cached_atom(app, "_NET_WM_STATE_SKIP_PAGER")) {
-                    free(reply);
-                    return;
-                } else if (state_atoms[a] ==
-                           get_cached_atom(app, "_NET_WM_STATE_DEMANDS_ATTENTION")) {
-                }
-            }
-        }
-        free(reply);
-    }
-    if (err) {
-        free(err);
-        err = nullptr;
     }
     
     if (!is_ours) {
