@@ -78,16 +78,16 @@ void fine_scrollpane_scrolled(AppClient *client,
         double ms_between_scroll = current_time - scroll->previous_time_scrolled;
         scroll->previous_time_scrolled = current_time;
         easingFunction ease = nullptr;
-        double anim_time = 79;
+        double anim_time = 100;
         bool not_first = true;
         if (ms_between_scroll > 300) {
             not_first = false;
             scroll->previous_delta_diff = -1;
             ms_between_scroll = 0;
-            ease = getEasingFunction(EaseInSine);
-            anim_time = 180;
+            ease = getEasingFunction(EaseOutCubic);
+            anim_time = 220;
         } else {
-            ease = nullptr;
+            ease = getEasingFunction(EaseInSine);
         }
         ms_between = current_time;
         
@@ -108,8 +108,9 @@ void fine_scrollpane_scrolled(AppClient *client,
                     double *visual = (double *) data;
                     for (auto &item: c->animations) {
                         if (item.value == visual) {
-                            item.length = 160;
-                            item.easing = getEasingFunction(EaseInSine);
+                            item.start_value = *item.value;
+                            item.easing = getEasingFunction(EaseOutCubic);
+                            item.length = 210;
                         }
                     }
                 }
