@@ -50,6 +50,8 @@ void scrollpane_scrolled(AppClient *client,
     ::layout(client, cr, container, container->real_bounds);
 }
 
+static long ms_between = 0;
+
 void fine_scrollpane_scrolled(AppClient *client,
                               cairo_t *cr,
                               Container *container,
@@ -75,24 +77,49 @@ void fine_scrollpane_scrolled(AppClient *client,
         long current_time = get_current_time_in_ms();
         double ms_between_scroll = current_time - scroll->previous_time_scrolled;
         scroll->previous_time_scrolled = current_time;
+        easingFunction ease = nullptr;
+        double anim_time = 79;
+        bool not_first = true;
         if (ms_between_scroll > 300) {
+            not_first = false;
             scroll->previous_delta_diff = -1;
-            ms_between_scroll = 300;
+            ms_between_scroll = 0;
+            ease = getEasingFunction(EaseInSine);
+            anim_time = 180;
+        } else {
+            ease = nullptr;
         }
+        ms_between = current_time;
         
-        double anim_time = 140;
-        if (scroll->previous_delta_diff != -1) {
-            if (scroll->previous_delta_diff < ms_between_scroll) { // we slowed
-                anim_time = 200;
-            } else if (scroll->previous_delta_diff >= ms_between_scroll) { // we sped up
-                anim_time = 100;
+        bool need_timeout = true;
+        for (auto &item: client->app->timeouts) {
+            if (item->user_data == &container->scroll_v_visual) {
+                need_timeout = false;
+                break;
             }
+        }
+        if (need_timeout && not_first) {
+            app_timeout_create(client->app, client, 5, [](App *, AppClient *c, Timeout *timeout, void *data) {
+                timeout->keep_running = true;
+                auto current = get_current_time_in_ms();
+                if (current - ms_between > 35) {
+                    timeout->kill = true;
+                    timeout->keep_running = false;
+                    double *visual = (double *) data;
+                    for (auto &item: c->animations) {
+                        if (item.value == visual) {
+                            item.length = 160;
+                            item.easing = getEasingFunction(EaseInSine);
+                        }
+                    }
+                }
+            }, &container->scroll_v_visual, "keep checking if scroll sequence ended");
         }
         scroll->previous_delta_diff = ms_between_scroll;
        
         client_create_animation(client->app, client, &container->scroll_v_visual, container->lifetime, 0,
                                 anim_time,
-                                getEasingFunction(EaseOutCubic),
+                                ease,
                                 container->scroll_v_real, true);
         client_create_animation(client->app, client, &container->scroll_h_visual, container->lifetime, 0,
                                 anim_time,
