@@ -325,7 +325,7 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
     
     if (!root_message.empty()) {
         PangoLayout *layout =
-                get_cached_pango_font(cr, config->font, 12, PangoWeight::PANGO_WEIGHT_BOLD);
+                get_cached_pango_font(cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
         
         pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
         pango_layout_set_width(layout, (container->real_bounds.w - 40) * PANGO_SCALE);
@@ -398,7 +398,8 @@ void start_wifi_menu() {
             wifi_networks_and_cached_scan(cached_scan_results);
             wifi_scan(uncached_scan_results);
         } else {
-            root_message = "WIFI menu is not fully implemented yet";
+            root_message = "Couldn't establish communication with wpa_supplicant";
+//            root_message = "WIFI menu is not fully implemented yet";
             auto data = (RootScanAnimationData *) client->root->user_data;
             data->running = false;
         }
