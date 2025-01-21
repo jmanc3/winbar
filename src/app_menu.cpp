@@ -457,52 +457,13 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     
     auto *data = (ItemData *) container->user_data;
     
-    {
-        auto default_color = config->color_taskbar_button_default;
-        auto hovered_color = config->color_taskbar_button_hovered;
-        auto pressed_color = config->color_taskbar_button_pressed;
-        
-        auto e = getEasingFunction(easing_functions::EaseOutQuad);
-        double time = 0;
-        if (container->state.mouse_pressing || container->state.mouse_hovering) {
-            if (container->state.mouse_pressing) {
-                if (data->previous_state != 2) {
-                    time = 20;
-                    data->previous_state = 2;
-                    client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e,
-                                            pressed_color.r);
-                    client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e,
-                                            pressed_color.g);
-                    client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e,
-                                            pressed_color.b);
-                    client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e,
-                                            pressed_color.a);
-                }
-            } else if (data->previous_state != 1) {
-                time = 30;
-                data->previous_state = 1;
-                client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e, hovered_color.r);
-                client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e, hovered_color.g);
-                client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e, hovered_color.b);
-                client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e, hovered_color.a);
-            }
-        } else if (data->previous_state != 0) {
-            time = 50;
-            data->previous_state = 0;
-            e = getEasingFunction(easing_functions::EaseInCirc);
-            client_create_animation(app, client, &data->color.r, data->color.lifetime, 0, time, e, default_color.r);
-            client_create_animation(app, client, &data->color.g, data->color.lifetime, 0, time, e, default_color.g);
-            client_create_animation(app, client, &data->color.b, data->color.lifetime, 0, time, e, default_color.b);
-            client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e, default_color.a);
+    if (container->state.mouse_hovering || container->state.mouse_pressing) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_apps_pressed_item);
+        } else {
+            set_argb(cr, config->color_apps_hovered_item);
         }
-        
-        set_argb(cr, data->color);
-        
-        cairo_rectangle(cr,
-                        container->real_bounds.x,
-                        container->real_bounds.y,
-                        container->real_bounds.w,
-                        container->real_bounds.h);
+        set_rect(cr, container->real_bounds);
         cairo_fill(cr);
     }
     

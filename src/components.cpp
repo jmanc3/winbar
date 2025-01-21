@@ -70,7 +70,7 @@ void fine_scrollpane_scrolled(AppClient *client,
         container->scroll_h_real += scroll_x;
         container->scroll_v_real += scroll_y;
     }
-#define SCALE 1.1
+#define SCALE 1.00
     
     if (container->type == newscroll && !came_from_touchpad) {
         auto *scroll = (ScrollContainer *) container;
