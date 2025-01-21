@@ -70,7 +70,7 @@ void fine_scrollpane_scrolled(AppClient *client,
         container->scroll_h_real += scroll_x;
         container->scroll_v_real += scroll_y;
     }
-#define SCALE 1.00
+#define SCALE 1.8
     
     if (container->type == newscroll && !came_from_touchpad) {
         auto *scroll = (ScrollContainer *) container;
@@ -78,18 +78,13 @@ void fine_scrollpane_scrolled(AppClient *client,
         long current_time = get_current_time_in_ms();
         double ms_between_scroll = current_time - scroll->previous_time_scrolled;
         scroll->previous_time_scrolled = current_time;
-        easingFunction ease = nullptr;
-        double anim_time = 100;
         bool not_first = true;
         if (ms_between_scroll > 300) {
             not_first = false;
             scroll->previous_delta_diff = -1;
             scroll->scroll_count = 1;
             ms_between_scroll = 0;
-            ease = getEasingFunction(EaseOutCubic);
-            anim_time = 220;
         } else {
-            ease = getEasingFunction(EaseInSine);
             scroll->scroll_count++;
         }
         ms_between = current_time;
@@ -112,8 +107,8 @@ void fine_scrollpane_scrolled(AppClient *client,
                     for (auto &item: c->animations) {
                         if (item.value == visual) {
                             item.start_value = *item.value;
-                            item.easing = getEasingFunction(EaseOutCubic);
-                            item.length = 100 * SCALE;
+                            item.easing = getEasingFunction(EaseOutQuad);
+                            item.length = 130 * SCALE;
                             item.start_time = current;
                         }
                     }
@@ -122,12 +117,22 @@ void fine_scrollpane_scrolled(AppClient *client,
         }
         scroll->previous_delta_diff = ms_between_scroll;
        
-        ease = nullptr;
-        auto scalar = 1 - (((double) std::abs(7 - scroll->scroll_count)) / 7.0);
-        if (scalar < 0)
+        easingFunction ease = nullptr;
+        auto scalar = ((double) std::abs(7.5 - scroll->scroll_count)) / 7.5;
+        if (scalar < 1) {
             scalar = 0;
-        scalar = getEasingFunction(EaseInQuad)(scalar);
-        anim_time = 50 + (scalar * 70);
+        } else {
+            scalar -= 1;
+            if (scalar > 1) {
+                scalar = 1;
+            }
+            scalar = getEasingFunction(EaseOutCubic)(scalar);
+        }
+        double anim_time = 50 - (14 * scalar);
+        if (!not_first) {
+            ease = getEasingFunction(EaseInSine);
+            anim_time = 140;
+        }
         client_create_animation(client->app, client, &container->scroll_v_visual, container->lifetime, 0,
                                 anim_time * SCALE,
                                 ease,
