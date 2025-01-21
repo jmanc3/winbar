@@ -579,6 +579,7 @@ struct ScrollContainer : public Container {
     Container *bottom = nullptr;
     long previous_time_scrolled = 0;
     long previous_delta_diff = -1;
+    int scroll_count = 0;
     ScrollPaneSettings settings;
     double scrollbar_openess = 1;
     double scrollbar_visible = 1;

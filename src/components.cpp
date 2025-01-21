@@ -70,6 +70,7 @@ void fine_scrollpane_scrolled(AppClient *client,
         container->scroll_h_real += scroll_x;
         container->scroll_v_real += scroll_y;
     }
+#define SCALE 1.1
     
     if (container->type == newscroll && !came_from_touchpad) {
         auto *scroll = (ScrollContainer *) container;
@@ -83,11 +84,13 @@ void fine_scrollpane_scrolled(AppClient *client,
         if (ms_between_scroll > 300) {
             not_first = false;
             scroll->previous_delta_diff = -1;
+            scroll->scroll_count = 1;
             ms_between_scroll = 0;
             ease = getEasingFunction(EaseOutCubic);
             anim_time = 220;
         } else {
             ease = getEasingFunction(EaseInSine);
+            scroll->scroll_count++;
         }
         ms_between = current_time;
         
@@ -110,7 +113,8 @@ void fine_scrollpane_scrolled(AppClient *client,
                         if (item.value == visual) {
                             item.start_value = *item.value;
                             item.easing = getEasingFunction(EaseOutCubic);
-                            item.length = 210;
+                            item.length = 100 * SCALE;
+                            item.start_time = current;
                         }
                     }
                 }
@@ -118,8 +122,14 @@ void fine_scrollpane_scrolled(AppClient *client,
         }
         scroll->previous_delta_diff = ms_between_scroll;
        
+        ease = nullptr;
+        auto scalar = 1 - (((double) std::abs(7 - scroll->scroll_count)) / 7.0);
+        if (scalar < 0)
+            scalar = 0;
+        scalar = getEasingFunction(EaseInQuad)(scalar);
+        anim_time = 50 + (scalar * 70);
         client_create_animation(client->app, client, &container->scroll_v_visual, container->lifetime, 0,
-                                anim_time,
+                                anim_time * SCALE,
                                 ease,
                                 container->scroll_v_real, true);
         client_create_animation(client->app, client, &container->scroll_h_visual, container->lifetime, 0,
