@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
     // We need to register as the systray
     register_as_systray();
     
-    load_scripts();// The scripts are reloaded every time the search_menu window closes
+    load_scripts(true);// The scripts are reloaded every time the search_menu window closes
     
     // Open our windows
     AppClient *taskbar = create_taskbar(app);

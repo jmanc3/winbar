@@ -116,6 +116,34 @@ void wifi_scan_cached(void (*function_called_when_results_are_returned)(std::vec
     wifi_wpa_parse_scan_results();
 }
 
+void parse_wifi_flags(ScanResult *result) {
+    auto flags = result->flags;
+    int auth, encr = 0;
+    if (flags.find("[WPA2-EAP") != std::string::npos)
+        auth = AUTH_WPA2_EAP;
+    else if (flags.find("[WPA-EAP") != std::string::npos)
+        auth = AUTH_WPA_EAP;
+    else if (flags.find("[WPA2-PSK") != std::string::npos)
+        auth = AUTH_WPA2_PSK;
+    else if (flags.find("[WPA-PSK") != std::string::npos)
+        auth = AUTH_WPA_PSK;
+    else
+        auth = AUTH_NONE_OPEN;
+    
+    if (flags.find("-CCMP") != std::string::npos)
+        encr = 1;
+    else if (flags.find("-TKIP") != std::string::npos)
+        encr = 0;
+    else if (flags.find("WEP") != std::string::npos) {
+        encr = 1;
+        if (auth == AUTH_NONE_OPEN)
+            auth = AUTH_NONE_WEP;
+    } else
+        encr = 0;
+    result->auth = auth;
+    result->encr = encr;
+}
+
 void get_scan_results(std::vector<ScanResult> *results) {
     if (wifi_data->type != 1)
         return;
@@ -171,6 +199,8 @@ void get_scan_results(std::vector<ScanResult> *results) {
             }
             if (duplicate)
                 continue;
+            
+            parse_wifi_flags(&result);
             results->push_back(result);
         }
     }
@@ -220,6 +250,7 @@ void get_network_list(std::vector<ScanResult> *results) {
                 }
                 x++;
             }
+            parse_wifi_flags(&result);
             results->push_back(result);
         }
     }
@@ -260,11 +291,24 @@ void wifi_stop() {
     wifi_data = new WifiData;
 }
 
+
+int set_network_param(int id, const char *field,
+                      const char *value, bool quote) {
+    char reply[10], cmd[256];
+    size_t reply_len;
+    snprintf(cmd, sizeof(cmd), "SET_NETWORK %d %s %s%s%s",
+             id, field, quote ? "\"" : "", value, quote ? "\"" : "");
+    reply_len = sizeof(reply);
+    wpa_ctrl_request(wifi_data->wpa_message_listener, cmd, strlen(cmd),
+                     reply, &reply_len, NULL);
+    return strncmp(reply, "OK", 2) == 0 ? 0 : -1;
+}
+
 void wifi_forget_network(ScanResult scanResult) {
     if (wifi_data->type != 1)
         return;
-    char buf[10000];
-    size_t len = 10000;
+    char buf[1000];
+    size_t len = 1000;
     std::string message = "REMOVE_NETWORK " + std::to_string(scanResult.network_index);
     if (wpa_ctrl_request(wifi_data->wpa_message_listener, message.c_str(), message.length(),
                          buf, &len, NULL) != 0) {

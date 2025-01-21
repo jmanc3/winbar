@@ -25,7 +25,7 @@ void start_search_menu();
 
 void on_key_press_search_bar(xcb_generic_event_t *event);
 
-void load_scripts();
+void load_scripts(bool do_now = false);
 
 void load_historic_apps();
 

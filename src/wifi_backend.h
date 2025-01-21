@@ -10,6 +10,17 @@
 #include <string>
 #include <vector>
 
+enum {
+	AUTH_NONE_OPEN,
+	AUTH_NONE_WEP,
+	AUTH_NONE_WEP_SHARED,
+	AUTH_IEEE8021X,
+	AUTH_WPA_PSK,
+	AUTH_WPA_EAP,
+	AUTH_WPA2_PSK,
+	AUTH_WPA2_EAP
+};
+
 struct ScanResult {
     std::string mac;
     std::string network_name;
@@ -19,6 +30,9 @@ struct ScanResult {
     
     bool saved_network = false;
     int network_index = -1;
+    
+    int auth = AUTH_NONE_OPEN;
+    int encr = 0;
 };
 
 void wifi_start(App *app);

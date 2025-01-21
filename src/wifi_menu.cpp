@@ -43,34 +43,50 @@ paint_option(AppClient *client, cairo_t *cr, Container *container) {
     cairo_fill(cr);
     
     PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
+            get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     std::string message(data->info.network_name);
     pango_layout_set_text(layout, message.data(), message.length());
     
     set_argb(cr, config->color_volume_text);
     cairo_move_to(cr,
-                  container->real_bounds.x + 48,
-                  container->real_bounds.y + 10);
+                  container->real_bounds.x + 48 * config->dpi,
+                  container->real_bounds.y + 10 * config->dpi);
     pango_cairo_show_layout(cr, layout);
     
-    message = data->info.flags + ":" + data->info.mac;
-    pango_layout_set_text(layout, message.data(), message.length());
+    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    set_argb(cr, config->color_volume_text);
+    ArgbColor subtitle_color = config->color_volume_text;
+    subtitle_color.a = .6;
+    set_argb(cr, subtitle_color);
+    
+    if (data->info.saved_network) {
+        pango_layout_set_text(layout, "Saved", -1);
+    } else if (data->info.auth != AUTH_NONE_OPEN) {
+        pango_layout_set_text(layout, "Secured", -1);
+    } else {
+        pango_layout_set_text(layout, "Open", -1);
+    }
     cairo_move_to(cr,
-                  container->real_bounds.x + 48,
-                  container->real_bounds.y + 29);
+                  container->real_bounds.x + 48 * config->dpi,
+                  container->real_bounds.y + 29 * config->dpi);
     pango_cairo_show_layout(cr, layout);
     
-    auto root_data = (RootScanAnimationData *) client->root->user_data;
-/*    dye_surface(root_data->wifi_surface, config->color_taskbar_button_icons);
-    cairo_set_source_surface(
-            cr,
-            root_data->wifi_surface,
-            (int) (container->real_bounds.x + 48 / 2 - 24 / 2),
-            (int) (container->real_bounds.y + WIFI_OPTION_HEIGHT / 2 - 24 / 2));
-    cairo_paint(cr);*/
+    layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 24 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    pango_layout_set_text(layout, "\uE701", strlen("\uE83F"));
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    set_argb(cr, config->color_taskbar_windows_button_default_icon);
+    
+    int width;
+    int height;
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + ((48 * config->dpi) / 2) - width / 2),
+                  (int) (container->real_bounds.y + ((48 * config->dpi) / 2) - width / 2));
+    pango_cairo_show_layout(cr, layout);
 }
 
 static void
@@ -164,79 +180,22 @@ clicked_connect(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 option_clicked(AppClient *client, cairo_t *cr, Container *container) {
-    // delete all currently opened (clicked) containers to start with
-    for (int i = 0; i < container->parent->children.size(); i++) {
-        int r_i = container->parent->children.size() - i - 1;
-        auto c = container->parent->children[r_i];
-        auto data = (WifiOptionData *) c->user_data;
-        
-        if (data && data->clicked) {
-            if (c == container) {
-                return;
-            }
-            data->clicked = false;
-            auto cd = container->parent->children[r_i + 1];
-            container->parent->children.erase(container->parent->children.begin() + r_i + 1);
-            delete cd;
-        }
-    }
-    
     auto data = (WifiOptionData *) container->user_data;
-    
-    if (!data->clicked) {
-        int container_index = 0;
-        for (int i = 0; i < container->parent->children.size(); i++) {
-            if (container->parent->children[i] == container)
-                container_index = i;
-        }
-        
-        int option_height = 34;
-        int padding = 8;
-        Container *new_container;
-        if (data->info.saved_network) {
-            new_container = new Container(layout_type::hbox, FILL_SPACE, option_height + padding * 2);
-            new_container->parent = container->parent;
-            new_container->spacing = padding;
-            new_container->wanted_pad = Bounds(padding, padding, padding, padding);
-            new_container->when_paint = paint_clicked;
-            
-            Container *forget_button = new_container->child(FILL_SPACE, FILL_SPACE);
-            auto forget_data = new DataOfLabelButton;
-            forget_data->text = "Forget";
-            forget_data->info = data->info;
-            forget_button->user_data = forget_data;
-            forget_button->when_paint = paint_centered_label;
-            forget_button->when_clicked = clicked_forget;
-            
-            Container *connect_disconnect_button = new_container->child(FILL_SPACE, FILL_SPACE);
-            auto connect_data = new DataOfLabelButton;
-            connect_data->text = "Connect";
-            connect_data->info = data->info;
-            connect_disconnect_button->user_data = connect_data;
-            connect_disconnect_button->when_paint = paint_centered_label;
-            connect_disconnect_button->when_clicked = clicked_connect;
-        } else {
-            new_container = new Container(layout_type::vbox, FILL_SPACE, option_height * 2 + padding * 3);
-            new_container->parent = container->parent;
-            new_container->spacing = padding;
-            new_container->wanted_pad = Bounds(padding, padding, padding, padding);
-            new_container->when_paint = paint_clicked;
-            
-            Container *security_dropbox = new_container->child(FILL_SPACE, FILL_SPACE);
-            security_dropbox->when_paint = paint_debug;
-            Container *password_field = new_container->child(FILL_SPACE, FILL_SPACE);
-            password_field->when_paint = paint_debug;
-        }
-        container->parent->children.insert(container->parent->children.begin() + container_index + 1, new_container);
+    if (data->clicked) {
+        container->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi;
+    } else {
+        container->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi * 2;
     }
-    
     data->clicked = !data->clicked;
-    if (auto c = container_by_name("content", client->root)) {
-        //        c->wanted_bounds.h = true_height(c->parent) + true_height(c);
+    if (auto content = container_by_name("content", client->root)) {
+        for (auto c: content->children) {
+            if (c != container) {
+                ((WifiOptionData *) c->user_data)->clicked = false;
+                c->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi;
+            }
+        }
     }
-    
     client_layout(app, client);
-    client_paint(app, client);
 }
 
 void scan_results(std::vector<ScanResult> &results) {
@@ -248,14 +207,15 @@ void scan_results(std::vector<ScanResult> &results) {
         root->children.clear();
     
         ScrollPaneSettings settings(config->dpi);
+        settings.right_inline_track = true;
         ScrollContainer *scrollpane = make_newscrollpane_as_child(root, settings);
         Container *content = scrollpane->content;
         content->name = "content";
-        content->wanted_pad.y = 12;
-        content->wanted_pad.h = 12;
+        content->wanted_pad.y = 12 * config->dpi;
+        content->wanted_pad.h = 12 * config->dpi;
     
         for (const auto &r: results) {
-            auto c = content->child(FILL_SPACE, WIFI_OPTION_HEIGHT);
+            auto c = content->child(FILL_SPACE, WIFI_OPTION_HEIGHT * config->dpi);
             c->name = r.network_name;
             auto wifi_option_data = new WifiOptionData;
             c->when_paint = paint_option;
@@ -265,7 +225,7 @@ void scan_results(std::vector<ScanResult> &results) {
         }
     
         if (results.empty()) {
-            content->wanted_bounds.h = 80;
+            content->wanted_bounds.h = 80 * config->dpi;
         }
     
         client_layout(app, client);
@@ -400,8 +360,8 @@ fill_root(AppClient *client) {
 
 void start_wifi_menu() {
     Settings settings;
-    settings.h = 641;
-    settings.w = 360;
+    settings.h = 641 * config->dpi;
+    settings.w = 360 * config->dpi;
     settings.x = app->bounds.w - settings.w;
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     settings.slide_data[1] = 3;
