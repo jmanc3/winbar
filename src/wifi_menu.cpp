@@ -359,6 +359,9 @@ fill_root(AppClient *client) {
 }
 
 void start_wifi_menu() {
+    if (!wifi_running()) {
+        wifi_start(app);
+    }
     Settings settings;
     settings.h = 641 * config->dpi;
     settings.w = 360 * config->dpi;
