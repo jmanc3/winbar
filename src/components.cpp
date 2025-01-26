@@ -71,7 +71,7 @@ void fine_scrollpane_scrolled(AppClient *client,
         container->scroll_v_real += scroll_y;
     }
 //#define SCALE 1.8
-#define SCALE 2.3
+#define SCALE 2.0
     
     if (container->type == newscroll && !came_from_touchpad) {
         auto *scroll = (ScrollContainer *) container;
@@ -2890,3 +2890,230 @@ Container *make_textfield(Container *parent, FieldSettings settings, int w, int 
 
 PopupItemDraw::PopupItemDraw(const std::string &icon0, const std::string &icon1, const std::string &text,
                              const std::string &iconend) : icon0(icon0), icon1(icon1), text(text), iconend(iconend) {}
+
+static void
+paint_combobox_root(AppClient *client, cairo_t *cr, Container *container) {
+    set_rect(cr, container->real_bounds);
+    set_argb(cr, correct_opaqueness(client, config->color_pinned_icon_editor_background));
+    cairo_fill(cr);
+}
+
+static void paint_combox_item(AppClient *client, cairo_t *cr, Container *container) {
+    auto *label = (Label *) container->user_data;
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, darken(config->color_pinned_icon_editor_background, 15));
+        } else if (container->state.mouse_hovering) {
+            set_argb(cr, darken(config->color_pinned_icon_editor_background, 7));
+        }
+        set_rect(cr, container->real_bounds);
+        cairo_fill(cr);
+    }
+    
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
+    
+    int width;
+    int height;
+    pango_layout_set_text(layout, label->text.c_str(), -1);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
+    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 12 * config->dpi,
+                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+    pango_cairo_show_layout(cr, layout);
+}
+
+static void paint_combox_item_dark(AppClient *client, cairo_t *cr, Container *container) {
+    auto *label = (Label *) container->user_data;
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, darken(config->color_search_accent, 15));
+        } else if (container->state.mouse_hovering) {
+            set_argb(cr, darken(config->color_search_accent, 7));
+        }
+        set_rect(cr, container->real_bounds);
+        cairo_fill(cr);
+    } else {
+        set_argb(cr, config->color_search_accent);
+        set_rect(cr, container->real_bounds);
+        cairo_fill(cr);
+    }
+    
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
+    
+    int width;
+    int height;
+    pango_layout_set_text(layout, label->text.c_str(), -1);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    set_argb(cr, config->color_wifi_icons);
+    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 12 * config->dpi,
+                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+    pango_cairo_show_layout(cr, layout);
+}
+
+void clicked_expand_generic_combobox_base(AppClient *client, cairo_t *cr, Container *container, double option_h, bool down, bool dark = false) {
+    auto *data = (GenericComboBox *) container->user_data;
+    
+    float total_text_height = 0;
+    
+    auto taskbar = client_by_name(client->app, "taskbar");
+    PangoLayout *layout = get_cached_pango_font(taskbar->cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
+    int width;
+    int height;
+    for (const auto &m: data->options) {
+        pango_layout_set_text(layout, m.c_str(), -1);
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
+        total_text_height += height;
+    }
+    total_text_height += data->options.size() * (option_h * config->dpi); // pad
+    
+    Settings settings;
+    settings.force_position = true;
+    settings.w = container->real_bounds.w;
+    settings.h = total_text_height;
+    settings.x = client->bounds->x + container->real_bounds.x;
+    settings.y = client->bounds->y + container->real_bounds.y + container->real_bounds.h - 2 * config->dpi;
+    settings.skip_taskbar = true;
+    settings.decorations = false;
+    settings.override_redirect = true;
+    settings.no_input_focus = true;
+    settings.slide = true;
+    settings.slide_data[0] = -1;
+    settings.slide_data[1] = 1;
+    settings.slide_data[2] = 160;
+    settings.slide_data[3] = 100;
+    settings.slide_data[4] = 80;
+    if (!down) {
+        settings.y = client->bounds->y + container->real_bounds.y + 1 * config->dpi - settings.h;
+        settings.slide_data[1] = 3;
+        int w = 1;
+        settings.x += w * config->dpi;
+        settings.w -= w * 2 * config->dpi;
+    }
+    
+    PopupSettings popup_settings;
+    popup_settings.takes_input_focus = false;
+    popup_settings.close_on_focus_out = true;
+    popup_settings.wants_grab = true;
+    
+    auto popup = client->create_popup(popup_settings, settings);
+    popup->root->when_paint = paint_combobox_root;
+    popup->root->type = ::vbox;
+    for (const auto &m: data->options) {
+        auto c = popup->root->child(FILL_SPACE, FILL_SPACE);
+        c->when_paint = paint_combox_item;
+        if (dark) {
+            c->when_paint = paint_combox_item_dark;
+        }
+        c->when_clicked = data->when_clicked;
+        auto label = new Label(m);
+        c->user_data = label;
+    }
+    client_show(client->app, popup);
+}
+
+void clicked_expand_generic_combobox(AppClient *client, cairo_t *cr, Container *container) {
+    clicked_expand_generic_combobox_base(client, cr, container, 12, true);
+}
+
+void clicked_expand_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *container) {
+    clicked_expand_generic_combobox_base(client, cr, container, 22, false, true);
+}
+
+void paint_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *container) {
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            set_argb(cr, config->color_wifi_pressed_button);
+        } else {
+            set_argb(cr, config->color_wifi_hovered_button);
+        }
+    } else {
+        set_argb(cr, config->color_wifi_default_button);
+    }
+    set_rect(cr, container->real_bounds);
+    cairo_fill(cr);
+
+    set_argb(cr, config->color_wifi_hovered_button);
+    paint_margins_rect(client, cr, container->real_bounds, 2 * config->dpi, 0);
+
+
+    auto *data = (GenericComboBox *) container->user_data;
+    std::string selected = data->prompt;
+    if (data->determine_selected)
+        selected += data->determine_selected(client, cr, container);
+    
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
+    int width;
+    int height;
+    pango_layout_set_text(layout, selected.c_str(), -1);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    set_argb(cr, config->color_wifi_icons);
+    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 8 * config->dpi,
+                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+    pango_cairo_show_layout(cr, layout);
+    
+    layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE70D", strlen("\uE83F"));
+    
+    set_argb(cr, config->color_wifi_icons);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w - width - 8 * config->dpi),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
+}
+
+void paint_generic_combobox(AppClient *client, cairo_t *cr, Container *container) {
+    auto old = container->real_bounds;
+    int pad = 3;
+    container->real_bounds.y += pad * config->dpi;
+    container->real_bounds.h -= (pad * 2) * config->dpi;
+    paint_reordable_item(client, cr, container);
+    container->real_bounds = old;
+    
+    auto *data = (GenericComboBox *) container->user_data;
+    std::string selected = data->prompt;
+    if (data->determine_selected)
+        selected += data->determine_selected(client, cr, container);
+    
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
+    int width;
+    int height;
+    pango_layout_set_text(layout, selected.c_str(), -1);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
+    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 8 * config->dpi,
+                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
+    pango_cairo_show_layout(cr, layout);
+    
+    layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    
+    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    pango_layout_set_text(layout, "\uE70D", strlen("\uE83F"));
+    
+    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    
+    cairo_move_to(cr,
+                  (int) (container->real_bounds.x + container->real_bounds.w - width - 8 * config->dpi),
+                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+    pango_cairo_show_layout(cr, layout);
+}
+
+void paint_reordable_item(AppClient *client, cairo_t *cr, Container *container) {
+    rounded_rect(cr, 4 * config->dpi, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
+                 container->real_bounds.h);
+    set_argb(cr, config->color_pinned_icon_editor_background);
+    cairo_fill(cr);
+    rounded_rect(cr, 4 * config->dpi, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
+                 container->real_bounds.h);
+    set_argb(cr, config->color_pinned_icon_editor_field_default_border);
+    if (container->state.mouse_hovering)
+        set_argb(cr, config->color_pinned_icon_editor_field_hovered_border);
+    if (container->state.mouse_pressing)
+        set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
+    cairo_set_line_width(cr, std::round(1 * config->dpi));
+    cairo_stroke(cr);
+}

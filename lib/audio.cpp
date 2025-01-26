@@ -779,6 +779,7 @@ double AudioClient::get_volume() {
     } else if (backend == AudioBackend::ALSA) {
         return alsa_volume;
     }
+    return 0;
 }
 
 bool AudioClient::is_master_volume() {

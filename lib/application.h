@@ -267,7 +267,7 @@ Timeout *app_timeout_replace(App *app, AppClient *client, Timeout *timeout, floa
 Timeout *
 app_timeout_create(App *app, AppClient *client, float timeout_ms,
                    void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data,
-                   char *text);
+                   std::string text);
 
 bool app_timeout_stop(App *app,
                       AppClient *client,
@@ -299,7 +299,7 @@ update_keymap(struct ClientKeyboard *kbd);
 void paint_container(App *app, AppClient *client, Container *container);
 
 bool poll_descriptor(App *app, int file_descriptor, int events, void (*function)(App *, int, void *), void *user_data,
-                     char* text);
+                     std::string text);
 
 Subprocess *
 command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, void (*function)(Subprocess *),

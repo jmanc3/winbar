@@ -218,4 +218,34 @@ struct PopupMenu {
     void *data;
 };
 
+struct Checkbox : UserData {
+    bool on = true;
+    std::string container_name;
+    std::string name;
+};
+
+struct GenericComboBox : UserData {
+    std::string name; // of creation container
+    std::string prompt;
+    std::vector<std::string> options;
+    
+    std::string (*determine_selected)(AppClient *client, cairo_t *cr, Container *self) = nullptr;
+    
+    void (*when_clicked)(AppClient *, cairo_t *, Container *);
+    
+    explicit GenericComboBox(std::string name) : name(std::move(name)) {}
+    
+    GenericComboBox(std::string name, std::string prompt) : name(std::move(name)), prompt(std::move(prompt)) {}
+};
+
+void clicked_expand_generic_combobox(AppClient *client, cairo_t *cr, Container *container);
+
+void paint_generic_combobox(AppClient *client, cairo_t *cr, Container *container);
+
+void paint_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *container);
+
+void clicked_expand_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *container);
+
+void paint_reordable_item(AppClient *client, cairo_t *cr, Container *container);
+
 #endif// SCROLL_COMPONENTS_H

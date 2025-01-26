@@ -6,6 +6,7 @@
 #define WINBAR_SETTINGS_MENU_H
 
 #include <vector>
+#include <pango/pango.h>
 #include "container.h"
 
 enum SettingsPage {
@@ -51,6 +52,24 @@ struct WinbarSettings {
     std::string shutdown_command;
     std::string restart_command;
     std::string pinned_icon_style = "win10";
+    
+    std::vector<std::string> preferred_interfaces;
+    
+    std::string get_preferred_interface() {
+        if (!preferred_interfaces.empty()) {
+            return preferred_interfaces[0];
+        }
+        return "";
+    }
+    
+    void set_preferred_interface(std::string interface) {
+        for (int i = preferred_interfaces.size() - 1; i >= 0; i--) {
+            if (preferred_interfaces[i] == interface) {
+                preferred_interfaces.erase(preferred_interfaces.begin() + i);
+            }
+        }
+        preferred_interfaces.insert(preferred_interfaces.begin(), interface);
+    }
 };
 
 extern WinbarSettings *winbar_settings;

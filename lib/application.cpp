@@ -293,13 +293,13 @@ void process_xkb_event(xcb_generic_event_t *generic_event, ClientKeyboard *keybo
 }
 
 bool poll_descriptor(App *app, int file_descriptor, int events, void (*function)(App *, int, void *), void *user_data,
-                     char *text) {
+                     std::string text) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     if (!app || !app->running) return false;
     
-    PolledDescriptor polled = {file_descriptor, std::string(text), function, user_data};
+    PolledDescriptor polled = {file_descriptor, text, function, user_data};
     app->descriptors_being_polled.push_back(polled);
     
     return true;
@@ -2644,7 +2644,7 @@ Timeout *app_timeout_replace(App *app,
 Timeout *
 app_timeout_create(App *app, AppClient *client, float timeout_ms,
                    void (*timeout_function)(App *, AppClient *, Timeout *, void *), void *user_data,
-                   char *text) {
+                   std::string text) {
     if (app == nullptr || !app->running || !timeout_function) return nullptr;
     int timeout_file_descriptor = timerfd_create(CLOCK_REALTIME, 0);
     if (timeout_file_descriptor == -1) { // error with timerfd_create
@@ -2668,7 +2668,7 @@ app_timeout_create(App *app, AppClient *client, float timeout_ms,
     timeout->file_descriptor = timeout_file_descriptor;
     timeout->user_data = user_data;
     timeout->keep_running = false;
-    timeout->text = std::string(text);
+    timeout->text = text;
     timeout->kill = false;
     timeout_add(app, timeout);
     
