@@ -1147,22 +1147,23 @@ void save_settings_file() {
     out_file << "order=";
 
 #define WRITE(button_name, container_name) \
-    if (child->name == container_name) {   \
-       out_file << "\"" << button_name << "\"=" << (child->exists ? "on," : "off,"); \
-       continue; \
+    if (child->name == container_name) { \
+        for (auto item: winbar_settings->taskbar_order) { \
+            if (item.name == button_name) { \
+                out_file << "\"" << button_name << "\"=" << (item.on ? "on," : "off,");  \
+            } \
+        } \
+        continue; \
     }
     
     if (auto c = client_by_name(app, "taskbar")) {
         for (auto child: c->root->children) {
-            WRITE("Super", "super")
             WRITE("Search Field", "field_search")
+            WRITE("Super", "super")
             WRITE("Workspace", "workspace")
             WRITE("Pinned Icons", "icons")
             WRITE("Systray", "systray")
-            if (child->name == "bluetooth") {
-                out_file << "\"" << "Bluetooth" << "\"=" << (winbar_settings->bluetooth_enabled ? "on," : "off,");
-                continue;
-            }
+            WRITE("Bluetooth", "bluetooth")
             WRITE("Wifi", "wifi")
             WRITE("Battery", "battery")
             WRITE("Volume", "volume")

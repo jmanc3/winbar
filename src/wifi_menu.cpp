@@ -626,6 +626,14 @@ fill_root(AppClient *client) {
                     client_layout(app, c);
                     request_refresh(app, c);
                 }
+                if (auto con = container_by_name("wifi_toggle", c->root)) {
+                    auto data = (WifiToggle *) con->user_data;
+                    if (wifi_running(get_active_link() == nullptr ? "" : get_active_link()->interface)) {
+                        data->wifi_is_enabled = wifi_global_status(get_active_link());
+                    } else {
+                        data->wifi_is_enabled = false;
+                    }
+                }
             }
             wifi_networks_and_cached_scan(get_active_link());
             client_close_threaded(app, client);
