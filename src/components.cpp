@@ -1098,6 +1098,14 @@ void scroll_hover_timeout(App *, AppClient *client, Timeout *,
     }
 }
 
+void ignore_first_hover(App *, AppClient *client, Timeout *,
+                        void *data) {
+    auto scroll = (ScrollContainer *) data;
+    if (bounds_contains(scroll->right->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+        client_create_animation(client->app, client, &scroll->scrollbar_openess, scroll->lifetime, 0, 100, nullptr, 1);
+    }
+}
+
 ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPaneSettings &settings) {
     auto scrollpane = new ScrollContainer(settings);
     // setup as child of root
@@ -1157,7 +1165,8 @@ ScrollContainer *make_newscrollpane_as_child(Container *parent, const ScrollPane
     right_vbox->receive_events_even_if_obstructed = true;
     right_vbox->when_mouse_enters_container = [](AppClient *client, cairo_t *, Container *container) {
         auto scroll = (ScrollContainer *) container->parent;
-        client_create_animation(client->app, client, &scroll->scrollbar_openess, scroll->lifetime, 0, 100, nullptr, 1);
+        app_timeout_create(client->app, client, 200, ignore_first_hover, scroll,
+                           "ignore when mouse slides over");
     };
     
     auto right_top_arrow = right_vbox->child(FILL_SPACE, settings.right_arrow_height);
