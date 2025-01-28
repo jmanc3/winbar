@@ -612,7 +612,12 @@ fill_root(AppClient *client) {
         
         combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
             // TODO: this needs to reality check against available interfaces
-            return winbar_settings->get_preferred_interface();
+            auto pref = winbar_settings->get_preferred_interface();
+            for (auto s: wifi_data->seen_interfaces) {
+                if (s == pref)
+                    return s;
+            }
+            return "";
         };
         combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
             std::string interface = ((Label *) (self->user_data))->text;

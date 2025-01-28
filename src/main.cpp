@@ -122,6 +122,13 @@ int main(int argc, char* argv[]) {
     
     wifi_start(app);
     
+    app_timeout_create(app, taskbar, 1000 * 10, [](App *, AppClient *, Timeout *t, void *) {
+        wifi_start(app);
+        for (auto l: wifi_data->links) {
+            wifi_scan(l);
+        }
+    }, nullptr, "Initial timeout to cache wifi networks after 10 seconds");
+    
     // Start our listening loop until the end of the program
     app_main(app);
     
