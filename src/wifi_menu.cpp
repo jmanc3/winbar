@@ -59,7 +59,7 @@ InterfaceLink *get_active_link() {
 static void
 paint_option(AppClient *client, cairo_t *cr, Container *container) {
     set_rect(cr, container->real_bounds);
-    auto data = (WifiOptionData *) container->user_data;
+    auto data = (WifiOptionData *) container->children[0]->user_data;
     if (data->clicked) {
         set_argb(cr, config->color_search_accent);
     } else if (container->state.mouse_pressing || container->state.mouse_hovering) {
@@ -248,19 +248,25 @@ static void
 option_clicked(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (WifiOptionData *) container->user_data;
     if (data->clicked) {
-        container->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi;
+        container->parent->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi;
     } else {
-        container->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi * 2;
+        container->parent->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi * 2;
     }
     data->clicked = !data->clicked;
-    if (auto content = container_by_name("content", client->root)) {
-        for (auto c: content->children) {
-            if (c != container) {
-                ((WifiOptionData *) c->user_data)->clicked = false;
-                c->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi;
-            }
-        }
-    }
+//    if (auto content = container_by_name("content", client->root)) {
+//        for (auto c: content->children) {
+//            if (c->children[0] != container) {
+//                ((WifiOptionData *) c->children[0]->user_data)->clicked = false;
+//                c->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi * 2;
+////                for (auto d: c->children) {
+////                    d->exists = false;
+////                }
+//            }
+//        }
+//    }
+//    for (auto c: container->children) {
+//        c->children[1]->exists = data->clicked;
+//    }
     client_layout(app, client);
 }
 
@@ -270,7 +276,7 @@ void scan_results(std::vector<ScanResult> &results) {
         
         // Update all data
         for (auto c: content->children) {
-            auto *data = (WifiOptionData *) c->user_data;
+            auto *data = (WifiOptionData *) c->children[0]->user_data;
             for (auto &r: results) {
                 if (data->info.saved_network && data->info.network_name == r.network_name ||
                     data->info.mac == r.mac && data->info.interface == r.interface) {
@@ -283,7 +289,7 @@ void scan_results(std::vector<ScanResult> &results) {
         // Remove non found containers
         for (int i = content->children.size() - 1; i >= 0; i--) {
             auto c = content->children[i];
-            auto data = (WifiOptionData *) c->user_data;
+            auto data = (WifiOptionData *) c->children[0]->user_data;
             bool found = false;
             for (auto &r: results) {
                 if (r.mac == data->info.mac && r.interface == data->info.interface) {
@@ -299,19 +305,26 @@ void scan_results(std::vector<ScanResult> &results) {
         for (auto &r: results) {
             bool found = false;
             for (auto c: content->children) {
-                auto data = (WifiOptionData *) c->user_data;
+                auto data = (WifiOptionData *) c->children[0]->user_data;
                 if (r.mac == data->info.mac && r.interface == data->info.interface) {
                     found = true;
                 }
             }
             if (!found) {
-                auto c = content->child(FILL_SPACE, WIFI_OPTION_HEIGHT * config->dpi);
+                auto parent_option_vbox = content->child(::vbox, FILL_SPACE, WIFI_OPTION_HEIGHT * config->dpi);
+                parent_option_vbox->when_paint = paint_option;
+                parent_option_vbox->receive_events_even_if_obstructed_by_one = true;
+                
+                auto c = parent_option_vbox->child(FILL_SPACE, WIFI_OPTION_HEIGHT * config->dpi);
                 c->name = r.network_name;
                 auto wifi_option_data = new WifiOptionData;
-                c->when_paint = paint_option;
                 c->when_clicked = option_clicked;
                 wifi_option_data->info = r;
                 c->user_data = wifi_option_data;
+                
+                auto button = c->child(FILL_SPACE, 40 * config->dpi);
+                button->exists = false;
+                button->when_paint = paint_debug;
             }
         }
         
@@ -333,7 +346,7 @@ void state_changed_callback() {
             bool any_different_interface = true;
             // Update all data
             for (auto c: content->children) {
-                auto *data = (WifiOptionData *) c->user_data;
+                auto *data = (WifiOptionData *) c->children[0]->user_data;
                 if (data->info.interface != l->interface) {
                     any_different_interface = true;
                 }

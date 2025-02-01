@@ -1924,7 +1924,7 @@ make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings s
     
     scroll_amount = data->font_size * 3;
     
-    blink_loop(app, client, nullptr, textarea);
+    blink_on(app, client, textarea);
     
     return textarea;
 }
@@ -2544,26 +2544,32 @@ blink_on(App *app, AppClient *client, void *textarea) {
     auto *container = (Container *) textarea;
     auto *data = (TextAreaData *) container->user_data;
     if (data->state->timeout_alive.lock()) {
-        app_timeout_replace(app, client, data->state->cursor_blink,
+        data->state->cursor_blink = app_timeout_replace(app, client, data->state->cursor_blink,
                             CURSOR_BLINK_ON_TIME, blink_loop, textarea);
-    } else {
-        data->state->cursor_blink = app_timeout_create(app, client, CURSOR_BLINK_ON_TIME, blink_loop, textarea,
-                                                       const_cast<char *>(__PRETTY_FUNCTION__));
         data->state->timeout_alive = data->state->cursor_blink->lifetime;
+    } else {
+        if (!data->state->cursor_blink) {
+            data->state->cursor_blink = app_timeout_create(app, client, CURSOR_BLINK_ON_TIME, blink_loop, textarea, const_cast<char *>(__PRETTY_FUNCTION__));
+            data->state->timeout_alive = data->state->cursor_blink->lifetime;
+        }
     }
     data->state->cursor_on = true;
     request_refresh(app, client);
 }
 
 void
-blink_loop(App *app, AppClient *client, Timeout *, void *textarea) {
+blink_loop(App *app, AppClient *client, Timeout *timeout, void *textarea) {
+    if (timeout)
+        timeout->keep_running = true;
     auto *container = (Container *) textarea;
-    if (!container->active) return;
+    if (!container->parent->active) return;
     auto *data = (TextAreaData *) container->user_data;
     
     float cursor_blink_time = data->state->cursor_on ? CURSOR_BLINK_OFF_TIME : CURSOR_BLINK_ON_TIME;
     
-    data->state->cursor_blink = app_timeout_create(app, client, cursor_blink_time, blink_loop, textarea, const_cast<char *>(__PRETTY_FUNCTION__));
+    if (!data->state->cursor_blink) {
+        data->state->cursor_blink = app_timeout_create(app, client, cursor_blink_time, blink_loop, textarea, const_cast<char *>(__PRETTY_FUNCTION__));
+    }
     
     data->state->cursor_on = !data->state->cursor_on;
     request_refresh(app, client);

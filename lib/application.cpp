@@ -1143,10 +1143,13 @@ void paint_client_timeout(App *app, AppClient *client, Timeout *, void *) {
     client_paint(app, client);
 }
 
-void request_refresh(App *app, AppClient *client) {
+void request_refresh(App *app, AppClient *client, bool forced) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (app != nullptr && client != nullptr && forced) {
+        client_paint(app, client);
+    }
     if (app == nullptr || client == nullptr || client->refresh_already_queued)
         return;
     float fps = client->fps;
@@ -2079,6 +2082,7 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
     ZoneText(info.c_str(), info.size());
 #endif
     
+    bool forced = false;
     switch (event_type) {
         case XCB_EXPOSE: {
             break;
@@ -2213,6 +2217,7 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
             }
 
             send_key(app, client, client->root);
+            forced = true;
             break;
         }
     
@@ -2312,7 +2317,7 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
     }
     
     if (auto client = client_by_window(app, window_number)) {
-        request_refresh(app, client);
+        request_refresh(app, client, forced);
     }
 }
 

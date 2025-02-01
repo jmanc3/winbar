@@ -205,7 +205,7 @@ void client_show(App *app, AppClient *client_entity);
 
 void client_hide(App *app, AppClient *client_entity);
 
-void request_refresh(App *app, AppClient *client_entity);
+void request_refresh(App *app, AppClient *client_entity, bool forced = false);
 
 void client_register_animation(App *app, AppClient *client_entity);
 

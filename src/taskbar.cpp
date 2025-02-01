@@ -5753,7 +5753,6 @@ void set_textarea_active() {
         if (auto *container = container_by_name("main_text_area", client->root)) {
             auto *text_data = (TextAreaData *) container->user_data;
             container->parent->active = true;
-            container->parent->active = true;
         }
         client_layout(app, client);
         request_refresh(client->app, client);
