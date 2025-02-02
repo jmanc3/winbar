@@ -156,6 +156,8 @@ public:
     unsigned long last_frame_window_count;
     double window_opened_scalar = 0;
     
+    double window_opened_bloom_scalar = 0;
+    
     SpringAnimation spring = SpringAnimation();
     
     ~LaunchableButton() {
