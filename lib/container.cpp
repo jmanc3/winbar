@@ -1097,3 +1097,35 @@ Subprocess::Subprocess(App *app, const std::string &command) {
     close(inpipe[0]);
     close(outpipe[1]);
 }
+
+void AppClient::draw_start() {
+    if (!is_context_current) {
+        for (auto *item: app->clients)
+            item->is_context_current = false;
+        glXMakeContextCurrent(app->display, gl_drawable, gl_drawable, context);
+        is_context_current = true;
+    }
+    if (just_changed_size) {
+        glXMakeContextCurrent(app->display, gl_drawable, gl_drawable, context);
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glViewport(0, 0, bounds->w, bounds->h);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        glOrtho(0, bounds->w, bounds->h, 0, 1, -1); // Origin in lower-left corner
+    }
+}
+
+void AppClient::draw_end(bool reset_input) {
+    glXSwapBuffers(app->display, gl_drawable);
+    just_changed_size = false;
+    previous_redraw_time = get_current_time_in_ms();
+}
+
+void AppClient::gl_clear() {
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}

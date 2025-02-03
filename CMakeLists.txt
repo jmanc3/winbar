@@ -74,6 +74,8 @@ set(
         librsvg-2.0 # to load svg icons
         xcb # to open windows with the Xorg server
         x11
+        x11-xcb
+        xcb-xinput
         pangocairo # to paint pango text layouts using cairo
         xcb-randr # to gain brightness control
         xcb-aux # to force the Xorg server to really finish with all the events before xcb_sync_aux called
@@ -90,6 +92,10 @@ set(
         dbus-1 # for interacting with dbus
         alsa # to be able to modify audio volume and mute state on alsa
         fontconfig # to be able to add fonts
+        xrender
+        gl
+        glew
+        glm
 )
 
 foreach (LIB IN LISTS LIBS)

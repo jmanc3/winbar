@@ -9,6 +9,8 @@
 #include <memory>
 #include <xcb/xcb_event.h>
 #include <xcb/xproto.h>
+#include <GL/glew.h>
+#include <GL/glx.h>
 #include <xkbcommon/xkbcommon-x11.h>
 #include <xkbcommon/xkbcommon.h>
 
@@ -254,6 +256,11 @@ struct AppClient {
     ScreenInformation *screen_information = nullptr;
     
     xcb_window_t window;
+    bool is_context_current = false;
+    GLXContext context;
+    bool gl_window_created = true;
+    GLXWindow gl_window;
+    GLXDrawable gl_drawable; // Automatically freed when window is destroyed
     
     std::string name;
     
@@ -340,6 +347,12 @@ struct AppClient {
     bool skip_taskbar = true;
     
     AppClient *create_popup(PopupSettings popup_settings, Settings client_settings);
+    
+    long previous_redraw_time = 0;
+    bool just_changed_size = true;
+    void draw_start();
+    void draw_end(bool reset_input);
+    void gl_clear();
     
     std::vector<Subprocess *> commands;
     
