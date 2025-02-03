@@ -30,6 +30,7 @@
 #include <xcb/xinput.h>
 #include <xcb/xcb.h>
 #include <poll.h>
+#include <X11/Xlib-xcb.h>
 
 #define explicit dont_use_cxx_explicit
 
@@ -616,26 +617,86 @@ void get_raw_motion_and_scroll_events(App *app) {
     xcb_input_xi_select_events(app->connection, app->screen->root, 1, &se_mask.iem);
 }
 
+static int visual_attribs[] = {
+        GLX_X_RENDERABLE, True,
+        GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+        GLX_RENDER_TYPE, GLX_RGBA_BIT,
+        GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
+        GLX_RED_SIZE, 8,
+        GLX_GREEN_SIZE, 8,
+        GLX_BLUE_SIZE, 8,
+        GLX_ALPHA_SIZE, 8,
+        GLX_DEPTH_SIZE, 24,
+        GLX_STENCIL_SIZE, 8,
+        GLX_DOUBLEBUFFER, True,
+        //GLX_SAMPLE_BUFFERS  , 1,
+        //GLX_SAMPLES         , 4,
+        None
+};
 
 App *app_new() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    //    Display *pDisplay = XOpenDisplay(nullptr);
+    uint32_t values[] = {
+            // XCB_CW_BACK_PIXEL
+            0x00000000,
+            // XCB_CW_BORDER_PIXEL
+            0x00000000,
+            // XCB_CW_OVERRIDE_REDIRECT
+            false,
+            // XCB_CW_EVENT_MASK
+            XCB_EVENT_MASK_EXPOSURE,
+            // XCB_CW_COLORMAP
+            0
+    };
+    XInitThreads();
     
+    auto display = XOpenDisplay(nullptr);
+    if (!display) {
+        fprintf(stderr, "Couldn't open display\n");
+        return nullptr;
+    }
+    
+    auto default_screen = DefaultScreen(display);
+    
+    xcb_connection_t *connection = XGetXCBConnection(display);
+    if (!connection) {
+        fprintf(stderr, "Can't get xcb connection from display\n");
+        
+    }
+    
+    /* Acquire event queue ownership */
+    XSetEventQueueOwner(display, XCBOwnsEventQueue);
+    
+    xcb_flush(connection);
+    
+    /*
     int screen_number;
     xcb_connection_t *connection = xcb_connect(nullptr, &screen_number);
     if (xcb_connection_has_error(connection)) {
         return nullptr;
     }
+    */
     
     auto *app = new App;
+    app->display = display;
     app->creation_time = get_current_time_in_ms();
     app->current = app->creation_time;
     app->running_mutex.lock();
     app->connection = connection;
-    app->screen_number = screen_number;
-    app->screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
+    app->screen_number = default_screen;
+//    app->screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
+    xcb_screen_iterator_t screen_iter;
+    screen_iter = xcb_setup_roots_iterator(xcb_get_setup(connection));
+    for (int screen_num = default_screen;
+         screen_iter.rem && screen_num > 0;
+         --screen_num, xcb_screen_next(&screen_iter));
+    app->screen = screen_iter.data;
+    if (!app->screen) {
+        delete app;
+        return nullptr;
+    }
     app->argb_visualtype = get_alpha_visualtype(app->screen);
     app->root_visualtype = get_visualtype(app->screen);
     app->bounds.x = 0;
@@ -650,10 +711,125 @@ App *app_new() {
     }
 
     xcb_intern_atom_cookie_t *c = xcb_ewmh_init_atoms(app->connection, &app->ewmh);
-    if (!xcb_ewmh_init_atoms_replies(&app->ewmh, c, NULL))
+    if (!xcb_ewmh_init_atoms_replies(&app->ewmh, c, NULL)) {
+        delete app;
         return nullptr;
+    }
     
     xcb_flush(app->connection);
+    
+    /* Query framebuffer configurations that match visual_attribs */
+    int fb_configs_count;
+    fb_configs_count = 0;
+    app->fb_configs = glXChooseFBConfig(display, default_screen, visual_attribs, &fb_configs_count);
+    
+    if (!app->fb_configs || fb_configs_count == 0) {
+        fprintf(stderr, "glXGetFBConfigs failed\n");
+        delete app;
+        return nullptr;
+    }
+    
+    for (int i = 0; i < fb_configs_count; i++) {
+        if (!(app->visual = (XVisualInfo *) glXGetVisualFromFBConfig(display, app->fb_configs[i])))
+            continue;
+        if (!(app->pict_format = XRenderFindVisualFormat(display, app->visual->visual)))
+            continue;
+        if (app->pict_format->direct.alphaMask > 0) {
+            app->chosen_config = app->fb_configs[i];
+            break;
+        } else {
+            XFree(app->visual);
+        }
+    }
+    if (app->chosen_config == nullptr) {
+        fprintf(stderr, "No FB config with alpha found!");
+        delete app;
+        return nullptr;
+    }
+    
+    /* Select first framebuffer config and query visualID */
+    int visualID;
+    visualID = app->visual->visualid;
+    glXGetFBConfigAttrib(display, app->chosen_config, GLX_VISUAL_ID, &visualID);
+    
+    /* Create OpenGL context */
+    app->version_check_context = glXCreateNewContext(display, app->chosen_config, GLX_RGBA_TYPE, 0, True);
+    if (!app->version_check_context) {
+        fprintf(stderr, "glXCreateNewContext failed\n");
+        
+    }
+    
+    xcb_colormap_t colormap;
+    colormap = xcb_generate_id(connection);
+    xcb_create_colormap(
+            connection,
+            XCB_COLORMAP_ALLOC_NONE,
+            colormap,
+            app->screen->root,
+            app->visual->visualid
+    );
+    
+    values[4] = colormap;
+    
+    xcb_window_t window;
+    window = xcb_generate_id(connection);
+    xcb_create_window(
+            connection,
+            app->visual->depth,
+            window,
+            app->screen->root,
+            0, 0,
+            400, 400,
+            0,
+            XCB_WINDOW_CLASS_INPUT_OUTPUT,
+            app->visual->visualid,
+            XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL
+            | XCB_CW_OVERRIDE_REDIRECT
+            | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
+            values
+    );
+    
+    // NOTE: client must be mapped before glXMakeContextCurrent
+    // DOUBLE_NOTE: Who said the above? It doesn't seem to be the case in fact. But maybe it is.
+    // I asked gpt and after a lot of prompting it said the window doesn't have to be mapped.
+//    xcb_map_window(connection, window);
+    
+    /* Create GLX Window */
+    GLXWindow gl_window;
+    gl_window = glXCreateWindow(display, app->chosen_config, window, 0);
+    if (!window) {
+        xcb_destroy_window(connection, window);
+        fprintf(stderr, "glXCreateWindow failed\n");
+        delete app;
+        return nullptr;
+    }
+    
+    GLXDrawable drawable;
+    drawable = gl_window;
+    /* make OpenGL context current */
+    if (!glXMakeContextCurrent(display, drawable, drawable, app->version_check_context)) {
+        xcb_destroy_window(connection, window);
+        fprintf(stderr, "glXMakeContextCurrent failed\n");
+        delete app;
+        return nullptr;
+    }
+    if (glewInit() != GLEW_OK) {
+        xcb_destroy_window(connection, window);
+        fprintf(stderr, "Glew init failed\n");
+        delete app;
+        return nullptr;
+    }
+    
+    /**
+     * Do minimum checks (although basically every modern system will have all these extensions)
+     */
+    // Check GL Version
+    if (!GLEW_VERSION_3_3) {
+        xcb_destroy_window(connection, window);
+        fprintf(stderr, "OpenGL 3.3 not supported\n");
+        delete app;
+        return nullptr;
+    }
     
     poll_descriptor(app, xcb_get_file_descriptor(app->connection), POLLIN, xcb_poll_wakeup, nullptr, "XCB");
     
@@ -676,6 +852,13 @@ App *app_new() {
     dpi_setup(app);
     
     get_raw_motion_and_scroll_events(app);
+    
+    // free stuff
+    xcb_free_colormap(connection, colormap);
+    xcb_destroy_window(connection, window);
+    glXDestroyContext(display, app->version_check_context);
+    app->version_check_context = nullptr;
+    glXMakeContextCurrent(display, None, None, nullptr);
     
     return app;
 }
@@ -718,6 +901,11 @@ xcb_screen_t *get_screen_from_screen_info(ScreenInformation *screen_info, App *a
     return nullptr;
 }
 
+// THIS IS INSANE!!!!
+// Who wants swapping enabled by default? (It's what was making our expose take 6ms every time.)
+PFNGLXSWAPINTERVALEXTPROC glXSwapIntervalEXT = (PFNGLXSWAPINTERVALEXTPROC) glXGetProcAddress(
+        (const GLubyte *) "glXSwapIntervalEXT");  // Set the glxSwapInterval to 0, ie. disable vsync!  khronos.org/opengl/wiki/Swap_Interval
+
 AppClient *
 client_new(App *app, Settings settings, const std::string &name) {
 #ifdef TRACY_ENABLE
@@ -753,21 +941,18 @@ client_new(App *app, Settings settings, const std::string &name) {
         }
     }
     
-    /* Create a window */
-    xcb_window_t window = xcb_generate_id(app->connection);
-    
-    uint8_t depth = settings.window_transparent ? 32 : 24;
-    xcb_visualtype_t *visual = xcb_aux_find_visual_by_attrs(
-            screen,
-            -1,
-            depth
-    );
+//    uint8_t depth = settings.window_transparent ? 32 : 24;
+//    xcb_visualtype_t *visual = xcb_aux_find_visual_by_attrs(
+//            screen,
+//            -1,
+//            depth
+//    );
     xcb_colormap_t colormap = xcb_generate_id(app->connection);
     xcb_create_colormap(
             app->connection,
             XCB_COLORMAP_ALLOC_NONE,
-            colormap, primary_screen_info->root_window,
-            visual->visual_id
+            colormap, app->screen->root,
+            app->visual->visualid
     );
     
     const uint32_t values[] = {
@@ -788,14 +973,16 @@ client_new(App *app, Settings settings, const std::string &name) {
             colormap
     };
     
+    /* Create a window */
+    xcb_window_t window = xcb_generate_id(app->connection);
     xcb_create_window(app->connection,
-                      depth,
+                      app->visual->depth,
                       window,
-                      primary_screen_info->root_window,
+                      app->screen->root,
                       settings.x, settings.y, settings.w, settings.h,
                       0,
                       XCB_WINDOW_CLASS_INPUT_OUTPUT,
-                      visual->visual_id,
+                      app->visual->visualid,
                       XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL
                       | XCB_CW_OVERRIDE_REDIRECT
                       | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
@@ -809,7 +996,7 @@ client_new(App *app, Settings settings, const std::string &name) {
     
     cairo_surface_t *client_cr_surface = cairo_xcb_surface_create(app->connection,
                                                                   window,
-                                                                  visual,
+                                                                  app->argb_visualtype,
                                                                   settings.w, settings.h);
     cairo_t *cr = cairo_create(client_cr_surface);
     cairo_surface_destroy(client_cr_surface);
@@ -1004,6 +1191,27 @@ client_new(App *app, Settings settings, const std::string &name) {
     app->device = cairo_device_reference(cairo_surface_get_device(cairo_get_target(client->cr)));
     
     init_xkb(app, client);
+    
+    client->gl_window = glXCreateWindow(client->app->display, client->app->chosen_config, client->window, 0);
+    if (!client->window) {
+        fprintf(stderr, "glXCreateWindow failed\n");
+        client->gl_window_created = false;
+    }
+    client->gl_drawable = client->gl_window;
+    
+    /* Create OpenGL context */
+    client->context = glXCreateNewContext(client->app->display, client->app->chosen_config, GLX_RGBA_TYPE, 0, True);
+    if (!client->context) {
+        glXDestroyContext(client->app->display, client->context);
+        fprintf(stderr, "glXCreateNewContext failed\n");
+    }
+    if (!glXMakeContextCurrent(client->app->display, client->gl_drawable, client->gl_drawable, client->context)) {
+        glXDestroyContext(client->app->display, client->context);
+        fprintf(stderr, "glXMakeContextCurrent failed\n");
+    }
+    
+    // vsync off
+    glXSwapIntervalEXT(client->app->display, client->gl_drawable, 0);
     
     app->clients.push_back(client);
     
@@ -1418,8 +1626,21 @@ static xcb_generic_event_t *event;
 void handle_xcb_event(App *app);
 void handle_event(App *app);
 
+void client_paint_gl(App *app, AppClient *client, bool force_repaint) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (valid_client(app, client)) {
+        client->draw_start();
+        client->gl_clear();
+        client->draw_end(true);
+    }
+}
+
 // TODO: double buffering not really working
 void client_paint(App *app, AppClient *client, bool force_repaint) {
+    client_paint_gl(app, client, force_repaint);
+//    return;
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -1988,7 +2209,7 @@ void handle_configure_notify(App *app) {
     auto client = client_by_window(app, e->window);
     if (!valid_client(app, client))
         return;
-    
+    client->just_changed_size = true;
     handle_configure_notify(app, client, e->x, e->y, e->width, e->height);
 }
 

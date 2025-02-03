@@ -22,6 +22,7 @@
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_icccm.h>
 #include <zconf.h>
+#include <X11/Xlib.h>
 
 struct Settings {
     int16_t x = 0;
@@ -114,6 +115,10 @@ struct PolledDescriptor {
 
 struct DBusConnection;
 
+#include <GL/glew.h>
+#include <GL/glx.h>
+#include <X11/extensions/Xrender.h>
+
 struct App {
     xcb_ewmh_connection_t ewmh;
     
@@ -130,7 +135,23 @@ struct App {
     
     xcb_window_t grab_window;
     
+    Display *display = nullptr;
+    
     xcb_connection_t *connection = nullptr;
+    
+    // Drawing stuff
+    
+    XVisualInfo *visual = nullptr;
+    
+    XRenderPictFormat *pict_format = nullptr;
+    
+    // GL drawing stuff
+    
+    GLXFBConfig *fb_configs = nullptr;
+    
+    GLXFBConfig chosen_config = nullptr;
+    
+    GLXContext version_check_context;
     
     xcb_key_symbols_t *key_symbols = nullptr;
     
