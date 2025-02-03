@@ -5793,9 +5793,11 @@ void set_textarea_inactive() {
                     container->exists = a.on;
         if (auto *container = container_by_name("main_text_area", client->root)) {
             auto *text_data = (TextAreaData *) container->user_data;
+            app_timeout_stop(app, client, text_data->state->cursor_blink);
             delete text_data->state;
             text_data->state = new TextState;
             container->parent->active = false;
+            blink_on(app, client, container);
         }
         client_layout(app, client);
         request_refresh(client->app, client);

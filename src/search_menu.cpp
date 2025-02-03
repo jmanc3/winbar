@@ -905,8 +905,10 @@ launch_item(AppClient *client, Container *item) {
         if (auto *container = container_by_name("main_text_area", client->root)) {
             container->parent->active = false;
             auto *data = (TextAreaData *) container->user_data;
+            app_timeout_stop(app, client, data->state->cursor_blink);
             delete data->state;
             data->state = new TextState;
+            blink_on(app, client, container);
         }
     }
     client_close_threaded(app, client);

@@ -2807,8 +2807,10 @@ void start_app_menu(bool autoclose) {
     if (auto *client = client_by_name(app, "taskbar")) {
         if (auto *container = container_by_name("main_text_area", client->root)) {
             auto *text_data = (TextAreaData *) container->user_data;
+            app_timeout_stop(app, client, text_data->state->cursor_blink);
             delete text_data->state;
             text_data->state = new TextState;
+            blink_on(app, client, container);
         }
         request_refresh(client->app, client);
     }
