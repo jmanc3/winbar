@@ -8,6 +8,20 @@
 #include <cmath>
 #include <iostream>
 
+#include <glm/gtc/type_ptr.hpp>
+#include <gdk-pixbuf/gdk-pixbuf.h>
+#include <librsvg/rsvg.h>
+#include <fontconfig/fontconfig.h>
+#include <hb.h>
+#include <hb-ft.h>
+#include <freetype/ftlcdfil.h>
+#include <codecvt>
+#include "stb_image.h"
+
+#define STB_RECT_PACK_IMPLEMENTATION
+
+#include "stb_rect_pack.h"
+
 // Sum of non filler child height and spacing
 double
 reserved_height(Container *box) {
@@ -1128,4 +1142,1222 @@ void AppClient::gl_clear() {
     
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+RoundedRect::RoundedRect() {
+    vertexShaderSource = R"(
+#version 330 core
+
+layout(location = 0) in vec2 inPosition;
+layout(location = 1) in vec4 inColor;
+
+out vec4 fragColor;
+out vec4 pos;
+
+uniform mat4 projection;
+
+void main()
+{
+    gl_Position = projection * vec4(inPosition, 0.0, 1.0);
+    fragColor = inColor;
+    pos = gl_Position;
+}
+    )";
+    // Fragment shader source
+    fragmentShaderSource =
+            R"(
+#version 330 core
+
+in vec4 fragColor; // Interpolated color from vertex shader
+in vec4 pos;
+
+out vec4 FragColor;
+uniform float radius;
+uniform float softness;
+uniform vec4 rect;
+uniform float pad;
+uniform float panel;
+
+float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float Radius) {
+    return length(max(abs(CenterPosition)-Size+Radius,0.0))-Radius;
+}
+
+float al(float pad) {
+    // The pixel space scale of the rectangle.
+    vec2 size = vec2(rect.z - pad * 2, rect.w - pad * 2);
+    vec4 fragCoord = gl_FragCoord;
+    
+    // the pixel space location of the rectangle.
+    vec2 location = vec2(rect.x + pad, rect.y + pad);
+
+    // Calculate distance to edge.
+    float distance = roundedBoxSDF(fragCoord.xy - location - (size/2.0f), size / 2.0f, radius);
+    
+    // Smooth the result (free antialiasing).
+    float smoothedAlpha =  1.0f-smoothstep(0.0f, softness*2.0f,distance);
+ 
+    return smoothedAlpha;
+}
+
+void main()
+{
+    float smoothedAlpha = al(0);
+    float inter = 1 - al(pad);
+    vec4 q = fragColor;
+    float whole = fragColor.a * smoothedAlpha;
+    float frame = fragColor.a * smoothedAlpha * inter;
+    q.a = mix(whole, frame, 1-panel);
+    
+    FragColor = q;
+}
+
+)";
+    
+    // Compile shaders, link program, and create vertex buffers here
+    // ... (This part depends on your setup)
+    
+    // Compile shaders and create shader program
+    GLuint vertexShader = compileShader(vertexShaderSource, GL_VERTEX_SHADER);
+    GLuint fragmentShader = compileShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
+    
+    shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    
+    // Get uniform location for projection matrix
+    projectionUniform = glGetUniformLocation(shaderProgram, "projection");
+    radiusUniform = glGetUniformLocation(shaderProgram, "radius");
+    softnessUniform = glGetUniformLocation(shaderProgram, "softness");
+    rectUniform = glGetUniformLocation(shaderProgram, "rect");
+    padUniform = glGetUniformLocation(shaderProgram, "pad");
+    panelUniform = glGetUniformLocation(shaderProgram, "panel");
+    
+    // Set up vertex data and configure vertex attributes
+    float quadVertices[] = {
+            // Position            // Color
+            -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, // Bottom-left vertex with red color
+            1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f, // Bottom-right vertex with green color
+            1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, // Top-right vertex with blue color
+            -1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f  // Top-left vertex with yellow color
+    };
+    
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    
+    glBindVertexArray(VAO);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+    
+    // Position attribute
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) 0);
+    glEnableVertexAttribArray(0);
+    
+    // Color attribute
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) (2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    
+    // Unbind VBO and VAO
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void RoundedRect::update_projection(const glm::mat4 &projection) {
+    this->projection = projection;
+}
+
+void RoundedRect::draw_rect(float x, float y, float w, float h, float r, float pad, float panel) {
+    glUseProgram(shaderProgram);
+    glUniform4f(rectUniform, x, y, w, h);
+    x -= 10 * 10;
+    y -= 10 * 10;
+    w += 20 * 10;
+    h += 20 * 10;
+    
+    glUniformMatrix4fv(projectionUniform, 1, GL_FALSE, glm::value_ptr(projection));
+    
+    glUniform1f(radiusUniform, r);
+//    glUniform1f(softnessUniform, r == 0 ? 0.0f : 1.0f);
+    glUniform1f(softnessUniform, r == 0 ? 0.0f : 0.5f);
+    glUniform1f(padUniform, pad);
+    glUniform1f(panelUniform, panel);
+    
+    glBindVertexArray(VAO);
+    float vertices[] = {
+            x, y + h, color_bottom_left.r, color_bottom_left.g, color_bottom_left.b, color_bottom_left.a,
+            x + w, y + h, color_bottom_right.r, color_bottom_right.g, color_bottom_right.b, color_bottom_right.a,
+            x + w, y, color_top_right.r, color_top_right.g, color_top_right.b, color_top_right.a,
+            x, y, color_top_left.r, color_top_left.g, color_top_left.b, color_top_left.a,
+    };
+    
+    
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+void RoundedRect::set_color(float r, float g, float b) {
+    set_color(r, g, b, 1.0f);
+}
+
+void RoundedRect::set_color(float r, float g, float b, float a) {
+    auto color = glm::vec4(r, g, b, a);
+    set_color(color, color, color, color);
+}
+
+void RoundedRect::set_color(glm::vec4 top_left_rgba, glm::vec4 top_right_rgba, glm::vec4 bottom_right_rgba,
+                            glm::vec4 bottom_left_rgba) {
+    color_top_left = top_left_rgba;
+    color_top_right = top_right_rgba;
+    color_bottom_right = bottom_right_rgba;
+    color_bottom_left = bottom_left_rgba;
+}
+
+
+ShapeRenderer::ShapeRenderer() {
+    vertexShaderSource = R"(
+#version 330 core
+
+layout(location = 0) in vec2 inPosition;
+layout(location = 1) in vec4 inColor;
+
+out vec4 fragColor;
+
+uniform mat4 projection;
+
+void main()
+{
+    vec4 ins = vec4(inPosition, 0.0, 1.0);
+    gl_Position = projection * ins;
+    fragColor = inColor;
+}
+    )";
+    // Fragment shader source
+    fragmentShaderSource =
+            R"(
+#version 330 core
+
+in vec4 fragColor; // Interpolated color from vertex shader
+
+out vec4 FragColor;
+
+void main()
+{
+    FragColor = fragColor;
+}
+
+)";
+    
+    initialize();
+}
+
+void ShapeRenderer::update_projection(const glm::mat4 &projection) {
+    this->projection = projection;
+}
+
+void ShapeRenderer::draw_rect(float x, float y, float w, float h) {
+    glUseProgram(shaderProgram);
+    glDisable(GL_CULL_FACE);
+    glUniformMatrix4fv(projectionUniform, 1, GL_FALSE, glm::value_ptr(projection));
+    
+    glBindVertexArray(VAO);
+    float vertices[] = {
+            x, y + h, color_bottom_left.r, color_bottom_left.g, color_bottom_left.b, color_bottom_left.a,
+            x + w, y + h, color_bottom_right.r, color_bottom_right.g, color_bottom_right.b, color_bottom_right.a,
+            x + w, y, color_top_right.r, color_top_right.g, color_top_right.b, color_top_right.a,
+            x, y, color_top_left.r, color_top_left.g, color_top_left.b, color_top_left.a,
+    };
+    
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+void ShapeRenderer::set_color(float r, float g, float b) {
+    set_color(r, g, b, 1.0f);
+}
+
+void ShapeRenderer::set_color(float r, float g, float b, float a) {
+    auto color = glm::vec4(r, g, b, a);
+    set_color(color, color, color, color);
+}
+
+void ShapeRenderer::initialize() {
+    // Compile shaders, link program, and create vertex buffers here
+    // ... (This part depends on your setup)
+    
+    // Compile shaders and create shader program
+    GLuint vertexShader = compileShader(vertexShaderSource, GL_VERTEX_SHADER);
+    GLuint fragmentShader = compileShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
+    
+    shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    
+    // Get uniform location for projection matrix
+    projectionUniform = glGetUniformLocation(shaderProgram, "projection");
+    
+    // Set up vertex data and configure vertex attributes
+    float quadVertices[] = {
+            // Position            // Color
+            -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, // Bottom-left vertex with red color
+            1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f, // Bottom-right vertex with green color
+            1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, // Top-right vertex with blue color
+            -1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f  // Top-left vertex with yellow color
+    };
+    
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    
+    glBindVertexArray(VAO);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+    
+    // Position attribute
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) 0);
+    glEnableVertexAttribArray(0);
+    
+    // Color attribute
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) (2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    
+    // Unbind VBO and VAO
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void ShapeRenderer::set_color(glm::vec4 top_left_rgba, glm::vec4 top_right_rgba, glm::vec4 bottom_right_rgba,
+                              glm::vec4 bottom_left_rgba) {
+    color_top_left = top_left_rgba;
+    color_top_right = top_right_rgba;
+    color_bottom_right = bottom_right_rgba;
+    color_bottom_left = bottom_left_rgba;
+}
+
+
+ImmediateTexture::ImmediateTexture(const char *filename, int w, int h, bool keep_aspect_ratio) {
+    if (strstr(filename, ".png")) {
+        // TODO: resize after stb loads based of w and h set
+        int width, height, nrChannels;
+        unsigned char *data = stbi_load(filename, &width, &height, &nrChannels, 4);
+        assert(data);
+        
+        glGenTextures(1, &textureID);
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        
+        stbi_image_free(data);
+        this->width = width;
+        this->height = height;
+    } else if (strstr(filename, ".svg")) {
+        GdkPixbuf *pixbuf;
+        if (w <= 0 || h <= 0) {
+            auto handle = rsvg_handle_new_from_file(filename, nullptr);
+            assert(handle);
+            pixbuf = rsvg_handle_get_pixbuf(handle);
+        } else {
+            pixbuf = gdk_pixbuf_new_from_file_at_scale(filename, w, h, keep_aspect_ratio, nullptr);
+        }
+        assert(pixbuf);
+        
+        int width = gdk_pixbuf_get_width(pixbuf);
+        int height = gdk_pixbuf_get_height(pixbuf);
+        unsigned char *pixels = gdk_pixbuf_get_pixels(pixbuf);
+        
+        glGenTextures(1, &textureID);
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        
+        g_object_unref(pixbuf);
+        if (w <= 0 || h <= 0) {
+            this->width = width;
+            this->height = height;
+        } else {
+            this->width = w;
+            this->height = h;
+        }
+    } else {
+        return;
+    }
+    
+    // Unbind the texture
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void ImmediateTexture::create(unsigned char *pixels, int w, int h, bool keep_aspect_ratio, int gl_order) {
+    this->width = w;
+    this->height = h;
+    
+    // TODO: resize after stb loads based of w and h set
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    
+    // Use trilinear filtering (mipmaps + linear filtering)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+//    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, gl_order, GL_UNSIGNED_BYTE, pixels);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    
+    // Unbind the texture
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void ImmediateTexture::bind() const {
+    glBindTexture(GL_TEXTURE_2D, textureID);
+}
+
+void ImmediateTexture::draw(float x, float y, float w, float h) const {
+    glEnable(GL_TEXTURE_2D);
+    bind();
+    
+    x = std::round(x);
+    y = std::round(y);
+    
+    /* Draw quad with texture */
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(x, y);
+    glTexCoord2f(1.0f, 0.0f);
+    if (w == 0)
+        glVertex2f(x + (float) width, y);
+    else
+        glVertex2f(x + w, y);
+    glTexCoord2f(1.0f, 1.0f);
+    if (w == 0 || h == 0)
+        glVertex2f(x + (float) width, y + (float) height);
+    else
+        glVertex2f(x + w, y + h);
+    glTexCoord2f(0.0f, 1.0f);
+    if (h == 0)
+        glVertex2f(x, y + (float) height);
+    else
+        glVertex2f(x, y + h);
+    glEnd();
+    glDisable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+ImmediateTexture::~ImmediateTexture() {
+    glDeleteTextures(1, &textureID);
+}
+
+ImageData ImmediateTexture::get(const char *filename, int w, int h, bool keep_aspect_ratio) {
+    auto i = ImageData();
+    
+    if (strstr(filename, ".png")) {
+        // TODO: resize after stb loads based of w and h set
+        int nrChannels;
+        unsigned char *data = stbi_load(filename, &i.w, &i.h, &nrChannels, 4);
+        assert(data);
+        i.data = data;
+//        stbi_image_free(data);
+    } else if (strstr(filename, ".svg")) {
+        GdkPixbuf *pixbuf;
+        if (w <= 0 || h <= 0) {
+            auto handle = rsvg_handle_new_from_file(filename, nullptr);
+            assert(handle);
+            pixbuf = rsvg_handle_get_pixbuf(handle);
+        } else {
+            pixbuf = gdk_pixbuf_new_from_file_at_scale(filename, w, h, keep_aspect_ratio, nullptr);
+        }
+        assert(pixbuf);
+        
+        i.w = gdk_pixbuf_get_width(pixbuf);
+        i.h = gdk_pixbuf_get_height(pixbuf);
+        i.data = gdk_pixbuf_get_pixels(pixbuf);
+        i.pixbuf = pixbuf;
+    }
+    
+    return i;
+}
+
+ImmediateTexture::ImmediateTexture(InitialIcon *initial_icon) {
+    create(initial_icon->data, initial_icon->width, initial_icon->height);
+}
+
+
+FreeFont::~FreeFont() {
+    glDeleteProgram(shader_program);
+    glDeleteBuffers(1, &VBO);
+    glDeleteTextures(1, &texture_id);
+    
+    // Release FreeType resources
+    FT_Done_Face(face);
+    FT_Done_FreeType(ft);
+    
+    hb_buffer_destroy(hb_buffer);
+    hb_font_destroy(hb_font);
+    
+    // Clean up other dynamically allocated memory
+    delete[] nodes; // Assuming nodes is allocated using new[]
+}
+
+int FreeFont::force_ucs2_charmap(FT_Face ftf) {
+    for (int i = 0; i < ftf->num_charmaps; i++) {
+        if (((ftf->charmaps[i]->platform_id == 0)
+             && (ftf->charmaps[i]->encoding_id == 3))
+            || ((ftf->charmaps[i]->platform_id == 3)
+                && (ftf->charmaps[i]->encoding_id == 1))) {
+            return FT_Set_Charmap(ftf, ftf->charmaps[i]);
+        }
+    }
+    return -1;
+}
+
+FreeFont::FreeFont(int size, std::string font_name) {
+    if (FT_Init_FreeType(&ft)) {
+        fprintf(stderr, "Could not init freetype library\n");
+        return;
+    }
+    
+    FcPattern *pat = FcNameParse((const FcChar8 *) font_name.c_str());
+    FcPatternAddInteger(pat, FC_SLANT, FC_SLANT_ROMAN);
+//    FcPatternAddInteger(pat, FC_WEIGHT, FC_WEIGHT_BOLD);
+    FcPatternAddInteger(pat, FC_WEIGHT, FC_WEIGHT_NORMAL);
+    FcConfig *fcConfig = FcConfigGetCurrent();
+    FcFontSet *fs = FcFontList(fcConfig, pat, nullptr);
+    
+    bool found = false;
+    if (fs) {
+        for (int i = 0; i < fs->nfont; ++i) {
+            FcPattern *font = fs->fonts[i];
+            FcChar8 *fontName;
+            if (FcPatternGetString(font, FC_FILE, 0, &fontName) == FcResultMatch) {
+                found = true;
+                if (FT_New_Face(ft, (char *) fontName, 0, &face)) {
+                    fprintf(stderr, "Could not open font %s\n", (char *) fontName);
+                    return;
+                } else {
+                    break;
+                }
+            }
+        }
+        FcFontSetDestroy(fs);
+    }
+    if (!found) {
+        assert(false && "TODO! fallback font");
+    }
+    
+    force_ucs2_charmap(face);
+    FT_Set_Char_Size(face, 0, std::round((float) size * config->dpi * 64.0f * (100.0f / 76.0f)), 72, 72);
+    
+    FT_Library_SetLcdFilter(ft, FT_LCD_FILTER_DEFAULT);
+    hb_buffer = hb_buffer_create();
+    hb_font = hb_ft_font_create(face, NULL);
+    features.push_back(HBFeature::KerningOn);
+    
+    int num_nodes = (atlas_w * atlas_h) / size / 2;
+    nodes = new stbrp_node[num_nodes];
+    stbrp_init_target(&ctx, atlas_w, atlas_h, nodes, num_nodes);
+    
+    std::string vertexShaderCode =
+            R"(
+    #version 330 core
+
+    attribute vec4 coord;
+    varying vec2 texpos;
+    uniform mat4 projection;
+
+    void main() {
+        gl_Position = projection * vec4(coord.x, coord.y, 0, 1);
+        texpos = coord.zw;
+    }
+)";
+    std::string fragmentShaderCode =
+            R"(
+    #version 330 core
+
+    varying vec2 texpos;
+    uniform sampler2D tex;
+    uniform vec4 color;
+
+    void main(void) {
+      // Get the current color at the fragment position
+      vec4 start = texture2D(tex, texpos);
+      //start = pow(start, vec4(1.0 / 1.45)); // gamma white
+      start = pow(start, vec4(1.0 / 1.8)); // gamma black
+      //start = pow(start, vec4(1.0 / 2.2)); // gamma black
+      gl_FragColor = vec4((start.r * color.r),
+                          (start.g * color.g),
+                          (start.b * color.b), start.a * color.a);
+    }
+)";
+    // Compile shaders
+    GLuint vertexShader = compileShader(vertexShaderCode, GL_VERTEX_SHADER);
+    GLuint fragmentShader = compileShader(fragmentShaderCode, GL_FRAGMENT_SHADER);
+    
+    // Link shaders
+    shader_program = glCreateProgram();
+    glAttachShader(shader_program, vertexShader);
+    glAttachShader(shader_program, fragmentShader);
+    glLinkProgram(shader_program);
+    
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+    
+    // Get uniform location
+    projection_uniform = glGetUniformLocation(shader_program, "projection");
+    attribute_coord = glGetAttribLocation(shader_program, "coord");
+    uniform_tex = glGetUniformLocation(shader_program, "tex");
+    uniform_color = glGetUniformLocation(shader_program, "color");
+    
+    glGenBuffers(1, &VBO);
+    
+    /* Create a texture that will be used to hold all ASCII glyphs */
+    glActiveTexture(GL_TEXTURE0);
+    glGenTextures(1, &texture_id);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+    glUniform1i(uniform_tex, 0);
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, atlas_w, atlas_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    
+    /* We require 1 byte alignment when uploading texture data. WhhhY? */
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    
+    /* Clamping to edges is important to prevent artifacts when scaling */
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    
+    /* Linear filtering usually looks best for text */
+    glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
+    glEnable(GL_BLEND);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+}
+
+void FreeFont::update_projection(const glm::mat4 &projection) {
+    this->projection = projection;
+}
+
+void FreeFont::bind_needed_glyphs(const std::u32string &text) {
+    hb_buffer_reset(hb_buffer);
+    std::vector<char32_t> line;
+    
+    for (int current_index = 0; current_index < current_text.size(); current_index++) {
+        if (current_text[current_index] == '\n' || current_index == current_text.size() - 1) {
+            hb_buffer_add_utf32(hb_buffer, (uint32_t *) line.data(), line.size(), 0, -1);
+            hb_buffer_guess_segment_properties(hb_buffer);
+            hb_shape(hb_font, hb_buffer, features.empty() ? NULL : &features[0], features.size());
+            unsigned int glyph_count;
+            hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(hb_buffer, &glyph_count);
+            hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(hb_buffer, &glyph_count);
+            
+            for (int i = 0; i < glyph_count; i++) {
+                hb_glyph_info_t ginfo = glyph_info[i];
+                hb_glyph_position_t pos = glyph_pos[i];
+                
+                GlyphInfo info = {};
+                for (auto pc: loaded_glyphs) {
+                    if (pc.codepoint == ginfo.codepoint) {
+                        info = pc;
+                        break;
+                    }
+                }
+                // Apparently we can get a '0' codepoint glyph with valid? advance info
+                if (info.codepoint == 0 && ginfo.codepoint != 0) {
+                    FT_Load_Glyph(face, ginfo.codepoint, FT_LOAD_TARGET_LCD);
+                    FT_Render_Glyph(face->glyph, FT_RENDER_MODE_LCD);
+                    FT_GlyphSlot g = face->glyph;
+                    
+                    info.codepoint = ginfo.codepoint;
+                    float padding = 1;
+                    info.bitmap_w = g->bitmap.width / 3;
+                    info.bitmap_h = g->bitmap.rows;
+                    info.bearing_x = g->bitmap_left;
+                    info.bearing_y = g->bitmap_top;
+                    info.location.w = info.bitmap_w + padding * 2;
+                    info.location.h = info.bitmap_w + padding * 2;
+                    stbrp_pack_rects(&ctx, &info.location, 1);
+                    assert(info.location.was_packed && "TODO: Handle when character fails to be packed");
+                    info.metrics = g->metrics;
+                    info.u1 = ((float) info.location.x + padding) / atlas_w;
+                    info.u2 = ((float) info.location.x + padding + (float) info.bitmap_w) / atlas_w;
+                    info.v1 = ((float) info.location.y + padding) / atlas_h;
+                    info.v2 = ((float) info.location.y + padding + (float) info.bitmap_h) / atlas_h;
+                    loaded_glyphs.push_back(info);
+                    
+                    std::vector<uint8_t> pixels3;
+                    for (int y = 0; y < face->glyph->bitmap.rows; y++) {
+                        for (int x = 0; x < face->glyph->bitmap.pitch / 3; x++) {
+                            uint8_t r = face->glyph->bitmap.buffer[y * face->glyph->bitmap.pitch + x * 3];
+                            uint8_t g = face->glyph->bitmap.buffer[y * face->glyph->bitmap.pitch + x * 3 + 1];
+                            uint8_t b = face->glyph->bitmap.buffer[y * face->glyph->bitmap.pitch + x * 3 + 2];
+                            pixels3.push_back(r);
+                            pixels3.push_back(g);
+                            pixels3.push_back(b);
+                            pixels3.push_back((r + g + b) / 3);
+                        }
+                    }
+                    
+                    glTexSubImage2D(GL_TEXTURE_2D, 0,
+                                    info.location.x + padding,
+                                    info.location.y + padding,
+                                    face->glyph->bitmap.pitch / 3,
+                                    face->glyph->bitmap.rows,
+                                    GL_RGBA, GL_UNSIGNED_BYTE,
+                                    pixels3.data());
+                }
+            }
+            
+            hb_buffer_reset(hb_buffer);
+            line.clear();
+            continue;
+        }
+        
+        line.push_back(current_text[current_index]);
+    }
+}
+
+void FreeFont::generate_info_needed_for_alignment() {
+    full_text_w = full_text_h = 0;
+    line_widths.clear();
+    largest_horiz_bearing_y = 0;
+    
+    hb_buffer_reset(hb_buffer);
+    std::vector<char32_t> line;
+    int lines = 0;
+    //
+    //
+    // TODO: we should only load hb_buffer once, and then get glyph info using substrings into the buffer
+    //  it would be less costly, also the way harfbuzz recommends doing it.
+    //
+    //
+    for (int current_index = 0; current_index <= current_text.size(); current_index++) {
+        if (current_text[current_index] == '\n' || current_index == current_text.size()) {
+            hb_buffer_add_utf32(hb_buffer, (uint32_t *) line.data(), line.size(), 0, -1);
+            hb_buffer_guess_segment_properties(hb_buffer);
+            hb_shape(hb_font, hb_buffer, features.empty() ? NULL : &features[0], features.size());
+            unsigned int glyph_count;
+            hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(hb_buffer, &glyph_count);
+            hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(hb_buffer, &glyph_count);
+            
+            float pen_x = 0;
+            float last_w = 0;
+            float first_bearing = 0; // we need to remove the first bearing to get accurate width
+            for (int i = 0; i < glyph_count; i++) {
+                hb_glyph_info_t ginfo = glyph_info[i];
+                hb_glyph_position_t pos = glyph_pos[i];
+                GlyphInfo info = {};
+                info.metrics.horiBearingY = 0;
+                for (auto pc: loaded_glyphs) {
+                    if (pc.codepoint == ginfo.codepoint) {
+                        info = pc;
+                        break;
+                    }
+                }
+                if (i == 0)
+                    first_bearing = info.bearing_x;
+                if (info.metrics.horiBearingY > largest_horiz_bearing_y)
+                    largest_horiz_bearing_y = info.metrics.horiBearingY >> 7;
+                if (i != glyph_count - 1) {
+                    pen_x += pos.x_advance;
+                } else {
+                    last_w = std::ceil(info.bitmap_w + first_bearing);
+                }
+            }
+            
+            float w_f = pen_x / 64.0 + last_w;
+            line_widths.push_back(w_f);
+            if (w_f > full_text_w)
+                full_text_w = w_f;
+            
+            hb_buffer_reset(hb_buffer);
+            line.clear();
+            lines++;
+            continue;
+        }
+        
+        line.push_back(current_text[current_index]);
+    }
+    
+    full_text_h = (face->size->metrics.height >> 6) * lines;
+}
+
+void FreeFont::begin() {
+    glUseProgram(shader_program);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+}
+
+void FreeFont::end() {
+    glDisableVertexAttribArray(attribute_coord);
+    glUseProgram(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void FreeFont::set_text(std::string text) {
+    // Removes '\r' as they are not needed
+    text.erase(std::remove(text.begin(), text.end(), '\r'), text.end());
+    current_text_raw = text;
+    
+    // Convert to utf32, so we feed the correct code points to freetype
+    // Create a wide string using UTF-16 encoding (wchar_t)
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    std::wstring utf16String = converter.from_bytes(text);
+    
+    // Create a UTF-32 encoded string (std::u32string)
+    current_text = std::u32string(utf16String.begin(), utf16String.end() + 1);
+    
+    if (current_text_raw.empty()) {
+        full_text_w = 0;
+        full_text_h = 0;
+        return;
+    }
+    
+    bind_needed_glyphs(current_text);
+    
+    generate_info_needed_for_alignment();
+}
+
+void FreeFont::draw_text(PangoAlignment align, float x, float y, float wrap) {
+    if (current_text_raw.empty())
+        return;
+    glUniformMatrix4fv(projection_uniform, 1, GL_FALSE, glm::value_ptr(projection));
+    
+    glUniform4f(uniform_color, color.r, color.g, color.b, color.a);
+    
+    /* Set up the VBO for our vertex data */
+    glEnableVertexAttribArray(attribute_coord);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glVertexAttribPointer(attribute_coord, 4, GL_FLOAT, GL_FALSE, 0, 0);
+
+//        glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    
+    struct point {
+        GLfloat texture_x;
+        GLfloat texture_y;
+        GLfloat texture_u;
+        GLfloat texture_v;
+    };
+    // Six because it's three points per triangle, and you need two triangles to make a quad (rectangle)
+    point vertex_corners[6 * current_text.size()];
+    
+    int current_corner = 0;
+    int current_line = 0;
+    
+    float pen_x;
+    if (align == PANGO_ALIGN_RIGHT) {
+        pen_x = std::floor((full_text_w - line_widths[current_line]) * 64.0);
+    } else if (align == PANGO_ALIGN_CENTER) {
+        pen_x = std::floor(((full_text_w - line_widths[current_line]) / 2) * 64.0);
+    } else {
+        pen_x = 0;
+    }
+    float pen_y = 0;
+    float line_height = face->size->metrics.height >> 6;
+    
+    hb_buffer_reset(hb_buffer);
+    std::vector<char32_t> line;
+    
+    for (int current_index = 0; current_index <= current_text.size(); current_index++) {
+        if (current_text[current_index] == '\n' || current_index == current_text.size()) {
+            hb_buffer_add_utf32(hb_buffer, (uint32_t *) line.data(), line.size(), 0, -1);
+            hb_buffer_guess_segment_properties(hb_buffer);
+            hb_shape(hb_font, hb_buffer, features.empty() ? NULL : &features[0], features.size());
+            unsigned int glyph_count;
+            hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(hb_buffer, &glyph_count);
+            hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(hb_buffer, &glyph_count);
+            
+            int maxAscent = int(face->ascender * (face->size->metrics.y_scale / 65536.0)) >> 6;
+            int maxDescent = int(abs(face->descender * (face->size->metrics.y_scale / 65536.0))) >> 6;
+            
+            for (int i = 0; i < glyph_count; i++) {
+                hb_glyph_info_t ginfo = glyph_info[i];
+                hb_glyph_position_t pos = glyph_pos[i];
+                
+                GlyphInfo glyph_info = {};
+                for (auto pc: loaded_glyphs) {
+                    if (pc.codepoint == ginfo.codepoint) {
+                        glyph_info = pc;
+                        break;
+                    }
+                }
+                if (glyph_info.codepoint != 0) {
+                    float baseline_y = maxAscent - glyph_info.bearing_y;
+                    
+                    float full_scale_pen_x = pen_x;
+                    pen_x = full_scale_pen_x / 64.0;
+                    
+                    float x_offset = (float) pos.x_offset / 64;
+                    float left_x = pen_x + x + x_offset + glyph_info.bearing_x;
+                    float right_x = left_x + glyph_info.bitmap_w;
+                    
+                    float y_offset = (float) pos.y_offset / 64;
+                    float bottom_y = std::round(pen_y + y + y_offset + baseline_y);
+                    float top_y = std::round(bottom_y + glyph_info.bitmap_h);
+                    
+                    // create vertex glyph_info
+                    //bottom left corner of triangle
+                    vertex_corners[current_corner++] = {left_x,
+                                                        bottom_y,
+                                                        glyph_info.u1,
+                                                        glyph_info.v1};
+                    
+                    //bottom right corner of triangle
+                    vertex_corners[current_corner++] = {right_x,
+                                                        bottom_y,
+                                                        glyph_info.u2,
+                                                        glyph_info.v1};
+                    
+                    //top right corner of triangle
+                    vertex_corners[current_corner++] = {right_x,
+                                                        top_y,
+                                                        glyph_info.u2,
+                                                        glyph_info.v2};
+                    
+                    
+                    //top right corner of triangle
+                    vertex_corners[current_corner++] = {right_x,
+                                                        top_y,
+                                                        glyph_info.u2,
+                                                        glyph_info.v2};
+                    
+                    //top left corner of triangle
+                    vertex_corners[current_corner++] = {left_x,
+                                                        top_y,
+                                                        glyph_info.u1,
+                                                        glyph_info.v2};
+                    
+                    //bottom left corner of triangle
+                    vertex_corners[current_corner++] = {left_x,
+                                                        bottom_y,
+                                                        glyph_info.u1,
+                                                        glyph_info.v1};
+                    pen_x = full_scale_pen_x;
+                    pen_x += pos.x_advance;
+                } else {
+                    // There are cases where we have no codepoint, but DO have an advance we need to attend to
+                    pen_x += pos.x_advance;
+                }
+            }
+            
+            current_line++;
+            if (align == PANGO_ALIGN_RIGHT) {
+                if (current_line < line_widths.size()) {
+                    pen_x = std::floor((full_text_w - line_widths[current_line]) * 64.0);
+                }
+            } else if (align == PANGO_ALIGN_CENTER) {
+                if (current_line < line_widths.size()) {
+                    pen_x = std::floor(((full_text_w - line_widths[current_line]) / 2) * 64.0);
+                }
+            } else {
+                pen_x = 0;
+            }
+            pen_y += line_height;
+            hb_buffer_reset(hb_buffer);
+            line.clear();
+            continue;
+        }
+        line.push_back(current_text[current_index]);
+    }
+    
+    glBufferData(GL_ARRAY_BUFFER, sizeof vertex_corners, vertex_corners, GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, current_corner);
+}
+
+void FreeFont::draw_text(float x, float y, float wrap) {
+    draw_text(PangoAlignment::PANGO_ALIGN_LEFT, x, y, wrap);
+}
+
+void FreeFont::set_color(float r, float g, float b) {
+    set_color(r, g, b, 1.0f);
+}
+
+void FreeFont::set_color(float r, float g, float b, float a) {
+    this->color.r = r;
+    this->color.g = g;
+    this->color.b = b;
+    this->color.a = a;
+}
+
+std::string FreeFont::wrapped_text(std::string text, float wrap) {
+    std::string buffer;
+    
+    int base = 0;
+    for (int i = 0; i < text.size(); i++) {
+        this->begin();
+        this->set_text(text.substr(base, i - base));
+        this->end();
+        
+        if (this->full_text_w >= wrap) {
+            if (isalpha(text[i])) {
+                for (int x = i - 1; x >= 0; x--) {
+                    if (!isalpha(text[x])) {
+                        for (int z = 0; z < (i - x); z++) {
+                            buffer.pop_back();
+                        }
+                        
+                        i = x;
+                        base = x;
+                        buffer.push_back('\n');
+                        break;
+                    }
+                }
+                continue;
+            }
+            buffer.push_back('\n');
+            base = i;
+        }
+        buffer.push_back(text[i]);
+    }
+    
+    return buffer;
+}
+
+FontReference *FontManager::get(AppClient *client, int size, std::string font) {
+    for (int i = fonts.size() - 1; i >= 0; i--) { // Get rid of fonts which have no live client
+        if (!fonts[i]->creation_client_alive.lock()) {
+            delete fonts[i];
+            fonts.erase(fonts.begin() + i);
+        }
+    }
+    
+    for (auto f: fonts) {
+        if (client->should_use_gl) {
+            if (f->size == size && f->name == font && f->creation_client == client) {
+                return f;
+            }
+        } else {
+            if (f->size == size && f->name == font) {
+                return f;
+            }
+        }
+    }
+    
+    auto ref = new FontReference;
+    ref->name = font;
+    ref->size = size;
+    ref->weight = PANGO_WEIGHT_NORMAL;
+    ref->creation_client = client;
+    ref->creation_client_alive = client->lifetime;
+    // Free any whose lifetimes are gone
+    // This guy needs to account for different clients unlike the cairo version
+    if (client->should_use_gl) {
+        ref->font = new FreeFont(size, font);
+    } else {
+        // Create the font ref and add it to the list
+//        ref->layout = get_cached_pango_font(client->cr, font, size * config->dpi, PANGO_WEIGHT_NORMAL);
+    }
+    printf("pushed: %s\n", font.c_str());
+    fonts.push_back(ref);
+    return ref;
+}
+
+void FontReference::begin() {
+    if (!font) {
+        layout = get_cached_pango_font(creation_client->cr, name, size * config->dpi, PANGO_WEIGHT_NORMAL);
+        return;
+    }
+    font->begin();
+}
+
+void FontReference::set_color(float r, float g, float b, float a) {
+    if (layout) {
+        cairo_set_source_rgba(creation_client->cr, r, g, b, a);
+    } else {
+        font->set_color(r, g, b, a);
+    }
+}
+
+void FontReference::set_text(std::string text) {
+    if (layout) {
+        pango_layout_set_text(layout, text.data(), text.size());
+    } else {
+        font->set_text(text);
+    }
+}
+
+void FontReference::draw_text(int x, int y, int param) {
+    bool cares_about_align = param != 5;
+    if (layout) {
+        PangoAlignment original_align;
+        if (cares_about_align) {
+           original_align =  pango_layout_get_alignment(layout);
+        }
+        cairo_move_to(creation_client->cr, x, y);
+        if (cares_about_align) {
+            pango_layout_set_alignment(layout, (PangoAlignment) param);
+        }
+        pango_cairo_show_layout(creation_client->cr, layout);
+        if (cares_about_align) {
+            pango_layout_set_alignment(layout, original_align);
+        }
+    } else {
+        if (cares_about_align) {
+            font->draw_text((PangoAlignment) param, x, y);
+        } else {
+            font->draw_text(x, y);
+        }
+    }
+}
+
+void FontReference::end() {
+    if (layout)
+        return;
+    font->end();
+}
+
+Sizes FontReference::sizes() {
+    if (layout) {
+        PangoRectangle ink;
+        PangoRectangle logical;
+        pango_layout_get_extents(layout, &ink, &logical);
+        return {(float) (logical.width / PANGO_SCALE), (float) (logical.height / PANGO_SCALE)};
+    } else {
+        return {font->full_text_w, font->full_text_h};
+    }
+}
+
+Sizes FontReference::begin(std::string text, float r, float g, float b, float a) {
+    begin();
+    set_text(text);
+    set_color(r, g, b, a);
+    return sizes();
+}
+
+OffscreenFrameBuffer::OffscreenFrameBuffer(int width, int height) : width(width), height(height) {
+    create(width, height);
+}
+
+OffscreenFrameBuffer::~OffscreenFrameBuffer() {
+    destroy();
+}
+
+void OffscreenFrameBuffer::push() {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glViewport(0, 0, width, height); // Ensure the viewport matches the FBO size
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f); // Set clear color to transparent black (or any color you need)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear color and depth buffers (if depth is used)
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+void OffscreenFrameBuffer::pop(bool blur) {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Bind back to the default framebuffer
+    if (blur) {
+        glUseProgram(shaderProgramBlur);
+    } else {
+        glUseProgram(shaderProgram);
+    }
+    glBindVertexArray(quadVAO);
+    glBindTexture(GL_TEXTURE_2D, texColorBuffer);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+void OffscreenFrameBuffer::destroy() {
+    glDeleteFramebuffers(1, &fbo);
+    glDeleteTextures(1, &texColorBuffer);
+    glDeleteRenderbuffers(1, &rbo);
+    glDeleteProgram(shaderProgram);
+    glDeleteVertexArrays(1, &quadVAO);
+    glDeleteBuffers(1, &quadVBO);
+}
+
+void OffscreenFrameBuffer::create(int w, int h) {
+    width = w;
+    height = h;
+    // Generate and bind the framebuffer
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    
+    // Create a color attachment texture
+    glGenTextures(1, &texColorBuffer);
+    glBindTexture(GL_TEXTURE_2D, texColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0);
+    
+    // Check if framebuffer is complete
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    
+    
+    // Load and compile shaders and link program
+    GLuint vertexShader = compileShader(vertexShaderSource, GL_VERTEX_SHADER);
+    GLuint fragmentShader = compileShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
+    GLuint fragmentShaderBlur = compileShader(fragmentShaderSourceBlur, GL_FRAGMENT_SHADER);
+    shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    
+    shaderProgramBlur = glCreateProgram();
+    glAttachShader(shaderProgramBlur, vertexShader);
+    glAttachShader(shaderProgramBlur, fragmentShaderBlur);
+    glLinkProgram(shaderProgramBlur);
+    
+    // Cleanup shaders (they can be deleted once linked into a program)
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+    glDeleteShader(fragmentShaderBlur);
+    
+    // Setup quad for drawing FBO texture
+    float quadVertices[] = {
+            // positions   // texCoords
+            -1.0f, 1.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f,
+            1.0f, -1.0f, 1.0f, 0.0f,
+            
+            -1.0f, 1.0f, 0.0f, 1.0f,
+            1.0f, -1.0f, 1.0f, 0.0f,
+            1.0f, 1.0f, 1.0f, 1.0f
+    };
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *) 0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *) (2 * sizeof(float)));
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void OffscreenFrameBuffer::resize(int w, int h) {
+    destroy();
+    create(w, h);
 }

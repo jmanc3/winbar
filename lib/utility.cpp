@@ -671,21 +671,6 @@ uint32_t argb_to_color(ArgbColor color) {
     return (a << 24) + (r << 16) + (g << 8) + (b);
 }
 
-void
-paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, double pad) {
-    cairo_rectangle(cr, (int) (b.x + pad), (int) (b.y + pad), (int) (b.w - pad * 2 - width), (int) (width));
-    cairo_fill(cr);
-    
-    cairo_rectangle(cr, (int) (b.x + pad), (int) (b.y + pad + width), (int) (width), (int) (b.h - pad * 2 - width * 2));
-    cairo_fill(cr);
-    
-    cairo_rectangle(cr, (int) (b.x + b.w - width - pad), (int) (b.y + pad), (int) (width), (int) (b.h - pad * 2));
-    cairo_fill(cr);
-    
-    cairo_rectangle(cr, (int) (b.x + pad), (int) (b.y + b.h - width - pad), (int) (b.w - pad * 2 - width), (width));
-    cairo_fill(cr);
-}
-
 bool is_light_theme(const ArgbColor &color) {
     double h; // hue
     double s; // saturation

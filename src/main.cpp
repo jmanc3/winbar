@@ -38,8 +38,6 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    global = new globals;
-    
     // Open connection to app
     app = app_new();
     
@@ -47,6 +45,8 @@ int main(int argc, char* argv[]) {
         printf("Couldn't start application\n");
         return -1;
     }
+    
+    global = new globals;
     
     if (!copy_resources_from_system_to_user()) {
         printf("Exiting. Couldn't copy winbar resources from system into $HOME/.config\n");

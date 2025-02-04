@@ -2,6 +2,7 @@
 #define UTILITY_HEADER
 
 #include "application.h"
+
 #include "defer.h"
 #include <cairo-xcb.h>
 #include <container.h>
@@ -9,6 +10,8 @@
 #include <pango/pango-layout.h>
 #include <regex>
 #include <utility>
+
+#define EXPAND(v) v.r, v.g, v.b, v.a
 
 static bool parse_hex(std::string hex, double *a, double *r, double *g, double *b) {
     while (hex[0] == '#') { // remove leading pound sign
@@ -312,9 +315,6 @@ bool overlaps(double ax, double ay, double aw, double ah,
 
 double calculate_overlap_percentage(double ax, double ay, double aw, double ah,
                                     double bx, double by, double bw, double bh);
-
-void
-paint_margins_rect(AppClient *client, cairo_t *cr, Bounds b, double width, double pad);
 
 bool is_light_theme(const ArgbColor &color);
 

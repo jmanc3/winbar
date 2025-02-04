@@ -6,6 +6,7 @@
 #include <utility.h>
 #include <xcb/xcb_aux.h>
 #include "application.h"
+#include "drawer.h"
 
 class HoverableButton : public UserData {
 public:
@@ -23,16 +24,40 @@ public:
     ArgbColor actual_pane_color = ArgbColor(0, 0, 0, 0);
 };
 
+struct ClientTexture {
+    ImmediateTexture *texture = new ImmediateTexture;
+    AppClient *client = nullptr;
+    std::weak_ptr<bool> lifetime;
+};
+
+struct gl_surface {
+    bool valid = false; // If not valid, texture needs to be copied from src_surface again
+    
+    std::vector<ClientTexture *> textures;
+        
+    gl_surface();
+    
+    AppClient *creation_client = nullptr; // Which client the gl_surface is valid for
+};
+
 class IconButton : public HoverableButton {
 public:
-    cairo_surface_t *surface = nullptr;
+    cairo_surface_t *surface__ = nullptr;
+    gl_surface *gsurf = nullptr;
     
     // These three things are so that opening menus with buttons toggles between opening and closing
     std::string invalidate_button_press_if_client_with_this_name_is_open;
     bool invalid_button_down = false;
     long timestamp = 0;
     
-    ~IconButton() { cairo_surface_destroy(surface); }
+    IconButton() {
+        gsurf = new gl_surface();
+    }
+    
+    ~IconButton() {
+        cairo_surface_destroy(surface__);
+        delete gsurf;
+    }
 };
 
 class VolumeButton : public IconButton {

@@ -15,6 +15,7 @@
 #include "utility.h"
 #include "simple_dbus.h"
 #include "search_menu.h"
+#include "drawer.h"
 
 #ifdef TRACY_ENABLE
 
@@ -880,20 +881,21 @@ static void paint_textarea_border(AppClient *client, cairo_t *cr, Container *con
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    ArgbColor color;
     if (container->state.mouse_hovering || container->state.mouse_pressing || container->active) {
         if (container->state.mouse_pressing || container->active) {
             if (container->state.mouse_pressing && container->active) {
-                set_argb(cr, lighten(config->color_pinned_icon_editor_field_pressed_border, 7));
+                color = lighten(config->color_pinned_icon_editor_field_pressed_border, 7);
             } else {
-                set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
+                color = config->color_pinned_icon_editor_field_pressed_border;
             }
         } else {
-            set_argb(cr, config->color_pinned_icon_editor_field_hovered_border);
+            color = config->color_pinned_icon_editor_field_hovered_border;
         }
     } else {
-        set_argb(cr, config->color_pinned_icon_editor_field_default_border);
+        color = config->color_pinned_icon_editor_field_default_border;
     }
-    paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+    draw_margins_rect(client, color, container->real_bounds, 2, 0);
 }
 
 struct PathHolder : public UserData {
@@ -994,6 +996,7 @@ fill_root(AppClient *client, Container *root) {
     bool_checkbox_indent("Uniform pinned icon width", 16 * config->dpi,
                          &winbar_settings->label_uniform_size, scroll_root, client);
     bool_checkbox("Icon minimize/maximize bounce animation", &winbar_settings->minimize_maximize_animation, scroll_root, client);
+    bool_checkbox("Use OpenGL", &winbar_settings->use_opengl, scroll_root, client);
     string_textfield("Shutdown command: ", &winbar_settings->shutdown_command, scroll_root, client, "pkexec shutdown -P now");
     scroll_root->child(FILL_SPACE, 6 * config->dpi);
     string_textfield("Restart command: ", &winbar_settings->restart_command, scroll_root, client, "pkexec reboot");
@@ -1283,6 +1286,9 @@ void save_settings_file() {
     out_file << "minimize_maximize_animation=" << (winbar_settings->minimize_maximize_animation ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "use_opengl=" << (winbar_settings->use_opengl ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     // Thumbnails
     out_file << "thumbnails=" << (winbar_settings->thumbnails ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -1528,6 +1534,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "labels", &winbar_settings->labels);
                 parse_bool(&parser, key, "label_uniform_size", &winbar_settings->label_uniform_size);
                 parse_bool(&parser, key, "minimize_maximize_animation", &winbar_settings->minimize_maximize_animation);
+                parse_bool(&parser, key, "use_opengl", &winbar_settings->use_opengl);
                 parse_string(&parser, key, "custom_desktops_directory", &winbar_settings->custom_desktops_directory);
                 parse_string(&parser, key, "shutdown_command", &winbar_settings->shutdown_command);
                 parse_string(&parser, key, "restart_command", &winbar_settings->restart_command);

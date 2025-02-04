@@ -13,6 +13,11 @@
 #include <GL/glx.h>
 #include <xkbcommon/xkbcommon-x11.h>
 #include <xkbcommon/xkbcommon.h>
+#include <glm/glm.hpp>
+#include <iostream>
+#include <freetype/freetype.h>
+
+#include "stb_rect_pack.h"
 
 #define explicit dont_use_cxx_explicit
 
@@ -20,6 +25,8 @@
 #include <xcb/xkb.h>
 #include <xcb/xcb_cursor.h>
 #include <pango/pango-font.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
+#include <pango/pango.h>
 #include "easing.h"
 
 #undef explicit
@@ -243,9 +250,397 @@ struct Subprocess {
     void kill(bool warn);
 };
 
+
+struct RoundedRect {
+    RoundedRect();
+    
+    void update_projection(const glm::mat4 &projection);
+    
+    void draw_rect(float x, float y, float w, float h, float r, float pad, float panel);
+    
+    // API to set color using RGB values (0 to 1)
+    void set_color(float r, float g, float b);
+    
+    // API to set color using RGBA values (0 to 1)
+    void set_color(float r, float g, float b, float a);
+    
+    // API to set color using four corner RGBA values (0 to 1)
+    void set_color(glm::vec4 top_left_rgba, glm::vec4 top_right_rgba, glm::vec4 bottom_right_rgba,
+                   glm::vec4 bottom_left_rgba);
+    
+    std::string vertexShaderSource;
+    std::string fragmentShaderSource;
+    GLuint shaderProgram;
+    GLuint projectionUniform;
+    glm::mat4 projection;
+    GLuint radiusUniform;
+    GLuint softnessUniform;
+    GLuint rectUniform;
+    GLuint padUniform;
+    GLuint panelUniform;
+    GLuint VAO, VBO;
+    
+    glm::vec4 color_top_left = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4 color_top_right = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4 color_bottom_right = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4 color_bottom_left = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+};
+
+static GLuint compileShader(const std::string &shaderCode, GLenum shaderType) {
+    GLuint shader = glCreateShader(shaderType);
+    const char *code = shaderCode.c_str();
+    glShaderSource(shader, 1, &code, nullptr);
+    glCompileShader(shader);
+    
+    GLint success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        GLchar infoLog[512];
+        glGetShaderInfoLog(shader, sizeof(infoLog), nullptr, infoLog);
+        std::cerr << "Shader compilation error:\n" << infoLog << std::endl;
+    }
+    
+    return shader;
+}
+
+class ShapeRenderer {
+public:
+    float rot = 0;
+    
+    ShapeRenderer();
+    
+    void update_projection(const glm::mat4 &projection);
+    
+    void draw_rect(float x, float y, float w, float h);
+    
+    // API to set color using RGB values (0 to 1)
+    void set_color(float r, float g, float b);
+    
+    // API to set color using RGBA values (0 to 1)
+    void set_color(float r, float g, float b, float a);
+    
+    // API to set color using four corner RGBA values (0 to 1)
+    void set_color(glm::vec4 top_left_rgba, glm::vec4 top_right_rgba, glm::vec4 bottom_right_rgba,
+                   glm::vec4 bottom_left_rgba);
+
+private:
+    void initialize();
+
+private:
+    std::string vertexShaderSource;
+    std::string fragmentShaderSource;
+    GLuint shaderProgram;
+    GLuint projectionUniform;
+    glm::mat4 projection;
+    glm::mat4 model;
+    GLuint VAO, VBO;
+    
+    glm::vec4 color_top_left = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4 color_top_right = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4 color_bottom_right = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4 color_bottom_left = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+};
+
+struct InitialIcon {
+    std::string class_name;
+    unsigned char *data = nullptr;
+    GdkPixbuf *pixbuf = nullptr;
+    int width = 0;
+    int height = 0;
+    
+    void destroy();
+};
+
+struct ImageData {
+    unsigned char *data = nullptr;
+    int w = 0;
+    int h = 0;
+    void *pixbuf = nullptr;
+};
+
+class ImmediateTexture {
+public:
+    explicit ImmediateTexture(const char *filename, int w = 0, int h = 0, bool keep_aspect_ratio = true);
+    
+    ImmediateTexture(InitialIcon *initial_icon);
+    
+    ImmediateTexture() {};
+    
+    ImageData get(const char *filename, int w = 0, int h = 0, bool keep_aspect_ratio = true);
+    
+    void create(unsigned char *pixels, int w, int h, bool keep_aspect_ratio = true, int gl_order = GL_RGBA);
+    
+    void bind() const;
+    
+    float width = 0;
+    float height = 0;
+    unsigned int textureID;
+    
+    void draw(float x, float y, float w = 0, float h = 0) const;
+    
+    ~ImmediateTexture();
+};
+
+
+namespace HBFeature {
+    const hb_tag_t KernTag = HB_TAG('k', 'e', 'r', 'n'); // kerning operations
+    const hb_tag_t LigaTag = HB_TAG('l', 'i', 'g', 'a'); // standard ligature substitution
+    const hb_tag_t CligTag = HB_TAG('c', 'l', 'i', 'g'); // contextual ligature substitution
+    
+    static hb_feature_t LigatureOff = {LigaTag, 0, 0, std::numeric_limits<unsigned int>::max()};
+    static hb_feature_t LigatureOn = {LigaTag, 1, 0, std::numeric_limits<unsigned int>::max()};
+    static hb_feature_t KerningOff = {KernTag, 0, 0, std::numeric_limits<unsigned int>::max()};
+    static hb_feature_t KerningOn = {KernTag, 1, 0, std::numeric_limits<unsigned int>::max()};
+    static hb_feature_t CligOff = {CligTag, 0, 0, std::numeric_limits<unsigned int>::max()};
+    static hb_feature_t CligOn = {CligTag, 1, 0, std::numeric_limits<unsigned int>::max()};
+}
+
+struct FreeFont {
+    GLuint shader_program;
+    GLuint VBO;
+    GLuint texture_id;
+    
+    GLuint projection_uniform;
+    GLint attribute_coord;
+    GLint uniform_tex;
+    GLint uniform_color;
+    glm::mat4 projection;
+    glm::vec4 color = glm::vec4(1, 1, 1, 1);
+    
+    FT_Library ft;
+    FT_Face face;
+    float atlas_w = 1024;
+    float atlas_h = 1024;
+    stbrp_context ctx;
+    stbrp_node *nodes;
+    
+    hb_font_t *hb_font;
+    hb_buffer_t *hb_buffer;
+    std::vector<hb_feature_t> features;
+    
+    
+    struct GlyphInfo {
+        // The location on the atlas of the character.
+        stbrp_rect location;
+        char32_t codepoint = 0;
+        // How much to advance the pen after laying down this character
+        // Character width and height
+        float bitmap_w = 0;
+        float bitmap_h = 0;
+        float bearing_x = 0;
+        float bearing_y = 0;
+        
+        FT_Glyph_Metrics metrics;
+        
+        // Where to pull from the atlas
+        float u1 = 0;
+        float v1 = 0;
+        float u2 = 0;
+        float v2 = 0;
+    };
+    std::vector<GlyphInfo> loaded_glyphs;
+    
+    // Info for alignment
+    std::u32string current_text;
+    std::string current_text_raw;
+    float full_text_w = 0;
+    float full_text_h = 0;
+    long largest_horiz_bearing_y = 0;
+    std::vector<float> line_widths;
+    
+    ~FreeFont();
+    
+    // Do not know why we are doing this!
+    int force_ucs2_charmap(FT_Face ftf);
+    
+    FreeFont(int size, std::string font_name);
+    
+    void update_projection(const glm::mat4 &projection);
+    
+    void bind_needed_glyphs(const std::u32string &text);
+    
+    void generate_info_needed_for_alignment();
+    
+    void begin();
+    
+    void end();
+    
+    void set_text(std::string text);
+    
+    void draw_text(PangoAlignment align, float x, float y, float wrap = 0);
+    
+    void draw_text(float x, float y, float wrap = 0);
+    
+    // API to set color using RGB values (0 to 1)
+    void set_color(float r, float g, float b);
+    
+    // API to set color using RGBA values (0 to 1)
+    void set_color(float r, float g, float b, float a);
+    
+    std::string wrapped_text(std::string text, float wrap);
+};
+
+class OffscreenFrameBuffer {
+public:
+    GLuint fbo;
+    GLuint texColorBuffer;
+    GLuint rbo;
+    GLuint shaderProgram;
+    GLuint shaderProgramBlur;
+    GLuint quadVAO, quadVBO;
+    int width, height;
+    
+    OffscreenFrameBuffer(int width, int height);
+    
+    ~OffscreenFrameBuffer();
+    
+    void push();
+    
+    void pop(bool blur = false);
+    
+    void resize(int w, int h);
+
+private:
+    // Placeholder for actual shader source code
+    const char *vertexShaderSource = R"glsl(
+        #version 330 core
+        layout (location = 0) in vec2 aPos;
+        layout (location = 1) in vec2 aTexCoords;
+        
+        out vec2 TexCoords;
+
+        void main() {
+            TexCoords = aTexCoords;
+            gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
+        }
+    )glsl";
+    
+    const char *fragmentShaderSource = R"glsl(
+        #version 330 core
+        out vec4 FragColor;
+
+        in vec2 TexCoords;
+        uniform sampler2D screenTexture;
+
+        void main() {
+            FragColor = texture(screenTexture, TexCoords);
+        }
+    )glsl";
+    
+    const char *fragmentShaderSourceBlur = R"glsl(
+        #version 330 core
+        out vec4 FragColor;
+
+        in vec2 TexCoords;
+        uniform sampler2D screenTexture;
+
+        const float FROST_INTENSITY = 0.1;
+        
+        vec3 tex(vec2 uv) {
+            return pow(texture(screenTexture, uv).rgb, vec3(2.2));
+        }
+        
+        vec2 hash22(vec2 uv) {
+            vec3 p3 = fract(vec3(uv.xyx) * vec3(.1031, .1030, .0973));
+            p3 += dot(p3, p3.yzx + 33.33);
+            return fract((p3.xx + p3.yz) * p3.zy);
+        }
+
+        void main() {
+            vec2 st = TexCoords;
+            vec2 uv = vec2(TexCoords.x / 5, TexCoords.y / 5);
+            float t = 0.0;
+            
+            float d = length(uv);
+            
+            vec2 noise = (hash22(st * 1000.) * 2. - 1.) * FROST_INTENSITY;
+            vec2 tex_offset = vec2(t / 4., sin(t / 8.));
+            vec3 color = tex(st + noise + tex_offset);
+            
+            vec3 srgb = pow(color, vec3(1. / 2.2));
+            FragColor = mix(vec4(srgb, 1.0), texture(screenTexture, uv), 0.87);
+        }
+    )glsl";
+//
+//    const char *fragmentShaderSourceBlur = R"glsl(
+//        #version 330 core
+//        out vec4 FragColor;
+//
+//        in vec2 TexCoords;
+//        uniform sampler2D screenTexture;
+//
+//        #define FLIP_IMAGE
+//
+//        float rand(vec2 uv) {
+//            float a = dot(uv, vec2(92., 80.));
+//            float b = dot(uv, vec2(41., 62.));
+//
+//            float x = sin(a) + cos(b) * 51.;
+//            return fract(x);
+//        }
+//
+//        void main() {
+//            vec2 uv = TexCoords;
+//            vec2 rnd = vec2(rand(uv), rand(uv));
+//
+//            uv += rnd * .05;
+//            FragColor = texture(screenTexture, uv);
+//        }
+//    )glsl";
+    
+    void destroy();
+    
+    void create(int w, int h);
+};
+
 #include <atomic>
 #include <functional>
 #include <memory>
+
+struct Sizes {
+    float w;
+    float h;
+};
+
+struct FontReference {
+    std::string name;
+    int size;
+    int weight;
+    
+    AppClient *creation_client = nullptr;
+    std::weak_ptr<bool> creation_client_alive;
+    
+    // Will have both pango and FreeType for now
+    FreeFont *font = nullptr;
+    PangoLayout *layout = nullptr;
+    
+    void begin();
+    Sizes begin(std::string text, float r, float g, float b, float a = 1);
+    void set_color(float r, float g, float b, float a = 1);
+    void set_text(std::string text);
+    void draw_text(int x, int y, int param = 5);
+    void end();
+    Sizes sizes();
+};
+
+struct FontManager {
+    std::vector<FontReference *> fonts;
+    
+    FontReference *get(AppClient *client, int size, std::string font);;
+};
+
+struct DrawContext {
+    ShapeRenderer shape;
+    
+    FontManager *font_manager = new FontManager();
+    
+    OffscreenFrameBuffer *buffer;
+    
+    ~DrawContext() {
+        delete font_manager;
+        delete buffer;
+    }
+};
 
 struct AppClient {
     App *app = nullptr;
@@ -259,8 +654,10 @@ struct AppClient {
     bool is_context_current = false;
     GLXContext context;
     bool gl_window_created = true;
+    bool should_use_gl = false;
     GLXWindow gl_window;
     GLXDrawable gl_drawable; // Automatically freed when window is destroyed
+    DrawContext *ctx;
     
     std::string name;
     
@@ -323,7 +720,7 @@ struct AppClient {
     bool window_supports_transparency;
     cairo_t *cr = nullptr;
     xcb_colormap_t colormap;
-    xcb_cursor_context_t *ctx;
+    xcb_cursor_context_t *cursor_ctx;
     xcb_cursor_t cursor = -1;
     uint32_t cursor_type = -1;
     xcb_window_t drag_and_drop_source = -1;
@@ -353,6 +750,7 @@ struct AppClient {
     void draw_start();
     void draw_end(bool reset_input);
     void gl_clear();
+    glm::mat4 projection;
     
     std::vector<Subprocess *> commands;
     

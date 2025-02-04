@@ -170,11 +170,10 @@ static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
 
 static void paint_icon(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (IconButton *) container->user_data;
-    if (data->surface) {
-        cairo_set_source_surface(cr, data->surface,
+    if (data->surface__) {
+        draw_gl_texture(client, data->gsurf, data->surface__,
                                  container->real_bounds.x + 16 * config->dpi,
                                  container->real_bounds.y + 25 * config->dpi);
-        cairo_paint(cr);
     }
 }
 
@@ -334,7 +333,7 @@ void show_notification(NotificationInfo *ni) {
     
     if (auto icon_container = container_by_name("icon", notification_container)) {
         auto icon_data = (IconButton *) icon_container->user_data;
-        load_icon_full_path(app, client, &icon_data->surface, ni->icon_path, 48 * config->dpi);
+        load_icon_full_path(app, client, &icon_data->surface__, ni->icon_path, 48 * config->dpi);
     }
     
     client->when_closed = client_closed;

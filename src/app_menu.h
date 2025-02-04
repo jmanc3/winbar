@@ -4,6 +4,7 @@
 #define APP_MENU_H
 
 #include "search_menu.h"
+#include "taskbar.h"
 
 #include <cairo.h>
 #include <string>
@@ -25,12 +26,22 @@ public:
     std::string exec;
     std::string wmclass;
     
-    cairo_surface_t *icon_16 = nullptr;
-    cairo_surface_t *icon_32 = nullptr;
-    cairo_surface_t *icon_24 = nullptr;
-    cairo_surface_t *icon_48 = nullptr;
-    cairo_surface_t *icon_64 = nullptr;
+    // TODO: gl_surfaces are only valid for their respective clients, not across client
+    cairo_surface_t *icon_16__ = nullptr;
+    gl_surface *g16 = new gl_surface;
     
+    cairo_surface_t *icon_32__ = nullptr;
+    gl_surface *g32 = new gl_surface;
+    
+    cairo_surface_t *icon_24__ = nullptr;
+    gl_surface *g24 = new gl_surface;
+    
+    cairo_surface_t *icon_48__ = nullptr;
+    gl_surface *g48 = new gl_surface;
+    
+    cairo_surface_t *icon_64__ = nullptr;
+    gl_surface *g64 = new gl_surface;
+
     time_t time_modified = 0;
     int priority = 0;
     
@@ -38,16 +49,16 @@ public:
     PinInfo info;
     
     ~Launcher() {
-        if (icon_16)
-            cairo_surface_destroy(icon_16);
-        if (icon_32)
-            cairo_surface_destroy(icon_32);
-        if (icon_24)
-            cairo_surface_destroy(icon_24);
-        if (icon_48)
-            cairo_surface_destroy(icon_48);
-        if (icon_64)
-            cairo_surface_destroy(icon_64);
+        if (icon_16__)
+            cairo_surface_destroy(icon_16__);
+        if (icon_32__)
+            cairo_surface_destroy(icon_32__);
+        if (icon_24__)
+            cairo_surface_destroy(icon_24__);
+        if (icon_48__)
+            cairo_surface_destroy(icon_48__);
+        if (icon_64__)
+            cairo_surface_destroy(icon_64__);
     }
     
     void set_pinned(bool pinned) {

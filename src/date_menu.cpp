@@ -6,6 +6,7 @@
 #include "main.h"
 #include "taskbar.h"
 #include "settings_menu.h"
+#include "drawer.h"
 
 #include <cstdio>
 #include <ctime>
@@ -404,8 +405,7 @@ paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
                           container->real_bounds.h / 2 - (text_ink.height / PANGO_SCALE) / 2);
             pango_cairo_show_layout(cr, text_layout);
         } else {
-            set_argb(cr, config->color_date_seperator);
-            paint_margins_rect(client, cr, container->real_bounds, 1, -2);
+            draw_margins_rect(client, config->color_date_seperator, container->real_bounds, 1, -2);
         }
     }
 }
@@ -417,9 +417,7 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     for (auto *ud: unique_day_text_state) {
         if (ud->day == data->day && ud->month == data->month && ud->year == data->year &&
             !ud->state->text.empty()) {
-            set_argb(cr, config->color_date_cal_border);
-            paint_margins_rect(client, cr, container->real_bounds, 1, -1);
-            cairo_fill(cr);
+            draw_margins_rect(client, config->color_date_cal_border, container->real_bounds, 1, -1);
         }
     }
     
@@ -435,38 +433,37 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     if (is_day_chosen) {
-        set_argb(cr, config->color_date_cal_background);
-        paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+        draw_margins_rect(client, config->color_date_cal_background, container->real_bounds, 2, 0);
     }
     
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
+        ArgbColor color;
         if (is_today || is_day_chosen) {
             ArgbColor b = config->color_date_cal_background;
             lighten(&b, 5);
             if (container->state.mouse_pressing) {
                 lighten(&b, 5);
-                set_argb(cr, b);
+                color = b;
             } else {
-                set_argb(cr, config->color_date_cal_background);
+                color = config->color_date_cal_background;
             }
         } else {
             ArgbColor b = config->color_date_cal_border;
             lighten(&b, 5);
             if (container->state.mouse_pressing) {
                 lighten(&b, 5);
-                set_argb(cr, b);
+                color = b;
             } else {
-                set_argb(cr, config->color_date_cal_border);
+                color = config->color_date_cal_border;
             }
         }
         
-        paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+        draw_margins_rect(client, color, container->real_bounds, 2, 0);
     }
     
     if (((container->state.mouse_hovering || container->state.mouse_pressing) || is_day_chosen) &&
         is_today) {
-        set_argb(cr, config->color_date_cal_foreground);
-        paint_margins_rect(client, cr, container->real_bounds, 2, 2);
+        draw_margins_rect(client, config->color_date_cal_foreground, container->real_bounds, 2, 2);
     }
     
     PangoLayout *text_layout =

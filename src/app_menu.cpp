@@ -31,8 +31,14 @@
 #include <filesystem>
 #include <fstream>
 #include "utility.h"
+#include "drawer.h"
 #include <xcb/xcb_cursor.h>
 #include <X11/cursorfont.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+
+#include "stb_image.h"
+
 
 
 std::vector<Launcher *> launchers;
@@ -113,9 +119,7 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_apps_background));
-    cairo_fill(cr);
+    draw_colored_rect(client, correct_opaqueness(client, config->color_apps_background), container->real_bounds);
 }
 
 static void
@@ -145,13 +149,11 @@ paint_power_menu(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    set_rect(cr, container->real_bounds);
-    if (is_light_theme(config->color_apps_background)) {
-        set_argb(cr, correct_opaqueness(client, darken(config->color_apps_background, 8)));
-    } else {
-        set_argb(cr, correct_opaqueness(client, lighten(config->color_apps_background, 8)));
-    }
-    cairo_fill(cr);
+    ArgbColor color = correct_opaqueness(client, lighten(config->color_apps_background, 8));
+    if (is_light_theme(config->color_apps_background))
+        color = correct_opaqueness(client, darken(config->color_apps_background, 8));
+    draw_colored_rect(client, color, container->real_bounds);
+    
     bool is_light_theme = false;
     {
         double h; // hue
@@ -162,12 +164,10 @@ paint_power_menu(AppClient *client, cairo_t *cr, Container *container) {
         is_light_theme = p > 50; // if the perceived perceived brightness is greater than that we are a light theme
     }
     
-    if (is_light_theme) {
-        set_argb(cr, ArgbColor(0.0, 0.0, 0.0, 0.34));
-    } else {
-        set_argb(cr, ArgbColor(0.0, 0.0, 0.0, 0.9));
-    }
-    paint_margins_rect(client, cr, container->real_bounds, 1, 0);
+    color = ArgbColor(0.0, 0.0, 0.0, 0.9);
+    if (is_light_theme)
+        color = ArgbColor(0.0, 0.0, 0.0, 0.34);
+    draw_margins_rect(client, color, container->real_bounds, 1, 0);
 }
 
 static void
@@ -178,15 +178,13 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     double openess = (container->real_bounds.w - (48 * config->dpi)) / (256 * config->dpi);
     
-    if (container->real_bounds.w == (48 * config->dpi)) {
-        set_argb(cr, correct_opaqueness(client, config->color_apps_background));
-    } else {
-        ArgbColor color = correct_opaqueness(client, config->color_apps_background);
+    auto color = correct_opaqueness(client, config->color_apps_background);
+    if (container->real_bounds.w != (48 * config->dpi)) {
+        color = correct_opaqueness(client, config->color_apps_background);
         lighten(&color, 2 * openess);
-        set_argb(cr, color);
     }
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
+    draw_colored_rect(client, color, container->real_bounds);
+    
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
     
     easingFunction ease = getEasingFunction(easing_functions::EaseInCubic);
@@ -197,13 +195,9 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
             scalar = (1 - scalar) * openess;
             scalar = ease(scalar);
             scalar /= (4 * config->dpi);
-            cairo_rectangle(cr,
-                            (int) (container->real_bounds.x + container->real_bounds.w + i),
-                            (int) (container->real_bounds.y),
-                            1,
-                            (int) (container->real_bounds.h));
-            set_argb(cr, ArgbColor(0, 0, 0, scalar));
-            cairo_fill(cr);
+            draw_colored_rect(client, ArgbColor(0, 0, 0, scalar),
+                              Bounds((int) (container->real_bounds.x + container->real_bounds.w + i),
+                                     (int) (container->real_bounds.y), 1, (int) (container->real_bounds.h)));
         }
     }
     
@@ -260,14 +254,7 @@ paint_button_background(AppClient *client, cairo_t *cr, Container *container) {
             client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e, default_color.a);
         }
         
-        set_argb(cr, data->color);
-        
-        cairo_rectangle(cr,
-                        container->real_bounds.x,
-                        container->real_bounds.y,
-                        container->real_bounds.w,
-                        container->real_bounds.h);
-        cairo_fill(cr);
+        draw_colored_rect(client, data->color, container->real_bounds);
     }
     
     container->real_bounds.x -= 1;
@@ -282,83 +269,81 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     paint_button_background(client, cr, container);
     auto data = (ButtonData *) container->user_data;
     if (data) {
-        PangoLayout *icon_layout =
-                get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        std::string text;
         
         bool right = false;
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
         if (data->text == "START") {
-            pango_layout_set_text(icon_layout, "\uE700", strlen("\uE83F"));
+            text = "\uE700";
         } else if (data->text == "Documents") {
-            pango_layout_set_text(icon_layout, "\uE7C3", strlen("\uE83F"));
+            text = "\uE7C3";
         } else if (data->text == "Downloads") {
-            pango_layout_set_text(icon_layout, "\uE896", strlen("\uE83F"));
+            text = "\uE896";
         } else if (data->text == "Music") {
-            pango_layout_set_text(icon_layout, "\uEC4F", strlen("\uE83F"));
+            text = "\uEC4F";
         } else if (data->text == "Pictures") {
-            pango_layout_set_text(icon_layout, "\uEB9F", strlen("\uE83F"));
+            text = "\uEB9F";
         } else if (data->text == "Videos") {
-            pango_layout_set_text(icon_layout, "\uE714", strlen("\uE83F"));
+            text = "\uE714";
         } else if (data->text == "Network") {
-            pango_layout_set_text(icon_layout, "\uEC27", strlen("\uE83F"));
+            text = "\uEC27";
         } else if (data->text == "Personal Folder") {
-            pango_layout_set_text(icon_layout, "\uEC25", strlen("\uE83F"));
+            text = "\uEC25";
         } else if (data->text == "File Explorer") {
-            pango_layout_set_text(icon_layout, "\uEC50", strlen("\uE83F"));
+            text = "\uEC50";
         } else if (data->text == "Settings") {
-            pango_layout_set_text(icon_layout, "\uE713", strlen("\uE83F"));
+            text = "\uE713";
         } else if (data->text == "Power") {
-            pango_layout_set_text(icon_layout, "\uE7E8", strlen("\uE83F"));
+            text = "\uE7E8";
         } else if (data->text == "Off") {
-            pango_layout_set_text(icon_layout, "\uE947", strlen("\uE83F"));
+            text = "\uE947";
         } else if (data->text == "Sign Out") {
-            pango_layout_set_text(icon_layout, "\uE77B", strlen("\uE83F"));
+            text = "\uE77B";
         } else if (data->text == "Shut Down") {
-            pango_layout_set_text(icon_layout, "\uE7E8", strlen("\uE83F"));
+            text = "\uE7E8";
         } else if (data->text == "Restart") {
-            pango_layout_set_text(icon_layout, "\uE777", strlen("\uE83F"));
+            text = "\uE777";
         } else if (data->text == "Reload") {
-            pango_layout_set_text(icon_layout, "\uE117", strlen("\uE83F"));
+            text = "\uE117";
         } else if (data->text == "Open file location") {
-            pango_layout_set_text(icon_layout, "\uED43", strlen("\uE83F"));
+            text = "\uED43";
         } else if (data->text == "Pin to Start") {
-            pango_layout_set_text(icon_layout, "\uE718", strlen("\uE83F"));
+            text = "\uE718";
         } else if (data->text == "Unpin from Start") {
-            pango_layout_set_text(icon_layout, "\uE77A", strlen("\uE83F"));
+            text = "\uE77A";
         } else if (data->text == "Small") {
-            pango_layout_set_text(icon_layout, "\uE743", strlen("\uE83F"));
+            text = "\uE743";
         } else if (data->text == "Medium") {
-            pango_layout_set_text(icon_layout, "\uE744", strlen("\uE83F"));
+            text = "\uE744";
         } else if (data->text == "Wide") {
-            pango_layout_set_text(icon_layout, "\uE745", strlen("\uE83F"));
+            text = "\uE745";
         } else if (data->text == "Large") {
-            pango_layout_set_text(icon_layout, "\uE747", strlen("\uE83F"));
+            text = "\uE747";
         } else if (data->text == "Resize") {
             right = true;
         }
-    
-        set_argb(cr, config->color_apps_icons);
-    
-        int width;
-        int height;
         
         if (right) {
-            icon_layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 9 * config->dpi,
-                                                PangoWeight::PANGO_WEIGHT_NORMAL);
-            pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
-            pango_layout_set_text(icon_layout, "\uE974", strlen("\uE83F"));
-            
-            cairo_move_to(cr,
-                          (int) (container->real_bounds.x + container->real_bounds.w - container->real_bounds.h / 2 -
-                                 height / 2),
-                          (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-            pango_cairo_show_layout(cr, icon_layout);
+            auto f = draw_get_font(client, 9, "Segoe MDL2 Assets Mod");
+            f->begin();
+            f->set_text("\uE974");
+            f->set_color(config->color_apps_icons.r, config->color_apps_icons.g, config->color_apps_icons.b,
+                         config->color_apps_icons.a);
+            auto [w, h] = f->sizes();
+            f->draw_text(
+                    (int) (container->real_bounds.x + container->real_bounds.w - container->real_bounds.h / 2 - h / 2),
+                    (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
+            f->end();
         } else {
-            pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
-            cairo_move_to(cr,
-                          (int) (container->real_bounds.x + container->real_bounds.h / 2 - height / 2),
-                          (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-            pango_cairo_show_layout(cr, icon_layout);
+            auto f = draw_get_font(client, 12, "Segoe MDL2 Assets Mod");
+            f->begin();
+            f->set_text(text);
+            f->set_color(config->color_apps_icons.r, config->color_apps_icons.g, config->color_apps_icons.b,
+                         config->color_apps_icons.a);
+            auto [w, h] = f->sizes();
+            f->draw_text((int) (container->real_bounds.x + container->real_bounds.h / 2 - w / 2),
+                         (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
+            f->end();
         }
     }
     
@@ -367,24 +352,18 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     auto super = container_by_name("super", taskbar_root);
     
     if (container->parent->wanted_bounds.w != super->real_bounds.w) {
-        PangoLayout *layout =
-                get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-        if (data->text == "START") {
-            layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
-        }
-        
-        set_argb(cr, config->color_apps_text);
-        pango_layout_set_text(layout, data->text.c_str(), data->text.length());
-        
-        int width, height;
-        // valgrind thinks this leaks
-        pango_layout_get_pixel_size_safe(layout, &width, &height);
-        
+        // TODO: we need to pass bold here if (data->text == "START") {
+        //            layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
+        auto f = draw_get_font(client, 10, config->font);
+        f->begin();
+        f->set_text(data->text);
+        f->set_color(config->color_apps_icons.r, config->color_apps_icons.g, config->color_apps_icons.b,
+                     config->color_apps_icons.a);
+        auto [w, h] = f->sizes();
         int text_x = (int) (container->real_bounds.x + super->real_bounds.w);
-        int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-        cairo_move_to(cr, text_x, text_y);
-        
-        pango_cairo_show_layout(cr, layout);
+        int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2);
+        f->draw_text(text_x, text_y);
+        f->end();
     }
 }
 
@@ -457,13 +436,13 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (ItemData *) container->user_data;
     
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
+        auto color = config->color_apps_pressed_item;
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_apps_pressed_item);
+            color = config->color_apps_pressed_item;
         } else {
-            set_argb(cr, config->color_apps_hovered_item);
+            color = config->color_apps_hovered_item;
         }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     }
     
     PangoLayout *layout =
@@ -482,25 +461,22 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
                   ((logical.height / PANGO_SCALE) / 2));
     pango_cairo_show_layout(cr, layout);
     
-    if (data->launcher->icon_24) {
-        int width = cairo_image_surface_get_width(data->launcher->icon_24);
-        int height = cairo_image_surface_get_height(data->launcher->icon_24);
+    if (data->launcher->icon_24__) {
+        int width = cairo_image_surface_get_width(data->launcher->icon_24__);
+        int height = cairo_image_surface_get_height(data->launcher->icon_24__);
         
-        cairo_set_source_surface(cr,
-                                 data->launcher->icon_24,
+        draw_gl_texture(client, data->launcher->g24,
+                        data->launcher->icon_24__,
                                  (int) (container->real_bounds.x + 8 * config->dpi),
                                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-        cairo_paint(cr);
     } else {
         int width = cairo_image_surface_get_width(global->unknown_icon_24);
         int height = cairo_image_surface_get_height(global->unknown_icon_24);
         
-        cairo_set_source_surface(cr,
-                                 global->unknown_icon_24,
-                                 (int) (container->real_bounds.x + 8 * config->dpi),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-        
-        cairo_paint(cr);
+        draw_gl_texture(client, global->u24,
+                        global->unknown_icon_24,
+                        (int) (container->real_bounds.x + 8 * config->dpi),
+                        (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
     }
 }
 
@@ -516,13 +492,10 @@ paint_item_title(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (ButtonData *) container->user_data;
     
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        if (container->state.mouse_pressing) {
+        ArgbColor color = config->color_apps_hovered_item;
+        if (container->state.mouse_pressing)
             set_argb(cr, config->color_apps_pressed_item);
-        } else {
-            set_argb(cr, config->color_apps_hovered_item);
-        }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     }
     
     PangoLayout *layout =
@@ -541,10 +514,16 @@ paint_item_title(AppClient *client, cairo_t *cr, Container *container) {
                   ((logical.height / PANGO_SCALE) / 2));
     pango_cairo_show_layout(cr, layout);
     
+    // TODO: I'm pretty sure this never did anything?
+//    if (data->surface) {
+//        draw_gl_texture(client, data->gsurf, data->surface, container->real_bounds.x, container->real_bounds.y);
+//    }
+/*
     if (data->surface) {
         cairo_set_source_surface(cr, data->surface, container->real_bounds.x, container->real_bounds.y);
         cairo_paint(cr);
     }
+ */
 }
 
 static Timeout *left_open_fd = nullptr;
@@ -1521,16 +1500,12 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
 
 void paint_live_tile_data(AppClient *client, cairo_t *cr, Container *container, cairo_surface_t *surface, Launcher *launcher) {
     auto bg = lighten(config->color_apps_background, 10);
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, bg);
-    cairo_fill(cr);
+    draw_colored_rect(client, bg, container->real_bounds);
     
     if (container->state.mouse_pressing && !container->state.mouse_dragging) {
-        set_argb(cr, lighten(bg, 65));
-        paint_margins_rect(client, cr, container->real_bounds, 2 * config->dpi, 0);
+        draw_margins_rect(client, lighten(bg, 65), container->real_bounds, 2 * config->dpi, 0);
     } else if (container->state.mouse_hovering && !container->state.mouse_dragging) {
-        set_argb(cr, lighten(bg, 40));
-        paint_margins_rect(client, cr, container->real_bounds, 2 * config->dpi, 0);
+        draw_margins_rect(client, lighten(bg, 40), container->real_bounds, 2 * config->dpi, 0);
     }
     
     int size = 36 * config->dpi;
@@ -1755,9 +1730,7 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
             client_create_animation(app, client, &data->color.a, data->color.lifetime, 0, time, e, default_color.a);
         }
         
-        set_argb(cr, data->color);
-        int pad = 2;
-        paint_margins_rect(client, cr, container->real_bounds, pad, 0);
+        draw_margins_rect(client, data->color, container->real_bounds, 2, 0);
     }
     
     PangoLayout *layout =
@@ -2460,15 +2433,15 @@ paint_desktop_files() {
     for (const auto &t: targets) {
         if (t.user_data) {
             auto launcher = (Launcher *) t.user_data;
-            launcher->icon_16 = accelerated_surface(app, client_by_name(app, "taskbar"), 16 * config->dpi,
+            launcher->icon_16__ = accelerated_surface(app, client_by_name(app, "taskbar"), 16 * config->dpi,
                                                     16 * config->dpi);
-            launcher->icon_24 = accelerated_surface(app, client_by_name(app, "taskbar"), 24 * config->dpi,
+            launcher->icon_24__ = accelerated_surface(app, client_by_name(app, "taskbar"), 24 * config->dpi,
                                                     24 * config->dpi);
-            launcher->icon_32 = accelerated_surface(app, client_by_name(app, "taskbar"), 32 * config->dpi,
+            launcher->icon_32__ = accelerated_surface(app, client_by_name(app, "taskbar"), 32 * config->dpi,
                                                     32 * config->dpi);
-            launcher->icon_48 = accelerated_surface(app, client_by_name(app, "taskbar"), 48 * config->dpi,
+            launcher->icon_48__ = accelerated_surface(app, client_by_name(app, "taskbar"), 48 * config->dpi,
                                                     48 * config->dpi);
-            launcher->icon_64 = accelerated_surface(app, client_by_name(app, "taskbar"), 64 * config->dpi,
+            launcher->icon_64__ = accelerated_surface(app, client_by_name(app, "taskbar"), 64 * config->dpi,
                                                     64 * config->dpi);
             
             std::string path16;
@@ -2540,38 +2513,38 @@ paint_desktop_files() {
             }
             
             if (!path16.empty() && !launcher->icon.empty()) {
-                paint_surface_with_image(launcher->icon_16, path16, 16 * config->dpi, nullptr);
+                paint_surface_with_image(launcher->icon_16__, path16, 16 * config->dpi, nullptr);
             } else {
                 paint_surface_with_image(
-                        launcher->icon_16, as_resource_path("unknown-16.svg"), 16 * config->dpi, nullptr);
+                        launcher->icon_16__, as_resource_path("unknown-16.svg"), 16 * config->dpi, nullptr);
             }
             
             if (!path24.empty() && !launcher->icon.empty()) {
-                paint_surface_with_image(launcher->icon_24, path24, 24 * config->dpi, nullptr);
+                paint_surface_with_image(launcher->icon_24__, path24, 24 * config->dpi, nullptr);
             } else {
                 paint_surface_with_image(
-                        launcher->icon_24, as_resource_path("unknown-24.svg"), 24 * config->dpi, nullptr);
+                        launcher->icon_24__, as_resource_path("unknown-24.svg"), 24 * config->dpi, nullptr);
             }
             
             if (!path32.empty() && !launcher->icon.empty()) {
-                paint_surface_with_image(launcher->icon_32, path32, 32 * config->dpi, nullptr);
+                paint_surface_with_image(launcher->icon_32__, path32, 32 * config->dpi, nullptr);
             } else {
                 paint_surface_with_image(
-                        launcher->icon_32, as_resource_path("unknown-32.svg"), 32 * config->dpi, nullptr);
+                        launcher->icon_32__, as_resource_path("unknown-32.svg"), 32 * config->dpi, nullptr);
             }
             
             if (!path48.empty() && !launcher->icon.empty()) {
-                paint_surface_with_image(launcher->icon_48, path48, 48 * config->dpi, nullptr);
+                paint_surface_with_image(launcher->icon_48__, path48, 48 * config->dpi, nullptr);
             } else {
                 paint_surface_with_image(
-                        launcher->icon_48, as_resource_path("unknown-32.svg"), 48 * config->dpi, nullptr);
+                        launcher->icon_48__, as_resource_path("unknown-32.svg"), 48 * config->dpi, nullptr);
             }
             
             if (!path64.empty() && !launcher->icon.empty()) {
-                paint_surface_with_image(launcher->icon_64, path64, 64 * config->dpi, nullptr);
+                paint_surface_with_image(launcher->icon_64__, path64, 64 * config->dpi, nullptr);
             } else {
                 paint_surface_with_image(
-                        launcher->icon_64, as_resource_path("unknown-64.svg"), 64 * config->dpi, nullptr);
+                        launcher->icon_64__, as_resource_path("unknown-64.svg"), 64 * config->dpi, nullptr);
             }
         }
     }

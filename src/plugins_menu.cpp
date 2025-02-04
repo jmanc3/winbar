@@ -8,6 +8,7 @@
 #include "main.h"
 #include "icons.h"
 #include "components.h"
+#include "drawer.h"
 #include "dpi.h"
 
 #include <filesystem>
@@ -251,8 +252,7 @@ paint_combobox(AppClient *client, cairo_t *cr, Container *container) {
         paint_centered_label(client, cr, container, data->items[0], data->disabled);
     }
     
-    set_argb(cr, config->color_wifi_hovered_button);
-    paint_margins_rect(client, cr, container->real_bounds, 2 * config->dpi, 0);
+    draw_margins_rect(client, config->color_wifi_hovered_button, container->real_bounds, 2 * config->dpi, 0);
 }
 
 struct Tokenizer {
@@ -602,9 +602,10 @@ void on_plugin_sent_text(Subprocess *cc) {
                         taskbar_plugin_button->exists = true;
                         plugin_data->icon = icon_name;
                         plugin_data->tried_to_load = false;
-                        if (plugin_data->surface)
-                            cairo_surface_destroy(plugin_data->surface);
-                        plugin_data->surface = nullptr;
+                        if (plugin_data->surface__)
+                            cairo_surface_destroy(plugin_data->surface__);
+                        plugin_data->surface__ = nullptr;
+                        plugin_data->gsurf->valid = false;
                         if (auto *client = client_by_name(app, "taskbar")) {
                             client_layout(app, client);
                             client_paint(app, client);
@@ -943,7 +944,7 @@ paint_plugin(AppClient *client, cairo_t *cr, Container *container) {
                       (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
         pango_cairo_show_layout(cr, layout);
     } else if (!data->icon.empty()) {
-        if (data->surface == nullptr && !data->tried_to_load) {
+        if (data->surface__ == nullptr && !data->tried_to_load) {
             data->tried_to_load = true;
             
             std::vector<IconTarget> targets;
@@ -954,15 +955,14 @@ paint_plugin(AppClient *client, cairo_t *cr, Container *container) {
             if (data->icon[0] == '/')
                 icon_path = data->icon;
             if (!icon_path.empty()) {
-                load_icon_full_path(app, client, &data->surface, icon_path, icon_size);
+                load_icon_full_path(app, client, &data->surface__, icon_path, icon_size);
             }
         }
         
-        if (data->surface != nullptr) {
-            cairo_set_source_surface(cr, data->surface,
+        if (data->surface__ != nullptr) {
+            draw_gl_texture(client, data->gsurf, data->surface__,
                                      (int) (container->real_bounds.x + container->real_bounds.w / 2 - icon_size / 2),
                                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - icon_size / 2));
-            cairo_paint(cr);
         }
     }
 }
