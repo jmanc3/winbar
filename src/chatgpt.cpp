@@ -13,6 +13,7 @@
 
 #include "chatgpt.h"
 #include "application.h"
+#include "drawer.h"
 #include "main.h"
 #include "config.h"
 #include "taskbar.h"
@@ -855,8 +856,7 @@ paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
                           container->real_bounds.h / 2 - (text_ink.height / PANGO_SCALE) / 2);
             pango_cairo_show_layout(cr, text_layout);
         } else {
-            set_argb(cr, config->color_date_seperator);
-            paint_margins_rect(client, cr, container->real_bounds, 1, -2);
+            draw_margins_rect(client, config->color_date_seperator, container->real_bounds, 1, -2);
         }
     }
 }

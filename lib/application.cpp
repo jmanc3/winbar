@@ -31,6 +31,8 @@
 #include <xcb/xcb.h>
 #include <poll.h>
 #include <X11/Xlib-xcb.h>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/glm.hpp>
 
 #define explicit dont_use_cxx_explicit
 
@@ -867,7 +869,7 @@ void set_cursor(App *app, xcb_screen_t *screen, AppClient *client, const std::st
     if (client->cursor != -1) {
         xcb_free_cursor(app->connection, client->cursor);
     }
-    if (client->ctx == nullptr && xcb_cursor_context_new(app->connection, screen, &client->ctx) < 0) {
+    if (client->cursor_ctx == nullptr && xcb_cursor_context_new(app->connection, screen, &client->cursor_ctx) < 0) {
         xcb_font_t font = xcb_generate_id(app->connection);
         xcb_open_font(app->connection, font, strlen("cursor"), "cursor");
         client->cursor = xcb_generate_id(app->connection);
@@ -881,7 +883,7 @@ void set_cursor(App *app, xcb_screen_t *screen, AppClient *client, const std::st
         if (font != XCB_NONE)
             xcb_close_font(app->connection, font);
     } else {
-        client->cursor = xcb_cursor_load_cursor(client->ctx, name.c_str());
+        client->cursor = xcb_cursor_load_cursor(client->cursor_ctx, name.c_str());
         
         const uint32_t values[] = {client->cursor};
         xcb_change_window_attributes(app->connection, client->window, XCB_CW_CURSOR,
@@ -1244,7 +1246,7 @@ void destroy_client(App *app, AppClient *client) {
         delete client->root;
     cairo_destroy(client->cr);
     xcb_free_colormap(app->connection, client->colormap);
-    xcb_cursor_context_free(client->ctx);
+    xcb_cursor_context_free(client->cursor_ctx);
     deinit_keyboard(app, client);
 }
 
@@ -1639,29 +1641,51 @@ void client_paint_gl(App *app, AppClient *client, bool force_repaint) {
 
 // TODO: double buffering not really working
 void client_paint(App *app, AppClient *client, bool force_repaint) {
-    client_paint_gl(app, client, force_repaint);
+    //client_paint_gl(app, client, force_repaint);
 //    return;
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     if (valid_client(app, client)) {
         if (client->cr && client->root) {
+            if (!client->ctx) {
+                client->ctx = new DrawContext;
+                client->ctx->buffer = new OffscreenFrameBuffer(client->bounds->w, client->bounds->h);
+                client->should_use_gl = winbar_settings->use_opengl;
+            }
+            if (client->gl_window_created && client->should_use_gl) {
+                client->draw_start();
+                client->gl_clear();
+                client->projection = glm::ortho(0.0f, (float) client->bounds->w, (float) client->bounds->h, 0.0f, 1.0f,
+                                                -1.0f);
+                client->ctx->shape.update_projection(client->projection);
+                for (auto f: client->ctx->font_manager->fonts) {
+                    if (f->font) {
+                        f->font->update_projection(client->projection);
+                    }
+                }
+            }
+            
             {
 #ifdef TRACY_ENABLE
                 ZoneScopedN("paint");
 #endif
+//                client->ctx->rect.set_color(0, 0, 0);
+//                client->ctx->rect.draw_rect(0, 0, client->bounds->w, client->bounds->h);
                 long current = get_current_time_in_ms();
                 client->delta = current - client->last_repaint_time;
                 client->last_repaint_time = current;
-                
+
                 cairo_save(client->cr);
                 cairo_push_group(client->cr);
-                
+
                 paint_container(app, client, client->root);
                 
                 cairo_pop_group_to_source(client->cr);
                 cairo_set_operator(client->cr, CAIRO_OPERATOR_SOURCE);
-                cairo_paint(client->cr);
+                if (!client->should_use_gl) {
+                    cairo_paint(client->cr);
+                }
                 cairo_restore(client->cr);
             }
             
@@ -1671,6 +1695,9 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
 #endif
                 // TODO: Crucial!!!
                 xcb_flush(app->connection);
+            }
+            if (client->gl_window_created && client->should_use_gl) {
+                client->draw_end(true);
             }
         }
     }

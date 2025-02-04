@@ -12,6 +12,7 @@
 
 #include "utility.h"
 #include "config.h"
+#include "drawer.h"
 
 #include <atomic>
 #include <utility>
@@ -2882,14 +2883,13 @@ paint_textfield(AppClient *client, cairo_t *cr, Container *container) {
         cairo_fill(cr);
     }
     
+    ArgbColor color = config->color_pinned_icon_editor_field_default_border;
     if (container->active) {
-        set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
+        color = config->color_pinned_icon_editor_field_pressed_border;
     } else if (container->state.mouse_hovering) {
-        set_argb(cr, config->color_pinned_icon_editor_field_hovered_border);
-    } else {
-        set_argb(cr, config->color_pinned_icon_editor_field_default_border);
+        color = config->color_pinned_icon_editor_field_hovered_border;
     }
-    paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+    draw_margins_rect(client, color, container->real_bounds, 2, 0);
 }
 
 Container *make_textfield(Container *parent, FieldSettings settings, int w, int h) {
@@ -3047,8 +3047,7 @@ void paint_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *cont
     set_rect(cr, container->real_bounds);
     cairo_fill(cr);
 
-    set_argb(cr, config->color_wifi_hovered_button);
-    paint_margins_rect(client, cr, container->real_bounds, 2 * config->dpi, 0);
+    draw_margins_rect(client, config->color_wifi_hovered_button, container->real_bounds, 2 * config->dpi, 0);
 
 
     auto *data = (GenericComboBox *) container->user_data;

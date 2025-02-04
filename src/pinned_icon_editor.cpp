@@ -9,6 +9,7 @@
 #include "components.h"
 #include "config.h"
 #include "taskbar.h"
+#include "drawer.h"
 #include "icons.h"
 #include "app_menu.h"
 #include <sys/stat.h>
@@ -64,8 +65,7 @@ static void paint_icon_list_background(AppClient *client, cairo_t *cr, Container
     cairo_fill(cr);
     
     Bounds bounds = container->real_bounds;
-    set_argb(cr, config->color_pinned_icon_editor_field_default_border);
-    paint_margins_rect(client, cr, bounds, 1, 0);
+    draw_margins_rect(client, config->color_pinned_icon_editor_field_default_border, bounds, 1, 0);
 }
 
 
@@ -74,9 +74,8 @@ static void paint_icon(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     IconButton *icon_data = (IconButton *) container->user_data;
-    if (icon_data->surface) {
-        cairo_set_source_surface(cr, icon_data->surface, container->real_bounds.x, container->real_bounds.y);
-        cairo_paint(cr);
+    if (icon_data->surface__) {
+        draw_gl_texture(client, icon_data->gsurf, icon_data->surface__, container->real_bounds.x, container->real_bounds.y);
     }
 }
 
@@ -140,8 +139,7 @@ static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
             set_rect(cr, container->real_bounds);
             cairo_fill(cr);
             
-            set_argb(cr, darken(color, 18));
-            paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+            draw_margins_rect(client, darken(color, 18), container->real_bounds, 2, 0);
         }
     } else {
         set_rect(cr, container->real_bounds);
@@ -193,8 +191,7 @@ static void paint_icon_option(AppClient *client, cairo_t *cr, Container *contain
             set_rect(cr, container->real_bounds);
             cairo_fill(cr);
             
-            set_argb(cr, darken(color, 18));
-            paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+            draw_margins_rect(client, darken(color, 18), container->real_bounds, 2, 0);
         }
     } else {
         set_rect(cr, container->real_bounds);
@@ -244,8 +241,7 @@ static void paint_restore(AppClient *client, cairo_t *cr, Container *container) 
                 set_rect(cr, container->real_bounds);
                 cairo_fill(cr);
                 
-                set_argb(cr, darken(color, 18));
-                paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+                draw_margins_rect(client, darken(color, 18), container->real_bounds, 2, 0);
             }
         } else {
             set_rect(cr, container->real_bounds);
@@ -278,20 +274,21 @@ static void paint_textarea_border(AppClient *client, cairo_t *cr, Container *con
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    ArgbColor color;
     if (container->state.mouse_hovering || container->state.mouse_pressing || container->active) {
         if (container->state.mouse_pressing || container->active) {
             if (container->state.mouse_pressing && container->active) {
-                set_argb(cr, lighten(config->color_pinned_icon_editor_field_pressed_border, 7));
+                color = lighten(config->color_pinned_icon_editor_field_pressed_border, 7);
             } else {
-                set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
+                color = config->color_pinned_icon_editor_field_pressed_border;
             }
         } else {
-            set_argb(cr, config->color_pinned_icon_editor_field_hovered_border);
+            color = config->color_pinned_icon_editor_field_hovered_border;
         }
     } else {
-        set_argb(cr, config->color_pinned_icon_editor_field_default_border);
+        color = config->color_pinned_icon_editor_field_default_border;
     }
-    paint_margins_rect(client, cr, container->real_bounds, 2, 0);
+    draw_margins_rect(client, color, container->real_bounds, 2, 0);
 }
 
 static Container *make_button(AppClient *client, Container *parent, std::string text) {
@@ -404,14 +401,14 @@ static void clicked_save_and_quit(AppClient *client, cairo_t *cr, Container *con
                 std::string path = target.best_full_path;
                 if (!path.empty()) {
                     auto *data = (LaunchableButton *) pinned_icon_data;
-                    load_icon_full_path(app, taskbar, &data->surface, path, 24 * config->dpi);
+                    load_icon_full_path(app, taskbar, &data->surface__, path, 24 * config->dpi);
                     found = true;
                     break;
                 }
             }
             if (!found) {
-                pinned_icon_data->surface = accelerated_surface(app, client, 24 * config->dpi, 24 * config->dpi);
-                paint_surface_with_image(pinned_icon_data->surface, as_resource_path("unknown-24.svg"),
+                pinned_icon_data->surface__ = accelerated_surface(app, client, 24 * config->dpi, 24 * config->dpi);
+                paint_surface_with_image(pinned_icon_data->surface__, as_resource_path("unknown-24.svg"),
                                          24 * config->dpi, nullptr);
             }
         }
@@ -450,15 +447,17 @@ static void update_icon(AppClient *client) {
         pick_best(targets, 64 * config->dpi);
         std::string icon_path = targets[0].best_full_path;
         if (!icon_path.empty()) {
-            if (icon_data->surface) {
-                cairo_surface_destroy(icon_data->surface);
-                icon_data->surface = nullptr;
+            if (icon_data->surface__) {
+                cairo_surface_destroy(icon_data->surface__);
+                icon_data->surface__ = nullptr;
+                icon_data->gsurf->valid = false;
             }
-            load_icon_full_path(app, client, &icon_data->surface, icon_path, 64 * config->dpi);
+            load_icon_full_path(app, client, &icon_data->surface__, icon_path, 64 * config->dpi);
         } else {
             // TODO: this is kind of annoying, we should instead make the surface have a cairo_t and just clear the surface
-            cairo_surface_destroy(icon_data->surface);
-            icon_data->surface = nullptr;
+            cairo_surface_destroy(icon_data->surface__);
+            icon_data->surface__ = nullptr;
+            icon_data->gsurf->valid = false;
         }
     }
 }
@@ -755,7 +754,7 @@ static void fill_root(AppClient *client) {
         pick_best(targets, 64 * config->dpi);
         std::string icon_path = targets[0].best_full_path;
         if (!icon_path.empty()) {
-            load_icon_full_path(app, client, &icon_data->surface, icon_path, 64 * config->dpi);
+            load_icon_full_path(app, client, &icon_data->surface__, icon_path, 64 * config->dpi);
         } else {
         }
         

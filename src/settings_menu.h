@@ -48,6 +48,7 @@ struct WinbarSettings {
     bool labels = false;
     bool super_icon_default = true;
     bool label_uniform_size = false;
+    bool use_opengl = false;
     bool minimize_maximize_animation = true;
     std::string shutdown_command;
     std::string restart_command;

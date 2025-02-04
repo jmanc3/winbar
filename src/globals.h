@@ -8,6 +8,7 @@
 #include <cairo.h>
 #include <string>
 #include <vector>
+#include "taskbar.h"
 
 class HistoricalNameUsed {
 public:
@@ -16,10 +17,18 @@ public:
 
 class globals {
 public:
+    
+    gl_surface *u16 = new gl_surface;
     cairo_surface_t *unknown_icon_16 = nullptr;
+    
     cairo_surface_t *unknown_icon_32 = nullptr;
+    gl_surface *u32 = new gl_surface;
+    
     cairo_surface_t *unknown_icon_24 = nullptr;
+    gl_surface *u24 = new gl_surface;
+    
     cairo_surface_t *unknown_icon_64 = nullptr;
+    gl_surface *u64 = new gl_surface;
     
     std::vector<HistoricalNameUsed *> history_scripts;
     std::vector<HistoricalNameUsed *> history_apps;

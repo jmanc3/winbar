@@ -10,6 +10,7 @@
 #include "taskbar.h"
 #include "utility.h"
 #include "config.h"
+#include "drawer.h"
 
 #include <mutex>
 #include <cmath>
@@ -213,8 +214,7 @@ void start_run_window() {
         area_options.pad = Bounds(search_pad, search_pad, search_pad, search_pad);
         auto textarea = make_textarea(app, run_client, text_box, area_options);
         textarea->parent->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
-            set_argb(cr, config->color_search_accent);
-            paint_margins_rect(client, cr, container->real_bounds, std::round(1 * config->dpi), 0);
+            draw_margins_rect(client, config->color_search_accent, container->real_bounds, std::round(1 * config->dpi), 0);
         };
         set_active(run_client, textarea->parent, true);
         

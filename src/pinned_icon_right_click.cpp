@@ -292,8 +292,8 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
             }
             
             itemPath += pinned_icon_data->class_name + ".png";
-            if (pinned_icon_data->surface) {
-                cairo_surface_write_to_png(pinned_icon_data->surface, itemPath.c_str());
+            if (pinned_icon_data->surface__) {
+                cairo_surface_write_to_png(pinned_icon_data->surface__, itemPath.c_str());
             }
             
             update_pinned_items_file(false);
@@ -436,7 +436,7 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
         if (!icon_path.empty()) {
             d->path = icon_path;
         }
-        d->original_surface = pinned_icon_data->surface;
+        d->original_surface = pinned_icon_data->surface__;
         delayed->push_back(d);
         
         open->when_paint = paint_open;
@@ -554,18 +554,16 @@ void start_pinned_icon_right_click(Container *container) {
         
         for (auto *d: delayed) {
             if (d->path.empty()) {
-                if (pinned_icon_data->surface) {
+                if (pinned_icon_data->surface__) {
                     *d->surface = accelerated_surface(app, client, d->size, d->size);
                     cairo_t *cr = cairo_create(*d->surface);
                     
-                    double starting_w = cairo_image_surface_get_width(pinned_icon_data->surface);
+                    double starting_w = cairo_image_surface_get_width(pinned_icon_data->surface__);
                     double target_w = 16 * config->dpi;
                     double sx = target_w / starting_w;
                     
                     cairo_scale(cr, sx, sx);
-                    cairo_set_source_surface(cr, pinned_icon_data->surface, 0, 0);
-                    cairo_paint(cr);
-                    
+                    draw_gl_texture(client, pinned_icon_data->gsurf, pinned_icon_data->surface__, 0, 0, target_w, target_w);
                     cairo_destroy(cr);
                 }
             } else {

@@ -730,7 +730,7 @@ void start_windows_selector(Container *container, selector_type selector_state) 
                             XCB_ATOM_ATOM, 32, 1, &version);
     
         client->root->user_data = pii;
-        if (pii->data->surface) {
+        if (pii->data->surface__) {
             std::string path;
             std::vector<IconTarget> targets;
             targets.emplace_back(IconTarget(pii->data->icon_name));
@@ -745,13 +745,12 @@ void start_windows_selector(Container *container, selector_type selector_state) 
                 pii->icon_surface = accelerated_surface(app, client, 16 * config->dpi, 16 * config->dpi);
                 cairo_t *cr = cairo_create(pii->icon_surface);
                 
-                double starting_w = cairo_image_surface_get_width(pii->data->surface);
+                double starting_w = cairo_image_surface_get_width(pii->data->surface__);
                 double target_w = 16 * config->dpi;
                 double sx = target_w / starting_w;
                 
                 cairo_scale(cr, sx, sx);
-                cairo_set_source_surface(cr, pii->data->surface, 0, 0);
-                cairo_paint(cr);
+                draw_gl_texture(client, pii->data->gsurf, pii->data->surface__, 0, 0, target_w, target_w);
                 
                 cairo_destroy(cr);
             } else {

@@ -19,6 +19,8 @@ struct Config {
     float dpi = 1;
     
     std::string font = "Segoe UI Variable Mod";
+    
+    std::string icons = "Segoe MDL2 Assets Mod";
 
     bool pinned_icon_shortcut = true;
 

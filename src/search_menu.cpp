@@ -381,18 +381,17 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
         }
     } else if (active_tab == "Apps") {
         auto *l_data = (Launcher *) data->user_data;
-        if (l_data->icon_16) {
-            cairo_set_source_surface(cr,
-                                     l_data->icon_16,
-                                     container->real_bounds.x + 12 * config->dpi,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi);
+        if (l_data->icon_16__) {
+            draw_gl_texture(client, l_data->g16,
+                                    l_data->icon_16__,
+                                    container->real_bounds.x + 12 * config->dpi,
+                                    container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi);
         } else {
-            cairo_set_source_surface(cr,
-                                     global->unknown_icon_16,
-                                     container->real_bounds.x + 12 * config->dpi,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi);
+            draw_gl_texture(client, global->u16,
+                                    global->unknown_icon_16,
+                                    container->real_bounds.x + 12 * config->dpi,
+                                    container->real_bounds.y + container->real_bounds.h / 2 - 8 * config->dpi);
         }
-        cairo_paint(cr);
     }
 }
 
@@ -468,18 +467,17 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
         }
     } else if (active_tab == "Apps") {
         auto *l_data = (Launcher *) data->user_data;
-        if (l_data->icon_32) {
-            cairo_set_source_surface(cr,
-                                     l_data->icon_32,
-                                     container->real_bounds.x + 12 * config->dpi,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
+        if (l_data->icon_32__) {
+            draw_gl_texture(client, l_data->g32,
+                                    l_data->icon_32__,
+                                    container->real_bounds.x + 12 * config->dpi,
+                                    container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
         } else {
-            cairo_set_source_surface(cr,
-                                     global->unknown_icon_32,
-                                     container->real_bounds.x + 12 * config->dpi,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
+            draw_gl_texture(client, global->u32,
+                                    global->unknown_icon_32,
+                                    container->real_bounds.x + 12 * config->dpi,
+                                    container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
         }
-        cairo_paint(cr);
     }
 }
 
@@ -635,18 +633,17 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
         }
     } else if (active_tab == "Apps") {
         auto *l_data = (Launcher *) data->user_data;
-        if (l_data->icon_64) {
-            cairo_set_source_surface(cr,
-                                     l_data->icon_64,
+        if (l_data->icon_64__) {
+            draw_gl_texture(client, l_data->g64,
+                                     l_data->icon_64__,
                                      container->real_bounds.x + container->real_bounds.w / 2 - 32 * config->dpi,
                                      container->real_bounds.y + 21 * config->dpi);
         } else {
-            cairo_set_source_surface(cr,
+            draw_gl_texture(client, global->u64,
                                      global->unknown_icon_64,
                                      container->real_bounds.x + container->real_bounds.w / 2 - 32 * config->dpi,
                                      container->real_bounds.y + 21 * config->dpi);
         }
-        cairo_paint(cr);
     }
 }
 
