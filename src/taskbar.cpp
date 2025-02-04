@@ -1135,7 +1135,7 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
     }
     
     {
-        if (data->window_opened_bloom_scalar != 0) {
+        if (data->window_opened_bloom_scalar != 0 && windows_count >= 1) {
             if (!data->average_color_set) {
                 get_average_color(data->surface__, &data->average_color);
                 data->average_color_set = true;
