@@ -29,9 +29,7 @@ void merge_order_with_taskbar();
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_pinned_icon_editor_background));
-    cairo_fill(cr);
+    draw_colored_rect(client, correct_opaqueness(client, config->color_pinned_icon_editor_background), container->real_bounds); 
 }
 
 static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
@@ -41,21 +39,14 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     auto label = (Label *) container->user_data;
     int size = label->size;
     if (size == -1)
-        size = 9 * config->dpi;
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, size, label->weight);
+        size = 9;
     
-    int width;
-    int height;
-    pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    auto color = label->color;
     if (label->color.a == 0) {
-        set_argb(cr, config->color_pinned_icon_editor_field_default_text);
-    } else {
-        set_argb(cr, label->color);
+        color = config->color_pinned_icon_editor_field_default_text;
     }
-    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    
+    draw_text(client, size, config->font, EXPAND(color), label->text, container->real_bounds, 5, 0);
 }
 
 static void paint_draggable(AppClient *client, cairo_t *cr, Container *container) {
@@ -63,13 +54,12 @@ static void paint_draggable(AppClient *client, cairo_t *cr, Container *container
     float height = dot_size * 5; // three real and 2 spaces between
     float start_x = container->real_bounds.x + container->real_bounds.w / 2 - dot_size / 2 - dot_size;
     float start_y = container->real_bounds.y + container->real_bounds.h / 2 - height / 2;
-    set_argb(cr, config->color_pinned_icon_editor_field_default_border);
     for (int y = 0; y < 3; ++y) {
         for (int x = 0; x < 2; ++x) {
-            set_rect(cr, Bounds(start_x + (dot_size * x) + (dot_size * x),
+                draw_colored_rect(client, config->color_pinned_icon_editor_field_default_border, Bounds(start_x + (dot_size * x) + (dot_size * x),
                                 start_y + (dot_size * y) + (dot_size * y),
                                 dot_size,
-                                dot_size));
+                                dot_size)); 
         }
     }
     cairo_fill(cr);
@@ -115,42 +105,11 @@ static void paint_on_off(AppClient *client, cairo_t *cr, Container *container) {
     if (!data->on)
         return;
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, "\uF13E", strlen("\uE83F"));
-    
-    set_argb(cr, ArgbColor(1, 1, 1, 1));
-    
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2 - 1 * config->dpi));
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 14, config->icons, 1, 1, 1, 1, "\uF13E", container->real_bounds);
 }
 
 static void paint_remove(AppClient *client, cairo_t *cr, Container *container) {
-    // check: F13E
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, "\uE107", strlen("\uE83F"));
-    
-    set_argb(cr, ArgbColor(.8, .3, .1, 1));
-    
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 10, config->icons, .8, .3, .1, 1, "\uE107", container->real_bounds);
 }
 
 static void clicked_remove_reorderable(AppClient *client, cairo_t *cr, Container *container) {
@@ -180,25 +139,14 @@ static void dragged_list_start(AppClient *client, cairo_t *cr, Container *contai
 static void paint_combox_item(AppClient *client, cairo_t *cr, Container *container) {
     auto *label = (Label *) container->user_data;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        auto color = darken(config->color_pinned_icon_editor_background, 7);
         if (container->state.mouse_pressing) {
-            set_argb(cr, darken(config->color_pinned_icon_editor_background, 15));
-        } else if (container->state.mouse_hovering) {
-            set_argb(cr, darken(config->color_pinned_icon_editor_background, 7));
+            color = darken(config->color_pinned_icon_editor_background, 15);
         }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     }
     
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
-    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 12 * config->dpi,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 9, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text),label->text, container->real_bounds, 5, container->wanted_pad.x + 12 * config->dpi);
 }
 
 void move_container_to_index(std::vector<Container *> &containers, Container *container, int wants_i) {
@@ -692,16 +640,8 @@ static void clicked_add_spacer(AppClient *client, cairo_t *cr, Container *contai
 static void paint_centered_text(AppClient *client, cairo_t *cr, Container *container) {
     auto *label = (Label *) container->user_data;
     paint_reordable_item(client, cr, container);
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
     
-    int width;
-    int height;
-    pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
-    cairo_move_to(cr, container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 9, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text),label->text, container->real_bounds);
 }
 
 void merge_order_with_taskbar() {
@@ -811,7 +751,7 @@ void title(std::string text, Container *container) {
     {
         auto title = container->child(FILL_SPACE, 20 * config->dpi);
         auto data = new Label(text);
-        data->size = 20 * config->dpi;
+        data->size = 20;
         title->when_paint = paint_label;
         title->user_data = data;
     }
@@ -825,9 +765,9 @@ struct OriginalBool : public UserData {
 };
 
 void bool_checkbox_indent(const std::string &text, int indent, bool *boolean, Container *container, AppClient *client) {
-    float font_size = std::round(10 * config->dpi);
+    float font_size = std::round(10);
     float pad = std::round(12 * config->dpi);
-    PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size, PANGO_WEIGHT_NORMAL);
+    PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size * config->dpi, PANGO_WEIGHT_NORMAL);
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), text.length());
@@ -905,7 +845,7 @@ struct PathHolder : public UserData {
 };
 
 void string_textfield(const std::string &text, std::string *path, Container *container, AppClient *client, std::string prompt = "") {
-    int font_size = std::round(10 * config->dpi);
+    int font_size = std::round(10);
     auto hbox = container->child(::hbox, FILL_SPACE, 26 * config->dpi);
     hbox->user_data = new PathHolder(path);
     hbox->alignment = ALIGN_CENTER;
@@ -916,7 +856,8 @@ void string_textfield(const std::string &text, std::string *path, Container *con
     label->when_paint = paint_label;
     label->user_data = label_data;
     
-    PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size, PANGO_WEIGHT_NORMAL);
+    // TODO: because this happens before the context is created, it can't be replaced by our new system yet
+    PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size * config->dpi, PANGO_WEIGHT_NORMAL);
     int width;
     int height;
     pango_layout_set_text(layout, text.c_str(), -1);

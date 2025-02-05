@@ -7,7 +7,6 @@
 #include "taskbar.h"
 #include "pinned_icon_editor.h"
 
-#include <pango/pangocairo.h>
 #include <sys/stat.h>
 
 class CustomItem {
@@ -33,6 +32,7 @@ class OptionData : public UserData {
 public:
     std::string text;
     ArgbColor text_color;
+    gl_surface *gsurf;
     cairo_surface_t *surface = nullptr;
     int text_offset = 0;
     
@@ -98,116 +98,65 @@ static void
 paint_icon(AppClient *client, cairo_t *cr, Container *container, bool dye) {
     auto *data = (OptionData *) container->user_data;
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    set_argb(cr, config->color_pin_menu_icons);
-    
-    int width;
-    int height;
+    std::string text;
     if (data->text == "Edit") {
-        pango_layout_set_text(layout, "\uE713", strlen("\uE83F"));
+        text = "\uE713";
     } else if (data->text == "Pin to taskbar") {
-        pango_layout_set_text(layout, "\uE718", strlen("\uE83F"));
+        text = "\uE718";
     } else if (data->text == "Unpin from taskbar") {
-        pango_layout_set_text(layout, "\uE77A", strlen("\uE83F"));
+        text = "\uE77A";
     } else if (data->text == "Close window" || data->text == "Close all windows") {
-        pango_layout_set_text(layout, "\uE10A", strlen("\uE83F"));
+        text = "\uE10A";
     } else if (data->surface != nullptr) {
-        height = cairo_image_surface_get_height(data->surface);
+        // TODO: gsurf here maybe (likely)?
+        int height = cairo_image_surface_get_height(data->surface);
         
         if (dye)
             dye_surface(data->surface, config->color_pin_menu_icons);
         
-        cairo_set_source_surface(
-                cr,
-                data->surface,
-                (int) (container->real_bounds.x + 10 * config->dpi),
-                (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-        cairo_paint(cr);
+        draw_gl_texture(client, data->gsurf, data->surface, (int) (container->real_bounds.x + 10 * config->dpi),
+                        (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
         return;
     }
     
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    cairo_save(cr);
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + (12 * config->dpi)),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
-    cairo_restore(cr);
+    draw_text(client, 10, config->icons, EXPAND(config->color_pin_menu_icons), text, container->real_bounds, 5, 12 * config->dpi);
 }
 
 static void
-paint_text(AppClient *client, cairo_t *cr, Container *container) {
+paint_text(AppClient *client, cairo_t *cr, Container *container, ArgbColor color) {
     auto *data = (OptionData *) container->user_data;
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, data->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  container->real_bounds.x + data->text_offset,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 9, config->font, EXPAND(color), data->text, container->real_bounds, 5, data->text_offset);
 }
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_pin_menu_background));
-    cairo_fill(cr);
+    draw_colored_rect(client, correct_opaqueness(client, config->color_pin_menu_background), container->real_bounds);
 }
 
 static void
 paint_custom_option(AppClient *client, cairo_t *cr, Container *container) {
     if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
+        auto color = config->color_pin_menu_hovered_item;
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_pin_menu_pressed_item);
-        } else {
-            set_argb(cr, config->color_pin_menu_hovered_item);
+            color =  config->color_pin_menu_pressed_item;
         }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     }
     
-    set_argb(cr, config->color_pin_menu_text);
-    paint_text(client, cr, container);
+    paint_text(client, cr, container, config->color_pin_menu_text);
 }
 
 static void
 paint_option(AppClient *client, cairo_t *cr, Container *container) {
-    if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_pin_menu_pressed_item);
-        } else {
-            set_argb(cr, config->color_pin_menu_hovered_item);
-        }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
-    }
-    
-    set_argb(cr, config->color_pin_menu_text);
-    paint_text(client, cr, container);
+    paint_custom_option(client, cr, container);
     paint_icon(client, cr, container, true);
 }
 
 static void
 paint_open(AppClient *client, cairo_t *cr, Container *container) {
-    if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_pin_menu_pressed_item);
-        } else {
-            set_argb(cr, config->color_pin_menu_hovered_item);
-        }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
-    }
-    
-    set_argb(cr, config->color_pin_menu_text);
-    paint_text(client, cr, container);
+    paint_custom_option(client, cr, container);
+    paint_text(client, cr, container, config->color_pin_menu_text);
     paint_icon(client, cr, container, false);
 }
 
@@ -215,8 +164,7 @@ static void
 paint_title(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (OptionData *) container->user_data;
     
-    set_argb(cr, config->color_pin_menu_text);
-    paint_text(client, cr, container);
+    paint_text(client, cr, container, config->color_pin_menu_text);
 }
 
 static void
@@ -420,6 +368,8 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
         
         auto *d = new DelayedSurfacePainting();
         d->surface = &data->surface;
+        data->gsurf = new gl_surface;
+        
         d->size = 16 * config->dpi;
         std::string icon_path;
         
@@ -552,6 +502,7 @@ void start_pinned_icon_right_click(Container *container) {
         client->root = root;
         client_entity = client;
         
+        // TODO: why do we delay this again?
         for (auto *d: delayed) {
             if (d->path.empty()) {
                 if (pinned_icon_data->surface__) {
