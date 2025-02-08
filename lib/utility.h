@@ -12,6 +12,8 @@
 #include <utility>
 
 #define EXPAND(v) v.r, v.g, v.b, v.a
+#define MIDX(v) v->real_bounds.x + v->real_bounds.w / 2
+#define MIDY(v) v->real_bounds.y + v->real_bounds.h / 2
 
 static bool parse_hex(std::string hex, double *a, double *r, double *g, double *b) {
     while (hex[0] == '#') { // remove leading pound sign
@@ -321,7 +323,7 @@ bool is_light_theme(const ArgbColor &color);
 std::string clipboard();
 
 void
-rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height);
+rounded_rect(AppClient *client, double corner_radius, double x, double y, double width, double height, ArgbColor color, float stroke_w = 0);
 
 void pango_layout_get_pixel_size_safe(PangoLayout *layout, int *w, int *h);
 

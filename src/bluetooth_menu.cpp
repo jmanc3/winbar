@@ -101,9 +101,7 @@ static double map(double x, double in_min, double in_max, double out_min, double
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_volume_background));
-    cairo_fill(cr);
+    draw_colored_rect(client, correct_opaqueness(client, config->color_volume_background), container->real_bounds); 
     
     auto data = (BlueData *) container->user_data;
     if (data) {
@@ -151,20 +149,15 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
-paint_error_bar(AppClient *, cairo_t *cr, Container *container) {
+paint_error_bar(AppClient *client, cairo_t *cr, Container *container) {
     // clip
-    cairo_save(cr);
-    set_rect(cr, container->real_bounds);
-    cairo_clip(cr);
+    draw_clip_begin(client, container->real_bounds);
     
     auto data = (BarMessageData *) container->user_data;
-    set_rect(cr, container->real_bounds);
-    if (data->error) {
-        set_argb(cr, ArgbColor(.88, .2, .3, 1));
-    } else {
-        set_argb(cr, ArgbColor(.3, .47, .19, 1));
-    }
-    cairo_fill(cr);
+    auto color = ArgbColor(.3, .47, .19, 1);
+    if (data->error)
+        color = ArgbColor(.88, .2, .3, 1);
+    draw_colored_rect(client, color, container->real_bounds);
     
     PangoLayout *layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_wrap(layout, PangoWrapMode::PANGO_WRAP_WORD_CHAR);
@@ -181,14 +174,12 @@ paint_error_bar(AppClient *, cairo_t *cr, Container *container) {
                   container->real_bounds.x + 10 * config->dpi,
                   container->real_bounds.y + container->real_bounds.h / 2 - ((logical.height / PANGO_SCALE) / 2));
     pango_cairo_show_layout(cr, layout);
-    cairo_restore(cr);
+    draw_clip_end(client);
 }
 
 static void
-paint_input_bar(AppClient *, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, ArgbColor(.3, .47, .19, 1));
-    cairo_fill(cr);
+paint_input_bar(AppClient *client, cairo_t *cr, Container *container) {
+    draw_colored_rect(client, ArgbColor(.3, .47, .19, 1), container->real_bounds); 
 }
 
 static void
@@ -228,17 +219,15 @@ paint_centered_label(AppClient *client, cairo_t *cr, Container *container, std::
     auto blue_disabled = ((BlueData *) client->root->user_data)->blocking_command_running;
     
     if (!disabled && !blue_disabled) {
-        set_rect(cr, container->real_bounds);
+        auto color = config->color_wifi_default_button;
         if (container->state.mouse_pressing || container->state.mouse_hovering) {
             if (container->state.mouse_pressing) {
-                set_argb(cr, config->color_wifi_pressed_button);
+                color = config->color_wifi_pressed_button;
             } else {
-                set_argb(cr, config->color_wifi_hovered_button);
+                color = config->color_wifi_hovered_button;
             }
-        } else {
-            set_argb(cr, config->color_wifi_default_button);
         }
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     }
     
     PangoLayout *layout =
@@ -272,9 +261,7 @@ static void
 paint_option_button(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (OptionButton *) container->user_data;
     
-    cairo_save(cr);
-    set_rect(cr, container->real_bounds);
-    cairo_clip(cr);
+    draw_clip_begin(client, container->real_bounds);
     cairo_push_group(cr);
     paint_centered_label(client, cr, container, data->text, data->disabled);
     
@@ -283,7 +270,7 @@ paint_option_button(AppClient *client, cairo_t *cr, Container *container) {
     auto p = cairo_pop_group(cr);
     cairo_set_source(cr, p);
     cairo_paint_with_alpha(cr, alpha);
-    cairo_restore(cr);
+    draw_clip_end(client);
 }
 
 void bar_message(AppClient *client, const std::string &text, bool error) {
@@ -326,18 +313,16 @@ void bar_message(AppClient *client, const std::string &text, bool error) {
 }
 
 static void
-paint_option(AppClient *, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
+paint_option(AppClient *client, cairo_t *cr, Container *container) {
 //    bool keep_open = false;
 //    if (container->children.size() >= 2)
 //        keep_open = ((DataOfLabelButton *) container->children[1]->user_data)->text.find("...") != std::string::npos;
+    auto color = config->color_wifi_default_button;
     if (container->state.mouse_hovering ||
         (container->real_bounds.h - (option_height * config->dpi) > 1)) {
-        set_argb(cr, config->color_search_accent);
-    } else {
-        set_argb(cr, config->color_wifi_default_button);
+        color = config->color_search_accent;
     }
-    cairo_fill(cr);
+    draw_colored_rect(client, color, container->real_bounds);
 }
 
 static void
@@ -1524,6 +1509,7 @@ void bluetooth_wants_response_from_user(BluetoothRequest *br) {
         settings.when_empty_text = "000000";
         auto field_parent = input_bar->child(FILL_SPACE, (button_height + 16) * config->dpi);
         field_parent->wanted_pad = Bounds(13 * config->dpi, 6 * config->dpi, 13 * config->dpi, 11 * config->dpi);
+        settings.font_size = settings.font_size * config->dpi;
         auto field = make_textfield(field_parent, settings, FILL_SPACE, FILL_SPACE);
         field->name = "field";
         target_height += field_parent->wanted_bounds.h;
@@ -1565,6 +1551,7 @@ void bluetooth_wants_response_from_user(BluetoothRequest *br) {
         settings.only_numbers = true;
         auto field_parent = input_bar->child(FILL_SPACE, (button_height + 16) * config->dpi);
         field_parent->wanted_pad = Bounds(13 * config->dpi, 6 * config->dpi, 13 * config->dpi, 11 * config->dpi);
+        settings.font_size = settings.font_size * config->dpi;
         auto field = make_textfield(field_parent, settings, FILL_SPACE, FILL_SPACE);
         field->name = "field";
         target_height += field_parent->wanted_bounds.h;

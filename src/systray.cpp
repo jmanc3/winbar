@@ -40,11 +40,11 @@ create_rgba(int r, int g, int b, int a) {
 }
 
 static void
-paint_display(AppClient *client_entity, cairo_t *cr, Container *container) {
+paint_display(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    ArgbColor bg_color = correct_opaqueness(client_entity, config->color_systray_background);
+    ArgbColor bg_color = correct_opaqueness(client, config->color_systray_background);
     
     for (int i = 0; i < systray_icons.size(); i++) {
         Systray_Icon *icon = systray_icons[i];
@@ -65,16 +65,13 @@ paint_display(AppClient *client_entity, cairo_t *cr, Container *container) {
         xcb_map_window(app->connection, icon->window);
     }
     
-    xcb_map_window(app->connection, client_entity->window);
-    xcb_map_subwindows(app->connection, client_entity->window);
+    xcb_map_window(app->connection, client->window);
+    xcb_map_subwindows(app->connection, client->window);
     
     xcb_flush(app->connection);
     
     // paint the background
-    
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, bg_color);
-    cairo_fill(cr);
+    draw_colored_rect(client, bg_color, container->real_bounds);
 }
 
 static bool

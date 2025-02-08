@@ -1212,6 +1212,12 @@ client_new(App *app, Settings settings, const std::string &name) {
         fprintf(stderr, "glXMakeContextCurrent failed\n");
     }
     
+    if (!client->ctx) {
+        client->ctx = new DrawContext;
+        client->ctx->buffer = new OffscreenFrameBuffer(client->bounds->w, client->bounds->h);
+        client->should_use_gl = winbar_settings->use_opengl;
+    }
+    
     // vsync off
     glXSwapIntervalEXT(client->app->display, client->gl_drawable, 0);
     
@@ -1648,17 +1654,15 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
 #endif
     if (valid_client(app, client)) {
         if (client->cr && client->root) {
-            if (!client->ctx) {
-                client->ctx = new DrawContext;
-                client->ctx->buffer = new OffscreenFrameBuffer(client->bounds->w, client->bounds->h);
-                client->should_use_gl = winbar_settings->use_opengl;
-            }
+            if (!client->mapped)
+                return;
             if (client->gl_window_created && client->should_use_gl) {
                 client->draw_start();
                 client->gl_clear();
-                client->projection = glm::ortho(0.0f, (float) client->bounds->w, (float) client->bounds->h, 0.0f, 1.0f,
-                                                -1.0f);
+                client->projection = glm::ortho(0.0f, (float) client->bounds->w, (float) client->bounds->h, 0.0f, 1.0f, -1.0f);
                 client->ctx->shape.update_projection(client->projection);
+                //client->ctx->round.update_projection(glm::ortho(0.0f, (float) client->bounds->w, 0.0f, (float) client->bounds->h, 1.0f, -1.0f));
+                client->ctx->round.update_projection(client->projection);
                 for (auto f: client->ctx->font_manager->fonts) {
                     if (f->font) {
                         f->font->update_projection(client->projection);

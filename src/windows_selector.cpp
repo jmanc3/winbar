@@ -320,13 +320,7 @@ paint_option_background(AppClient *client_entity, cairo_t *cr, Container *contai
         background = lerp_argb(scalar, background, config->color_windows_selector_attention_background);
     }
     
-    set_argb(cr, background);
-    cairo_rectangle(cr,
-                    container->real_bounds.x - 1,
-                    container->real_bounds.y,
-                    container->real_bounds.w + 1,
-                    container->real_bounds.h);
-    cairo_fill(cr);
+    draw_colored_rect(client_entity, background, Bounds(container->real_bounds.x - 1, container->real_bounds.y, container->real_bounds.w + 1, container->real_bounds.h));
 }
 
 static void
@@ -338,9 +332,7 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
         } else {
             color = config->color_windows_selector_close_icon_hovered_background;
         }
-        set_argb(cr, color);
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
+        draw_colored_rect(client_entity, color, container->real_bounds);
     }
     
     bool active = container->state.mouse_pressing || container->state.mouse_hovering ||// US

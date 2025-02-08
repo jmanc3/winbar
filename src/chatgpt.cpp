@@ -39,9 +39,7 @@ static void
 paint_tab(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (TabData *) container->user_data;
     if (data->selected) {
-        set_rect(cr, container->real_bounds);
-        set_argb(cr, ArgbColor(.267, .275, .329, 1));
-        cairo_fill(cr);
+        draw_colored_rect(client, ArgbColor(.267, .275, .329, 1), container->real_bounds);
     } else {
         ArgbColor color(.204, .208, .255, 1);
         if (container->state.mouse_pressing || container->state.mouse_hovering) {
@@ -51,9 +49,7 @@ paint_tab(AppClient *client, cairo_t *cr, Container *container) {
                 darken(&color, 5);
             }
         }
-        set_rect(cr, container->real_bounds);
-        set_argb(cr, color);
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     }
     
     auto layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
@@ -84,32 +80,29 @@ clicked_tab(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_add_new_button(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, ArgbColor(.125, .129, .137, 1));
-    cairo_fill(cr);
+    draw_colored_rect(client, ArgbColor(.125, .129, .137, 1), container->real_bounds); 
     
     double pad = 6 * config->dpi;
-    rounded_rect(cr, 4 * config->dpi, std::round(container->real_bounds.x + pad),
+    rounded_rect(client, 4 * config->dpi, std::round(container->real_bounds.x + pad),
                  std::round(container->real_bounds.y + pad),
-                 std::round(container->real_bounds.w - (pad * 2)), std::round(container->real_bounds.h - (pad * 2)));
-    set_argb(cr, ArgbColor(1, 1, 1, .3));
-    cairo_stroke(cr);
+                 std::round(container->real_bounds.w - (pad * 2)), std::round(container->real_bounds.h - (pad * 2)),
+                 ArgbColor(1, 1, 1, .3), 2.0f);
     
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         ArgbColor color = ArgbColor(.125, .129, .137, 1);
-        rounded_rect(cr, 4 * config->dpi, container->real_bounds.x + pad, container->real_bounds.y + pad,
-                     container->real_bounds.w - (pad * 2), container->real_bounds.h - (pad * 2));
         if (container->state.mouse_pressing) {
-            set_argb(cr, lighten(color, 6));
+            color = lighten(color, 6);
         } else {
-            set_argb(cr, lighten(color, 12));
+            color = lighten(color, 12);
         }
-        
+        rounded_rect(client, 4 * config->dpi, container->real_bounds.x + pad, container->real_bounds.y + pad,
+                     container->real_bounds.w - (pad * 2), container->real_bounds.h - (pad * 2), color);
+        set_argb(cr, color);
         cairo_fill(cr);
     } else {
         ArgbColor color = ArgbColor(.125, .129, .137, 1);
-        rounded_rect(cr, 4 * config->dpi, container->real_bounds.x + pad, container->real_bounds.y + pad,
-                     container->real_bounds.w - (pad * 2), container->real_bounds.h - (pad * 2));
+        rounded_rect(client, 4 * config->dpi, container->real_bounds.x + pad, container->real_bounds.y + pad,
+                     container->real_bounds.w - (pad * 2), container->real_bounds.h - (pad * 2), color);
         set_argb(cr, color);
         cairo_fill(cr);
     }
@@ -143,18 +136,17 @@ paint_conversation_button(AppClient *client, cairo_t *cr, Container *container) 
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         double pad = 6 * config->dpi;
         ArgbColor color = ArgbColor(.125, .129, .137, 1);
-        rounded_rect(cr, 4 * config->dpi, container->real_bounds.x + pad, container->real_bounds.y + pad,
-                     container->real_bounds.w - (pad * 2), container->real_bounds.h - (pad * 2));
-
 //        if (data->selected) {
 //            set_argb(cr, lighten(color, 14));
 //        } else
         if (container->state.mouse_pressing) {
-            set_argb(cr, lighten(color, 10));
+            color = lighten(color, 10);
         } else {
-            set_argb(cr, lighten(color, 12));
+            color = lighten(color, 12);
         }
-        
+        rounded_rect(client, 4 * config->dpi, container->real_bounds.x + pad, container->real_bounds.y + pad,
+                     container->real_bounds.w - (pad * 2), container->real_bounds.h - (pad * 2), color);
+        set_argb(cr, color);
         cairo_fill(cr);
     }
     
@@ -382,37 +374,29 @@ paint_textfield_label(AppClient *client, cairo_t *cr, Container *container) {
     b.y += pad;
     b.w -= pad * 2;
     b.h -= pad * 2;
-    set_rect(cr, b);
-    set_argb(cr, ArgbColor(.267, .275, .329, 1));
-    cairo_fill(cr);
-    rounded_rect(cr, 4 * config->dpi, std::round(b.x),
+    draw_colored_rect(client, ArgbColor(.267, .275, .329, 1), b);
+    auto color = ArgbColor(1, 1, 1, .3);
+    rounded_rect(client, 4 * config->dpi, std::round(b.x),
                  std::round(b.y),
-                 std::round(b.w), std::round(b.h));
-    set_argb(cr, ArgbColor(1, 1, 1, .3));
+                 std::round(b.w), std::round(b.h), color, 2.0f);
+    set_argb(cr, color);
     cairo_stroke(cr);
-    
     paint_label(client, cr, container);
 }
 
 static void
 paint_content_background(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, ArgbColor(.267, .275, .329, 1));
-    cairo_fill(cr);
+    draw_colored_rect(client, ArgbColor(.267, .275, .329, 1), container->real_bounds);
 }
 
 static void
 paint_bottom_right_background(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, ArgbColor(.204, .208, .255, 1));
-    cairo_fill(cr);
+    draw_colored_rect(client, ArgbColor(.204, .208, .255, 1), container->real_bounds);
 }
 
 static void
 paint_left_background(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, ArgbColor(.125, .129, .137, 1));
-    cairo_fill(cr);
+    draw_colored_rect(client, ArgbColor(.125, .129, .137, 1), container->real_bounds);
 }
 
 static void clicked_no_api(AppClient *client, cairo_t *cr, Container *container) {
@@ -822,9 +806,7 @@ static void paint_selection(AppClient *client, cairo_t *cr, Container *self) {
     rect.x += scroll->real_bounds.x + scroll->scroll_h_visual;
     rect.y += scroll->real_bounds.y + scroll->scroll_v_visual;
     
-    set_rect(cr, rect);
-    set_argb(cr, ArgbColor(1, 0, 0, 1));
-    cairo_fill(cr);
+    draw_colored_rect(client, ArgbColor(1, 0, 0, 1), rect);
 }
 
 static void textfield_key_event(AppClient *client, cairo_t *cr, Container *self, bool is_string, xkb_keysym_t keysym,
@@ -974,7 +956,7 @@ static void fill_root(AppClient *client) {
     textarea_settings.color = config->color_date_text;
     textarea_settings.color_cursor = config->color_date_cursor;
     textarea_settings.font = config->font;
-    textarea_settings.font_size = 11 * config->dpi;
+    textarea_settings.font_size__ = 11 * config->dpi;
     textarea_settings.wrap = true;
     auto textarea = make_textarea(app, client, area, textarea_settings);
     textarea->name = "main_text_area";

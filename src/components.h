@@ -93,7 +93,7 @@ public:
     
     // The following variables are the style
     std::string font = "Arial";
-    int font_size = 15;
+    int font_size = 15; // This is set by the creation settings
     
     bool single_line = false;
     bool wrap = false;
@@ -116,7 +116,7 @@ public:
 
 public:
     std::string font = "Arial";
-    int font_size = 15;
+    int font_size__ = 15;
     bool single_line = false;
     bool wrap = false;// When wrap is enabled the text area will set its width to
     // FILL_SPACE and therefore the horizontal scrollbar should

@@ -176,9 +176,7 @@ void start_run_window() {
         static auto bg = config->color_apps_text;
         
         root->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
-            set_rect(cr, container->real_bounds);
-            set_argb(cr, correct_opaqueness(client, bg));
-            cairo_fill(cr);
+            draw_colored_rect(client, correct_opaqueness(client, bg), container->real_bounds);
         };
         std::string title = "Run";
         xcb_ewmh_set_wm_name(&app->ewmh, run_client->window, title.length(), title.c_str());
@@ -209,7 +207,7 @@ void start_run_window() {
         area_options.color_cursor = fg;
         area_options.bottom_show_amount = ScrollShow::SNever;
         area_options.bottom_show_amount = ScrollShow::SNever;
-        area_options.font_size = area_options.font_size + std::round((1 * config->dpi));
+        area_options.font_size__ = area_options.font_size__ + std::round((1 * config->dpi));
         area_options.single_line = true;
         area_options.pad = Bounds(search_pad, search_pad, search_pad, search_pad);
         auto textarea = make_textarea(app, run_client, text_box, area_options);

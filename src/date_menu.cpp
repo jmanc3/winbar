@@ -140,9 +140,7 @@ update_days(int month, int year) {
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_date_background));
-    cairo_fill(cr);
+    draw_colored_rect(client, correct_opaqueness(client, config->color_date_background), container->real_bounds); 
 }
 
 static void
@@ -216,20 +214,12 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_body(AppClient *client, cairo_t *cr, Container *container) {
-    cairo_rectangle(
-            cr, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w, 1);
-    set_argb(cr, config->color_date_seperator);
-    cairo_fill(cr);
+    auto b = Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w, 1);
+    draw_colored_rect(client, config->color_date_seperator, b);
     
     if (agenda_showing) {
-        cairo_rectangle(cr,
-                        container->real_bounds.x,
-                        container->real_bounds.y + container->real_bounds.h - 1,
-                        container->real_bounds.w,
-                        1);
+        draw_colored_rect(client, config->color_date_seperator, Bounds(container->real_bounds.x, container->real_bounds.y + container->real_bounds.h - 1, container->real_bounds.w, 1));
     }
-    set_argb(cr, config->color_date_seperator);
-    cairo_fill(cr);
 }
 
 static void
@@ -427,9 +417,7 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     bool is_day_chosen =
             data->month == agenda_month && data->year == agenda_year && data->day == agenda_day;
     if (is_today) {
-        set_rect(cr, container->real_bounds);
-        set_argb(cr, config->color_date_cal_background);
-        cairo_fill(cr);
+        draw_colored_rect(client, config->color_date_cal_background, container->real_bounds);
     }
     
     if (is_day_chosen) {
@@ -765,7 +753,7 @@ fill_root(AppClient *client) {
     settings.color = config->color_date_text;
     settings.color_cursor = config->color_date_cursor;
     settings.font = config->font;
-    settings.font_size = 11 * config->dpi;
+    settings.font_size__ = 11 * config->dpi;
     settings.wrap = true;
     settings.bottom_show_amount = 2;
     settings.right_show_amount = 2;

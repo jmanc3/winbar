@@ -16,6 +16,11 @@
 #include <hb-ft.h>
 #include <freetype/ftlcdfil.h>
 #include <codecvt>
+
+#ifdef TRACY_ENABLE
+#include <tracy/Tracy.hpp>
+#endif
+
 #include "stb_image.h"
 
 #define STB_RECT_PACK_IMPLEMENTATION
@@ -1113,9 +1118,11 @@ Subprocess::Subprocess(App *app, const std::string &command) {
 }
 
 void AppClient::draw_start() {
+    //printf("draw_start: %s\n", name.c_str());
     if (!is_context_current) {
         for (auto *item: app->clients)
             item->is_context_current = false;
+        // TODO: this might be failing because we are doing it too fast when in opengl mode, because for some reason we never sleep?
         glXMakeContextCurrent(app->display, gl_drawable, gl_drawable, context);
         is_context_current = true;
     }
@@ -1131,6 +1138,7 @@ void AppClient::draw_start() {
 }
 
 void AppClient::draw_end(bool reset_input) {
+    //printf("draw_end: %s\n", name.c_str());
     glXSwapBuffers(app->display, gl_drawable);
     just_changed_size = false;
     previous_redraw_time = get_current_time_in_ms();
@@ -1138,7 +1146,7 @@ void AppClient::draw_end(bool reset_input) {
 
 void AppClient::gl_clear() {
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1270,10 +1278,6 @@ void RoundedRect::update_projection(const glm::mat4 &projection) {
 void RoundedRect::draw_rect(float x, float y, float w, float h, float r, float pad, float panel) {
     glUseProgram(shaderProgram);
     glUniform4f(rectUniform, x, y, w, h);
-    x -= 10 * 10;
-    y -= 10 * 10;
-    w += 20 * 10;
-    h += 20 * 10;
     
     glUniformMatrix4fv(projectionUniform, 1, GL_FALSE, glm::value_ptr(projection));
     
@@ -1319,40 +1323,101 @@ void RoundedRect::set_color(glm::vec4 top_left_rgba, glm::vec4 top_right_rgba, g
     color_bottom_left = bottom_left_rgba;
 }
 
-
 ShapeRenderer::ShapeRenderer() {
+    // Vertex shader: passes along position, color, and UV coordinates.
     vertexShaderSource = R"(
 #version 330 core
 
 layout(location = 0) in vec2 inPosition;
 layout(location = 1) in vec4 inColor;
+layout(location = 2) in vec2 inUV;
 
 out vec4 fragColor;
+out vec2 fragUV;
 
 uniform mat4 projection;
 
 void main()
 {
-    vec4 ins = vec4(inPosition, 0.0, 1.0);
-    gl_Position = projection * ins;
+    vec4 pos = vec4(inPosition, 0.0, 1.0);
+    gl_Position = projection * pos;
     fragColor = inColor;
+    fragUV = inUV;
 }
     )";
-    // Fragment shader source
-    fragmentShaderSource =
-            R"(
+    
+    /*
+       Fragment shader: Uses a rounded rectangle signed distance function (SDF).
+       It supports two modes:
+         1) Filled shape (strokeWidth == 0): pixels inside the shape are drawn.
+         2) Stroke mode (strokeWidth > 0): only a band around the SDF=0 boundary is drawn.
+       
+       The SDF is computed by first centering the fragment coordinate and then
+       comparing with half the rectangle size (minus the rounding radius).
+    */
+    fragmentShaderSource = R"(
 #version 330 core
 
-in vec4 fragColor; // Interpolated color from vertex shader
+in vec4 fragColor;
+in vec2 fragUV;
+
+uniform float radius;       // Corner radius (in rectangle space)
+uniform vec2 rectSize;      // The rectangle's width and height
+uniform float strokeWidth;  // Stroke width: 0 = filled, >0 = stroked outline
 
 out vec4 FragColor;
 
 void main()
 {
-    FragColor = fragColor;
-}
+    // Compute the fragment's coordinate in rectangle space.
+    // p will be in [0, rectSize].
+    vec2 p = fragUV * rectSize;
 
-)";
+    // Compute the center of the rectangle.
+    vec2 center = rectSize * 0.5;
+
+    // The half-size of the rectangle.
+    vec2 halfSize = rectSize * 0.5;
+
+    // Compute the "corner" for the SDF:
+    // This is the amount by which the half-size is inset by the radius.
+    vec2 inner = halfSize - vec2(radius);
+
+    // Shift p so that the rectangle is centered at (0,0)
+    vec2 pos = p - center;
+
+    // Compute the distance to the edge of the box with rounded corners.
+    // For a rounded rectangle SDF, we first take the absolute value.
+    vec2 d = abs(pos) - inner;
+    // d.x or d.y may be negative if inside the inner box.
+    float outsideDistance = length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0) - radius;
+
+    // The signed distance from the fragment to the rounded rect boundary.
+    float sd = outsideDistance;
+
+    // Anti-aliasing factor based on the derivative.
+    float aa = fwidth(sd);
+
+    float alpha = 0.0;
+    if(strokeWidth > 0.0)
+    {
+        // Stroke mode: we want a band where sd is between -strokeWidth/2 and +strokeWidth/2.
+        float halfStroke = strokeWidth * 0.5;
+        // smoothstep creates an anti-aliased band at both inner and outer boundaries.
+        float innerEdge = smoothstep(-halfStroke - aa, -halfStroke, sd);
+        float outerEdge = smoothstep(halfStroke, halfStroke + aa, sd);
+        alpha = innerEdge - outerEdge;
+    }
+    else
+    {
+        // Filled mode: fill if inside the shape (sd < 0) with anti-aliasing.
+        alpha = 1.0 - smoothstep(0.0, aa, sd);
+    }
+
+    // Multiply the incoming color's alpha by the computed alpha.
+    FragColor = vec4(fragColor.rgb, fragColor.a * alpha);
+}
+    )";
     
     initialize();
 }
@@ -1361,23 +1426,43 @@ void ShapeRenderer::update_projection(const glm::mat4 &projection) {
     this->projection = projection;
 }
 
-void ShapeRenderer::draw_rect(float x, float y, float w, float h) {
+//
+// draw_rect() now takes two extra optional parameters:
+//  - radius: if > 0, rounds the corners.
+//  - strokeWidth: if > 0, draws only a stroked outline of that width; if 0, fills the shape.
+//
+void ShapeRenderer::draw_rect(float x, float y, float w, float h, float radius, float strokeWidth) {
     glUseProgram(shaderProgram);
     glDisable(GL_CULL_FACE);
+    
+    // Set the projection uniform.
     glUniformMatrix4fv(projectionUniform, 1, GL_FALSE, glm::value_ptr(projection));
     
+    // Set the uniforms for rounded corners and stroke.
+    glUniform1f(radiusUniform, radius);
+    glUniform2f(rectSizeUniform, w, h);
+    glUniform1f(strokeWidthUniform, strokeWidth);
+    
     glBindVertexArray(VAO);
+    
+    // Supply 4 vertices with 8 floats each:
+    // Layout per vertex: position (2), color (4), uv (2)
+    // (x,y) is the bottom-left corner.
+    // Vertex order: bottom-left, bottom-right, top-right, top-left.
     float vertices[] = {
-            x, y + h, color_bottom_left.r, color_bottom_left.g, color_bottom_left.b, color_bottom_left.a,
-            x + w, y + h, color_bottom_right.r, color_bottom_right.g, color_bottom_right.b, color_bottom_right.a,
-            x + w, y, color_top_right.r, color_top_right.g, color_top_right.b, color_top_right.a,
-            x, y, color_top_left.r, color_top_left.g, color_top_left.b, color_top_left.a,
+            // Position       // Color (RGBA)                                 // UV
+            x,    y,        color_bottom_left.r, color_bottom_left.g, color_bottom_left.b, color_bottom_left.a,   0.0f, 0.0f,
+            x+w,  y,        color_bottom_right.r, color_bottom_right.g, color_bottom_right.b, color_bottom_right.a,  1.0f, 0.0f,
+            x+w,  y+h,      color_top_right.r, color_top_right.g, color_top_right.b, color_top_right.a,        1.0f, 1.0f,
+            x,    y+h,      color_top_left.r, color_top_left.g, color_top_left.b, color_top_left.a,           0.0f, 1.0f,
     };
     
+    // Update VBO data.
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     
+    // Draw the rectangle as a triangle fan.
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     
     glBindVertexArray(0);
@@ -1393,52 +1478,6 @@ void ShapeRenderer::set_color(float r, float g, float b, float a) {
     set_color(color, color, color, color);
 }
 
-void ShapeRenderer::initialize() {
-    // Compile shaders, link program, and create vertex buffers here
-    // ... (This part depends on your setup)
-    
-    // Compile shaders and create shader program
-    GLuint vertexShader = compileShader(vertexShaderSource, GL_VERTEX_SHADER);
-    GLuint fragmentShader = compileShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
-    
-    shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-    
-    // Get uniform location for projection matrix
-    projectionUniform = glGetUniformLocation(shaderProgram, "projection");
-    
-    // Set up vertex data and configure vertex attributes
-    float quadVertices[] = {
-            // Position            // Color
-            -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, // Bottom-left vertex with red color
-            1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f, // Bottom-right vertex with green color
-            1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, // Top-right vertex with blue color
-            -1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f  // Top-left vertex with yellow color
-    };
-    
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    
-    glBindVertexArray(VAO);
-    
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
-    
-    // Position attribute
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) 0);
-    glEnableVertexAttribArray(0);
-    
-    // Color attribute
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) (2 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    
-    // Unbind VBO and VAO
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-}
-
 void ShapeRenderer::set_color(glm::vec4 top_left_rgba, glm::vec4 top_right_rgba, glm::vec4 bottom_right_rgba,
                               glm::vec4 bottom_left_rgba) {
     color_top_left = top_left_rgba;
@@ -1447,6 +1486,55 @@ void ShapeRenderer::set_color(glm::vec4 top_left_rgba, glm::vec4 top_right_rgba,
     color_bottom_left = bottom_left_rgba;
 }
 
+//
+// The initialize() function compiles the shaders, links the program, and sets up the VAO/VBO.
+// We now allocate enough space for 4 vertices, each with 8 floats.
+//
+void ShapeRenderer::initialize() {
+    // Compile shaders and create shader program.
+    GLuint vertexShader = compileShader(vertexShaderSource, GL_VERTEX_SHADER);
+    GLuint fragmentShader = compileShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
+    
+    shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    // (Error checking omitted for brevity)
+    
+    // Get uniform locations.
+    projectionUniform = glGetUniformLocation(shaderProgram, "projection");
+    radiusUniform = glGetUniformLocation(shaderProgram, "radius");
+    rectSizeUniform = glGetUniformLocation(shaderProgram, "rectSize");
+    strokeWidthUniform = glGetUniformLocation(shaderProgram, "strokeWidth");
+    
+    // Set up vertex data and configure vertex attributes.
+    // Reserve space for 4 vertices * 8 floats per vertex.
+    float quadVertices[4 * 8] = { 0.0f };
+    
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    
+    glBindVertexArray(VAO);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_DYNAMIC_DRAW);
+    
+    // Position attribute: location 0, 2 floats.
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    
+    // Color attribute: location 1, 4 floats (starting after 2 floats).
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    
+    // UV attribute: location 2, 2 floats (starting after 2+4 floats).
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    
+    // Unbind.
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
 
 ImmediateTexture::ImmediateTexture(const char *filename, int w, int h, bool keep_aspect_ratio) {
     if (strstr(filename, ".png")) {
@@ -1671,7 +1759,7 @@ FreeFont::FreeFont(int size, std::string font_name) {
     }
     
     force_ucs2_charmap(face);
-    FT_Set_Char_Size(face, 0, std::round((float) size * config->dpi * 64.0f * (100.0f / 76.0f)), 72, 72);
+    FT_Set_Char_Size(face, 0, std::round((float) size * 64.0f * (100.0f / 76.0f)), 72, 72);
     
     FT_Library_SetLcdFilter(ft, FT_LCD_FILTER_DEFAULT);
     hb_buffer = hb_buffer_create();
@@ -1766,6 +1854,7 @@ void FreeFont::bind_needed_glyphs(const std::u32string &text) {
     hb_buffer_reset(hb_buffer);
     std::vector<char32_t> line;
     
+    // TODO: instead of checking the glyph info, first check the
     for (int current_index = 0; current_index < current_text.size(); current_index++) {
         if (current_text[current_index] == '\n' || current_index == current_text.size() - 1) {
             hb_buffer_add_utf32(hb_buffer, (uint32_t *) line.data(), line.size(), 0, -1);
@@ -1773,11 +1862,9 @@ void FreeFont::bind_needed_glyphs(const std::u32string &text) {
             hb_shape(hb_font, hb_buffer, features.empty() ? NULL : &features[0], features.size());
             unsigned int glyph_count;
             hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(hb_buffer, &glyph_count);
-            hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(hb_buffer, &glyph_count);
             
             for (int i = 0; i < glyph_count; i++) {
                 hb_glyph_info_t ginfo = glyph_info[i];
-                hb_glyph_position_t pos = glyph_pos[i];
                 
                 GlyphInfo info = {};
                 for (auto pc: loaded_glyphs) {
@@ -1919,26 +2006,53 @@ void FreeFont::end() {
 
 void FreeFont::set_text(std::string text) {
     // Removes '\r' as they are not needed
-    text.erase(std::remove(text.begin(), text.end(), '\r'), text.end());
-    current_text_raw = text;
-    
-    // Convert to utf32, so we feed the correct code points to freetype
-    // Create a wide string using UTF-16 encoding (wchar_t)
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    std::wstring utf16String = converter.from_bytes(text);
-    
-    // Create a UTF-32 encoded string (std::u32string)
-    current_text = std::u32string(utf16String.begin(), utf16String.end() + 1);
-    
-    if (current_text_raw.empty()) {
-        full_text_w = 0;
-        full_text_h = 0;
-        return;
+    {
+#ifdef TRACY_ENABLE
+        ZoneScopedN("Erase \r");
+#endif
+        text.erase(std::remove(text.begin(), text.end(), '\r'), text.end());
+        current_text_raw = text;
     }
     
-    bind_needed_glyphs(current_text);
     
-    generate_info_needed_for_alignment();
+    {
+#ifdef TRACY_ENABLE
+        ZoneScopedN("convert");
+#endif
+        // Convert to utf32, so we feed the correct code points to freetype
+        // Create a wide string using UTF-16 encoding (wchar_t)
+        std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+        std::wstring utf16String = converter.from_bytes(text);
+        
+        // Create a UTF-32 encoded string (std::u32string)
+       current_text = std::u32string(utf16String.begin(), utf16String.end() + 1);
+    }
+    
+    
+    {
+#ifdef TRACY_ENABLE
+        ZoneScopedN("check empty");
+#endif
+        if (current_text_raw.empty()) {
+            full_text_w = 0;
+            full_text_h = 0;
+            return;
+        }
+    }
+    
+    {
+#ifdef TRACY_ENABLE
+            ZoneScopedN("bind_needed_glyphs");
+#endif
+        bind_needed_glyphs(current_text);
+    }
+    
+    {
+#ifdef TRACY_ENABLE
+        ZoneScopedN("generate_info_needed_for_alignment");
+#endif
+        generate_info_needed_for_alignment();
+    }
 }
 
 void FreeFont::draw_text(PangoAlignment align, float x, float y, float wrap) {
@@ -2171,22 +2285,31 @@ FontReference *FontManager::get(AppClient *client, int size, std::string font) {
         ref->font = new FreeFont(size, font);
     } else {
         // Create the font ref and add it to the list
+//        ref->layout = get_cached_pango_font(client->cr, font, size, PANGO_WEIGHT_NORMAL);
 //        ref->layout = get_cached_pango_font(client->cr, font, size * config->dpi, PANGO_WEIGHT_NORMAL);
     }
-    printf("pushed: %s\n", font.c_str());
     fonts.push_back(ref);
+    printf("pushed: %s, size: %d\n", font.c_str(), fonts.size());
     return ref;
 }
 
 void FontReference::begin() {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    
     if (!font) {
-        layout = get_cached_pango_font(creation_client->cr, name, size * config->dpi, PANGO_WEIGHT_NORMAL);
+        layout = get_cached_pango_font(creation_client->cr, name, size, PANGO_WEIGHT_NORMAL);
         return;
     }
     font->begin();
 }
 
 void FontReference::set_color(float r, float g, float b, float a) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    
     if (layout) {
         cairo_set_source_rgba(creation_client->cr, r, g, b, a);
     } else {
@@ -2195,6 +2318,10 @@ void FontReference::set_color(float r, float g, float b, float a) {
 }
 
 void FontReference::set_text(std::string text) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    
     if (layout) {
         pango_layout_set_text(layout, text.data(), text.size());
     } else {
@@ -2202,7 +2329,30 @@ void FontReference::set_text(std::string text) {
     }
 }
 
+std::string FontReference::wrapped_text(std::string text, int w) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (layout) {
+        return text;
+    } else {
+        return font->wrapped_text(text, w);
+    }
+}
+
+void FontReference::draw_text(int align, int x, int y, int wrap) {
+    if (layout) {
+        
+    } else {
+        font->draw_text((PangoAlignment) align, x, y, wrap);
+    }
+}
+
 void FontReference::draw_text(int x, int y, int param) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    
     bool cares_about_align = param != 5;
     if (layout) {
         PangoAlignment original_align;
@@ -2227,12 +2377,20 @@ void FontReference::draw_text(int x, int y, int param) {
 }
 
 void FontReference::end() {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    
     if (layout)
         return;
     font->end();
 }
 
 Sizes FontReference::sizes() {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    
     if (layout) {
         PangoRectangle ink;
         PangoRectangle logical;
@@ -2244,10 +2402,19 @@ Sizes FontReference::sizes() {
 }
 
 Sizes FontReference::begin(std::string text, float r, float g, float b, float a) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    
     begin();
     set_text(text);
     set_color(r, g, b, a);
     return sizes();
+}
+
+void FontReference::draw_text_end(int x, int y, int param) {
+    draw_text(x, y, param);
+    end();
 }
 
 OffscreenFrameBuffer::OffscreenFrameBuffer(int width, int height) : width(width), height(height) {

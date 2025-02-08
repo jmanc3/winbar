@@ -42,9 +42,7 @@ static void close_notification_timeout(App *app, AppClient *client, Timeout *, v
 static void paint_root(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationWrapper *) container->user_data;
     
-    set_argb(cr, config->color_notification_content_background);
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
+    draw_colored_rect(client, config->color_notification_content_background, container->real_bounds); 
 }
 
 static void clicked_root(AppClient *client, cairo_t *cr, Container *container) {
@@ -143,9 +141,7 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, config->color_notification_title_background);
-    cairo_fill(cr);
+    draw_colored_rect(client, config->color_notification_title_background, container->real_bounds); 
     
     std::string text = "Interaction Required";
     
@@ -181,17 +177,15 @@ static void paint_action(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (NotificationActionWrapper *) container->user_data;
     auto action = data->action;
     
+    auto color = config->color_notification_button_default;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_notification_button_pressed);
+            color = config->color_notification_button_pressed;
         } else {
-            set_argb(cr, config->color_notification_button_hovered);
+            color = config->color_notification_button_hovered;
         }
-    } else {
-        set_argb(cr, config->color_notification_button_default);
     }
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
+    draw_colored_rect(client, config->color_notification_title_background, container->real_bounds); 
     
     std::string text = action.label;
     

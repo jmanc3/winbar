@@ -12,7 +12,6 @@
 #include <fstream>
 #include <iostream>
 #include <math.h>
-#include <pango/pangocairo.h>
 #include <xbacklight.h>
 
 double marker_position_scalar = 1;
@@ -43,7 +42,7 @@ void set_brightness_visual(double new_brightness) {
 }
 
 static void
-paint_battery_bar(AppClient *, cairo_t *cr, Container *container) {
+paint_battery_bar(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = static_cast<BatteryInfo *>(container->user_data);
     assert(data);
     
@@ -81,105 +80,46 @@ paint_battery_bar(AppClient *, cairo_t *cr, Container *container) {
     
     data->capacity_index = capacity_index;
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 32 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
     std::string regular[] = {"\uEBA0", "\uEBA1", "\uEBA2", "\uEBA3", "\uEBA4", "\uEBA5", "\uEBA6", "\uEBA7", "\uEBA8",
                              "\uEBA9", "\uEBAA"};
     
     std::string charging[] = {"\uEBAB", "\uEBAC", "\uEBAD", "\uEBAE", "\uEBAF", "\uEBB0", "\uEBB1", "\uEBB2", "\uEBB3",
                               "\uEBB4", "\uEBB5"};
     
+    auto text = regular[data->capacity_index];
     if (data->status == "Full") {
-        pango_layout_set_text(layout, regular[10].c_str(), strlen("\uE83F"));
+        text = regular[10];
     } else if (data->status == "Charging") {
-        pango_layout_set_text(layout, charging[data->capacity_index].c_str(), strlen("\uE83F"));
-    } else {
-        pango_layout_set_text(layout, regular[data->capacity_index].c_str(), strlen("\uE83F"));
+        text = charging[data->capacity_index];
     }
+        
+    auto [f, w, h] = draw_text_begin(client, 32 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), text);
+    f->draw_text_end((int) (container->real_bounds.x + 12 * config->dpi), (int) (MIDY(container) - h / 2));
     
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_taskbar_button_icons);
-    cairo_move_to(
-            cr,
-            (int) (container->real_bounds.x + 12 * config->dpi),
-            (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
-    
-    layout =
-            get_cached_pango_font(cr, config->font, 34 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    set_argb(cr, config->color_battery_text);
-    std::string text = data->capacity + "%";
-    pango_layout_set_text(layout, text.c_str(), text.length());
-    
-    int charge_width, charge_height;
-    pango_layout_get_pixel_size_safe(layout, &charge_width, &charge_height);
-    
+    text = data->capacity + "%";
+    auto ff = draw_text_begin(client, 34 * config->dpi, config->font, EXPAND(config->color_battery_text), text);
     int text_x = (int) (container->real_bounds.x + 90 * config->dpi);
-    int text_y =
-            (int) (container->real_bounds.y + container->real_bounds.h / 2 - charge_height / 2) - 3;
-    cairo_move_to(cr, text_x, text_y);
-    
-    pango_cairo_show_layout(cr, layout);
-    
-    layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    ArgbColor copy = config->color_battery_text;
-    set_argb(cr, copy);
+    int text_y = (int) (MIDY(container) - ff.h / 2) - 3;
+    ff.f->draw_text_end(text_x, text_y);
+        
     text = "Status: " + data->status;
-    pango_layout_set_text(layout, text.c_str(), text.length());
-    
-    int status_height;
-    int status_width;
-    pango_layout_get_pixel_size_safe(layout, &status_width, &status_height);
-    
-    text_x = (int) (container->real_bounds.x + 90 * config->dpi + charge_width + 10 * config->dpi);
-    text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - status_height / 2);
-    cairo_move_to(cr, text_x, text_y);
-    
-    pango_cairo_show_layout(cr, layout);
+    ff = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_battery_text), text);
+    text_x = (int) (container->real_bounds.x + 90 * config->dpi + ff.w + 10 * config->dpi);
+    text_y = (int) (MIDY(container) - ff.h / 2);
+    ff.f->draw_text_end(text_x, text_y);
 }
 
 static void
 paint_title(AppClient *client_entity, cairo_t *cr, Container *container) {
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    set_argb(cr, config->color_battery_text);
-    std::string text = "Screen Brightness";
-    pango_layout_set_text(layout, text.c_str(), text.length());
-    
-    int text_width, text_height;
-    pango_layout_get_pixel_size_safe(layout, &text_width, &text_height);
-    
-    int text_x = (int) (container->real_bounds.x + 13);
-    int text_y = (int) (container->real_bounds.y);
-    cairo_move_to(cr, text_x, text_y);
-    
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client_entity, 10 * config->dpi, config->font, EXPAND(config->color_battery_text), "Screen Brightness", container->real_bounds, 5, 13, 0);
 }
 
 static void
 paint_brightness_amount(AppClient *client_entity, cairo_t *cr, Container *container) {
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
     std::string text = std::to_string((int) (brightness_fake));
-    if (((int) brightness_fake) == -1) {
+    if (((int) brightness_fake) == -1)
         text = "100";
-    }
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_battery_text);
-    cairo_move_to(cr,
-                  container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client_entity, 17 * config->dpi, config->font, EXPAND(config->color_battery_text), text, container->real_bounds);
 }
 
 static void
@@ -227,63 +167,36 @@ paint_slider(AppClient *client_entity, cairo_t *cr, Container *container) {
     double marker_width = 8 * config->dpi;
     
     double line_height = 2 * config->dpi;
-    set_argb(cr, config->color_battery_slider_background);
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
+    draw_colored_rect(client_entity, config->color_battery_slider_background, Bounds(container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
                     container->real_bounds.w,
-                    line_height);
-    cairo_fill(cr);
+                    line_height));
     
-    set_argb(cr, config->color_battery_slider_foreground);
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
+    draw_colored_rect(client_entity, config->color_battery_slider_foreground, Bounds(container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
                     (marker_position_scalar * container->real_bounds.w),
-                    line_height);
-    cairo_fill(cr);
+                    line_height));
     
-    if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
-        set_argb(cr, config->color_battery_slider_active);
-    } else {
-        set_argb(cr, config->color_battery_slider_foreground);
-    }
-    
-    rounded_rect(cr,
+    auto color = config->color_battery_slider_foreground;
+    if ((container->state.mouse_pressing || container->state.mouse_hovering))
+        color = config->color_battery_slider_active;
+    rounded_rect(client_entity,
                  4 * config->dpi,
                  container->real_bounds.x + (marker_position_scalar * container->real_bounds.w) -
                  marker_width / 2,
                  container->real_bounds.y + container->real_bounds.h / 2 - marker_height / 2,
                  marker_width,
-                 marker_height);
-    cairo_fill(cr);
+                 marker_height, color);
 }
 
 static void
-paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client_entity, config->color_battery_background));
-    cairo_fill(cr);
+paint_root(AppClient *client, cairo_t *cr, Container *container) {
+    draw_colored_rect(client, correct_opaqueness(client, config->color_battery_background), container->real_bounds);
 }
 
 static void
 paint_brightness_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 24 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, "\uEC8A", strlen("\uE83F"));
-    
-    set_argb(cr, config->color_battery_icons);
-    
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client_entity, 24 * config->dpi, config->icons, EXPAND(config->color_battery_icons), "\uEC8A", container->real_bounds);
 }
 
 static Container *

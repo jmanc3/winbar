@@ -58,56 +58,34 @@ InterfaceLink *get_active_link() {
 
 static void
 paint_option(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
     auto data = (WifiOptionData *) container->children[0]->user_data;
+    auto  color = config->color_wifi_default_button;
     if (data->clicked) {
-        set_argb(cr, config->color_search_accent);
+        color = config->color_search_accent;
     } else if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_wifi_pressed_button);
+            color = config->color_wifi_pressed_button;
         } else {
-            set_argb(cr, config->color_wifi_hovered_button);
+            color = config->color_wifi_hovered_button;
         }
-    } else {
-        set_argb(cr, config->color_wifi_default_button);
     }
-    cairo_fill(cr);
+    draw_colored_rect(client, color, container->real_bounds);
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    std::string message(data->info.network_name);
-    pango_layout_set_text(layout, message.data(), message.length());
-    
-    set_argb(cr, config->color_volume_text);
-    cairo_move_to(cr,
-                  container->real_bounds.x + 48 * config->dpi,
-                  container->real_bounds.y + 10 * config->dpi);
-    pango_cairo_show_layout(cr, layout);
-    
-    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    draw_text(client, 10 * config->dpi, config->font, EXPAND(config->color_volume_text), data->info.network_name, container->real_bounds, 5, 48 * config->dpi, 10 * config->dpi);
     
     ArgbColor subtitle_color = config->color_volume_text;
     subtitle_color.a = .6;
-    set_argb(cr, subtitle_color);
-    
+    auto text = "Open";
     if (data->info.saved_network) {
         if (data->info.auth != AUTH_NONE_OPEN) {
-            pango_layout_set_text(layout, "Connected, secured", -1);
+            text = "Connected";
         } else {
-            pango_layout_set_text(layout, "Saved", -1);
+            text = "Saved";
         }
     } else if (data->info.auth != AUTH_NONE_OPEN) {
-        pango_layout_set_text(layout, "Secured", -1);
-    } else {
-        pango_layout_set_text(layout, "Open", -1);
+        text = "Secured";
     }
-    cairo_move_to(cr,
-                  container->real_bounds.x + 48 * config->dpi,
-                  container->real_bounds.y + 29 * config->dpi);
-    pango_cairo_show_layout(cr, layout);
-    
-    layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 24 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(subtitle_color), data->info.network_name, container->real_bounds, 5, 48 * config->dpi, 29 * config->dpi);
     
     // TODO: signal strength into account
     int strength = 0;
@@ -127,54 +105,37 @@ paint_option(AppClient *client, cairo_t *cr, Container *container) {
     } else {
         strength_icon = "\uE872";
     }
-    
-    pango_layout_set_text(layout, strength_icon.data(), strlen("\uE83F"));
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    set_argb(cr, config->color_taskbar_windows_button_default_icon);
-    
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + ((48 * config->dpi) / 2) - width / 2),
-                  (int) (container->real_bounds.y + ((48 * config->dpi) / 2) - width / 2));
-    pango_cairo_show_layout(cr, layout);
+        
+    {
+        auto [f, w, h] = draw_text_begin(client, 24 * config->dpi, config->icons, EXPAND(config->color_taskbar_windows_button_default_icon), strength_icon);
+        f->draw_text_end((int) (container->real_bounds.x + ((48 * config->dpi) / 2) - w / 2),
+                         (int) (container->real_bounds.y + ((48 * config->dpi) / 2) - w / 2));
+    }
     
     bool locked = true;
     if (locked) {
-        layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 20 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-        
-        pango_layout_set_text(layout, "\uE889", strlen("\uE889"));
-        
-        cairo_move_to(cr,
-                      (int) (container->real_bounds.x + ((48 * config->dpi) / 2) - width * .4),
-                      (int) (container->real_bounds.y + ((48 * config->dpi) / 2) - width * .4));
-        pango_cairo_show_layout(cr, layout);
+            auto [f, w, h] = draw_text_begin(client, 20 * config->dpi, config->icons, EXPAND(config->color_taskbar_windows_button_default_icon), "\uE889");
+        f->draw_text_end((int) (container->real_bounds.x + ((48 * config->dpi) / 2) - w * .4),
+                         (int) (container->real_bounds.y + ((48 * config->dpi) / 2) - w * .4));
     }
 }
 
 static void
 paint_debug(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
+    auto color = ArgbColor(1, 1, 0, 1);
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, ArgbColor(1, 0, 0, 1));
+            color = ArgbColor(1, 0, 0, 1);
         } else {
-            set_argb(cr, ArgbColor(1, 0, 1, 1));
+            color = ArgbColor(1, 0, 1, 1);
         }
-    } else {
-        set_argb(cr, ArgbColor(1, 1, 0, 1));
     }
-    cairo_fill(cr);
+    draw_colored_rect(client, color, container->real_bounds);
 }
 
 static void
 paint_clicked(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, config->color_search_accent);
-    cairo_fill(cr);
+    draw_colored_rect(client, config->color_search_accent, container->real_bounds);
 }
 
 struct DataOfLabelButton : UserData {
@@ -184,34 +145,19 @@ struct DataOfLabelButton : UserData {
 
 static void
 paint_centered_label(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
+    auto color = config->color_wifi_default_button;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_wifi_pressed_button);
+            color = config->color_wifi_pressed_button;
         } else {
-            set_argb(cr, config->color_wifi_hovered_button);
+            color = config->color_wifi_hovered_button;
         }
-    } else {
-        set_argb(cr, config->color_wifi_default_button);
     }
-    cairo_fill(cr);
+    draw_colored_rect(client, color, container->real_bounds);
     
     auto data = (DataOfLabelButton *) container->user_data;
-    
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 10, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    std::string message(data->text);
-    pango_layout_set_text(layout, message.data(), message.length());
-    PangoRectangle ink;
-    PangoRectangle logical;
-    pango_layout_get_extents(layout, &ink, &logical);
-    
-    set_argb(cr, config->color_volume_text);
-    cairo_move_to(cr,
-                  container->real_bounds.x + container->real_bounds.w / 2 - ((logical.width / PANGO_SCALE) / 2),
-                  container->real_bounds.y + container->real_bounds.h / 2 - ((logical.height / PANGO_SCALE) / 2));
-    pango_cairo_show_layout(cr, layout);
+        
+    draw_text(client, config->dpi * 10, config->font, EXPAND(config->color_volume_text), data->text, container->real_bounds);
 }
 
 static void delete_container(App *app, AppClient *client, Timeout *timeout, void *user_data) {
@@ -406,9 +352,7 @@ static std::string root_message;
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_wifi_background));
-    cairo_fill(cr);
+    draw_colored_rect(client, correct_opaqueness(client, config->color_wifi_background), container->real_bounds);
     
     auto data = (RootScanAnimationData *) container->user_data;
     
@@ -448,6 +392,25 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     if (!root_message.empty()) {
+        // TODO: has to be bold
+        auto f = draw_get_font(client, 12 * config->dpi, config->font);
+        auto text = f->wrapped_text(root_message, (container->real_bounds.w - 40));
+        f->begin();
+        f->set_text(text);
+        auto [w, h] = f->sizes();
+        f->end();
+        
+        f->begin();
+        f->set_text(text);
+        f->set_color(EXPAND(config->color_wifi_text_title));
+        
+        auto x = container->real_bounds.x + ((container->real_bounds.w - 40) / 2) - (w / 2) + 20; 
+        auto y = container->real_bounds.y + ((container->real_bounds.h) / 2) - (h / 2);
+        f->draw_text(PANGO_ALIGN_LEFT, x, y, (container->real_bounds.w / 2));
+        f->end();
+        
+       
+        /*
         PangoLayout *layout =
                 get_cached_pango_font(cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
         
@@ -468,6 +431,11 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
         pango_cairo_show_layout(cr, layout);
         
         pango_layout_set_width(layout, -1);
+        */
+        
+        // TODO: wrap 
+        // pango_layout_set_width(layout, (container->real_bounds.w - 40) * PANGO_SCALE);
+        // draw_text(client, config->dpi * 12, config->font, EXPAND(config->color_wifi_text_title), root_message, container->real_bounds);
     }
 }
 
@@ -478,67 +446,43 @@ struct WifiToggle : UserData {
 };
 
 static void
-paint_wifi_toggle(AppClient *, cairo_t *cr, Container *container) {
+paint_wifi_toggle(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (WifiToggle *) container->user_data;
     if (app->current - data->last_time_checked > 1000 * 20) {
         data->last_time_checked = app->current;
         data->wifi_is_enabled = wifi_global_status(get_active_link());
     }
     bool wifi_is_enabled = data->wifi_is_enabled;
+    ArgbColor color_set;
     if (wifi_is_enabled) {
         auto color = config->color_search_accent;
         if (container->state.mouse_pressing || container->state.mouse_hovering) {
             if (container->state.mouse_pressing) {
-                set_argb(cr, darken(color, 5));
+                color_set = darken(color, 5);
             } else {
-                set_argb(cr, lighten(color, 5));
+                color_set = lighten(color, 5);
             }
         } else {
-            set_argb(cr, color);
+            color_set = color;
         }
-        
     } else if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, darken(config->color_wifi_hovered_button, 5));
+            color_set = darken(config->color_wifi_hovered_button, 5);
         } else {
             auto color = config->color_wifi_hovered_button;
             color.a += .05;
-            set_argb(cr, color);
+            color_set = color;
         }
     } else {
-        set_argb(cr, config->color_wifi_hovered_button);
+        color_set = config->color_wifi_hovered_button;
     }
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
+    draw_colored_rect(client, color_set, container->real_bounds);
+ 
+    draw_text(client, 14 * config->dpi, config->icons, EXPAND(config->color_taskbar_windows_button_default_icon), "\uE701", container->real_bounds, 5, 5 * config->dpi, 7 * config->dpi);
     
-    auto layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 14 * config->dpi,
-                                        PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, "\uE701", strlen("\uE83F"));
-    set_argb(cr, config->color_taskbar_windows_button_default_icon);
-    
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 5 * config->dpi),
-                  (int) (container->real_bounds.y + 7 * config->dpi));
-    pango_cairo_show_layout(cr, layout);
-    
-    
-    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    set_argb(cr, config->color_volume_text);
-    
-    pango_layout_set_text(layout, "Wi-Fi", -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  container->real_bounds.x + 5 * config->dpi,
-                  container->real_bounds.y + container->real_bounds.h - 6 * config->dpi - height);
-    pango_cairo_show_layout(cr, layout);
+    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_volume_text), "Wi-Fi");
+    f->draw_text_end(container->real_bounds.x + 5 * config->dpi,
+                     container->real_bounds.y + container->real_bounds.h - 6 * config->dpi - h);
 }
 
 static void
@@ -594,19 +538,9 @@ fill_root(AppClient *client) {
     
     auto pref_label = bottom_buttons_pane->child(FILL_SPACE, 28 * config->dpi);
     pref_label->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
-        auto layout = get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-        
-        pango_layout_set_text(layout, "Preferred network card", -1);
-        set_argb(cr, config->color_action_center_history_text);
-        
-        int width;
-        int height;
-        pango_layout_get_pixel_size_safe(layout, &width, &height);
-        
-        cairo_move_to(cr,
-                      (int) (container->real_bounds.x + 5 * config->dpi),
-                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-        pango_cairo_show_layout(cr, layout);
+        auto [f, w, h] = draw_text_begin(client, 11 * config->dpi, config->font, EXPAND(config->color_action_center_history_text), "Preferred network card");
+        f->draw_text_end((int) (container->real_bounds.x + 5 * config->dpi),
+                         (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
     };
     
     {
@@ -716,7 +650,7 @@ void start_wifi_menu() {
         fill_root(client);
 
 //        if (wifi_running()) {
-        root_message = "";
+//        root_message = "Couldn't establish communication with wpa_supplicant";
 //        client_register_animation(app, client);
         wifi_data->when_state_changed = state_changed_callback;
         wifi_networks_and_cached_scan(get_active_link());

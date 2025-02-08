@@ -68,9 +68,8 @@ struct ComboBoxPopup : UserData {
 
 void paint_root(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (PluginData *) container->user_data;
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_volume_background));
-    cairo_fill(cr);
+        
+    draw_colored_rect(client ,correct_opaqueness(client, config->color_volume_background), container->real_bounds); 
 }
 
 
@@ -79,10 +78,7 @@ paint_centered_label(AppClient *client, cairo_t *cr, Container *container, std::
 
 void paint_combo_box_popup(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (ComboBoxPopup *) container->user_data;
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_search_accent));
-    cairo_fill(cr);
-    
+    draw_colored_rect(client, correct_opaqueness(client, config->color_search_accent), container->real_bounds);
     
     if (auto *scroll = (ScrollContainer *) container_by_name("scroll", container)) {
         for (auto *child: scroll->content->children)
@@ -168,17 +164,15 @@ paint_message(AppClient *client, cairo_t *cr, Container *container) {
 static void
 paint_centered_label(AppClient *client, cairo_t *cr, Container *container, std::string text, bool disabled) {
     if (!disabled) {
-        set_rect(cr, container->real_bounds);
+        auto color = config->color_wifi_default_button; 
         if (container->state.mouse_pressing || container->state.mouse_hovering) {
             if (container->state.mouse_pressing) {
-                set_argb(cr, config->color_wifi_pressed_button);
+                color = config->color_wifi_pressed_button;
             } else {
-                set_argb(cr, config->color_wifi_hovered_button);
+                color = config->color_wifi_hovered_button;
             }
-        } else {
-            set_argb(cr, config->color_wifi_default_button);
         }
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     }
     
     PangoLayout *layout =
@@ -212,21 +206,17 @@ static void
 paint_combobox_item(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (ComboBoxChildData *) container->user_data;
     if (container->parent->children[container->parent->children.size() - 1] == container) {
-        set_rect(cr, container->real_bounds);
-        set_argb(cr, config->color_wifi_hovered_button);
-        cairo_fill(cr);
+        draw_colored_rect(client, config->color_wifi_hovered_button, container->real_bounds);
     } else {
-        set_rect(cr, container->real_bounds);
+        auto color = config->color_wifi_default_button;
         if (container->state.mouse_pressing || container->state.mouse_hovering) {
             if (container->state.mouse_pressing) {
-                set_argb(cr, config->color_wifi_pressed_button);
+                color = config->color_wifi_pressed_button;
             } else {
-                set_argb(cr, config->color_wifi_hovered_button);
+                color = config->color_wifi_hovered_button;
             }
-        } else {
-            set_argb(cr, config->color_wifi_default_button);
         }
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     }
     
     PangoLayout *layout =
@@ -905,13 +895,7 @@ paint_hoverable_button_background(AppClient *client, cairo_t *cr, Container *con
         client_create_animation(client->app, client, &data->color.a, data->color.lifetime, 0, time, e, default_color.a);
     }
     
-    set_argb(cr, data->color);
-    
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
-                    container->real_bounds.y,
-                    container->real_bounds.w,
-                    container->real_bounds.h);
+    draw_colored_rect(client, data->color, Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w, container->real_bounds.h));
     cairo_fill(cr);
 }
 
