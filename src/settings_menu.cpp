@@ -46,7 +46,7 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
         color = config->color_pinned_icon_editor_field_default_text;
     }
     
-    draw_text(client, size, config->font, EXPAND(color), label->text, container->real_bounds, 5, 0);
+    draw_text(client, size * config->dpi, config->font, EXPAND(color), label->text, container->real_bounds, 5, 0);
 }
 
 static void paint_draggable(AppClient *client, cairo_t *cr, Container *container) {
@@ -81,35 +81,34 @@ static void clicked_on_off(AppClient *client, cairo_t *cr, Container *container)
 static void paint_on_off(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (Checkbox *) container->user_data;
     
+    ArgbColor color;
+    color = config->color_pinned_icon_editor_field_default_border;
+    if (container->state.mouse_hovering)
+        color = config->color_pinned_icon_editor_field_hovered_border;
+    if (container->state.mouse_pressing)
+        color = config->color_pinned_icon_editor_field_pressed_border;
+    if (data->on)
+        color = config->color_pinned_icon_editor_field_pressed_border;
+    
+    float stroke = 0.0f;
+    if (!data->on) {
+        stroke = std::round(1 * config->dpi);
+    }
+    
     float size = 14 * config->dpi;
-    rounded_rect(cr, 2 * config->dpi,
+    rounded_rect(client, 2 * config->dpi,
                  container->real_bounds.x + container->real_bounds.w / 2 - size / 2,
                  container->real_bounds.y + container->real_bounds.h / 2 - size / 2,
-                 size, size);
-    set_argb(cr, config->color_pinned_icon_editor_field_default_border);
-    if (container->state.mouse_hovering)
-        set_argb(cr, config->color_pinned_icon_editor_field_hovered_border);
-    if (container->state.mouse_pressing)
-        set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
-    
-    if (data->on)
-        set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
-    
-    if (data->on) {
-        cairo_fill(cr);
-    } else {
-        cairo_set_line_width(cr, std::round(1 * config->dpi));
-        cairo_stroke(cr);
-    }
+                 size, size, color, stroke);
     
     if (!data->on)
         return;
     
-    draw_text(client, 14, config->icons, 1, 1, 1, 1, "\uF13E", container->real_bounds);
+    draw_text(client, 14 * config->dpi, config->icons, 1, 1, 1, 1, "\uF13E", container->real_bounds);
 }
 
 static void paint_remove(AppClient *client, cairo_t *cr, Container *container) {
-    draw_text(client, 10, config->icons, .8, .3, .1, 1, "\uE107", container->real_bounds);
+    draw_text(client, 10 * config->dpi, config->icons, .8, .3, .1, 1, "\uE107", container->real_bounds);
 }
 
 static void clicked_remove_reorderable(AppClient *client, cairo_t *cr, Container *container) {
@@ -146,7 +145,7 @@ static void paint_combox_item(AppClient *client, cairo_t *cr, Container *contain
         draw_colored_rect(client, color, container->real_bounds);
     }
     
-    draw_text(client, 9, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text),label->text, container->real_bounds, 5, container->wanted_pad.x + 12 * config->dpi);
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text),label->text, container->real_bounds, 5, container->wanted_pad.x + 12 * config->dpi);
 }
 
 void move_container_to_index(std::vector<Container *> &containers, Container *container, int wants_i) {
@@ -413,10 +412,13 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
             auto combo_data = new GenericComboBox("icon_combo", "Style: ");
             combo_data->options.emplace_back("Windows 10");
             combo_data->options.emplace_back("Windows 7");
+            combo_data->options.emplace_back("Windows 7 Flat");
             combo_data->options.emplace_back("Windows 11");
             combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
                 if (winbar_settings->pinned_icon_style == "win7") {
                     return "Windows 7";
+                } if (winbar_settings->pinned_icon_style == "win7flat") {
+                    return "Windows 7 Flat";
                 } else if (winbar_settings->pinned_icon_style == "win11") {
                     return "Windows 11";
                 }
@@ -427,6 +429,8 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
                     winbar_settings->pinned_icon_style = "win10";
                 } else if (((Label *) (self->user_data))->text == "Windows 7") {
                     winbar_settings->pinned_icon_style = "win7";
+                } else if (((Label *) (self->user_data))->text == "Windows 7 Flat") {
+                    winbar_settings->pinned_icon_style = "win7flat";
                 } else if (((Label *) (self->user_data))->text == "Windows 11") {
                     winbar_settings->pinned_icon_style = "win11";
                 }
@@ -434,7 +438,7 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
                 merge_order_with_taskbar();
             };
             
-            std::string longest_text = "Style: Windows 11";
+            std::string longest_text = "Style: Windows 7 Flat";
             pango_layout_set_text(layout, longest_text.c_str(), -1);
             pango_layout_get_pixel_size_safe(layout, &width, &height);
             
@@ -540,12 +544,12 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
             combobox->user_data = combo_data;
         }
         
-        pango_layout_set_text(layout, "Font Size: ", -1);
+        pango_layout_set_text(layout, "   Font Size: ", -1);
         pango_layout_get_pixel_size_safe(layout, &width, &height);
-        label = r->child(::hbox, width + r->wanted_bounds.h * .5, FILL_SPACE);
+        label = r->child(::hbox, width, FILL_SPACE);
         label->wanted_pad.x = r->wanted_bounds.h * .4;
         label->when_paint = paint_label;
-        data = new Label("Font Size: ");
+        data = new Label("   Font Size: ");
         label->user_data = data;
         
         {
@@ -555,7 +559,7 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
             parent->wanted_pad.h = 2 * config->dpi;
             FieldSettings field_settings;
             field_settings.only_numbers = true;
-            field_settings.font_size = 9;
+            field_settings.font_size = std::round(9 * config->dpi);
             field_settings.max_size = 3;
             auto field = make_textfield(parent, field_settings, FILL_SPACE, FILL_SPACE);
             field->when_key_event = when_size_field_key_event;
@@ -641,7 +645,7 @@ static void paint_centered_text(AppClient *client, cairo_t *cr, Container *conta
     auto *label = (Label *) container->user_data;
     paint_reordable_item(client, cr, container);
     
-    draw_text(client, 9, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text),label->text, container->real_bounds);
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text),label->text, container->real_bounds);
 }
 
 void merge_order_with_taskbar() {
@@ -870,7 +874,7 @@ void string_textfield(const std::string &text, std::string *path, Container *con
     settings.right_show_amount = 2;
     settings.prompt = std::move(prompt);
     settings.color_prompt = ArgbColor(.1, .1, .1, .5);
-    settings.font_size = 11 * config->dpi;
+    settings.font_size__ = 11 * config->dpi;
     settings.color = config->color_pinned_icon_editor_field_default_text;
     settings.color_cursor = config->color_pinned_icon_editor_cursor;
     settings.pad = Bounds(4 * config->dpi, 5 * config->dpi, 8 * config->dpi, 2 * config->dpi);
@@ -978,21 +982,17 @@ fill_root(AppClient *client, Container *root) {
             
             if (data->selected) {
                 auto a = darken(config->color_pinned_icon_editor_background, 3);
-                set_argb(cr, a);
-                rounded_rect(cr, container->real_bounds.h * .13, container->real_bounds.x, container->real_bounds.y,
-                             container->real_bounds.w, container->real_bounds.h);
-                cairo_fill(cr);
+                rounded_rect(client, container->real_bounds.h * .13, container->real_bounds.x, container->real_bounds.y,
+                             container->real_bounds.w, container->real_bounds.h, a);
             }
             
             if (data->selected) {
-                set_argb(cr, config->color_search_accent);
                 auto height = container->real_bounds.h * .55;
                 auto width = std::round(4 * config->dpi);
-                rounded_rect(cr, width * .44,
+                rounded_rect(client, width * .44,
                              container->real_bounds.x,
                              container->real_bounds.y + container->real_bounds.h / 2 - height / 2,
-                             width, height);
-                cairo_fill(cr);
+                             width, height, config->color_search_accent);
             }
             
             auto start = container->real_bounds.x;

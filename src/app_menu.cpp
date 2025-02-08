@@ -53,6 +53,7 @@ struct ItemDataWithClickOffset : public UserData {
     int x_off = 0;
     int y_off = 0;
     cairo_surface_t *surface = nullptr;
+    gl_surface *gsurf = nullptr;
     
     ItemDataWithClickOffset(ItemData *data) {
         this->item_data = data;
@@ -83,7 +84,8 @@ struct LiveTileButtonData : ButtonData {
 
 struct LiveTileData : LiveTileItemType {
     Launcher *launcher = nullptr;
-    cairo_surface_t *surface = nullptr;
+    cairo_surface_t *__surface = nullptr;
+    gl_surface *gsurf = nullptr;
     Container *tile = nullptr;
 //    int w = 2;
 //    int h = 2;
@@ -94,8 +96,8 @@ struct LiveTileData : LiveTileItemType {
     }
     
     ~LiveTileData() {
-        if (surface)
-            cairo_surface_destroy(surface);
+        if (__surface)
+            cairo_surface_destroy(__surface);
     }
 };
 
@@ -175,7 +177,7 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    draw_operator(client, CAIRO_OPERATOR_SOURCE);
     double openess = (container->real_bounds.w - (48 * config->dpi)) / (256 * config->dpi);
     
     auto color = correct_opaqueness(client, config->color_apps_background);
@@ -185,7 +187,7 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
     }
     draw_colored_rect(client, color, container->real_bounds);
     
-    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+    draw_operator(client, CAIRO_OPERATOR_OVER);
     
     easingFunction ease = getEasingFunction(easing_functions::EaseInCubic);
     if (container->real_bounds.w != (48 * config->dpi)) {
@@ -195,18 +197,17 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
             scalar = (1 - scalar) * openess;
             scalar = ease(scalar);
             scalar /= (4 * config->dpi);
-            draw_colored_rect(client, ArgbColor(0, 0, 0, scalar),
+            draw_colored_rect(client, ArgbColor(0, 0, 0, scalar * 3),
                               Bounds((int) (container->real_bounds.x + container->real_bounds.w + i),
                                      (int) (container->real_bounds.y), 1, (int) (container->real_bounds.h)));
         }
     }
     
-    set_rect(cr, container->real_bounds);
-    cairo_clip(client->cr);
+    draw_clip_begin(client, container->real_bounds);
     for (auto c: container->children)
         if (c->when_paint)
             c->when_paint(client, client->cr, c);
-    cairo_reset_clip(client->cr);
+    draw_clip_end(client);
 }
 
 static void
@@ -324,23 +325,13 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
         }
         
         if (right) {
-            auto f = draw_get_font(client, 9, "Segoe MDL2 Assets Mod");
-            f->begin();
-            f->set_text("\uE974");
-            f->set_color(config->color_apps_icons.r, config->color_apps_icons.g, config->color_apps_icons.b,
-                         config->color_apps_icons.a);
-            auto [w, h] = f->sizes();
+            auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->icons, EXPAND(config->color_apps_icons), "\uE974");
             f->draw_text(
                     (int) (container->real_bounds.x + container->real_bounds.w - container->real_bounds.h / 2 - h / 2),
                     (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
             f->end();
         } else {
-            auto f = draw_get_font(client, 12, "Segoe MDL2 Assets Mod");
-            f->begin();
-            f->set_text(text);
-            f->set_color(config->color_apps_icons.r, config->color_apps_icons.g, config->color_apps_icons.b,
-                         config->color_apps_icons.a);
-            auto [w, h] = f->sizes();
+            auto [f, w, h] = draw_text_begin(client, 12 * config->dpi, config->icons, EXPAND(config->color_apps_icons), text);
             f->draw_text((int) (container->real_bounds.x + container->real_bounds.h / 2 - w / 2),
                          (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
             f->end();
@@ -354,15 +345,9 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     if (container->parent->wanted_bounds.w != super->real_bounds.w) {
         // TODO: we need to pass bold here if (data->text == "START") {
         //            layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
-        auto f = draw_get_font(client, 10, config->font);
-        f->begin();
-        f->set_text(data->text);
-        f->set_color(config->color_apps_icons.r, config->color_apps_icons.g, config->color_apps_icons.b,
-                     config->color_apps_icons.a);
-        auto [w, h] = f->sizes();
-        int text_x = (int) (container->real_bounds.x + super->real_bounds.w);
-        int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2);
-        f->draw_text(text_x, text_y);
+        auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_apps_icons), data->text);
+        f->draw_text((int) (container->real_bounds.x + super->real_bounds.w),
+                     (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
         f->end();
     }
 }
@@ -445,21 +430,10 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
         draw_colored_rect(client, color, container->real_bounds);
     }
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    std::string text = data->launcher->name;
-    pango_layout_set_text(layout, text.c_str(), text.size());
-    
-    PangoRectangle ink;
-    PangoRectangle logical;
-    pango_layout_get_extents(layout, &ink, &logical);
-    
-    set_argb(cr, config->color_apps_text);
-    cairo_move_to(cr,
-                  container->real_bounds.x + 44 * config->dpi,
-                  container->real_bounds.y + container->real_bounds.h / 2 -
-                  ((logical.height / PANGO_SCALE) / 2));
-    pango_cairo_show_layout(cr, layout);
+    draw_clip_begin(client, container->real_bounds);
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_apps_text), data->launcher->name,
+              container->real_bounds, 5, 44 * config->dpi);
+    draw_clip_end(client);
     
     if (data->launcher->icon_24__) {
         int width = cairo_image_surface_get_width(data->launcher->icon_24__);
@@ -498,23 +472,10 @@ paint_item_title(AppClient *client, cairo_t *cr, Container *container) {
         draw_colored_rect(client, color, container->real_bounds);
     }
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    std::string text(data->text);
-    pango_layout_set_text(layout, text.c_str(), text.size());
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_apps_text), data->text,
+              container->real_bounds, 5, 3 * config->dpi);
     
-    PangoRectangle ink;
-    PangoRectangle logical;
-    pango_layout_get_extents(layout, &ink, &logical);
-    
-    set_argb(cr, config->color_apps_text);
-    cairo_move_to(cr,
-                  container->real_bounds.x + 3 * config->dpi,
-                  container->real_bounds.y + container->real_bounds.h / 2 -
-                  ((logical.height / PANGO_SCALE) / 2));
-    pango_cairo_show_layout(cr, layout);
-    
-    // TODO: I'm pretty sure this never did anything?
+    // TODO: I think maybe this paints new updates icon?
 //    if (data->surface) {
 //        draw_gl_texture(client, data->gsurf, data->surface, container->real_bounds.x, container->real_bounds.y);
 //    }
@@ -1498,7 +1459,9 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
-void paint_live_tile_data(AppClient *client, cairo_t *cr, Container *container, cairo_surface_t *surface, Launcher *launcher) {
+void
+paint_live_tile_data(AppClient *client, cairo_t *cr, Container *container, cairo_surface_t *surface, gl_surface *gsurf,
+                     Launcher *launcher) {
     auto bg = lighten(config->color_apps_background, 10);
     draw_colored_rect(client, bg, container->real_bounds);
     
@@ -1509,59 +1472,40 @@ void paint_live_tile_data(AppClient *client, cairo_t *cr, Container *container, 
     }
     
     int size = 36 * config->dpi;
-    if (surface) {
-        cairo_set_source_surface(cr,
-                                 surface,
-                                 (int) (container->real_bounds.x + container->real_bounds.w / 2 - size / 2),
-                                 (int) (container->real_bounds.y + container->real_bounds.h / 2 - size / 2));
-        
-        cairo_paint(cr);
+    if (surface && gsurf) {
+        draw_gl_texture(client, gsurf, surface,
+                        (int) (container->real_bounds.x + container->real_bounds.w / 2 - size / 2),
+                        (int) (container->real_bounds.y + container->real_bounds.h / 2 - size / 2));
     }
-    
-    
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    std::string text(launcher->name);
-    pango_layout_set_text(layout, text.c_str(), text.size());
-    
-    PangoRectangle ink;
-    PangoRectangle logical;
-    pango_layout_get_extents(layout, &ink, &logical);
-    
     int text_margin = 3 * config->dpi;
     
-    set_argb(cr, config->color_apps_text);
-    pango_layout_set_width(layout, (container->real_bounds.w - (text_margin * 2)) * PANGO_SCALE);
-    pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
-    
-    pango_layout_get_extents(layout, &ink, &logical);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + text_margin * 1.3),
-                  (int) (container->real_bounds.y + container->real_bounds.h - logical.height / PANGO_SCALE -
-                         text_margin));
-    pango_cairo_show_layout(cr, layout);
-    
-    pango_layout_set_height(layout, -1);
-    pango_layout_set_width(layout, -1);
+    draw_clip_begin(client, Bounds(container->real_bounds.x, container->real_bounds.y,
+                                   container->real_bounds.w - text_margin * 1.3, container->real_bounds.h));
+    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_apps_text), launcher->name);
+    f->draw_text_end((int) (container->real_bounds.x + text_margin * 1.3),
+                 (int) (container->real_bounds.y + container->real_bounds.h - h - text_margin));
+    draw_clip_end(client);
 }
 
 void paint_live_tile(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LiveTileData *) container->user_data;
     int size = 36 * config->dpi;
-    if (data->surface == nullptr) {
-        data->surface = accelerated_surface(app, client, size, size);
+    if (data->__surface == nullptr) {
+        data->__surface = accelerated_surface(app, client, size, size);
+        delete data->gsurf;
+        data->gsurf = new gl_surface;
 
         std::vector<IconTarget> targets;
         targets.emplace_back(data->launcher->icon);
         search_icons(targets);
         pick_best(targets, size);
         for (const auto &item: targets[0].candidates) {
-            paint_surface_with_image(data->surface, item.full_path(), size, nullptr);
+            paint_surface_with_image(data->__surface, item.full_path(), size, nullptr);
             break;
         }
     }
     
-    paint_live_tile_data(client, cr, container, data->surface, data->launcher);
+    paint_live_tile_data(client, cr, container, data->__surface, data->gsurf, data->launcher);
 }
 
 void when_live_tile_clicked(AppClient *client, cairo_t *cr, Container *container) {
@@ -2205,6 +2149,8 @@ fill_root(AppClient *client) {
                 int size = 36 * config->dpi;
                 if (data->surface == nullptr) {
                     data->surface = accelerated_surface(app, client, size, size);
+                    delete data->gsurf;
+                    data->gsurf = new gl_surface;
                     
                     std::vector<IconTarget> targets;
                     targets.emplace_back(data->item_data->launcher->icon);
@@ -2215,7 +2161,7 @@ fill_root(AppClient *client) {
                         break;
                     }
                 }
-                paint_live_tile_data(client, cr, c, data->surface, data->item_data->launcher);
+                paint_live_tile_data(client, cr, c, data->surface, data->gsurf, data->item_data->launcher);
             };
         };
 

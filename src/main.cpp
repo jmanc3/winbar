@@ -166,9 +166,7 @@ std::string second_message;
 std::string third_message;
 
 void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_volume_background));
-    cairo_fill(cr);
+    draw_colored_rect(client, correct_opaqueness(client, config->color_volume_background), container->real_bounds); 
     
     PangoLayout *layout = get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
     int width;

@@ -50,9 +50,7 @@ static void paint_background(AppClient *client, cairo_t *cr, Container *containe
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, config->color_pinned_icon_editor_background);
-    cairo_fill(cr);
+    draw_colored_rect(client, config->color_pinned_icon_editor_background, container->real_bounds); 
 }
 
 
@@ -60,9 +58,7 @@ static void paint_icon_list_background(AppClient *client, cairo_t *cr, Container
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, config->color_pinned_icon_editor_background);
-    cairo_fill(cr);
+    draw_colored_rect(client, config->color_pinned_icon_editor_background, container->real_bounds); 
     
     Bounds bounds = container->real_bounds;
     draw_margins_rect(client, config->color_pinned_icon_editor_field_default_border, bounds, 1, 0);
@@ -131,20 +127,14 @@ static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
     ArgbColor color = config->color_pinned_icon_editor_button_default;
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing) {
-            set_rect(cr, container->real_bounds);
-            set_argb(cr, darken(color, 18));
-            cairo_fill(cr);
+            draw_colored_rect(client, darken(color, 18), container->real_bounds); 
         } else {
-            set_argb(cr, color);
-            set_rect(cr, container->real_bounds);
-            cairo_fill(cr);
+            draw_colored_rect(client, color, container->real_bounds); 
             
             draw_margins_rect(client, darken(color, 18), container->real_bounds, 2, 0);
         }
     } else {
-        set_rect(cr, container->real_bounds);
-        set_argb(cr, color);
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds); 
     }
     
     auto label = (Label *) container->user_data;
@@ -175,9 +165,7 @@ static void paint_icon_option(AppClient *client, cairo_t *cr, Container *contain
     if (container->state.mouse_hovering || container->state.mouse_pressing ||
         (label->number == active_option && active_option_preferred)) {
         if (container->state.mouse_pressing) {
-            set_rect(cr, container->real_bounds);
-            set_argb(cr, darken(color, 18));
-            cairo_fill(cr);
+            draw_colored_rect(client, darken(color, 18), container->real_bounds);
         } else {
             if (label->number != active_option) {
                 active_option = label->number;
@@ -187,16 +175,12 @@ static void paint_icon_option(AppClient *client, cairo_t *cr, Container *contain
             }
             active_option = label->number;
             active_option_preferred = true;
-            set_argb(cr, color);
-            set_rect(cr, container->real_bounds);
-            cairo_fill(cr);
+            draw_colored_rect(client, color, container->real_bounds);
             
             draw_margins_rect(client, darken(color, 18), container->real_bounds, 2, 0);
         }
     } else {
-        set_rect(cr, container->real_bounds);
-        set_argb(cr, color);
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     }
     
     PangoLayout *layout =
@@ -227,29 +211,20 @@ static void paint_restore(AppClient *client, cairo_t *cr, Container *container) 
     }
     
     if (disabled) {
-        set_rect(cr, container->real_bounds);
-        set_argb(cr, color);
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     } else {
         if (container->state.mouse_hovering || container->state.mouse_pressing) {
             if (container->state.mouse_pressing) {
-                set_rect(cr, container->real_bounds);
-                set_argb(cr, darken(color, 18));
-                cairo_fill(cr);
+                draw_colored_rect(client, darken(color, 18), container->real_bounds);
             } else {
-                set_argb(cr, color);
-                set_rect(cr, container->real_bounds);
-                cairo_fill(cr);
+                draw_colored_rect(client, color, container->real_bounds);
                 
                 draw_margins_rect(client, darken(color, 18), container->real_bounds, 2, 0);
             }
         } else {
-            set_rect(cr, container->real_bounds);
-            set_argb(cr, color);
-            cairo_fill(cr);
+            draw_colored_rect(client, color, container->real_bounds);
         }
     }
-    
     
     auto label = (Label *) container->user_data;
     PangoLayout *layout =
@@ -736,7 +711,7 @@ static void fill_root(AppClient *client) {
     textarea_settings.single_line = true;
     textarea_settings.bottom_show_amount = 2;
     textarea_settings.right_show_amount = 2;
-    textarea_settings.font_size = 13 * config->dpi;
+    textarea_settings.font_size__ = 13 * config->dpi;
     textarea_settings.color = config->color_pinned_icon_editor_field_default_text;
     textarea_settings.color_cursor = config->color_pinned_icon_editor_cursor;
     textarea_settings.pad = Bounds(4 * config->dpi, 3 * config->dpi, 8 * config->dpi, 0);

@@ -46,6 +46,7 @@ public:
     long last_update = get_current_time_in_ms();
     double rolling_avg = 0;
     double rolling_avg_delayed = 0;
+    gl_surface *gsurf = nullptr;
     cairo_surface_t *icon = nullptr;
     long last_time_peak_set = 0;
     
@@ -57,19 +58,16 @@ public:
             cairo_surface_destroy(icon);
             icon = nullptr;
         }
+        if (gsurf) {
+            delete gsurf;
+        }
     }
 };
 
-void rounded_rect(cairo_t *cr, double corner_radius, double x, double y, double width, double height) {
-    double radius = corner_radius;
-    double degrees = M_PI / 180.0;
-    
-    cairo_new_sub_path(cr);
-    cairo_arc(cr, x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
-    cairo_arc(cr, x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees);
-    cairo_arc(cr, x + radius, y + height - radius, radius, 90 * degrees, 180 * degrees);
-    cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
-    cairo_close_path(cr);
+void
+rounded_rect(AppClient *client, double corner_radius, double x, double y, double width, double height, ArgbColor color,
+             float stroke_w) {
+    draw_round_rect(client, color, Bounds(x, y, width, height), corner_radius, stroke_w);
 }
 
 static void
@@ -77,26 +75,12 @@ fill_root(AppClient *client, Container *root);
 
 static void
 paint_root(AppClient *client_entity, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client_entity, config->color_volume_background));
-    cairo_fill(cr);
+    draw_colored_rect(client_entity, correct_opaqueness(client_entity, config->color_volume_background),
+                      container->real_bounds);
     
     if (!audio_running) {
-        PangoLayout *layout =
-                get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-        
-        int width;
-        int height;
-        pango_layout_set_text(layout, connected_message.c_str(), -1);
-        pango_layout_set_wrap(layout, PangoWrapMode::PANGO_WRAP_WORD);
-        pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
-        pango_layout_get_pixel_size_safe(layout, &width, &height);
-        
-        set_argb(cr, config->color_volume_text);
-        cairo_move_to(cr,
-                      container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
-                      container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-        pango_cairo_show_layout(cr, layout);
+        draw_text(client_entity, 10 * config->dpi, config->font, EXPAND(config->color_volume_text), connected_message,
+                  container->real_bounds);
     }
 }
 
@@ -108,66 +92,41 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     int val = (int) std::round(scalar * 100);
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 20 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, "\uEBC5", strlen("\uE83F"));
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
     if (!is_muted) {
-        ArgbColor volume_bars_color = ArgbColor(.4, .4, .4, 1);
-        set_argb(cr, volume_bars_color);
-        cairo_move_to(cr,
-                      (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-        pango_cairo_show_layout(cr, layout);
+        auto f = draw_get_font(client_entity, 20 * config->dpi, config->icons);
+        f->begin();
+        f->set_text("\uE995"); // Full actual sized icon
+        auto [w, h] = f->sizes();
+        f->end();
+        // Background empty bars
+        draw_text(client_entity, 20 * config->dpi, config->icons, .4, .4, .4, 1, "\uEBC5", container->real_bounds, 5,  container->real_bounds.w / 2 - w / 2, container->real_bounds.h / 2 - h / 2);
     }
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
+    std::string text;
     if (is_muted) {
-        pango_layout_set_text(layout, "\uE74F", strlen("\uE83F"));
+        text = "\uE74F";
     } else if (val == 0) {
-        pango_layout_set_text(layout, "\uE992", strlen("\uE83F"));
+        text = "\uE992";
     } else if (val < 33) {
-        pango_layout_set_text(layout, "\uE993", strlen("\uE83F"));
+        text = "\uE993";
     } else if (val < 66) {
-        pango_layout_set_text(layout, "\uE994", strlen("\uE83F"));
+        text = "\uE994";
     } else {
-        pango_layout_set_text(layout, "\uE995", strlen("\uE83F"));
+        text = "\uE995";
     }
     
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_taskbar_button_icons);
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client_entity, 20 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), text,
+              container->real_bounds);
 }
 
 static void
 paint_volume_amount(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto data = static_cast<option_data *>(container->parent->parent->user_data);
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 17 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
     double scalar = data->volume;
-    
     std::string text = std::to_string((int) (std::round(scalar * 100)));
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_volume_text);
-    cairo_move_to(cr,
-                  container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client_entity, 17 * config->dpi, config->font, EXPAND(config->color_volume_text), text, container->real_bounds);
 }
 
 static void
@@ -178,18 +137,15 @@ paint_label(AppClient *client_entity, cairo_t *cr, Container *container) {
     int pad = 13 * config->dpi;
     double icon_width = 34 * config->dpi;
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    int width;
-    int height;
-    pango_layout_set_text(layout, text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
+    set_argb(cr, config->color_volume_text);
+    
+    auto f = draw_get_font(client_entity, 11 * config->dpi, config->font);
+    auto [w, h] = f->begin(text, EXPAND(config->color_volume_text));
     
     int text_space = container->real_bounds.w - (container->real_bounds.x + (pad * 2) + icon_width);
     int off = 0;
-    if (width > text_space) {
-        off = -(width - text_space);
+    if (w > text_space) {
+        off = -(w - text_space);
         bool animating = false;
         for (auto a: client_entity->animations)
             if (a.value == &data->position)
@@ -206,27 +162,24 @@ paint_label(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
     off = off * data->position;
     
-    set_argb(cr, config->color_volume_text);
-    cairo_move_to(cr, off + container->real_bounds.x + pad + icon_width, container->real_bounds.y + 12);
-    if (data->position < .94)
-        pango_layout_set_width(layout, (text_space - off) * PANGO_SCALE);
-    pango_cairo_show_layout(cr, layout);
-    if (data->position < .94)
-        pango_layout_set_width(layout, -1);
-    pango_layout_set_attributes(layout, nullptr);
+    draw_clip_begin(client_entity, Bounds(container->real_bounds.x + pad + icon_width, container->real_bounds.y, container->real_bounds.w, container->real_bounds.h));
+    f->draw_text(off + container->real_bounds.x + pad + icon_width, container->real_bounds.y  + 12);
+    f->end();
+    draw_clip_end(client_entity);
+
     auto start_operator = cairo_get_operator(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-    set_rect(cr,
-             Bounds(container->real_bounds.x, container->real_bounds.y, pad + icon_width, container->real_bounds.h));
-    set_argb(cr, config->color_volume_background);
-    cairo_fill(cr);
+    
+    draw_colored_rect(client_entity, config->color_volume_background, Bounds(container->real_bounds.x, container->real_bounds.y, pad + icon_width, container->real_bounds.h));
+    
     cairo_set_operator(cr, start_operator);
     
     if (data->icon) {
-        cairo_set_source_surface(cr, data->icon,
-                                 container->real_bounds.x + 8 * config->dpi,
+        if (!data->gsurf) {
+            data->gsurf = new gl_surface;
+        }
+        draw_gl_texture(client_entity, data->gsurf, data->icon, container->real_bounds.x + 8 * config->dpi,
                                  container->real_bounds.y + 8 * config->dpi);
-        cairo_paint(cr);
     }
 }
 
@@ -244,20 +197,14 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
     double marker_position = volume * container->real_bounds.w;
     
     double line_height = 2 * config->dpi;
-    set_argb(cr, config->color_volume_slider_background);
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
+    draw_colored_rect(client_entity, config->color_volume_slider_background, Bounds(container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
                     container->real_bounds.w,
-                    line_height);
-    cairo_fill(cr);
-    set_argb(cr, config->color_volume_slider_foreground);
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
+                                                                                    line_height));
+    draw_colored_rect(client_entity, config->color_volume_slider_foreground, Bounds(container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
                     marker_position,
-                    line_height);
-    cairo_fill(cr);
+                                                                                    line_height));
     
     if (peak > data->rolling_avg) {
         data->rolling_avg = peak;
@@ -269,43 +216,32 @@ paint_option(AppClient *client_entity, cairo_t *cr, Container *container) {
         client_create_animation(app, client_entity, &data->rolling_avg_delayed, data->lifetime, 130, 1000, getEasingFunction(EaseInExpo), 0);
     }
     
-    if (is_light_theme(config->color_volume_background)) {
-        set_argb(cr, darken(config->color_volume_background, 13));
-    } else {
-        set_argb(cr, lighten(config->color_volume_background, 20));
-    }
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
+    ArgbColor color = lighten(config->color_volume_background, 20);
+    if (is_light_theme(config->color_volume_background))
+        color = darken(config->color_volume_background, 13);
+    draw_colored_rect(client_entity, color, Bounds(container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2 + line_height,
                     marker_position * data->rolling_avg_delayed,
-                    line_height);
-    cairo_fill(cr);
+                                                   line_height));
     
+    color = lighten(config->color_volume_background, 50);
     if (is_light_theme(config->color_volume_background)) {
-        set_argb(cr, darken(config->color_volume_background, 30));
-    } else {
-        set_argb(cr, lighten(config->color_volume_background, 50));
+        color = darken(config->color_volume_background, 30);
     }
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
+    draw_colored_rect(client_entity, color, Bounds(container->real_bounds.x,
                     container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2 + line_height,
                     marker_position * data->rolling_avg,
-                    line_height);
-    cairo_fill(cr);
+                                                   line_height));
     
-    if ((container->state.mouse_pressing || container->state.mouse_hovering)) {
-        set_argb(cr, config->color_volume_slider_active);
-    } else {
-        set_argb(cr, config->color_volume_slider_foreground);
-    }
-    
-    rounded_rect(cr,
+    color = config->color_volume_slider_foreground;
+    if ((container->state.mouse_pressing || container->state.mouse_hovering))
+        color = config->color_volume_slider_active;
+    rounded_rect(client_entity,
                  4 * config->dpi,
                  container->real_bounds.x + marker_position - marker_width / 2,
                  container->real_bounds.y + container->real_bounds.h / 2 - marker_height / 2,
                  marker_width,
-                 marker_height);
-    cairo_fill(cr);
+                 marker_height, color);
 }
 
 static void
@@ -702,102 +638,13 @@ void updates() {
 }
 
 static void
-paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
-    auto *data = (ButtonData *) container->user_data;
-    
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            set_rect(cr, container->real_bounds);
-            set_argb(cr, config->color_apps_scrollbar_pressed_button);
-            cairo_fill(cr);
-        } else {
-            set_rect(cr, container->real_bounds);
-            set_argb(cr, config->color_apps_scrollbar_hovered_button);
-            cairo_fill(cr);
-        }
-    } else {
-        set_rect(cr, container->real_bounds);
-        set_argb(cr, config->color_apps_scrollbar_default_button);
-        cairo_fill(cr);
-    }
-    
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_apps_scrollbar_pressed_button_icon);
-        } else {
-            set_argb(cr, config->color_apps_scrollbar_hovered_button_icon);
-        }
-    } else {
-        set_argb(cr, config->color_apps_scrollbar_default_button_icon);
-    }
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, data->text.data(), strlen("\uE83F"));
-    
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
-}
-
-static void
 paint_scroll_bg(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    
-    set_rect(cr, container->real_bounds);
     ArgbColor color = config->color_apps_scrollbar_gutter;
     color.a = 1;
-    set_argb(cr, color);
-    cairo_fill(cr);
-}
-
-static void
-paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    paint_scroll_bg(client, cr, container);
-    
-    Container *scrollpane = container->parent->parent;
-    
-    auto right_bounds = right_thumb_bounds(scrollpane, container->real_bounds);
-    
-    right_bounds.x += right_bounds.w;
-    right_bounds.w = std::max(right_bounds.w * 1, 2.0);
-    right_bounds.x -= right_bounds.w;
-    right_bounds.x -= 2 * (1 - 1);
-    
-    set_rect(cr, right_bounds);
-    
-    if (container->state.mouse_pressing) {
-        ArgbColor color = config->color_apps_scrollbar_pressed_thumb;
-        color.a = 1;
-        set_argb(cr, color);
-    } else if (bounds_contains(right_bounds, client->mouse_current_x, client->mouse_current_y)) {
-        ArgbColor color = config->color_apps_scrollbar_hovered_thumb;
-        color.a = 1;
-        set_argb(cr, color);
-    } else if (right_bounds.w == 2.0) {
-        ArgbColor color = config->color_apps_scrollbar_default_thumb;
-        lighten(&color, 10);
-        color.a = 1;
-        set_argb(cr, color);
-    } else {
-        ArgbColor color = config->color_apps_scrollbar_default_thumb;
-        color.a = 1;
-        set_argb(cr, color);
-    }
-    
-    cairo_fill(cr);
+    draw_colored_rect(client, color, container->real_bounds);
 }
 
 void closed_volume(AppClient *client) {
@@ -884,22 +731,6 @@ void open_volume_menu() {
             fine_scrollpane_scrolled(client, cr, self, scroll_x, scroll_y, came_from_touchpad);
         };
         Container *content = scrollpane->content;
-        
-        Container *right_thumb_container = scrollpane->right->children[1];
-        right_thumb_container->parent->receive_events_even_if_obstructed_by_one = true;
-        right_thumb_container->when_paint = paint_right_thumb;
-    
-        Container *top_arrow = scrollpane->right->children[0];
-        top_arrow->when_paint = paint_arrow;
-        auto *top_data = new ButtonData;
-        top_data->text = "\uE971";
-        top_arrow->user_data = top_data;
-        Container *bottom_arrow = scrollpane->right->children[2];
-        bottom_arrow->when_paint = paint_arrow;
-        auto *bottom_data = new ButtonData;
-        bottom_data->text = "\uE972";
-        bottom_arrow->user_data = bottom_data;
-    
         scrollpane->when_paint = paint_root;
         fill_root(client_entity, content);
         if (!audio_running) {

@@ -156,11 +156,9 @@ paint_scroll_bg(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     auto scroll_container = ((ScrollContainer *) container->parent->parent);
-    set_rect(cr, container->real_bounds);
     ArgbColor color = config->color_apps_scrollbar_gutter;
     color.a = scroll_container->scrollbar_openess;
-    set_argb(cr, color);
-    cairo_fill(cr);
+    draw_colored_rect(client, color, container->real_bounds);
 }
 
 static void
@@ -185,28 +183,18 @@ paint_right_thumb(AppClient *client, cairo_t *cr, Container *container) {
     right_bounds.x -= right_bounds.w;
     right_bounds.x -= 2 * (1 - scroll_container->scrollbar_openess);
     
-    set_rect(cr, right_bounds);
-    
+    ArgbColor color = config->color_apps_scrollbar_default_thumb;
     if (container->state.mouse_pressing) {
-        ArgbColor color = config->color_apps_scrollbar_pressed_thumb;
-        color.a = scroll_container->scrollbar_visible;
-        set_argb(cr, color);
+        color = config->color_apps_scrollbar_pressed_thumb;
     } else if (bounds_contains(right_bounds, client->mouse_current_x, client->mouse_current_y)) {
-        ArgbColor color = config->color_apps_scrollbar_hovered_thumb;
-        color.a = scroll_container->scrollbar_visible;
-        set_argb(cr, color);
+        color = config->color_apps_scrollbar_hovered_thumb;
     } else if (right_bounds.w == 2.0) {
-        ArgbColor color = config->color_apps_scrollbar_default_thumb;
+        color = config->color_apps_scrollbar_default_thumb;
         lighten(&color, 10);
-        color.a = scroll_container->scrollbar_visible;
-        set_argb(cr, color);
-    } else {
-        ArgbColor color = config->color_apps_scrollbar_default_thumb;
-        color.a = scroll_container->scrollbar_visible;
-        set_argb(cr, color);
     }
+    color.a = scroll_container->scrollbar_visible;
     
-    cairo_fill(cr);
+    draw_colored_rect(client, color, right_bounds);
 }
 
 static void
@@ -229,28 +217,19 @@ paint_bottom_thumb(AppClient *client, cairo_t *cr, Container *container) {
     bottom_bounds.y -= bottom_bounds.h;
     bottom_bounds.y -= 2 * (1 - scroll_container->scrollbar_openess);
     
-    set_rect(cr, bottom_bounds);
+    ArgbColor color = config->color_apps_scrollbar_default_thumb;
     
     if (container->state.mouse_pressing) {
-        ArgbColor color = config->color_apps_scrollbar_pressed_thumb;
-        color.a = scroll_container->scrollbar_visible;
-        set_argb(cr, color);
+        color = config->color_apps_scrollbar_pressed_thumb;
     } else if (bounds_contains(bottom_bounds, client->mouse_current_x, client->mouse_current_y)) {
-        ArgbColor color = config->color_apps_scrollbar_hovered_thumb;
-        color.a = scroll_container->scrollbar_visible;
-        set_argb(cr, color);
+        color = config->color_apps_scrollbar_hovered_thumb;
     } else if (bottom_bounds.w == 2.0) {
-        ArgbColor color = config->color_apps_scrollbar_default_thumb;
+        color = config->color_apps_scrollbar_default_thumb;
         lighten(&color, 10);
-        color.a = scroll_container->scrollbar_visible;
-        set_argb(cr, color);
-    } else {
-        ArgbColor color = config->color_apps_scrollbar_default_thumb;
-        color.a = scroll_container->scrollbar_visible;
-        set_argb(cr, color);
     }
+    color.a = scroll_container->scrollbar_visible;
     
-    cairo_fill(cr);
+    draw_colored_rect(client, color, bottom_bounds);
 }
 
 static void
@@ -267,56 +246,35 @@ paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_rect(cr, container->real_bounds);
             ArgbColor color = config->color_apps_scrollbar_pressed_button;
             color.a = scroll_container->scrollbar_openess;
-            set_argb(cr, color);
-            cairo_fill(cr);
+            draw_colored_rect(client, color, container->real_bounds);
         } else {
-            set_rect(cr, container->real_bounds);
             ArgbColor color = config->color_apps_scrollbar_hovered_button;
             color.a = scroll_container->scrollbar_openess;
-            set_argb(cr, color);
-            cairo_fill(cr);
+            draw_colored_rect(client, color, container->real_bounds);
         }
     } else {
-        set_rect(cr, container->real_bounds);
         ArgbColor color = config->color_apps_scrollbar_default_button;
         color.a = scroll_container->scrollbar_openess;
-        set_argb(cr, color);
-        cairo_fill(cr);
+        draw_colored_rect(client, color, container->real_bounds);
     }
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
+    ArgbColor color;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            auto c = ArgbColor(config->color_apps_scrollbar_pressed_button_icon);
-            c.a = scroll_container->scrollbar_openess;
-            set_argb(cr, c);
+            color = ArgbColor(config->color_apps_scrollbar_pressed_button_icon);
+            color.a = scroll_container->scrollbar_openess;
         } else {
-            auto c = ArgbColor(config->color_apps_scrollbar_hovered_button_icon);
-            c.a = scroll_container->scrollbar_openess;
-            set_argb(cr, c);
+            color = ArgbColor(config->color_apps_scrollbar_hovered_button_icon);
+            color.a = scroll_container->scrollbar_openess;
         }
     } else {
-        auto c = ArgbColor(config->color_apps_scrollbar_default_button_icon);
-        c.a = scroll_container->scrollbar_openess;
-        set_argb(cr, c);
+        color = ArgbColor(config->color_apps_scrollbar_default_button_icon);
+        color.a = scroll_container->scrollbar_openess;
     }
     
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, data->text.data(), strlen("\uE83F"));
-    
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 6 * config->dpi, config->icons, EXPAND(color), data->text, container->real_bounds);
 }
 
 static void
@@ -326,40 +284,17 @@ paint_show(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, ArgbColor(0, 0, 0, .3));
+            draw_colored_rect(client, ArgbColor(0, 0, 0, .3), container->real_bounds);
         } else {
-            set_argb(cr, ArgbColor(0, 0, 0, .1));
+            draw_colored_rect(client, ArgbColor(0, 0, 0, .1), container->real_bounds);
         }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
     }
-    
+
+    auto color = ArgbColor(0, 1, 1, 1);
     if (container->parent->active)
-        set_argb(cr, ArgbColor(1, 0, 1, 1));
-    else
-        set_argb(cr, ArgbColor(0, 1, 1, 1));
+        color = ArgbColor(1, 0, 1, 1);
     
-    cairo_rectangle(
-            cr, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w, 1);
-    cairo_fill(cr);
-    
-    cairo_rectangle(
-            cr, container->real_bounds.x, container->real_bounds.y, 1, container->real_bounds.h);
-    cairo_fill(cr);
-    
-    cairo_rectangle(cr,
-                    container->real_bounds.x + container->real_bounds.w - 1,
-                    container->real_bounds.y,
-                    1,
-                    container->real_bounds.h);
-    cairo_fill(cr);
-    
-    cairo_rectangle(cr,
-                    container->real_bounds.x,
-                    container->real_bounds.y + container->real_bounds.h - 1,
-                    container->real_bounds.w,
-                    1);
-    cairo_fill(cr);
+    draw_margins_rect(client, color, container->real_bounds, 1, 0);
 }
 
 struct MouseDownInfo {
@@ -1502,13 +1437,11 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
         double h = selection_strong_pos.height / PANGO_SCALE;
         
         if (maxy == miny) {// Same line
-            cairo_rectangle(
-                    cr, container->real_bounds.x + minx, container->real_bounds.y + miny, maxx - minx, h);
-            cairo_fill(cr);
+            draw_colored_rect(client, ArgbColor(.2, .5, .8, 1), Bounds(container->real_bounds.x + minx, container->real_bounds.y + miny, maxx - minx, h));
         } else {
+            Bounds b;
             if ((maxy - miny) > h) {// More than one line off difference
-                cairo_rectangle(cr,
-                                container->real_bounds.x,
+                b = Bounds(container->real_bounds.x,
                                 container->real_bounds.y + miny + h,
                                 w,
                                 maxy - miny - h);
@@ -1518,81 +1451,55 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
             
             if (cursor_first) {
                 // Top line
-                cairo_rectangle(cr,
-                                container->real_bounds.x + cursor_strong_pos.x / PANGO_SCALE,
+                b = Bounds(container->real_bounds.x + cursor_strong_pos.x / PANGO_SCALE,
                                 container->real_bounds.y + cursor_strong_pos.y / PANGO_SCALE,
                                 w,
                                 h);
                 
                 // Bottom line
                 int bottom_width = selection_strong_pos.x / PANGO_SCALE;
-                cairo_rectangle(cr,
-                                container->real_bounds.x,
+                b = Bounds(container->real_bounds.x,
                                 container->real_bounds.y + selection_strong_pos.y / PANGO_SCALE,
                                 bottom_width,
                                 h);
             } else {
                 // Top line
-                cairo_rectangle(cr,
-                                container->real_bounds.x + selection_strong_pos.x / PANGO_SCALE,
+                b = Bounds(container->real_bounds.x + selection_strong_pos.x / PANGO_SCALE,
                                 container->real_bounds.y + selection_strong_pos.y / PANGO_SCALE,
                                 w,
                                 h);
                 
                 // Bottom line
                 int bottom_width = cursor_strong_pos.x / PANGO_SCALE;
-                cairo_rectangle(cr,
-                                container->real_bounds.x,
+                b = Bounds(container->real_bounds.x,
                                 container->real_bounds.y + cursor_strong_pos.y / PANGO_SCALE,
                                 bottom_width,
                                 h);
             }
-            cairo_fill(cr);
+            draw_colored_rect(client, ArgbColor(.2, .5, .8, 1), b);
         }
     }// END Selection background
     
     // SHOW TEXT LAYOUT
     set_argb(cr, data->color);
     
-    cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y);
-    pango_cairo_show_layout(cr, layout);
+    //cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y);
+    draw_text(client, data->font_size, config->font, EXPAND(data->color), data->state->text, container->real_bounds, 5, 0, 0);
+    
+    //pango_cairo_show_layout(cr, layout);
     pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_LEFT);
     
     if (container->parent->active == false && data->state->text.empty()) {
-        cairo_save(cr);
-        
-        PangoLayout *prompt_layout = get_cached_pango_font(
-                client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
-        
-        pango_layout_set_width(prompt_layout, -1);
-        pango_layout_set_text(
-                prompt_layout, data->state->prompt.c_str(), data->state->prompt.length());
-        pango_layout_set_alignment(prompt_layout, PangoAlignment::PANGO_ALIGN_LEFT);
-        if (data->wrap) {
-            pango_layout_set_wrap(prompt_layout, PANGO_WRAP_WORD_CHAR);
-            pango_layout_set_width(prompt_layout, container->real_bounds.w * PANGO_SCALE);
-        }
-        
-        set_rect(cr, container->parent->real_bounds);
-        cairo_clip(cr);
-        
-        set_argb(cr, data->color_prompt);
-        
-        cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y);
-        pango_cairo_show_layout(cr, prompt_layout);
-        cairo_restore(cr);
-    }
+         draw_text(client, data->font_size, config->font, EXPAND(data->color_prompt), data->state->prompt, container->real_bounds, 5, 0, 0);
+   }
     
     // PAINT CURSOR
     if (container->parent->active && data->state->cursor_on) {
-        set_argb(cr, data->color_cursor);
         int offset = cursor_strong_pos.x != 0 ? -1 : 0;
-        cairo_rectangle(cr,
-                        cursor_strong_pos.x / PANGO_SCALE + container->real_bounds.x + offset,
+        draw_colored_rect(client, data->color_cursor, Bounds(cursor_strong_pos.x / PANGO_SCALE + container->real_bounds.x + offset,
                         cursor_strong_pos.y / PANGO_SCALE + container->real_bounds.y,
                         data->cursor_width,
-                        cursor_strong_pos.height / PANGO_SCALE);
-        cairo_fill(cr);
+                        cursor_strong_pos.height / PANGO_SCALE));
     }
     cairo_restore(cr);
 }
@@ -1896,7 +1803,7 @@ make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings s
     int width = 0;
     if (settings.wrap)
         width = FILL_SPACE;
-    Container *textarea = content_area->child(::vbox, width, settings.font_size);
+    Container *textarea = content_area->child(::vbox, width, settings.font_size__);
     textarea->wanted_pad = settings.pad;
     
     textarea->when_paint = paint_textarea;
@@ -1912,7 +1819,7 @@ make_textarea(App *app, AppClient *client, Container *parent, TextAreaSettings s
     auto data = new TextAreaData();
     data->cursor_width = settings.cursor_width;
     data->color_cursor = settings.color_cursor;
-    data->font_size = settings.font_size;
+    data->font_size = settings.font_size__;
     data->font = settings.font;
     data->color = settings.color;
     data->single_line = settings.single_line;
@@ -2843,18 +2750,23 @@ paint_textfield(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (FieldData *) container->user_data;
 
     // clip text
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, data->settings.font_size * config->dpi,
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, data->settings.font_size,
                                                 PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_width(layout, -1); // disable wrapping
     
     set_argb(cr, config->color_pinned_icon_editor_field_default_text);
+    std::string text_set;
+    ArgbColor color = config->color_pinned_icon_editor_field_default_text;
     if (!data->text.empty() || container->active) {
         pango_layout_set_text(layout, data->text.c_str(), data->text.size());
+        text_set = data->text;
     } else {
         auto watered_down = ArgbColor(config->color_pinned_icon_editor_field_default_text);
         watered_down.a = 0.6;
+        color = watered_down;
         set_argb(cr, watered_down);
         pango_layout_set_text(layout, data->settings.when_empty_text.c_str(), data->settings.when_empty_text.size());
+        text_set = data->settings.when_empty_text;
     }
     PangoRectangle ink;
     PangoRectangle logical;
@@ -2863,27 +2775,27 @@ paint_textfield(AppClient *client, cairo_t *cr, Container *container) {
     auto text_off_x = 10 * config->dpi;
     auto text_off_y = container->real_bounds.h / 2 - ((logical.height / PANGO_SCALE) / 2);
     
+    /*
     cairo_move_to(cr,
                   container->real_bounds.x + text_off_x,
                   container->real_bounds.y + text_off_y);
     pango_cairo_show_layout(cr, layout);
+    */
+    draw_text(client, data->settings.font_size, config->font, EXPAND(color), text_set, container->real_bounds, 5, text_off_x, text_off_y);
     
     if (container->active) {
         PangoRectangle cursor_strong_pos;
         PangoRectangle cursor_weak_pos;
         pango_layout_get_cursor_pos(layout, data->text.size(), &cursor_strong_pos, &cursor_weak_pos);
         
-        set_argb(cr, ArgbColor(0, 0, 0, 1));
         int offset = cursor_strong_pos.x != 0 ? -1 : 0;
-        cairo_rectangle(cr,
-                        cursor_strong_pos.x / PANGO_SCALE + container->real_bounds.x + offset + text_off_x,
+        draw_colored_rect(client, ArgbColor(0, 0, 0, 1), Bounds(cursor_strong_pos.x / PANGO_SCALE + container->real_bounds.x + offset + text_off_x,
                         cursor_strong_pos.y / PANGO_SCALE + container->real_bounds.y + text_off_y,
                         1 * config->dpi,
-                        cursor_strong_pos.height / PANGO_SCALE);
-        cairo_fill(cr);
+                        cursor_strong_pos.height / PANGO_SCALE)); 
     }
     
-    ArgbColor color = config->color_pinned_icon_editor_field_default_border;
+    color = config->color_pinned_icon_editor_field_default_border;
     if (container->active) {
         color = config->color_pinned_icon_editor_field_pressed_border;
     } else if (container->state.mouse_hovering) {
@@ -2908,61 +2820,35 @@ PopupItemDraw::PopupItemDraw(const std::string &icon0, const std::string &icon1,
 
 static void
 paint_combobox_root(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_pinned_icon_editor_background));
-    cairo_fill(cr);
+    draw_colored_rect(client, correct_opaqueness(client, config->color_pinned_icon_editor_background),
+                      container->real_bounds);
 }
 
 static void paint_combox_item(AppClient *client, cairo_t *cr, Container *container) {
     auto *label = (Label *) container->user_data;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, darken(config->color_pinned_icon_editor_background, 15));
+            draw_colored_rect(client, darken(config->color_pinned_icon_editor_background, 15), container->real_bounds);
         } else if (container->state.mouse_hovering) {
-            set_argb(cr, darken(config->color_pinned_icon_editor_background, 7));
+            draw_colored_rect(client, darken(config->color_pinned_icon_editor_background, 7), container->real_bounds);
         }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
     }
-    
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
-    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 12 * config->dpi,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text), label->text, container->real_bounds, 5, container->wanted_pad.x + 12 * config->dpi);
 }
 
 static void paint_combox_item_dark(AppClient *client, cairo_t *cr, Container *container) {
     auto *label = (Label *) container->user_data;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, darken(config->color_search_accent, 15));
+            draw_colored_rect(client, darken(config->color_search_accent, 15), container->real_bounds);
         } else if (container->state.mouse_hovering) {
-            set_argb(cr, darken(config->color_search_accent, 7));
+            draw_colored_rect(client, darken(config->color_search_accent, 7), container->real_bounds);
         }
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
     } else {
-        set_argb(cr, config->color_search_accent);
-        set_rect(cr, container->real_bounds);
-        cairo_fill(cr);
+        draw_colored_rect(client, config->color_search_accent, container->real_bounds);
     }
     
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    set_argb(cr, config->color_wifi_icons);
-    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 12 * config->dpi,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_wifi_icons), label->text, container->real_bounds, 5, container->wanted_pad.x + 12 * config->dpi);
 }
 
 void clicked_expand_generic_combobox_base(AppClient *client, cairo_t *cr, Container *container, double option_h, bool down, bool dark = false) {
@@ -3035,17 +2921,15 @@ void clicked_expand_generic_combobox_dark(AppClient *client, cairo_t *cr, Contai
 }
 
 void paint_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *container) {
+    auto color = config->color_wifi_default_button;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_wifi_pressed_button);
+            color = config->color_wifi_pressed_button;
         } else {
-            set_argb(cr, config->color_wifi_hovered_button);
+            color = config->color_wifi_hovered_button;
         }
-    } else {
-        set_argb(cr, config->color_wifi_default_button);
     }
-    set_rect(cr, container->real_bounds);
-    cairo_fill(cr);
+    draw_colored_rect(client, color, container->real_bounds);
 
     draw_margins_rect(client, config->color_wifi_hovered_button, container->real_bounds, 2 * config->dpi, 0);
 
@@ -3055,28 +2939,12 @@ void paint_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *cont
     if (data->determine_selected)
         selected += data->determine_selected(client, cr, container);
     
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
-    int width;
-    int height;
-    pango_layout_set_text(layout, selected.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    set_argb(cr, config->color_wifi_icons);
-    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 8 * config->dpi,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_wifi_icons), selected, container->real_bounds, 5, container->wanted_pad.x + 8 * config->dpi);
     
-    layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, "\uE70D", strlen("\uE83F"));
-    
-    set_argb(cr, config->color_wifi_icons);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w - width - 8 * config->dpi),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
+    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->icons, EXPAND(config->color_wifi_icons), "\uE70D");
+    f->draw_text((int) (container->real_bounds.x + container->real_bounds.w - w - 8 * config->dpi),
+                     (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
+    f->end();
 }
 
 void paint_generic_combobox(AppClient *client, cairo_t *cr, Container *container) {
@@ -3091,43 +2959,23 @@ void paint_generic_combobox(AppClient *client, cairo_t *cr, Container *container
     std::string selected = data->prompt;
     if (data->determine_selected)
         selected += data->determine_selected(client, cr, container);
+       
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text), selected, container->real_bounds, 5, container->wanted_pad.x + 8 * config->dpi);
     
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PANGO_WEIGHT_NORMAL);
-    int width;
-    int height;
-    pango_layout_set_text(layout, selected.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
-    cairo_move_to(cr, container->real_bounds.x + container->wanted_pad.x + 8 * config->dpi,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
-    
-    layout = get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, "\uE70D", strlen("\uE83F"));
-    
-    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w - width - 8 * config->dpi),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
+    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->icons, EXPAND(config->color_pinned_icon_editor_field_default_text), "\uE70D");
+    f->draw_text_end((int) (container->real_bounds.x + container->real_bounds.w - w - 8 * config->dpi),
+                     (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
 }
 
 void paint_reordable_item(AppClient *client, cairo_t *cr, Container *container) {
-    rounded_rect(cr, 4 * config->dpi, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
-                 container->real_bounds.h);
-    set_argb(cr, config->color_pinned_icon_editor_background);
-    cairo_fill(cr);
-    rounded_rect(cr, 4 * config->dpi, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
-                 container->real_bounds.h);
-    set_argb(cr, config->color_pinned_icon_editor_field_default_border);
+    rounded_rect(client, 4 * config->dpi, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
+                 container->real_bounds.h, config->color_pinned_icon_editor_background);
+    
+    auto color = config->color_pinned_icon_editor_field_default_border;
     if (container->state.mouse_hovering)
-        set_argb(cr, config->color_pinned_icon_editor_field_hovered_border);
+        color = config->color_pinned_icon_editor_field_hovered_border;
     if (container->state.mouse_pressing)
-        set_argb(cr, config->color_pinned_icon_editor_field_pressed_border);
-    cairo_set_line_width(cr, std::round(1 * config->dpi));
-    cairo_stroke(cr);
+        color = config->color_pinned_icon_editor_field_pressed_border;
+    rounded_rect(client, 4 * config->dpi, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
+                 container->real_bounds.h, color, std::round(1 * config->dpi));
 }

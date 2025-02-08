@@ -311,7 +311,10 @@ public:
     
     void update_projection(const glm::mat4 &projection);
     
-    void draw_rect(float x, float y, float w, float h);
+    // draw_rect takes optional parameters:
+    //  - radius: if > 0, the rect corners are rounded.
+    //  - strokeWidth: if 0, the rect is filled; if > 0, only a stroked outline is drawn with that width.
+    void draw_rect(float x, float y, float w, float h, float radius = 0.0f, float strokeWidth = 0.0f);
     
     // API to set color using RGB values (0 to 1)
     void set_color(float r, float g, float b);
@@ -331,14 +334,19 @@ private:
     std::string fragmentShaderSource;
     GLuint shaderProgram;
     GLuint projectionUniform;
+    GLuint radiusUniform;
+    GLuint rectSizeUniform;
+    GLuint strokeWidthUniform;  // New uniform for stroke width
+    
     glm::mat4 projection;
     glm::mat4 model;
     GLuint VAO, VBO;
     
-    glm::vec4 color_top_left = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-    glm::vec4 color_top_right = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    // Colors for the four vertices.
+    glm::vec4 color_top_left     = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4 color_top_right    = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
     glm::vec4 color_bottom_right = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-    glm::vec4 color_bottom_left = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4 color_bottom_left  = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
 };
 
 struct InitialIcon {
@@ -613,12 +621,15 @@ struct FontReference {
     // Will have both pango and FreeType for now
     FreeFont *font = nullptr;
     PangoLayout *layout = nullptr;
-    
+        
     void begin();
     Sizes begin(std::string text, float r, float g, float b, float a = 1);
     void set_color(float r, float g, float b, float a = 1);
     void set_text(std::string text);
+    std::string wrapped_text(std::string text, int w);
     void draw_text(int x, int y, int param = 5);
+    void draw_text(int align, int x, int y, int wrap);
+    void draw_text_end(int x, int y, int param = 5);
     void end();
     Sizes sizes();
 };
@@ -635,6 +646,8 @@ struct DrawContext {
     FontManager *font_manager = new FontManager();
     
     OffscreenFrameBuffer *buffer;
+    
+    RoundedRect round;
     
     ~DrawContext() {
         delete font_manager;

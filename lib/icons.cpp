@@ -6,6 +6,7 @@
 #include "utility.h"
 #include "../src/config.h"
 #include "audio.h"
+#include "drawer.h"
 
 #include <string>
 #include <vector>
@@ -491,28 +492,18 @@ static std::string second_message;
 static std::string third_message;
 
 void paint_warning(AppClient *client, cairo_t *cr, Container *container) {
-    set_rect(cr, container->real_bounds);
-    set_argb(cr, correct_opaqueness(client, config->color_volume_background));
-    cairo_fill(cr);
+    draw_colored_rect(client, correct_opaqueness(client, config->color_volume_background), container->real_bounds);
     
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
-    int width;
-    int height;
-    pango_layout_set_text(layout, first_message.data(), first_message.size());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    // TODO: needs to be bold
+    auto [f, w, height] = draw_text_begin(client, 14 * config->dpi, config->font, EXPAND(config->color_volume_text), first_message);
+    f->draw_text_end(MIDX(container) - w / 2, 10 * config->dpi);
     
-    set_argb(cr, config->color_volume_text);
-    cairo_move_to(cr,
-                  ((int) ((container->real_bounds.x + container->real_bounds.w / 2 - width / 2))),
-                  10 * config->dpi);
-    pango_cairo_show_layout(cr, layout);
-    
-    
-    layout = get_cached_pango_font(cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     int second_height;
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_width(layout, (container->real_bounds.w - (20 * config->dpi)) * PANGO_SCALE);
     pango_layout_set_text(layout, second_message.data(), second_message.size());
+    int width;
     pango_layout_get_pixel_size_safe(layout, &width, &second_height);
     
     set_argb(cr, config->color_volume_text);

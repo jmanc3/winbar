@@ -119,14 +119,14 @@ paint_icon(AppClient *client, cairo_t *cr, Container *container, bool dye) {
         return;
     }
     
-    draw_text(client, 10, config->icons, EXPAND(config->color_pin_menu_icons), text, container->real_bounds, 5, 12 * config->dpi);
+    draw_text(client, 10 * config->dpi, config->icons, EXPAND(config->color_pin_menu_icons), text, container->real_bounds, 5, 12 * config->dpi);
 }
 
 static void
 paint_text(AppClient *client, cairo_t *cr, Container *container, ArgbColor color) {
     auto *data = (OptionData *) container->user_data;
     
-    draw_text(client, 9, config->font, EXPAND(color), data->text, container->real_bounds, 5, data->text_offset);
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(color), data->text, container->real_bounds, 5, data->text_offset);
 }
 
 static void

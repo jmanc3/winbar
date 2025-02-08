@@ -11,6 +11,8 @@
 
 void draw_colored_rect(AppClient *client, const ArgbColor &color, const Bounds &bounds);
 
+void draw_round_rect(AppClient *client, const ArgbColor &color, const Bounds &bounds, float round, float stroke_w = 0.0f);
+
 void draw_margins_rect(AppClient *client, const ArgbColor &color, const Bounds &bounds, double width, double pad);
 
 struct gl_surface;
@@ -19,6 +21,22 @@ void draw_gl_texture(AppClient *client, gl_surface *gl_surf, cairo_surface_t *su
 
 FontReference *draw_get_font(AppClient *client, int size, std::string font);
 
+struct FontText {
+    FontReference *f;
+    float w;
+    float h;
+};
+
+FontReference *draw_get_font(AppClient *client, int size, std::string font);
+
+FontText draw_text_begin(AppClient *client, int size, std::string font, float r, float g, float b, float a, std::string text);
+
 void draw_text(AppClient *client, int size, std::string font, float r, float g, float b, float a, std::string text, Bounds bounds, int alignment = 5, int x_off = -1, int y_off = -1);
+
+void draw_clip_begin(AppClient *client, const Bounds &b);
+
+void draw_clip_end(AppClient *client);
+
+void draw_operator(AppClient *client, int op);
 
 #endif //WINBAR_DRAWER_H
