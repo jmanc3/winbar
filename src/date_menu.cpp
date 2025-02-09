@@ -158,58 +158,36 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
     if (top_text.at(0) == '0') {
         top_text = top_text.erase(0, 1);
     }
-    
-    PangoLayout *top_layout =
-            get_cached_pango_font(client->cr, config->font, 34 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    pango_layout_set_text(top_layout, top_text.c_str(), top_text.length());
-    PangoRectangle top_ink;
-    PangoRectangle top_logical;
-    pango_layout_get_extents(top_layout, &top_ink, &top_logical);
-    
+        
     std::stringstream sl;
     sl << std::put_time(std::localtime(&now), "%p");
     std::string top_right_text = sl.str();
     
-    PangoLayout *top_right_layout =
-            get_cached_pango_font(client->cr, config->font, 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    pango_layout_set_text(top_right_layout, top_right_text.c_str(), top_right_text.length());
-    PangoRectangle top_right_ink;
-    PangoRectangle top_right_logical;
-    pango_layout_get_extents(top_right_layout, &top_right_ink, &top_right_logical);
-    
     const char *date_names[] = {"Sunday", "Monday", "Tuesday", "Wednesday",
                                 "Thursday", "Friday", "Saturday"};
     int day_index = day(ltm->tm_mday, ltm->tm_mon + 1, 1900 + ltm->tm_year);
-    
     std::string bottom_text =
             std::string(date_names[day_index]) + " " + std::string(months[ltm->tm_mon]) + " " +
             std::to_string(ltm->tm_mday) + ", " + std::to_string(1900 + ltm->tm_year);
-    PangoLayout *bottom_layout =
-            get_cached_pango_font(client->cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    pango_layout_set_text(bottom_layout, bottom_text.c_str(), bottom_text.length());
-    PangoRectangle bottom_ink;
-    PangoRectangle bottom_logical;
-    pango_layout_get_extents(bottom_layout, &bottom_ink, &bottom_logical);
     
-    int top_x = container->real_bounds.x + (24 * config->dpi) - (top_ink.x / PANGO_SCALE);
-    int top_y = container->real_bounds.y + (27 * config->dpi) - (top_ink.y / PANGO_SCALE);
-    set_argb(cr, config->color_date_text_title);
-    cairo_move_to(cr, top_x, top_y);
-    pango_cairo_show_layout(cr, top_layout);
-    
-    int top_right_x = container->real_bounds.x + (24 * config->dpi) - (top_right_ink.x / PANGO_SCALE) +
-                      (top_logical.width / PANGO_SCALE) + (10 * config->dpi);
-    int top_right_y = container->real_bounds.y + (27 * config->dpi) - (top_right_ink.y / PANGO_SCALE) +
-                      (top_ink.height / PANGO_SCALE) - (top_right_ink.height / PANGO_SCALE);
-    set_argb(cr, config->color_date_text_title_period);
-    cairo_move_to(cr, top_right_x, top_right_y);
-    pango_cairo_show_layout(cr, top_right_layout);
-    
-    int bottom_x = container->real_bounds.x + (25 * config->dpi) - (bottom_ink.x / PANGO_SCALE);
-    int bottom_y = container->real_bounds.y + (27 * config->dpi) + (top_ink.height / PANGO_SCALE) + (16 * config->dpi);
-    set_argb(cr, config->color_date_text_title_info);
-    cairo_move_to(cr, bottom_x, bottom_y);
-    pango_cairo_show_layout(cr, bottom_layout);
+    auto top_color = config->color_date_text_title;
+    auto [top_f, top_logical_w, top_logical_h] = draw_text_begin(client, 34 * config->dpi, config->font, EXPAND(top_color), top_text);
+    int top_x_pos = container->real_bounds.x + (24 * config->dpi); //- (top_ink.x / PANGO_SCALE);
+    int top_y_pos = container->real_bounds.y + (10 * config->dpi); //- (top_ink.y / PANGO_SCALE);
+    top_f->draw_text_end(top_x_pos, top_y_pos);
+ 
+    auto top_right_color = config->color_date_text_title_period;
+    auto [top_right_f, top_right_logical_w, top_right_logical_h] = draw_text_begin(client, 14 * config->dpi, config->font, EXPAND(top_right_color), top_right_text);
+    int top_right_x_pos = container->real_bounds.x + (24 * config->dpi) + top_logical_w + 10 * config->dpi; //- (top_right_ink.x / PANGO_SCALE);
+    // TODO: last '-' should actually be the ascent or text ink
+    int top_right_y_pos = container->real_bounds.y + (10 * config->dpi) + top_logical_h - top_right_logical_h - (5 * config->dpi); //- (top_right_ink.y / PANGO_SCALE);
+    top_right_f->draw_text_end(top_right_x_pos, top_right_y_pos);
+ 
+    auto bottom_color = config->color_date_text_title_info;
+    auto [bottom_f, bottom_logical_w, bottom_logical_h] = draw_text_begin(client, 11 * config->dpi, config->font, EXPAND(bottom_color), bottom_text);
+    int bottom_x_pos = container->real_bounds.x + (25 * config->dpi); //- (bottom_ink.x / PANGO_SCALE);
+    int bottom_y_pos = container->real_bounds.y + (10 * config->dpi) + top_logical_h; //- (bottom_ink.y / PANGO_SCALE);
+    bottom_f->draw_text_end(bottom_x_pos, bottom_y_pos);
 }
 
 static void
@@ -224,6 +202,7 @@ paint_body(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_centered_text(AppClient *client, cairo_t *cr, Container *container, std::string text) {
+    /*
     PangoLayout *text_layout =
             get_cached_pango_font(client->cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     pango_layout_set_text(text_layout, text.c_str(), text.length());
@@ -237,12 +216,13 @@ paint_centered_text(AppClient *client, cairo_t *cr, Container *container, std::s
                   container->real_bounds.y - (text_ink.y / PANGO_SCALE) +
                   container->real_bounds.h / 2 - (text_ink.height / PANGO_SCALE) / 2);
     pango_cairo_show_layout(cr, text_layout);
+    */
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_date_text_week_day), text, container->real_bounds);
 }
 
 static void
 paint_weekday_title(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (weekday_title *) container->user_data;
-    set_argb(cr, config->color_date_text_week_day);
     paint_centered_text(client, cr, container, data->text);
 }
 
@@ -251,78 +231,41 @@ paint_events(AppClient *client, cairo_t *cr, Container *container) {
     if (!agenda_showing || !container->exists) {
         return;
     }
-    set_argb(cr, config->color_date_weekday_monthday);
-    PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 13 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
     const char *date_names[] = {"Sunday", "Monday", "Tuesday", "Wednesday",
                                 "Thursday", "Friday", "Saturday"};
     
     int day_index = 0;
     day_index = day(agenda_day, agenda_month + 1, agenda_year);
-    
     std::string text = std::string(date_names[day_index]) + " " + std::to_string(agenda_day);
-    pango_layout_set_text(text_layout, text.c_str(), text.length());
-    PangoRectangle text_ink;
-    PangoRectangle text_logical;
-    pango_layout_get_extents(text_layout, &text_ink, &text_logical);
-    
-    cairo_move_to(cr, container->real_bounds.x + (24 * config->dpi), container->real_bounds.y + (21 * config->dpi));
-    pango_cairo_show_layout(cr, text_layout);
+    draw_text(client, 13 * config->dpi, config->font, EXPAND(config->color_date_weekday_monthday), text, container->real_bounds, 5, 24 * config->dpi, 21 * config->dpi);
 }
 
 static void
 paint_agenda(AppClient *client, cairo_t *cr, Container *container) {
-    PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    std::string text;
-    if (agenda_showing) {
+    std::string text = "Show agenda";
+    if (agenda_showing)
         text = "Hide agenda";
-    } else {
-        text = "Show agenda";
-    }
-    pango_layout_set_text(text_layout, text.c_str(), text.length());
-    PangoRectangle text_ink;
-    PangoRectangle text_logical;
-    pango_layout_get_extents(text_layout, &text_ink, &text_logical);
     
-    ArgbColor color;
+    auto color = config->color_date_text_default_button;
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing)
-            set_argb(cr, (color = config->color_date_text_pressed_button));
+            color = config->color_date_text_pressed_button;
         else
-            set_argb(cr, (color = config->color_date_text_hovered_button));
-    } else {
-        set_argb(cr, (color = config->color_date_text_default_button));
+            color = config->color_date_text_hovered_button;
     }
-    int pos_x =
-            container->real_bounds.x + container->real_bounds.w - (text_logical.width / PANGO_SCALE) - 24;
-    int pos_y = container->real_bounds.y + container->real_bounds.h / 2 -
-                ((text_logical.height / PANGO_SCALE) / 2);
-    //    int pos_y = container->real_bounds.y + container->real_bounds.h / 2 -
-    //                (text_logical.height / PANGO_SCALE) / 2;
-    cairo_move_to(cr, pos_x, pos_y);
-    pango_cairo_show_layout(cr, text_layout);
-    
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 6 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    set_argb(cr, color);
-    
+    auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(color), text);
+    int pos_x = container->real_bounds.x + container->real_bounds.w - w - 24;
+    int pos_y = container->real_bounds.y + container->real_bounds.h / 2 - h / 2;
+    f->draw_text_end(pos_x, pos_y);
+ 
+    text = "\uE971";
     if (agenda_showing) {
-        pango_layout_set_text(layout, "\uE972", strlen("\uE83F"));
-    } else {
-        pango_layout_set_text(layout, "\uE971", strlen("\uE83F"));
+        text = "\uE972";
     }
-    
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) ((pos_x + (text_logical.width / PANGO_SCALE) + 5 * config->dpi)),
-                  (int) ((pos_y + height / 3 + 4 * config->dpi)));
-    pango_cairo_show_layout(cr, layout);
+    auto ff = draw_text_begin(client, 6 * config->dpi, config->icons, EXPAND(color), text);
+    ff.f->draw_text_end((int) ((pos_x + w + 5 * config->dpi)), 
+                        (int) ((pos_y + ff.h / 3 + 4 * config->dpi)));
 }
 
 static void
@@ -333,45 +276,22 @@ paint_month_year_label(AppClient *client, cairo_t *cr, Container *container) {
     
     std::string text = months[view_month];
     text += " " + std::to_string(view_year);
-    PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    pango_layout_set_text(text_layout, text.c_str(), text.length());
-    PangoRectangle text_ink;
-    PangoRectangle text_logical;
-    pango_layout_get_extents(text_layout, &text_ink, &text_logical);
-    
-    set_argb(cr, config->color_date_text_month_year);
-    cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y);
-    pango_cairo_show_layout(cr, text_layout);
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_date_text_month_year), text, container->real_bounds, 5, 0, 0);
 }
 
 static void
 paint_arrow(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (ButtonData *) container->user_data;
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
+    auto color = config->color_date_default_arrow;
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing)
-            set_argb(cr, config->color_date_pressed_arrow);
+            color = config->color_date_pressed_arrow;
         else
-            set_argb(cr, config->color_date_hovered_arrow);
-    } else {
-        set_argb(cr, config->color_date_default_arrow);
+            color = config->color_date_hovered_arrow;
     }
     
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, data->text.data(), strlen("\uE83F"));
-    
-    int width;
-    int height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 12 * config->dpi, config->icons, EXPAND(color), data->text, container->real_bounds);
 }
 
 static void
@@ -379,21 +299,9 @@ paint_textarea_parent(AppClient *client, cairo_t *cr, Container *container) {
     if (auto *c = container_by_name("main_text_area", client->root)) {
         auto *data = (TextAreaData *) c->user_data;
         if (data->state->text.empty() && !container->active) {
-            PangoLayout *text_layout = get_cached_pango_font(
-                    client->cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
             std::string text("Write the days events here");
-            pango_layout_set_text(text_layout, text.c_str(), text.length());
-            PangoRectangle text_ink;
-            PangoRectangle text_logical;
-            pango_layout_get_extents(text_layout, &text_ink, &text_logical);
-            
-            set_argb(cr, config->color_date_text_prompt);
-            cairo_move_to(cr,
-                          container->real_bounds.x - (text_ink.x / PANGO_SCALE) +
-                          container->real_bounds.w / 2 - (text_ink.width / PANGO_SCALE) / 2,
-                          container->real_bounds.y - (text_ink.y / PANGO_SCALE) +
-                          container->real_bounds.h / 2 - (text_ink.height / PANGO_SCALE) / 2);
-            pango_cairo_show_layout(cr, text_layout);
+                        
+            draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_date_text_prompt), text, container->real_bounds);
         } else {
             draw_margins_rect(client, config->color_date_seperator, container->real_bounds, 1, -2);
         }
@@ -454,26 +362,10 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
         draw_margins_rect(client, config->color_date_cal_foreground, container->real_bounds, 2, 2);
     }
     
-    PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    pango_layout_set_text(text_layout, data->text.c_str(), data->text.length());
-    PangoRectangle text_ink;
-    PangoRectangle text_logical;
-    pango_layout_get_extents(text_layout, &text_ink, &text_logical);
-    
-    int baseline = pango_layout_get_baseline(text_layout);
-    
-    if (data->month == view_month) {
-        set_argb(cr, config->color_date_text_current_month);
-    } else {
-        set_argb(cr, config->color_date_text_not_current_month);
-    }
-    cairo_move_to(cr,
-                  container->real_bounds.x - (text_ink.x / PANGO_SCALE) +
-                  container->real_bounds.w / 2 - (text_ink.width / PANGO_SCALE) / 2,
-                  container->real_bounds.y - (text_ink.y / PANGO_SCALE) +
-                  container->real_bounds.h / 2 - (text_ink.height / PANGO_SCALE) / 2);
-    pango_cairo_show_layout(cr, text_layout);
+    auto color = config->color_date_text_not_current_month;
+    if (data->month == view_month)
+        color = config->color_date_text_current_month;
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(color), data->text, container->real_bounds);
 }
 
 static void
@@ -625,27 +517,15 @@ paint_clear_text(AppClient *client, cairo_t *cr, Container *container) {
         }
     }
     
-    PangoLayout *text_layout =
-            get_cached_pango_font(client->cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
     std::string text = "Clear text";
-    pango_layout_set_text(text_layout, text.c_str(), text.length());
-    PangoRectangle text_ink;
-    PangoRectangle text_logical;
-    pango_layout_get_extents(text_layout, &text_ink, &text_logical);
-    
+    auto color = config->color_date_text_default_button;
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         if (container->state.mouse_pressing)
-            set_argb(cr, config->color_date_text_pressed_button);
+            color = config->color_date_text_pressed_button;
         else
-            set_argb(cr, config->color_date_text_hovered_button);
-    } else {
-        set_argb(cr, config->color_date_text_default_button);
+            color = config->color_date_text_hovered_button;
     }
-    int pos_y = container->real_bounds.y + container->real_bounds.h / 2 -
-                ((text_logical.height / PANGO_SCALE) / 2);
-    cairo_move_to(cr, container->real_bounds.x, pos_y);
-    pango_cairo_show_layout(cr, text_layout);
+    draw_text(client, 10 * config->dpi, config->font, EXPAND(color), text, container->real_bounds, 5, 0);
 }
 
 static void
