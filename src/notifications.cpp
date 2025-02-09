@@ -40,9 +40,7 @@ static void close_notification_timeout(App *app, AppClient *client, Timeout *, v
 }
 
 static void paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    auto data = (NotificationWrapper *) container->user_data;
-    
-    draw_colored_rect(client, config->color_notification_content_background, container->real_bounds); 
+    draw_colored_rect(client, config->color_notification_content_background, container->real_bounds);
 }
 
 static void clicked_root(AppClient *client, cairo_t *cr, Container *container) {
@@ -109,59 +107,23 @@ int determine_height_of_text(App *app, std::string text, PangoWeight weight, int
 static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LabelData *) container->user_data;
     
-    PangoLayout *layout = get_cached_pango_font(
-            client->cr, config->font, data->size * config->dpi, data->weight);
-    auto initial_wrap = pango_layout_get_wrap(layout);
-    auto initial_ellipse = pango_layout_get_ellipsize(layout);
-    
-    pango_layout_set_attributes(layout, nullptr);
-    PangoAttrList *attrs = nullptr;
-    pango_parse_markup(data->text.data(), data->text.length(), 0, &attrs, NULL, NULL, NULL);
-    if (attrs) {
-        pango_layout_set_attributes(layout, attrs);
-    }
-    
     const std::string &stripped = strip_html(data->text);
+    auto f = draw_get_font(client, data->size * config->dpi, config->font);
+    auto s = f->wrapped_text(stripped, container->real_bounds.w);
     
-    pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
-    pango_layout_set_text(layout, stripped.data(), stripped.length());
-    pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
-    pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
-    pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
-    
-    set_argb(cr, config->color_notification_content_text);
-    cairo_move_to(cr,
-                  container->real_bounds.x,
-                  container->real_bounds.y);
-    pango_cairo_show_layout(cr, layout);
-    
-    pango_layout_set_width(layout, -1);
-    pango_layout_set_wrap(layout, initial_wrap);
-    pango_layout_set_ellipsize(layout, initial_ellipse);
+    f->begin();
+    f->set_text(s);
+    f->set_color(EXPAND(config->color_notification_content_text));
+    f->draw_text(5, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w);
+    f->end();
 }
 
 static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
     draw_colored_rect(client, config->color_notification_title_background, container->real_bounds); 
     
     std::string text = "Interaction Required";
-    
-    PangoLayout *layout = get_cached_pango_font(
-            client->cr, config->font, 10 * config->dpi, PANGO_WEIGHT_BOLD);
-    
-    pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
-    pango_layout_set_text(layout, text.c_str(), text.length());
-    
-    PangoRectangle ink;
-    PangoRectangle logical;
-    pango_layout_get_extents(layout, &ink, &logical);
-    
-    set_argb(cr, config->color_notification_title_text);
-    cairo_move_to(cr,
-                  container->real_bounds.x + container->real_bounds.w / 2 -
-                  ((logical.width / PANGO_SCALE) / 2),
-                  container->real_bounds.y + container->real_bounds.h / 2 -
-                  ((logical.height / PANGO_SCALE) / 2));
-    pango_cairo_show_layout(cr, layout);
+    // TODO: bold required
+    draw_text(client, 10 * config->dpi, config->font, EXPAND(config->color_notification_title_text), text, container->real_bounds);
 }
 
 static void paint_icon(AppClient *client, cairo_t *cr, Container *container) {
@@ -189,31 +151,16 @@ static void paint_action(AppClient *client, cairo_t *cr, Container *container) {
     
     std::string text = action.label;
     
-    PangoLayout *layout = get_cached_pango_font(
-            client->cr, config->font, 11 * config->dpi, PANGO_WEIGHT_NORMAL);
-    
-    pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
-    pango_layout_set_text(layout, text.c_str(), text.length());
-    
-    PangoRectangle ink;
-    PangoRectangle logical;
-    pango_layout_get_extents(layout, &ink, &logical);
-    
+    color = config->color_notification_button_text_default;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_notification_button_text_pressed);
+            color = config->color_notification_button_text_pressed;
         } else {
-            set_argb(cr, config->color_notification_button_text_hovered);
+            color = config->color_notification_button_text_hovered;
         }
-    } else {
-        set_argb(cr, config->color_notification_button_text_default);
     }
-    cairo_move_to(cr,
-                  container->real_bounds.x + container->real_bounds.w / 2 -
-                  ((logical.width / PANGO_SCALE) / 2),
-                  container->real_bounds.y + container->real_bounds.h / 2 -
-                  ((logical.height / PANGO_SCALE) / 2));
-    pango_cairo_show_layout(cr, layout);
+    
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(color), text, container->real_bounds);
 }
 
 
@@ -246,17 +193,12 @@ static void clicked_send_to_action_center(AppClient *client, cairo_t *cr, Contai
 }
 
 static void paint_send_to_action_center(AppClient *client, cairo_t *cr, Container *container) {
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(layout, "\uE0AB", strlen("\uE83F"));
-    
+    ArgbColor color;
     if (container->state.mouse_pressing || container->state.mouse_hovering) {
         if (container->state.mouse_pressing) {
-            set_argb(cr, config->color_notification_button_send_to_action_center_pressed);
+            color = config->color_notification_button_send_to_action_center_pressed;
         } else {
-            set_argb(cr, config->color_notification_button_send_to_action_center_hovered);
+            color = config->color_notification_button_send_to_action_center_hovered;
         }
     } else {
         if (!bounds_contains(client->root->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
@@ -268,12 +210,10 @@ static void paint_send_to_action_center(AppClient *client, cairo_t *cr, Containe
                     return;
             }
         }
-        set_argb(cr, config->color_notification_button_send_to_action_center_default);
+        color = config->color_notification_button_send_to_action_center_default;
     }
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + ((16) * config->dpi)),
-                  (int) (container->real_bounds.y + (18 * config->dpi)));
-    pango_cairo_show_layout(cr, layout);
+    
+    draw_text(client, 10 * config->dpi, config->icons, EXPAND(color), "\uE0AB", container->real_bounds, 5, 16 * config->dpi, 18 * config->dpi);
 }
 
 static void client_closed(AppClient *client) {

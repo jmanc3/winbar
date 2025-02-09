@@ -2333,7 +2333,8 @@ std::string FontReference::wrapped_text(std::string text, int w) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    if (layout) {
+    if (!font) {
+        layout = get_cached_pango_font(creation_client->cr, name, size, PANGO_WEIGHT_NORMAL);
         return text;
     } else {
         return font->wrapped_text(text, w);
@@ -2342,7 +2343,17 @@ std::string FontReference::wrapped_text(std::string text, int w) {
 
 void FontReference::draw_text(int align, int x, int y, int wrap) {
     if (layout) {
+        auto p_wrap = pango_layout_get_wrap(layout);
+        auto p_width = pango_layout_get_width(layout);
+        auto p_align = pango_layout_get_alignment(layout);
         
+        pango_layout_set_width(layout, wrap * PANGO_SCALE);
+        pango_layout_set_wrap(layout, PangoWrapMode::PANGO_WRAP_WORD_CHAR);
+        
+        draw_text(x, y, align);
+        
+        pango_layout_set_wrap(layout, p_wrap);
+        pango_layout_set_width(layout, p_width);
     } else {
         font->draw_text((PangoAlignment) align, x, y, wrap);
     }
