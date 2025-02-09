@@ -64,6 +64,9 @@ static int active_menu_item = 0;
 static cairo_surface_t *script_16 = nullptr;
 static cairo_surface_t *script_32 = nullptr;
 static cairo_surface_t *script_64 = nullptr;
+static gl_surface *gsurf16 = nullptr;
+static gl_surface *gsurf32 = nullptr;
+static gl_surface *gsurf64 = nullptr;
 
 class TabData : public UserData {
 public:
@@ -297,59 +300,14 @@ paint_item(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     paint_item_background(client, cr, container, 1);
     auto *data = (SearchItemData *) container->parent->user_data;
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    int location = -1;
-    int length = -1;
-    if (auto *taskbar = client_by_name(client->app, "taskbar")) {
-        if (auto *textarea = container_by_name("main_text_area", taskbar->root)) {
-            auto *textarea_data = (TextAreaData *) textarea->user_data;
-            std::string text(textarea_data->state->text);
-            std::string lowercase_text(text);
-            std::transform(
-                    lowercase_text.begin(), lowercase_text.end(), lowercase_text.begin(), ::tolower);
-            length = text.length();
-            determine_priority_location(*data->sortable, text, lowercase_text, &location);
-        }
-    }
-    
-    if (location != -1) {
-        pango_layout_set_attributes(layout, nullptr);
-        std::string text(data->sortable->name);
-        text.insert(location + length, "</b>");
-        text.insert(location, "<b>");
-        
-        PangoAttrList *attrs = nullptr;
-        pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
-        
-        if (layout && attrs) {
-            pango_layout_set_attributes(layout, attrs);
-        }
-    }
-    
-    set_argb(cr, config->color_search_content_text_primary);
-    pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
-    
-    PangoRectangle ink;
-    PangoRectangle logical;
-    pango_layout_get_extents(layout, &ink, &logical);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + (40 * config->dpi)),
-                  (int) (container->real_bounds.y + (container->real_bounds.h / 2) -
-                         ((logical.height / PANGO_SCALE) / 2)));
-    pango_cairo_show_layout(cr, layout);
-    
-    pango_layout_set_attributes(layout, nullptr);
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary), data->sortable->name, container->real_bounds, 5, 40 * config->dpi);
     
     if (active_tab == "Scripts") {
         if (script_16) {
-            cairo_set_source_surface(cr,
-                                     script_16,
-                                     container->real_bounds.x + (12 * config->dpi),
-                                     container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi));
-            cairo_paint(cr);
+            if (!gsurf16)
+                gsurf16 = new gl_surface;
+            draw_gl_texture(client, gsurf16, script_16, container->real_bounds.x + (12 * config->dpi), container->real_bounds.y + container->real_bounds.h / 2 - (8 * config->dpi));
         }
     } else if (active_tab == "Apps") {
         auto *l_data = (Launcher *) data->user_data;
@@ -375,67 +333,18 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
     paint_item_background(client, cr, container, 1);
     
     auto *data = (SearchItemData *) container->parent->user_data;
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+   
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary), data->sortable->name, container->real_bounds, 5, 56 * config->dpi, 10 * config->dpi);
     
-    int location = -1;
-    int length = -1;
-    if (auto *taskbar = client_by_name(client->app, "taskbar")) {
-        if (auto *textarea = container_by_name("main_text_area", taskbar->root)) {
-            auto *textarea_data = (TextAreaData *) textarea->user_data;
-            std::string text(textarea_data->state->text);
-            std::string lowercase_text(text);
-            std::transform(
-                    lowercase_text.begin(), lowercase_text.end(), lowercase_text.begin(), ::tolower);
-            length = text.length();
-            determine_priority_location(*data->sortable, text, lowercase_text, &location);
-        }
-    }
-    
-    if (location != -1) {
-        pango_layout_set_attributes(layout, nullptr);
-        std::string text(data->sortable->name);
-        text.insert(location + length, "</b>");
-        text.insert(location, "<b>");
-        
-        PangoAttrList *attrs = nullptr;
-        pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
-        
-        if (layout && attrs) {
-            pango_layout_set_attributes(layout, attrs);
-        }
-    }
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_search_content_text_primary);
-    cairo_move_to(cr, (int) (container->real_bounds.x + 56 * config->dpi),
-                  (int) (container->real_bounds.y + 10 * config->dpi));
-    pango_cairo_show_layout(cr, layout);
-    pango_layout_set_attributes(layout, nullptr);
-    
-    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    pango_layout_set_text(layout, active_tab.c_str(), active_tab.size());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_search_content_text_secondary);
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 56 * config->dpi),
-                  (int) (container->real_bounds.y + container->real_bounds.h - 10 * config->dpi - height));
-    pango_cairo_show_layout(cr, layout);
-    pango_layout_set_attributes(layout, nullptr);
-    
+    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_search_content_text_secondary), active_tab);
+    f->draw_text_end((int) (container->real_bounds.x + 56 * config->dpi),
+                     (int) (container->real_bounds.y + container->real_bounds.h - 10 * config->dpi - h));
     if (active_tab == "Scripts") {
         if (script_32) {
-            cairo_set_source_surface(cr,
-                                     script_32,
-                                     container->real_bounds.x + 12 * config->dpi,
-                                     container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
-            cairo_paint(cr);
+            if (!gsurf32)
+                gsurf32 = new gl_surface;
+            draw_gl_texture(client, gsurf32, script_32, container->real_bounds.x + 12 * config->dpi,
+                                container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
         }
     } else if (active_tab == "Apps") {
         auto *l_data = (Launcher *) data->user_data;
@@ -461,60 +370,13 @@ paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
     paint_item_background(client, cr, container, 1);
     
     auto *data = (SearchItemData *) container->parent->user_data;
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    int location = -1;
-    int length = -1;
-    if (auto *taskbar = client_by_name(client->app, "taskbar")) {
-        if (auto *textarea = container_by_name("main_text_area", taskbar->root)) {
-            auto *textarea_data = (TextAreaData *) textarea->user_data;
-            std::string text(textarea_data->state->text);
-            std::string lowercase_text(text);
-            std::transform(
-                    lowercase_text.begin(), lowercase_text.end(), lowercase_text.begin(), ::tolower);
-            length = text.length();
-            determine_priority_location(*data->sortable, text, lowercase_text, &location);
-        }
-    }
-    
-    if (location != -1) {
-        pango_layout_set_attributes(layout, nullptr);
-        std::string text(data->sortable->name);
-        text.insert(location + length, "</b>");
-        text.insert(location, "<b>");
-        
-        PangoAttrList *attrs = nullptr;
-        pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
-        
-        if (layout && attrs) {
-            pango_layout_set_attributes(layout, attrs);
-        }
-    }
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_search_content_text_primary);
-    cairo_move_to(cr, (int) (container->real_bounds.x + 56 * config->dpi),
-                  (int) (container->real_bounds.y + 10 * config->dpi));
-    pango_cairo_show_layout(cr, layout);
-    pango_layout_set_attributes(layout, nullptr);
-    
-    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary), data->sortable->name, container->real_bounds, 5, (int) (56 * config->dpi), (int) (10 * config->dpi));
     
     std::string subtitle_text = "Run command anyways";
-    pango_layout_set_text(layout, subtitle_text.c_str(), subtitle_text.size());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_search_content_text_secondary);
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 56 * config->dpi),
-                  (int) (container->real_bounds.y + container->real_bounds.h - 10 * config->dpi - height));
-    pango_cairo_show_layout(cr, layout);
-    pango_layout_set_attributes(layout, nullptr);
+    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_search_content_text_secondary), subtitle_text);
+    f->draw_text_end((int) (container->real_bounds.x + 56 * config->dpi),
+                     (int) (container->real_bounds.y + container->real_bounds.h - 10 * config->dpi - h));
     
     cairo_set_source_surface(cr,
                              script_32,
@@ -529,7 +391,7 @@ paint_title(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     auto *data = (TitleData *) container->user_data;
-        
+    
     auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary), data->text);
     f->draw_text_end((int) (container->real_bounds.x + 13 * config->dpi),
                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
@@ -541,58 +403,22 @@ paint_right_active_title(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     auto *data = (SearchItemData *) container->parent->user_data;
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 13 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        std::string text(data->sortable->name);
-        text.insert(text.length(), "</u>");
-        text.insert(0, "<u>");
-        
-        PangoAttrList *attrs = nullptr;
-        pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
-        
-        if (layout && attrs) {
-            pango_layout_set_attributes(layout, attrs);
-        }
-    }
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_search_content_text_primary);
-    int x = (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2);
+   
+    auto [f, w, h] = draw_text_begin(client, 13 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary), data->sortable->name);
+    int x = (int) (container->real_bounds.x + container->real_bounds.w / 2 - w / 2);
     if (x < container->real_bounds.x)
         x = container->real_bounds.x;
-    cairo_move_to(cr,
-                  x,
-                  (int) (container->real_bounds.y + 106 * config->dpi - height / 2));
-    pango_cairo_show_layout(cr, layout);
+    f->draw_text_end(x, (int) (container->real_bounds.y + 106 * config->dpi - h / 2));
     
-    if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        pango_layout_set_attributes(layout, nullptr);
-    }
-    
-    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    pango_layout_set_text(layout, active_tab.data(), active_tab.length());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_search_content_text_secondary);
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + 106 * config->dpi + height - (height / 3)));
-    pango_cairo_show_layout(cr, layout);
+    auto ff = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_search_content_text_secondary), active_tab);
+    ff.f->draw_text_end((int) (container->real_bounds.x + container->real_bounds.w / 2 - ff.w / 2),
+                        (int) (container->real_bounds.y + 106 * config->dpi + ff.h - (ff.h / 3)));
     
     if (active_tab == "Scripts") {
-        if (script_32) {
-            cairo_set_source_surface(cr,
-                                     script_64,
-                                     container->real_bounds.x + container->real_bounds.w / 2 - 32 * config->dpi,
-                                     container->real_bounds.y + 21 * config->dpi);
-            cairo_paint(cr);
+        if (script_64) {
+            if (!gsurf64)
+                gsurf64 = new gl_surface;
+            draw_gl_texture(client, gsurf64, script_64, container->real_bounds.x + container->real_bounds.w / 2 - 32 * config->dpi, container->real_bounds.y + 21 * config->dpi);
         }
     } else if (active_tab == "Apps") {
         auto *l_data = (Launcher *) data->user_data;
@@ -616,61 +442,23 @@ paint_right_active_title_for_no_results(AppClient *client, cairo_t *cr, Containe
     ZoneScoped;
 #endif
     auto *data = (SearchItemData *) container->parent->user_data;
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 13 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        std::string text(data->sortable->name);
-        text.insert(text.length(), "</u>");
-        text.insert(0, "<u>");
-        
-        PangoAttrList *attrs = nullptr;
-        pango_parse_markup(text.data(), text.length(), 0, &attrs, NULL, NULL, NULL);
-        
-        if (layout && attrs) {
-            pango_layout_set_attributes(layout, attrs);
-        }
-    }
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, data->sortable->name.c_str(), data->sortable->name.size());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_search_content_text_primary);
-    int x = (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2);
+    auto [f, w, h] = draw_text_begin(client, 13 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary), data->sortable->name);
+    int x = (int) (container->real_bounds.x + container->real_bounds.w / 2 - w / 2);
     if (x < container->real_bounds.x)
         x = container->real_bounds.x;
-    cairo_move_to(cr,
-                  x,
-                  (int) (container->real_bounds.y + 106 * config->dpi - height / 2));
-    pango_cairo_show_layout(cr, layout);
-    
-    if (container->state.mouse_hovering || container->state.mouse_pressing) {
-        pango_layout_set_attributes(layout, nullptr);
-    }
-    
-    layout = get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    f->draw_text_end(x, (int) (container->real_bounds.y + 106 * config->dpi - h / 2));
     
     std::string subtitle_text = "Run command anyways";
-    pango_layout_set_text(layout, subtitle_text.data(), subtitle_text.length());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    auto ff = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_search_content_text_secondary), subtitle_text);
+    ff.f->draw_text_end((int) (container->real_bounds.x + container->real_bounds.w / 2 - ff.w / 2),
+                        (int) (container->real_bounds.y + 106 * config->dpi + ff.h - (ff.h / 3)));
     
-    set_argb(cr, config->color_search_content_text_secondary);
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                  (int) (container->real_bounds.y + 106 * config->dpi + height - (height / 3)));
-    pango_cairo_show_layout(cr, layout);
-    
-    if (script_32) {
-        cairo_set_source_surface(cr,
-                                 script_64,
-                                 container->real_bounds.x + container->real_bounds.w / 2 - 32 * config->dpi,
-                                 container->real_bounds.y + 21 * config->dpi);
-        cairo_paint(cr);
+    if (script_64) {
+        if (!gsurf64)
+            gsurf64 = new gl_surface;
+        draw_gl_texture(client, gsurf64, script_64, container->real_bounds.x + container->real_bounds.w / 2 - 32 * config->dpi, container->real_bounds.y + 21 * config->dpi);
     }
-    
-    
 }
 
 static void
@@ -705,36 +493,9 @@ paint_sub_option(AppClient *client, cairo_t *cr, Container *container, std::stri
     }
     draw_colored_rect(client, color, container->real_bounds);
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-
-    int width;
-    int height;
-    pango_layout_set_text(layout, text.c_str(), text.size());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary), text, container->real_bounds, 5, 52 * config->dpi);
     
-    set_argb(cr, config->color_search_content_text_primary);
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 52 * config->dpi),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, layout);
-    
-    
-    PangoLayout *icon_layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    pango_layout_set_text(icon_layout, icon.c_str(), strlen("\uE83F"));
-
-    set_argb(cr, config->color_search_accent);
-    
-    pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
-    
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + 23 * config->dpi),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                         ((16 / 2) * config->dpi)));
-    pango_cairo_show_layout(cr, icon_layout);
+    draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_search_accent), icon, container->real_bounds, 5, 23 * config->dpi, container->real_bounds.h / 2 - ((16 / 2) * config->dpi));
 }
 
 static void
@@ -984,51 +745,24 @@ paint_bottom(AppClient *client, cairo_t *cr, Container *container) {
         return;
     }
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 20 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
     std::string min = active_tab;
     min[0] = std::tolower(min[0]);
-    
     std::string text = "Start typing to search for " + min;
     
-    int width;
-    int height;
-    pango_layout_set_text(layout, text.c_str(), text.size());
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_search_empty_tab_content_text);
-    cairo_move_to(cr,
-                  container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
-                  container->real_bounds.y + container->real_bounds.h - 256 * config->dpi - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    auto [f, w, h] = draw_text_begin(client, 20 * config->dpi, config->font, EXPAND(config->color_search_empty_tab_content_text), text);
+    f->draw_text_end(container->real_bounds.x + container->real_bounds.w / 2 - w / 2,
+                     container->real_bounds.y + container->real_bounds.h - 256 * config->dpi - h / 2);
     
     if (auto *tab_group = container_by_name("tab_group", client->root)) {
         for (auto *tab: tab_group->children) {
             auto *tab_data = (TabData *) tab->user_data;
             if (tab_data->name == active_tab) {
-    
-                PangoLayout *icon_layout =
-                        get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 100 * config->dpi,
-                                              PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-                // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-                if (tab_data->name == "Apps") {
-                    pango_layout_set_text(icon_layout, "\uF8A5", strlen("\uE83F"));
-                } else if (tab_data->name == "Scripts") {
-                    pango_layout_set_text(icon_layout, "\uE62F", strlen("\uE83F"));
-                }
-    
-                set_argb(cr, config->color_search_empty_tab_content_icon);
-    
-                int width;
-                int height;
-                pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
-    
-                cairo_move_to(cr,
-                              (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                              (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2 - 100 * config->dpi));
-                pango_cairo_show_layout(cr, icon_layout);
+                std::string text = "\uE62F"; // Scripts
+                if (tab_data->name == "Apps")
+                    text = "\uF8A5";
+                auto ff = draw_text_begin(client, 100 * config->dpi, config->icons, EXPAND(config->color_search_empty_tab_content_icon), text);
+                ff.f->draw_text_end((int) (container->real_bounds.x + container->real_bounds.w / 2 - ff.w / 2),
+                                    (int) (container->real_bounds.y + container->real_bounds.h / 2 - ff.h / 2 - 100 * config->dpi));
             }
         }
     }
@@ -1666,6 +1400,12 @@ search_menu_when_closed(AppClient *client) {
     cairo_surface_destroy(script_16);
     cairo_surface_destroy(script_32);
     cairo_surface_destroy(script_64);
+    delete gsurf16;
+    delete gsurf32;
+    delete gsurf64;
+    gsurf16 = nullptr;
+    gsurf32 = nullptr;
+    gsurf64 = nullptr;
     write_historic_scripts();
     write_historic_apps();
     set_textarea_inactive();
