@@ -129,6 +129,7 @@ struct CachedFont {
     std::string name;
     int size;
     int used_count;
+    bool italic = false;
     PangoWeight weight;
     PangoLayout *layout;
     cairo_t *cr; // Creator
@@ -247,7 +248,7 @@ void set_argb(cairo_t *cr, ArgbColor color);
 void set_rect(cairo_t *cr, Bounds bounds);
 
 PangoLayout *
-get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeight weight);
+get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeight weight, bool italic = false);
 
 void cleanup_cached_fonts();
 

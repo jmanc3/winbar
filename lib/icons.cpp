@@ -494,8 +494,7 @@ static std::string third_message;
 void paint_warning(AppClient *client, cairo_t *cr, Container *container) {
     draw_colored_rect(client, correct_opaqueness(client, config->color_volume_background), container->real_bounds);
     
-    // TODO: needs to be bold
-    auto [f, w, height] = draw_text_begin(client, 14 * config->dpi, config->font, EXPAND(config->color_volume_text), first_message);
+    auto [f, w, height] = draw_text_begin(client, 14 * config->dpi, config->font, EXPAND(config->color_volume_text), first_message, true);
     f->draw_text_end(MIDX(container) - w / 2, 10 * config->dpi);
     
     PangoLayout *layout = get_cached_pango_font(cr, config->font, 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);

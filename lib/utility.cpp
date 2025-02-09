@@ -197,13 +197,18 @@ void set_rect(cairo_t *cr, Bounds bounds) {
 std::vector<CachedFont *> cached_fonts;
 
 PangoLayout *
-get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeight weight) {
+get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeight weight, bool italic) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-	for (int i = cached_fonts.size() - 1; i >= 0; i--) {
-    	auto font = cached_fonts[i];
-        if (font->name == name && font->size == pixel_height && font->weight == weight && font->cr == cr) {
+    // Look for a matching font in the cache (including italic style)
+    for (int i = cached_fonts.size() - 1; i >= 0; i--) {
+        auto font = cached_fonts[i];
+        if (font->name == name &&
+            font->size == pixel_height &&
+            font->weight == weight &&
+            font->cr == cr &&
+            font->italic == italic) { // New italic check
             pango_layout_set_attributes(font->layout, nullptr);
             font->used_count++;
             if (font->used_count < 512) {
@@ -216,19 +221,25 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
         }
     }
     
+    // Create a new CachedFont entry
     auto *font = new CachedFont;
     assert(font);
     font->name = name;
     font->size = pixel_height;
     font->weight = weight;
     font->cr = cr;
+    font->italic = italic; // Save the italic setting
     font->used_count = 0;
     
     PangoLayout *layout = pango_cairo_create_layout(cr);
     PangoFontDescription *desc = pango_font_description_new();
+    
     pango_font_description_set_size(desc, pixel_height * PANGO_SCALE);
     pango_font_description_set_family_static(desc, name.c_str());
     pango_font_description_set_weight(desc, weight);
+    // Set the style to italic or normal based on the parameter
+    pango_font_description_set_style(desc, italic ? PANGO_STYLE_ITALIC : PANGO_STYLE_NORMAL);
+    
     pango_layout_set_font_description(layout, desc);
     pango_font_description_free(desc);
     pango_layout_set_attributes(layout, nullptr);
@@ -236,7 +247,7 @@ get_cached_pango_font(cairo_t *cr, std::string name, int pixel_height, PangoWeig
     assert(layout);
     
     font->layout = layout;
-//    printf("new: %p\n", font->layout);
+    //printf("new: %p\n", font->layout);
     
     cached_fonts.push_back(font);
     

@@ -512,7 +512,7 @@ static int get_label_width(AppClient *client, Container *container) {
         title = data->windows_data_list[0]->title;
     if (winbar_settings->labels && !data->windows_data_list.empty() && !trim(title).empty()) {
         auto pad = 8.0f * config->dpi;
-        auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, 0, 0, 0, 1, title);
+        auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, 0, 0, 0, 1, title, false);
         
         auto label_width = w / PANGO_SCALE;
         if (label_width > client->bounds->w / 12)
@@ -554,6 +554,15 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
         Bounds b = Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w - 4 * config->dpi,
                           container->real_bounds.h);
         draw_clip_begin(client, b);
+        
+//        auto f = draw_get_font(client, 9 * config->dpi, config->font);
+//        auto s = f->wrapped_text(data->windows_data_list[0]->title, container->real_bounds.w - (14 * config->dpi + w));
+//
+//        // TODO: only keep first two lines of s
+//        auto [w_f, h_f] = f->begin(s, EXPAND(config->color_taskbar_button_icons));
+//        f->draw_text(5, container->real_bounds.x + 14 * config->dpi + w, MIDY(container) - h_f / 2, container->real_bounds.w - (14 * config->dpi + w));
+//        f->end();
+        
         draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_taskbar_button_icons), data->windows_data_list[0]->title.c_str(), container->real_bounds, -5, 14 * config->dpi + w);
         draw_clip_end(client);
     }

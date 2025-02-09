@@ -781,8 +781,8 @@ paint_tab(AppClient *client, cairo_t *cr, Container *container) {
         color = config->color_search_tab_bar_hovered_text;
     }
     
-    // TODO: needs BOLD
-    draw_text(client, 10 * config->dpi, config->font, EXPAND(color), data->name, container->real_bounds);
+    auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(color), data->name, true);
+    f->draw_text_end(MIDX(container) - w / 2, MIDY(container) - h / 2);
     
     if (data->name == active_tab) {
         int height = 4 * config->dpi;

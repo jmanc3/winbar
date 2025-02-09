@@ -19,7 +19,7 @@ struct gl_surface;
 
 void draw_gl_texture(AppClient *client, gl_surface *gl_surf, cairo_surface_t *surf, int x, int y, int w = 0, int h = 0);
 
-FontReference *draw_get_font(AppClient *client, int size, std::string font);
+FontReference *draw_get_font(AppClient *client, int size, std::string font, bool bold = false, bool italic = false);
 
 struct FontText {
     FontReference *f;
@@ -27,9 +27,7 @@ struct FontText {
     float h;
 };
 
-FontReference *draw_get_font(AppClient *client, int size, std::string font);
-
-FontText draw_text_begin(AppClient *client, int size, std::string font, float r, float g, float b, float a, std::string text);
+FontText draw_text_begin(AppClient *client, int size, std::string font, float r, float g, float b, float a, std::string text, bool bold = false, bool italic = false);
 
 void draw_text(AppClient *client, int size, std::string font, float r, float g, float b, float a, std::string text, Bounds bounds, int alignment = 5, int x_off = -1, int y_off = -1);
 

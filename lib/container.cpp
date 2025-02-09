@@ -15,6 +15,9 @@
 #include <hb.h>
 #include <hb-ft.h>
 #include <freetype/ftlcdfil.h>
+#include <freetype/ftsynth.h>
+
+#include FT_GLYPH_H  // This header provides functions like FT_GlyphSlot_Embolden.
 #include <codecvt>
 
 #ifdef TRACY_ENABLE
@@ -1723,17 +1726,21 @@ int FreeFont::force_ucs2_charmap(FT_Face ftf) {
     }
     return -1;
 }
-
-FreeFont::FreeFont(int size, std::string font_name) {
+FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
     if (FT_Init_FreeType(&ft)) {
         fprintf(stderr, "Could not init freetype library\n");
         return;
     }
+    this->bold = bold;
+    this->italic = italic;
     
+    // Build the pattern with requested style:
     FcPattern *pat = FcNameParse((const FcChar8 *) font_name.c_str());
-    FcPatternAddInteger(pat, FC_SLANT, FC_SLANT_ROMAN);
-//    FcPatternAddInteger(pat, FC_WEIGHT, FC_WEIGHT_BOLD);
-    FcPatternAddInteger(pat, FC_WEIGHT, FC_WEIGHT_NORMAL);
+    // If italic is requested, ask for an italic face; otherwise, use roman.
+    FcPatternAddInteger(pat, FC_SLANT, italic ? FC_SLANT_ITALIC : FC_SLANT_ROMAN);
+    // If bold is requested, ask for a bold weight; otherwise, normal.
+    FcPatternAddInteger(pat, FC_WEIGHT, bold ? FC_WEIGHT_BOLD : FC_WEIGHT_NORMAL);
+    
     FcConfig *fcConfig = FcConfigGetCurrent();
     FcFontSet *fs = FcFontList(fcConfig, pat, nullptr);
     
@@ -1754,10 +1761,45 @@ FreeFont::FreeFont(int size, std::string font_name) {
         }
         FcFontSetDestroy(fs);
     }
+    
+    // If a face with the desired style was not found, fall back to the regular face
     if (!found) {
-        assert(false && "TODO! fallback font");
+        // Clean up the previous pattern
+        FcPatternDestroy(pat);
+        // Rebuild the pattern without style modifications:
+        pat = FcNameParse((const FcChar8 *) font_name.c_str());
+        FcPatternAddInteger(pat, FC_SLANT, FC_SLANT_ROMAN);
+        FcPatternAddInteger(pat, FC_WEIGHT, FC_WEIGHT_NORMAL);
+        fs = FcFontList(fcConfig, pat, nullptr);
+        
+        if (fs) {
+            for (int i = 0; i < fs->nfont; ++i) {
+                FcPattern *font = fs->fonts[i];
+                FcChar8 *fontName;
+                if (FcPatternGetString(font, FC_FILE, 0, &fontName) == FcResultMatch) {
+                    found = true;
+                    if (FT_New_Face(ft, (char *) fontName, 0, &face)) {
+                        fprintf(stderr, "Could not open fallback font %s\n", (char *) fontName);
+                        return;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            FcFontSetDestroy(fs);
+        }
+        if (!found) {
+            fprintf(stderr, "Could not find fallback font for %s\n", font_name.c_str());
+            return;
+        }
+        // Since the requested style wasn’t available as a separate file,
+        // mark the need for synthetic styling.
+        this->needs_synth = true;
     }
     
+    FcPatternDestroy(pat);
+    
+    // Force a UCS2 charmap (unchanged)
     force_ucs2_charmap(face);
     FT_Set_Char_Size(face, 0, std::round((float) size * 64.0f * (100.0f / 76.0f)), 72, 72);
     
@@ -1876,6 +1918,13 @@ void FreeFont::bind_needed_glyphs(const std::u32string &text) {
                 // Apparently we can get a '0' codepoint glyph with valid? advance info
                 if (info.codepoint == 0 && ginfo.codepoint != 0) {
                     FT_Load_Glyph(face, ginfo.codepoint, FT_LOAD_TARGET_LCD);
+                    // If synthetic bolding is requested, embolden the glyph before rendering.
+                    if (this->needs_synth) {
+                        if (this->italic)
+                            FT_GlyphSlot_Oblique(face->glyph);
+                        if (this->bold)
+                            FT_GlyphSlot_Embolden(face->glyph);
+                    }
                     FT_Render_Glyph(face->glyph, FT_RENDER_MODE_LCD);
                     FT_GlyphSlot g = face->glyph;
                     
@@ -1886,7 +1935,7 @@ void FreeFont::bind_needed_glyphs(const std::u32string &text) {
                     info.bearing_x = g->bitmap_left;
                     info.bearing_y = g->bitmap_top;
                     info.location.w = info.bitmap_w + padding * 2;
-                    info.location.h = info.bitmap_w + padding * 2;
+                    info.location.h = info.bitmap_h + padding * 2; // TODO: This was changed from bitmap_w to bitmap_h, is that correct?
                     stbrp_pack_rects(&ctx, &info.location, 1);
                     assert(info.location.was_packed && "TODO: Handle when character fails to be packed");
                     info.metrics = g->metrics;
@@ -2253,7 +2302,7 @@ std::string FreeFont::wrapped_text(std::string text, float wrap) {
     return buffer;
 }
 
-FontReference *FontManager::get(AppClient *client, int size, std::string font) {
+FontReference *FontManager::get(AppClient *client, int size, std::string font, bool bold, bool italic) {
     for (int i = fonts.size() - 1; i >= 0; i--) { // Get rid of fonts which have no live client
         if (!fonts[i]->creation_client_alive.lock()) {
             delete fonts[i];
@@ -2277,12 +2326,15 @@ FontReference *FontManager::get(AppClient *client, int size, std::string font) {
     ref->name = font;
     ref->size = size;
     ref->weight = PANGO_WEIGHT_NORMAL;
+    if (bold)
+        ref->weight = PANGO_WEIGHT_BOLD;
+    ref->italic = italic;
     ref->creation_client = client;
     ref->creation_client_alive = client->lifetime;
     // Free any whose lifetimes are gone
     // This guy needs to account for different clients unlike the cairo version
     if (client->should_use_gl) {
-        ref->font = new FreeFont(size, font);
+        ref->font = new FreeFont(size, font, bold, italic);
     } else {
         // Create the font ref and add it to the list
 //        ref->layout = get_cached_pango_font(client->cr, font, size, PANGO_WEIGHT_NORMAL);
@@ -2299,7 +2351,7 @@ void FontReference::begin() {
 #endif
     
     if (!font) {
-        layout = get_cached_pango_font(creation_client->cr, name, size, PANGO_WEIGHT_NORMAL);
+        layout = get_cached_pango_font(creation_client->cr, name, size, (PangoWeight) weight, italic);
         return;
     }
     font->begin();
@@ -2334,8 +2386,44 @@ std::string FontReference::wrapped_text(std::string text, int w) {
     ZoneScoped;
 #endif
     if (!font) {
-        layout = get_cached_pango_font(creation_client->cr, name, size, PANGO_WEIGHT_NORMAL);
-        return text;
+        layout = get_cached_pango_font(creation_client->cr, name, size, (PangoWeight) weight, italic);
+        
+        auto pre_w = pango_layout_get_width(layout);
+        auto pre_wrap = pango_layout_get_wrap(layout);
+
+        pango_layout_set_width(layout, w * PANGO_SCALE);
+        pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
+        
+        // Get the number of lines in the layout.
+        int line_count = pango_layout_get_line_count(layout);
+
+        std::stringstream ss;
+        
+        for (int i = 0; i < line_count; ++i) {
+            // Get the i-th layout line.
+            PangoLayoutLine* line = pango_layout_get_line_readonly(layout, i);
+            if (!line)
+                continue;
+            
+            // Get the start index and length of the substring for this line.
+            int start_index = line->start_index;
+            int line_length = line->length;
+            
+            // Extract the substring from the original text.
+            // (This assumes that the original text has not been modified since being set on the layout.)
+            ss << text.substr(start_index, line_length);
+            
+            // Append a newline if this is not the last line.
+            if (i != line_count - 1)
+                ss << "\n";
+        }
+        
+        std::string wrapped_text = ss.str();
+        
+        pango_layout_set_wrap(layout, pre_wrap);
+        pango_layout_set_width(layout, pre_w);
+        
+        return wrapped_text;
     } else {
         return font->wrapped_text(text, w);
     }
