@@ -122,8 +122,8 @@ static void paint_notify(AppClient *client, cairo_t *cr, Container *container) {
     draw_colored_rect(client, config->color_notification_title_background, container->real_bounds); 
     
     std::string text = "Interaction Required";
-    // TODO: bold required
-    draw_text(client, 10 * config->dpi, config->font, EXPAND(config->color_notification_title_text), text, container->real_bounds);
+    auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_notification_title_text), text, true);
+    f->draw_text_end(MIDX(container) - w / 2, MIDY(container) - h / 2);
 }
 
 static void paint_icon(AppClient *client, cairo_t *cr, Container *container) {

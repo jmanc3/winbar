@@ -343,9 +343,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     auto super = container_by_name("super", taskbar_root);
     
     if (container->parent->wanted_bounds.w != super->real_bounds.w) {
-        // TODO: we need to pass bold here if (data->text == "START") {
-        //            layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
-        auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_apps_icons), data->text);
+        auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_apps_icons), data->text, true);
         f->draw_text((int) (container->real_bounds.x + super->real_bounds.w),
                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
         f->end();
@@ -1481,7 +1479,7 @@ paint_live_tile_data(AppClient *client, cairo_t *cr, Container *container, cairo
     
     draw_clip_begin(client, Bounds(container->real_bounds.x, container->real_bounds.y,
                                    container->real_bounds.w - text_margin * 1.3, container->real_bounds.h));
-    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_apps_text), launcher->name);
+    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_apps_text), launcher->name, false);
     f->draw_text_end((int) (container->real_bounds.x + text_margin * 1.3),
                  (int) (container->real_bounds.y + container->real_bounds.h - h - text_margin));
     draw_clip_end(client);

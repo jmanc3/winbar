@@ -137,18 +137,18 @@ void draw_gl_texture(AppClient *client, gl_surface *gl_surf, cairo_surface_t *su
     }
 }
 
-FontReference *draw_get_font(AppClient *client, int size, std::string font) {
+FontReference *draw_get_font(AppClient *client, int size, std::string font, bool bold, bool italic) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     DrawContext *pContext = client->ctx;
     FontManager *pManager = pContext->font_manager;
-    auto f = pManager->get(client, size, font);
+    auto f = pManager->get(client, size, font, bold, italic);
     return f;
 }
 
-FontText draw_text_begin(AppClient *client, int size, std::string font, float r, float g, float b, float a, std::string text) {
-    auto f = draw_get_font(client, size, font);
+FontText draw_text_begin(AppClient *client, int size, std::string font, float r, float g, float b, float a, std::string text, bool bold, bool italic) {
+    auto f = draw_get_font(client, size, font, bold, italic);
     auto [w, h] = f->begin(text, r, g, b, a);
     return {f, w, h};
 }

@@ -393,8 +393,7 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     if (!root_message.empty()) {
-        // TODO: has to be bold
-        auto f = draw_get_font(client, 12 * config->dpi, config->font);
+        auto f = draw_get_font(client, 12 * config->dpi, config->font, true);
         auto text = f->wrapped_text(root_message, (container->real_bounds.w - 40));
         f->begin();
         f->set_text(text);

@@ -3037,6 +3037,7 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
         long now = get_current_time_in_ms();
         
         bool wants_to_relayout = false;
+        printf("%d\n", client->animations.size());
         
         for (auto &animation: client->animations) {
             if (!animation.lifetime.lock()) {

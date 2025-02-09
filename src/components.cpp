@@ -1487,7 +1487,7 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
     draw_text(client, data->font_size, config->font, EXPAND(data->color), data->state->text, container->real_bounds, 5, 0, 0);
     
     //pango_cairo_show_layout(cr, layout);
-    pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_LEFT);
+    //pango_layout_set_alignment(layout, PangoAlignment::PANGO_ALIGN_LEFT);
     
     if (container->parent->active == false && data->state->text.empty()) {
          draw_text(client, data->font_size, config->font, EXPAND(data->color_prompt), data->state->prompt, container->real_bounds, 5, 0, 0);
@@ -2941,7 +2941,8 @@ void paint_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *cont
     
     draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_wifi_icons), selected, container->real_bounds, 5, container->wanted_pad.x + 8 * config->dpi);
     
-    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->icons, EXPAND(config->color_wifi_icons), "\uE70D");
+    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->icons, EXPAND(config->color_wifi_icons),
+                                     "\uE70D", false);
     f->draw_text((int) (container->real_bounds.x + container->real_bounds.w - w - 8 * config->dpi),
                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
     f->end();
@@ -2962,7 +2963,9 @@ void paint_generic_combobox(AppClient *client, cairo_t *cr, Container *container
        
     draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text), selected, container->real_bounds, 5, container->wanted_pad.x + 8 * config->dpi);
     
-    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->icons, EXPAND(config->color_pinned_icon_editor_field_default_text), "\uE70D");
+    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->icons,
+                                     EXPAND(config->color_pinned_icon_editor_field_default_text), "\uE70D",
+                                     false);
     f->draw_text_end((int) (container->real_bounds.x + container->real_bounds.w - w - 8 * config->dpi),
                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
 }

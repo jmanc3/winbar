@@ -456,12 +456,17 @@ struct FreeFont {
     long largest_horiz_bearing_y = 0;
     std::vector<float> line_widths;
     
+    bool bold = false;
+    bool italic = false;
+    bool needs_synth = false; // Meaning we didn't find a matching font with bold italic metrics and need freetype to do it
+    
     ~FreeFont();
     
     // Do not know why we are doing this!
     int force_ucs2_charmap(FT_Face ftf);
     
-    FreeFont(int size, std::string font_name);
+    // Modify the constructor signature to allow style flags:
+    FreeFont(int size, std::string font_name, bool bold = false, bool italic = false);
     
     void update_projection(const glm::mat4 &projection);
     
@@ -614,6 +619,7 @@ struct FontReference {
     std::string name;
     int size;
     int weight;
+    bool italic;
     
     AppClient *creation_client = nullptr;
     std::weak_ptr<bool> creation_client_alive;
@@ -637,7 +643,7 @@ struct FontReference {
 struct FontManager {
     std::vector<FontReference *> fonts;
     
-    FontReference *get(AppClient *client, int size, std::string font);;
+    FontReference *get(AppClient *client, int size, std::string font, bool bold = false, bool italic = false);
 };
 
 struct DrawContext {
