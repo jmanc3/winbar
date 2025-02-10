@@ -2311,13 +2311,13 @@ FontReference *FontManager::get(AppClient *client, int size, std::string font, b
     }
     
     for (auto f: fonts) {
+        auto weight_matches = bold ? f->weight == PANGO_WEIGHT_BOLD : f->weight == PANGO_WEIGHT_NORMAL;
         if (client->should_use_gl) {
-            auto weight_matches = bold ? f->weight == PANGO_WEIGHT_BOLD : f->weight == PANGO_WEIGHT_NORMAL;
             if (f->size == size && f->name == font && f->creation_client == client && f->italic == italic && weight_matches) {
                 return f;
             }
         } else {
-            if (f->size == size && f->name == font && f->italic == italic) {
+            if (f->size == size && f->name == font && f->italic == italic && weight_matches) {
                 return f;
             }
         }
