@@ -2312,11 +2312,12 @@ FontReference *FontManager::get(AppClient *client, int size, std::string font, b
     
     for (auto f: fonts) {
         if (client->should_use_gl) {
-            if (f->size == size && f->name == font && f->creation_client == client) {
+            auto weight_matches = bold ? f->weight == PANGO_WEIGHT_BOLD : f->weight == PANGO_WEIGHT_NORMAL;
+            if (f->size == size && f->name == font && f->creation_client == client && f->italic == italic && weight_matches) {
                 return f;
             }
         } else {
-            if (f->size == size && f->name == font) {
+            if (f->size == size && f->name == font && f->italic == italic) {
                 return f;
             }
         }
@@ -2390,7 +2391,8 @@ std::string FontReference::wrapped_text(std::string text, int w) {
         
         auto pre_w = pango_layout_get_width(layout);
         auto pre_wrap = pango_layout_get_wrap(layout);
-
+        pango_layout_set_text(layout, text.data(), text.size());
+        
         pango_layout_set_width(layout, w * PANGO_SCALE);
         pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
         
