@@ -162,7 +162,7 @@ paint_label(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
     off = off * data->position;
     
-    draw_clip_begin(client_entity, Bounds(container->real_bounds.x + pad + icon_width, container->real_bounds.y, container->real_bounds.w, container->real_bounds.h));
+    draw_clip_begin(client_entity, Bounds(container->real_bounds.x + pad + icon_width, container->real_bounds.y, container->real_bounds.w - (pad * 2 + icon_width), container->real_bounds.h));
     f->draw_text(off + container->real_bounds.x + pad + icon_width, container->real_bounds.y  + 12);
     f->end();
     draw_clip_end(client_entity);

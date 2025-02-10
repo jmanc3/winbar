@@ -100,11 +100,12 @@ paint_battery_bar(AppClient *client, cairo_t *cr, Container *container) {
     auto ff = draw_text_begin(client, 34 * config->dpi, config->font, EXPAND(config->color_battery_text), text);
     int text_x = (int) (container->real_bounds.x + 90 * config->dpi);
     int text_y = (int) (MIDY(container) - ff.h / 2) - 3;
+    auto text_w = ff.w;
     ff.f->draw_text_end(text_x, text_y);
         
     text = "Status: " + data->status;
     ff = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_battery_text), text);
-    text_x = (int) (container->real_bounds.x + 90 * config->dpi + ff.w + 10 * config->dpi);
+    text_x = (int) (container->real_bounds.x + 90 * config->dpi + text_w + 10 * config->dpi);
     text_y = (int) (MIDY(container) - ff.h / 2);
     ff.f->draw_text_end(text_x, text_y);
 }
