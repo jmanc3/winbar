@@ -108,11 +108,11 @@ static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LabelData *) container->user_data;
     
     const std::string &stripped = strip_html(data->text);
-    auto f = draw_get_font(client, data->size * config->dpi, config->font);
+    auto f = draw_get_font(client, data->size * config->dpi, config->font, data->weight == PANGO_WEIGHT_NORMAL ? false : true);
     auto s = f->wrapped_text(stripped, container->real_bounds.w);
     
     f->begin();
-    f->set_text(s);
+    f->set_text(stripped);
     f->set_color(EXPAND(config->color_notification_content_text));
     f->draw_text(5, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w);
     f->end();

@@ -343,7 +343,10 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
     auto super = container_by_name("super", taskbar_root);
     
     if (container->parent->wanted_bounds.w != super->real_bounds.w) {
-        auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_apps_icons), data->text, true);
+        bool should_bold = false;
+        if (data->text == "START")
+            should_bold = true;
+        auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_apps_icons), data->text, should_bold);
         f->draw_text((int) (container->real_bounds.x + super->real_bounds.w),
                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
         f->end();
