@@ -926,7 +926,7 @@ adjust_volume_based_on_fine_scroll(AudioClient *audio_client, AppClient *client,
         audio_client->cached_volume += vertical_scroll / 2400.0;
     } else {
         // When changing volume with mouse, round to next, 0, 5, 3, or 7
-        int full = ((int) (audio_client->cached_volume * 100));
+        int full = std::round(audio_client->cached_volume * 100);
         int last_digit;
         do {
             if (vertical_scroll > 0) {
