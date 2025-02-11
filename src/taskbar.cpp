@@ -4090,6 +4090,7 @@ taskbar_on_screen_size_change(App *app, AppClient *client) {
 static void
 update_window_title_name(xcb_window_t window) {
     if (auto client = client_by_name(app, "taskbar")) {
+        defer(request_refresh(app, client));
         if (client->root) {
             if (auto icons = container_by_name("icons", client->root)) {
                 for (auto icon: icons->children) {
@@ -4124,7 +4125,6 @@ update_window_title_name(xcb_window_t window) {
                 }
             }
         }
-        request_refresh(app, client);
     }
 }
 
