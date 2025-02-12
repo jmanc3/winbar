@@ -2437,8 +2437,12 @@ void key_event_textfield(AppClient *client, cairo_t *cr, Container *container, b
         }
     } else {
         if (keysym == XKB_KEY_BackSpace) {
-            if (!data->text.empty()) {
-                data->text.pop_back();
+            if (mods & XCB_MOD_MASK_CONTROL) {
+                data->text = "";
+            } else {
+                if (!data->text.empty()) {
+                    data->text.pop_back();
+                }
             }
         }
     }

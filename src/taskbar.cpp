@@ -4092,7 +4092,6 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                     auto re = xcb_get_property_reply(app->connection, r, nullptr);
                     if (re) {
                         auto current_desktop = reinterpret_cast<uint32_t *>(xcb_get_property_value(re))[0];
-                        printf("window: %d, desktop %d\n", e->window, current_desktop);
                         free(re);
                     }
                 }
@@ -4659,7 +4658,6 @@ void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    printf("window: %s\n", std::to_string(window).c_str());
     // Exit the function if the window type is not something a dock should display
     xcb_get_property_cookie_t cookie = xcb_ewmh_get_wm_window_type_unchecked(&app->ewmh, window);
     xcb_ewmh_get_atoms_reply_t atoms_reply_data;
@@ -4782,7 +4780,6 @@ void add_window(App *app, xcb_window_t window) {
     } else {
         window_class_name = c3ic_fix_wm_class(window_class_name);
     }
-    printf("add_window: %s\n", window_class_name.c_str());
     
     auto pinned = false;
     for (auto icon: icons->children) {

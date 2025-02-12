@@ -2272,13 +2272,15 @@ std::string FreeFont::wrapped_text(std::string text, float wrap) {
     std::string buffer;
     
     int base = 0;
+    bool first_line = true;
     for (int i = 0; i < text.size(); i++) {
         this->begin();
         this->set_text(text.substr(base, i - base));
         this->end();
         
         if (this->full_text_w >= wrap) {
-            if (isalpha(text[i])) {
+            defer(first_line = false);
+            if (isalpha(text[i]) && first_line) {
                 for (int x = i - 1; x >= 0; x--) {
                     if (!isalpha(text[x])) {
                         for (int z = 0; z < (i - x); z++) {
@@ -2342,7 +2344,6 @@ FontReference *FontManager::get(AppClient *client, int size, std::string font, b
 //        ref->layout = get_cached_pango_font(client->cr, font, size * config->dpi, PANGO_WEIGHT_NORMAL);
     }
     fonts.push_back(ref);
-    printf("pushed: %s, size: %d\n", font.c_str(), fonts.size());
     return ref;
 }
 

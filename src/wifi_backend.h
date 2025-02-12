@@ -37,6 +37,7 @@ struct ScanResult {
     
     int auth = AUTH_NONE_OPEN;
     int encr = 0;
+    bool is_scan_result = false;
 };
 
 struct InterfaceLink {
@@ -68,6 +69,8 @@ void wifi_networks_and_cached_scan(InterfaceLink *link);
 
 void wifi_forget_network(ScanResult scanResult);
 
+void wifi_connect_network(ScanResult result, std::string in);
+
 void wifi_global_disable(InterfaceLink *link);
 
 void wifi_global_enable(InterfaceLink *link);
@@ -77,6 +80,8 @@ bool wifi_global_status(InterfaceLink *link);
 void wifi_stop();
 
 void wifi_set_active(std::string interface);
+
+void wifi_save_config(InterfaceLink *link);
 
 std::string get_default_wifi_interface(AppClient *client);
 
