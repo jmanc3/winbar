@@ -370,10 +370,10 @@ void state_changed_callback() {
 
 void wifi_state(AppClient *client, bool *up, bool *wired) {
     // throttle the state check to once every 5 seconds
-    static std::chrono::time_point<std::chrono::system_clock> last_check;
+    static long last_check = 0;
     static bool last_up = false;
     static bool last_wired = false;
-    if (std::chrono::system_clock::now() - last_check < std::chrono::seconds(5)) {
+    if (client->app->current - last_check < 5000) {
         *up = last_up;
         *wired = last_wired;
         return;
@@ -388,6 +388,7 @@ void wifi_state(AppClient *client, bool *up, bool *wired) {
         }
         status_file.close();
     }
+    last_check = client->app->current;
     
     *up = status == "up";
     
