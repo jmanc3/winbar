@@ -115,7 +115,29 @@ static void paint_icon(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
+static bool is_blacklisted(std::string title, std::string body, std::string subtitle) {
+    return false;
+}
+
 Container *create_notification_container(App *app, NotificationInfo *notification_info, int width) {
+    std::string title_text = notification_info->summary;
+    std::string body_text = notification_info->body;
+    std::string subtitle_text = notification_info->app_name;
+    
+    // The subtitle can be used as the title if no title was sent
+    if (title_text.empty() && !subtitle_text.empty()) {
+        title_text = subtitle_text;
+        subtitle_text.clear();
+    }
+    // If only a body was sent, set it as the title
+    if (title_text.empty() && subtitle_text.empty() && !body_text.empty()) {
+        title_text = body_text;
+        title_text.clear();
+    }
+    
+    if (is_blacklisted(title_text, body_text, subtitle_text))
+        return nullptr;
+    
     auto container = new Container(layout_type::vbox, FILL_SPACE, FILL_SPACE);
     auto data = new NotificationWrapper;
     container->name = "container_with_ni";
@@ -133,21 +155,6 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     //  b : (summary), body, (app)
     //  c : close/send to action center button shown only when mouse is in container
     // (d): optional actions. stack vertically
-    
-    std::string title_text = notification_info->summary;
-    std::string body_text = notification_info->body;
-    std::string subtitle_text = notification_info->app_name;
-    
-    // The subtitle can be used as the title if no title was sent
-    if (title_text.empty() && !subtitle_text.empty()) {
-        title_text = subtitle_text;
-        subtitle_text.clear();
-    }
-    // If only a body was sent, set it as the title
-    if (title_text.empty() && subtitle_text.empty() && !body_text.empty()) {
-        title_text = body_text;
-        title_text.clear();
-    }
     
     std::vector<IconTarget> targets;
     targets.emplace_back(IconTarget(notification_info->app_icon));
@@ -341,6 +348,8 @@ static void fill_root(AppClient *client, Container *root) {
         if (n->removed_from_action_center)
             continue;
         auto notification_container = create_notification_container(app, n, 364 * config->dpi);
+        if (!notification_container)
+            continue;
         notification_container->parent = content;
         notification_container->wanted_bounds.h = notification_container->real_bounds.h;
         content->children.push_back(notification_container);

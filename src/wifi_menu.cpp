@@ -144,75 +144,296 @@ struct DataOfLabelButton : UserData {
 };
 
 static void
-paint_centered_label(AppClient *client, cairo_t *cr, Container *container) {
-    auto color = config->color_wifi_default_button;
-    if (container->state.mouse_pressing || container->state.mouse_hovering) {
-        if (container->state.mouse_pressing) {
-            color = config->color_wifi_pressed_button;
-        } else {
-            color = config->color_wifi_hovered_button;
-        }
-    }
-    draw_colored_rect(client, color, container->real_bounds);
-    
-    auto data = (DataOfLabelButton *) container->user_data;
-        
-    draw_text(client, config->dpi * 10, config->font, EXPAND(config->color_volume_text), data->text, container->real_bounds);
-}
-
-static void delete_container(App *app, AppClient *client, Timeout *timeout, void *user_data) {
-    auto forget_button_container = (Container *) user_data;
-    auto wifi_option_container = forget_button_container->parent;
-    auto options_container = wifi_option_container->parent;
-    
-    for (int i = 0; i < options_container->children.size(); i++) {
-        if (options_container->children[i] == wifi_option_container) {
-            options_container->children.erase(options_container->children.begin() + i);
-            delete wifi_option_container;
-            break;
-        }
-    }
-    
-    client_layout(app, client);
-    client_paint(app, client);
-}
+recheck_wifi_status(AppClient *client);
 
 static void
 clicked_forget(AppClient *client, cairo_t *cr, Container *container) {
-    auto data = (DataOfLabelButton *) container->user_data;
-//    wifi_forget_network(data->info);
+    auto data = (WifiOptionData *) container->parent->parent->children[0]->user_data;
+    wifi_forget_network(data->info);
+    recheck_wifi_status(client);
+}
+
+static void
+option_clicked(AppClient *client, cairo_t *cr, Container *container);
+
+static void
+paint_label(AppClient *client, cairo_t *cr, Container *container, std::string text);
+
+static bool show = false;
+
+static void
+paint_textfield(AppClient *client, cairo_t *cr, Container *container) {
+    // paint blue border
+    auto *data = (FieldData *) container->user_data;
     
-    app_timeout_create(app, client, 0, delete_container, container, const_cast<char *>(__PRETTY_FUNCTION__));
+    draw_colored_rect(client, ArgbColor(1, 1, 1, 1), container->real_bounds);
+    
+    // clip text
+    PangoLayout *layout = get_cached_pango_font(cr, config->font, data->settings.font_size,
+                                                PangoWeight::PANGO_WEIGHT_NORMAL);
+    pango_layout_set_width(layout, -1); // disable wrapping
+    
+    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
+    std::string text_set;
+    ArgbColor color = config->color_pinned_icon_editor_field_default_text;
+    if (!data->text.empty()) {
+        std::string t;
+        int size = data->text.size();
+        for (int i = 0; i < size; i++)
+            t.append("•");
+        pango_layout_set_text(layout, t.c_str(), t.size());
+        if (show) {
+            text_set = data->text;
+        } else {
+            text_set = t;
+        }
+    } else {
+        auto watered_down = ArgbColor(config->color_pinned_icon_editor_field_default_text);
+        watered_down.a = 0.6;
+        color = watered_down;
+        set_argb(cr, watered_down);
+        pango_layout_set_text(layout, data->settings.when_empty_text.c_str(), data->settings.when_empty_text.size());
+        text_set = data->settings.when_empty_text;
+    }
+    PangoRectangle ink;
+    PangoRectangle logical;
+    pango_layout_get_extents(layout, &ink, &logical);
+    
+    auto text_off_x = 10 * config->dpi;
+    auto text_off_y = container->real_bounds.h / 2 - ((logical.height / PANGO_SCALE) / 2);
+    
+    auto b = Bounds(container->real_bounds);
+    b.x += 10 * config->dpi;
+    b.w -= 10 * config->dpi;
+    draw_clip_begin(client, container->real_bounds);
+    auto [f, w, h] = draw_text_begin(client, data->settings.font_size, config->font, EXPAND(color), text_set);
+    auto overflow = w - (container->real_bounds.w - 45 * config->dpi);
+    if (overflow < 0)
+        overflow = 0;
+    f->draw_text_end(container->real_bounds.x + 10 * config->dpi - overflow, MIDY(container) - h / 2);
+    draw_clip_end(client);
+    
+    if (container->active) {
+        PangoRectangle cursor_strong_pos;
+        PangoRectangle cursor_weak_pos;
+        if (data->text.empty()) {
+            pango_layout_get_cursor_pos(layout, 0, &cursor_strong_pos, &cursor_weak_pos);
+        } else {
+            pango_layout_get_cursor_pos(layout, text_set.size(), &cursor_strong_pos, &cursor_weak_pos);
+        }
+        int offset = cursor_strong_pos.x != 0 ? -1 : 0;
+        draw_colored_rect(client, ArgbColor(0, 0, 0, 1), Bounds(cursor_strong_pos.x / PANGO_SCALE + container->real_bounds.x + offset + text_off_x - overflow,
+                                                                cursor_strong_pos.y / PANGO_SCALE + container->real_bounds.y + text_off_y,
+                                                                1 * config->dpi,
+                                                                cursor_strong_pos.height / PANGO_SCALE));
+    }
+    
+    //E7B3
+    auto show_color = ArgbColor(0, 0, 0, .9);
+    if (show)
+        show_color = config->color_search_accent;
+    auto ff =  draw_text_begin(client, data->settings.font_size, config->icons, EXPAND(show_color), "\uF78D");
+    ff.f->draw_text_end(container->real_bounds.x + container->real_bounds.w - (45 * config->dpi / 2) - (ff.w * .45),
+                        MIDY(container) - ff.h / 2);
+    
+    color = config->color_pinned_icon_editor_field_default_border;
+    if (container->active) {
+        color = config->color_pinned_icon_editor_field_pressed_border;
+    } else if (container->state.mouse_hovering) {
+        color = config->color_pinned_icon_editor_field_hovered_border;
+    }
+    draw_margins_rect(client, color, container->real_bounds, 2, 0);
+}
+
+struct WifiToggle : UserData {
+    long last_time_checked = get_current_time_in_ms() - 1000;
+    bool wifi_is_enabled = true;
+    int checked_count = 0;
+};
+
+static long last_check = 0;
+
+static void
+recheck_wifi_status(AppClient *client) {
+    app_timeout_create(app, client, 250, [](App *, AppClient *client, Timeout *timeout, void *) {
+        timeout->keep_running = false;
+        if (auto wifi_toggle = container_by_name("wifi_toggle", client->root)) {
+            timeout->keep_running = true;
+            auto data = (WifiToggle *) wifi_toggle->user_data;
+            data->last_time_checked = app->current;
+            data->checked_count++;
+            bool before = data->wifi_is_enabled;
+            data->wifi_is_enabled = wifi_global_status(get_active_link());
+            if (data->checked_count > 20) {
+                timeout->keep_running = false;
+                data->checked_count = 0;
+            }
+            if (before != data->wifi_is_enabled) {
+                last_check = 0;
+                request_refresh(app, client_by_name(app, "taskbar"));
+            }
+        }
+    }, nullptr, "Re-check wifi status after adding network");
+    
 }
 
 static void
 clicked_connect(AppClient *client, cairo_t *cr, Container *container) {
+    auto first_child = container->parent->parent->children[0];
+    auto data = (WifiOptionData *) first_child->user_data;
+    auto not_enc = data->info.auth == AUTH_NONE_OPEN || data->info.auth == AUTH_NONE_WEP;
+    if (not_enc) {
+        wifi_connect_network(data->info, "");
+        recheck_wifi_status(client);
+        return;
+    }
+    auto parent = first_child->parent;
+    auto pad = ((WIFI_OPTION_HEIGHT - 36) * config->dpi) * .5;
+    auto button_height = 36 * config->dpi;
+    
+    parent->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi + button_height  * 2 + pad * 2;
+    // Delete everything below the first element
+    for (int i = parent->children.size() - 1; i >= 1; i--) {
+        delete parent->children[i];
+        parent->children.erase(parent->children.begin() + i);
+    }
+    
+    auto button_container = parent->child(::vbox, FILL_SPACE, FILL_SPACE);
+    button_container->wanted_pad = Bounds(pad, 0, pad, 0);
+    auto textarea_parent = button_container->child(FILL_SPACE, button_height);
 
+    FieldSettings settings;
+    settings.font_size = 11 * config->dpi;
+    settings.when_empty_text = "Enter the network security key";
+    auto textarea = make_textfield(textarea_parent, settings, FILL_SPACE, FILL_SPACE);
+    textarea->when_paint = paint_textfield;
+    textarea->when_clicked = [](AppClient *client, cairo_t *, Container *container) {
+        float w = 45 * config->dpi;
+        if (bounds_contains(Bounds(container->real_bounds.x + container->real_bounds.w - w, container->real_bounds.y, w, container->real_bounds.h), client->mouse_current_x, client->mouse_current_y)) {
+            show = !show;
+        }
+    };
+    set_active(client, textarea, true);
+    // pad
+    button_container->child(FILL_SPACE, FILL_SPACE);
+    auto hbox_cont = button_container->child(::hbox, FILL_SPACE, button_height);
+    hbox_cont->spacing = pad;
+    auto next = hbox_cont->child(FILL_SPACE, FILL_SPACE);
+    next->name = "next";
+    next->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
+        auto color = config->color_wifi_hovered_button;
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                color = config->color_wifi_hovered_button;
+            } else {
+                color = config->color_wifi_pressed_button;
+            }
+        }
+        auto field_container = container->parent->parent->children[0]->children[0];
+        auto *data = (FieldData *) field_container->user_data;
+        if (!data->text.empty()) {
+            draw_colored_rect(client, color, container->real_bounds);
+        }
+        auto text_color = config->color_volume_text;
+        if (data->text.empty())
+            text_color.a = .7;
+        draw_text(client, config->dpi * 10, config->font, EXPAND(text_color), "Next", container->real_bounds);
+    };
+    next->when_clicked = [](AppClient *client, cairo_t *, Container *container) {
+        auto field_container = container->parent->parent->children[0]->children[0];
+        auto *field_data = (FieldData *) field_container->user_data;
+        auto first_child = container->parent->parent->parent->children[0];
+        auto *first_data = (WifiOptionData *) first_child->user_data;
+        if (!field_data->text.empty()) {
+            // actually do the next
+            wifi_connect_network(first_data->info, field_data->text);
+            recheck_wifi_status(client);
+        }
+    };
+    auto cancel = hbox_cont->child(FILL_SPACE, FILL_SPACE);
+    cancel->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
+        paint_label(client, cr, container, "Cancel");
+    };
+    cancel->when_clicked = [](AppClient *client, cairo_t *cr, Container *container) {
+        auto first_child = container->parent->parent->parent->children[0];
+        auto data = (WifiOptionData *) first_child->user_data;
+        data->clicked = false; // So that it's like a reset
+        option_clicked(client, cr, first_child);
+    };
+    
+    // pad
+    button_container->child(FILL_SPACE, FILL_SPACE);
+    
+    
+    client_layout(app, client);
+    request_refresh(app, client);
+}
+
+static void
+paint_label(AppClient *client, cairo_t *cr, Container *container, std::string text) {
+    auto color = config->color_wifi_hovered_button;
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        if (container->state.mouse_pressing) {
+            color = config->color_wifi_hovered_button;
+        } else {
+            color = config->color_wifi_pressed_button;
+        }
+    }
+    draw_colored_rect(client, color, container->real_bounds);
+    
+    draw_text(client, config->dpi * 10, config->font, EXPAND(config->color_volume_text), text, container->real_bounds);
+}
+
+static void
+paint_connect(AppClient *client, cairo_t *cr, Container *container) {
+    paint_label(client, cr, container, "Connect");
+}
+
+static void
+paint_disconnect(AppClient *client, cairo_t *cr, Container *container) {
+    paint_label(client, cr, container, "Disconnect");
 }
 
 static void
 option_clicked(AppClient *client, cairo_t *cr, Container *container) {
+    show = false;
     auto data = (WifiOptionData *) container->user_data;
+    auto button_height = 36 * config->dpi;
+    auto pad = ((WIFI_OPTION_HEIGHT - 36) * config->dpi) * .5;
     if (data->clicked) {
         container->parent->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi;
     } else {
-        container->parent->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi * 2;
+        container->parent->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi + button_height + pad;
     }
     data->clicked = !data->clicked;
-//    if (auto content = container_by_name("content", client->root)) {
-//        for (auto c: content->children) {
-//            if (c->children[0] != container) {
-//                ((WifiOptionData *) c->children[0]->user_data)->clicked = false;
-//                c->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi * 2;
-////                for (auto d: c->children) {
-////                    d->exists = false;
-////                }
-//            }
-//        }
-//    }
-//    for (auto c: container->children) {
-//        c->children[1]->exists = data->clicked;
-//    }
+    
+    bool saved = data->info.saved_network;
+    
+    // Delete everything below the first element
+    for (int i = container->parent->children.size() - 1; i >= 1; i--) {
+        delete container->parent->children[i];
+        container->parent->children.erase(container->parent->children.begin() + i);
+    }
+    
+    if (data->clicked) {
+        auto parent = container->parent;
+        if (saved) { // Allow disconnect
+            auto button_container = parent->child(::vbox, FILL_SPACE, button_height);
+            button_container->wanted_pad = Bounds(pad, 0, pad, 0);
+            auto button = button_container->child(FILL_SPACE, FILL_SPACE);
+            button->when_paint = paint_disconnect;
+            button->when_clicked = clicked_forget;
+            parent->child(FILL_SPACE, FILL_SPACE);
+        } else { // Allow connect
+            auto button_container = parent->child(::vbox, FILL_SPACE, button_height);
+            button_container->wanted_pad = Bounds(pad, 0, pad, 0);
+            auto button = button_container->child(FILL_SPACE, FILL_SPACE);
+            button->when_paint = paint_connect;
+            button->when_clicked = clicked_connect;
+            parent->child(FILL_SPACE, FILL_SPACE);
+        }
+    }
+    
     client_layout(app, client);
 }
 
@@ -261,16 +482,17 @@ void scan_results(std::vector<ScanResult> &results) {
                 parent_option_vbox->when_paint = paint_option;
                 parent_option_vbox->receive_events_even_if_obstructed_by_one = true;
                 
+                // Spacing
                 auto c = parent_option_vbox->child(FILL_SPACE, WIFI_OPTION_HEIGHT * config->dpi);
                 c->name = r.network_name;
                 auto wifi_option_data = new WifiOptionData;
                 c->when_clicked = option_clicked;
                 wifi_option_data->info = r;
                 c->user_data = wifi_option_data;
-                
-                auto button = c->child(FILL_SPACE, 40 * config->dpi);
-                button->exists = false;
-                button->when_paint = paint_debug;
+
+//                auto button = parent_option_vbox->child(::stack,FILL_SPACE, FILL_SPACE);
+//                button->exists = false;
+//                button->when_paint = paint_debug;
             }
         }
         
@@ -316,7 +538,6 @@ void state_changed_callback() {
 
 void wifi_state(AppClient *client, bool *up, bool *wired) {
     // throttle the state check to once every 5 seconds
-    static long last_check = 0;
     static bool last_up = false;
     static bool last_wired = false;
     if (client->app->current - last_check < 5000) {
@@ -324,6 +545,7 @@ void wifi_state(AppClient *client, bool *up, bool *wired) {
         *wired = last_wired;
         return;
     }
+    last_check = client->app->current;
     std::string status = "down";
     const std::string &default_interface = get_default_wifi_interface(client);
     std::ifstream status_file("/sys/class/net/" + default_interface + "/operstate");
@@ -438,12 +660,6 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
         // draw_text(client, config->dpi * 12, config->font, EXPAND(config->color_wifi_text_title), root_message, container->real_bounds);
     }
 }
-
-struct WifiToggle : UserData {
-    long last_time_checked = get_current_time_in_ms() - 1000;
-    bool wifi_is_enabled = true;
-    int checked_count = 0;
-};
 
 static void
 paint_wifi_toggle(AppClient *client, cairo_t *cr, Container *container) {
@@ -646,8 +862,13 @@ void start_wifi_menu() {
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;
         popup_settings.name = "wifi_menu";
+        popup_settings.takes_input_focus = true;
+        show = false;
         auto client = taskbar->create_popup(popup_settings, settings);
         fill_root(client);
+        client->when_closed = [](AppClient *client) {
+            wifi_save_config(get_active_link());
+        };
 
 //        if (wifi_running()) {
 //        root_message = "Couldn't establish communication with wpa_supplicant";
@@ -663,5 +884,15 @@ void start_wifi_menu() {
 //        }
         
         client_show(app, client);
+        xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, client->window,
+                            XCB_CURRENT_TIME);
+        xcb_ewmh_request_change_active_window(&app->ewmh,
+                                              app->screen_number,
+                                              client->window,
+                                              XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                              XCB_CURRENT_TIME,
+                                              XCB_NONE);
+        xcb_flush(app->connection);
+        xcb_aux_sync(app->connection);
     }
 }

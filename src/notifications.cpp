@@ -236,6 +236,8 @@ static Container *create_notification_container(App *app, NotificationInfo *noti
 
 void show_notification(NotificationInfo *ni) {
     auto notification_container = create_notification_container(app, ni, 356 * config->dpi);
+    if (!notification_container)
+        return;
     
     Settings settings;
     settings.force_position = true;
@@ -321,7 +323,29 @@ static bool root_pierced_handler(Container *container, int mouse_x, int mouse_y)
     return bounds_contains(container->real_bounds, mouse_x, mouse_y);
 }
 
+static bool is_blacklisted(std::string title, std::string body, std::string subtitle) {
+    return false;
+}
+
 Container *create_notification_container(App *app, NotificationInfo *notification_info, int width) {
+    std::string title_text = notification_info->summary;
+    std::string body_text = notification_info->body;
+    std::string subtitle_text = notification_info->app_name;
+    
+    // The subtitle can be used as the title if no title was sent
+    if (title_text.empty() && !subtitle_text.empty()) {
+        title_text = subtitle_text;
+        subtitle_text.clear();
+    }
+    // If only a body was sent, set it as the title
+    if (title_text.empty() && subtitle_text.empty() && !body_text.empty()) {
+        title_text = body_text;
+        title_text.clear();
+    }
+    
+    if (is_blacklisted(title_text, body_text, subtitle_text))
+        return nullptr;
+    
     auto container = new Container(layout_type::vbox, FILL_SPACE, FILL_SPACE);
     auto data = new NotificationWrapper;
     data->ni = notification_info;
@@ -341,21 +365,6 @@ Container *create_notification_container(App *app, NotificationInfo *notificatio
     //  b : (summary), body, (app)
     //  c : close/send to action center button shown only when mouse is in container
     // (d): optional actions. stack vertically
-    
-    std::string title_text = notification_info->summary;
-    std::string body_text = notification_info->body;
-    std::string subtitle_text = notification_info->app_name;
-    
-    // The subtitle can be used as the title if no title was sent
-    if (title_text.empty() && !subtitle_text.empty()) {
-        title_text = subtitle_text;
-        subtitle_text.clear();
-    }
-    // If only a body was sent, set it as the title
-    if (title_text.empty() && subtitle_text.empty() && !body_text.empty()) {
-        title_text = body_text;
-        title_text.clear();
-    }
     
     std::vector<IconTarget> targets;
     targets.emplace_back(notification_info->app_icon);

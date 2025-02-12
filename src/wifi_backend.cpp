@@ -196,6 +196,8 @@ void get_scan_results(InterfaceLink *link) {
     for (std::string line; std::getline(response_stream, line, '\n');)
         lines.push_back(line);
     
+    std::vector<ScanResult> to_keep;
+    
     if (!lines.empty()) {
         auto header = lines[0];
         auto header_stream = std::stringstream{header};
@@ -212,6 +214,7 @@ void get_scan_results(InterfaceLink *link) {
             int x = 0;
             ScanResult result;
             result.interface = link->interface;
+            result.is_scan_result = true;
             for (std::string chunk; std::getline(line_stream, chunk, '\t');) {
                 if (header_order[x] == "bssid") { // MAC Address
                     result.mac = chunk;
@@ -226,6 +229,7 @@ void get_scan_results(InterfaceLink *link) {
                 }
                 x++;
             }
+            to_keep.push_back(result);
             bool duplicate = false;
             for (auto &r: link->results) {
 //                printf("comparing: %s -- %s\n", );
@@ -236,6 +240,7 @@ void get_scan_results(InterfaceLink *link) {
                     parse_wifi_flags(&result);
                     r.flags = result.flags;
                     r.network_name = result.network_name;
+                    r.is_scan_result = true;
                     r.auth = result.auth;
                     r.encr = result.encr;
                     duplicate = true;
@@ -248,6 +253,14 @@ void get_scan_results(InterfaceLink *link) {
             parse_wifi_flags(&result);
             link->results.push_back(result);
         }
+    }
+    
+    for (auto &item: link->results) {
+        bool found = false;
+        for (auto &keep: to_keep)
+            if (keep.network_name == item.network_name)
+                found = true;
+        item.is_scan_result = found;
     }
 }
 
@@ -265,6 +278,8 @@ void get_network_list(InterfaceLink *link) {
     auto response_stream = std::stringstream{response};
     for (std::string line; std::getline(response_stream, line, '\n');)
         lines.push_back(line);
+    
+    std::vector<ScanResult> to_keep;
     
     if (!lines.empty()) {
         auto header = lines[0];
@@ -294,6 +309,7 @@ void get_network_list(InterfaceLink *link) {
                 }
                 x++;
             }
+            to_keep.push_back(result);
             bool duplicate = false;
             for (auto &r: link->results) {
                 if (r.network_name == result.network_name) {
@@ -301,6 +317,7 @@ void get_network_list(InterfaceLink *link) {
                     parse_wifi_flags(&result);
                     r.state_for_saved_networks = result.state_for_saved_networks;
                     r.saved_network = true;
+                    r.network_index = result.network_index;
                     break;
                 }
             }
@@ -309,6 +326,19 @@ void get_network_list(InterfaceLink *link) {
             
             parse_wifi_flags(&result);
             link->results.push_back(result);
+        }
+    }
+    
+    for (int i = link->results.size() - 1; i >= 0; i--) {
+        auto item = &link->results[i];
+        bool found = false;
+        for (auto &keep: to_keep)
+            if (keep.network_name == item->network_name && keep.network_index == item->network_index)
+                found = true;
+        item->saved_network = found;
+        
+        if (!item->saved_network && !item->is_scan_result) {
+            link->results.erase(link->results.begin() + i);
         }
     }
 }
@@ -349,18 +379,67 @@ int set_network_param(int id, const char *field,
     return strncmp(reply, "OK", 2) == 0 ? 0 : -1;
 }
 
-void wifi_forget_network(ScanResult scanResult) {
+InterfaceLink *get_link(const ScanResult &scan) {
     InterfaceLink *link = nullptr;
     for (auto l: wifi_data->links) {
-        if (l->interface == scanResult.interface) {
+        if (l->interface == scan.interface) {
             link = l;
             break;
         }
     }
+    return link;
+}
+
+void wifi_forget_network(ScanResult result) {
+    auto link = get_link(result);
     if (!link) return;
+    defer(wifi_networks_and_cached_scan(link));
     char buf[1000];
     size_t len = 1000;
-    std::string message = "REMOVE_NETWORK " + std::to_string(scanResult.network_index);
+    std::string message = "REMOVE_NETWORK " + std::to_string(result.network_index);
+    if (wpa_ctrl_request(link->wpa_message_listener, message.c_str(), message.length(),
+                         buf, &len, NULL) != 0) {
+        return;
+    }
+}
+
+void wifi_connect_network(ScanResult result, std::string in) {
+    auto link = get_link(result);
+    if (!link) return;
+    defer(wifi_networks_and_cached_scan(link));
+    char buf[1000];
+    size_t len = 1000;
+    std::string message = "ADD_NETWORK";
+    if (wpa_ctrl_request(link->wpa_message_listener, message.c_str(), message.length(),
+                         buf, &len, NULL) != 0) {
+        return; // I think this is the failure case, and
+    }
+    auto ans = std::string(buf, len);
+    if (trim(std::string(result.network_name)).empty()) {
+        message = "SET_NETWORK " + ans + " bssid \"" + result.mac + "\"";
+    } else {
+        message = "SET_NETWORK " + ans + " ssid \"" + result.network_name + "\"";
+    }
+    if (wpa_ctrl_request(link->wpa_message_listener, message.c_str(), message.length(),
+                         buf, &len, NULL) != 0) {
+        return;
+    }
+    auto not_enc = result.auth == AUTH_NONE_OPEN || result.auth == AUTH_NONE_WEP;
+    if (not_enc) {
+        message = "SET_NETWORK " + ans + " key_mgmt NONE";
+    } else {
+        message = "SET_NETWORK " + ans + " psk \"" + in + "\"";
+    }
+    if (wpa_ctrl_request(link->wpa_message_listener, message.c_str(), message.length(),
+                         buf, &len, NULL) != 0) {
+        return;
+    }
+    message = "ENABLE_NETWORK " + ans;
+    if (wpa_ctrl_request(link->wpa_message_listener, message.c_str(), message.length(),
+                         buf, &len, NULL) != 0) {
+        return;
+    }
+    message = "RECONNECT";
     if (wpa_ctrl_request(link->wpa_message_listener, message.c_str(), message.length(),
                          buf, &len, NULL) != 0) {
         return;
@@ -528,5 +607,17 @@ void wifi_set_active(std::string interface) {
         if (i == interface) {
             winbar_settings->set_preferred_interface(i);
         }
+    }
+}
+
+void wifi_save_config(InterfaceLink *link) {
+    if (!link) return;
+    
+    char buf[1000];
+    size_t len = 1000;
+    std::string message = "SAVE_CONFIG";
+    if (wpa_ctrl_request(link->wpa_message_listener, message.c_str(), message.length(),
+                         buf, &len, NULL) != 0) {
+        return;
     }
 }
