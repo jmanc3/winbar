@@ -1869,6 +1869,14 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
             cairo_push_group(cr);
         }
         if (con->z_index == 0) {
+            // Keep containers within dynamic parent bounds: overwriting slow to update animation position
+            auto old_container_x = con->real_bounds.x;
+            if (con->real_bounds.x < con->parent->real_bounds.x)
+                con->real_bounds.x = con->parent->real_bounds.x;
+            if (con->real_bounds.x + con->real_bounds.w > con->parent->real_bounds.x + con->parent->real_bounds.w)
+                con->real_bounds.x = con->parent->real_bounds.x + con->parent->real_bounds.w - con->real_bounds.w;
+            defer(con->real_bounds.x = old_container_x);
+
             paint_icon_background(client_entity, cr, con);
             paint_icon_surface(client_entity, cr, con);
             paint_icon_label(client_entity, cr, con);
@@ -1886,6 +1894,14 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
             cairo_push_group(cr);
         }
         if (con->z_index != 0) {
+            // Keep containers within dynamic parent bounds: overwriting slow to update animation position
+            auto old_container_x = con->real_bounds.x;
+            if (con->real_bounds.x < con->parent->real_bounds.x)
+                con->real_bounds.x = con->parent->real_bounds.x;
+            if (con->real_bounds.x + con->real_bounds.w > con->parent->real_bounds.x + con->parent->real_bounds.w)
+                con->real_bounds.x = con->parent->real_bounds.x + con->parent->real_bounds.w - con->real_bounds.w;
+            defer(con->real_bounds.x = old_container_x);
+
             paint_icon_background(client_entity, cr, con);
             paint_icon_surface(client_entity, cr, con);
             paint_icon_label(client_entity, cr, con);
@@ -3276,7 +3292,6 @@ void update_battery_status_timeout(App *app, AppClient *client, Timeout *timeout
     }
     
     auto data = (BatteryInfo *) userdata;
-    long current_time = get_current_time_in_ms();
     
     int previous_animating_capacity = 0;
     bool was_charging_on_previous_status_update = data->status == "Charging";

@@ -271,6 +271,7 @@ recheck_wifi_status(AppClient *client) {
             if (before != data->wifi_is_enabled) {
                 last_check = 0;
                 request_refresh(app, client_by_name(app, "taskbar"));
+                request_refresh(app, client);
             }
         }
     }, nullptr, "Re-check wifi status after adding network");
