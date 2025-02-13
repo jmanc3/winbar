@@ -427,9 +427,16 @@ void wifi_connect_network(ScanResult result, std::string in) {
     auto not_enc = result.auth == AUTH_NONE_OPEN || result.auth == AUTH_NONE_WEP;
     if (not_enc) {
         message = "SET_NETWORK " + ans + " key_mgmt NONE";
+    } else if (in.size() == 64) {
+        message = "SET_NETWORK " + ans + " psk " + in;
     } else {
         message = "SET_NETWORK " + ans + " psk \"" + in + "\"";
     }
+    if (wpa_ctrl_request(link->wpa_message_listener, message.c_str(), message.length(),
+                         buf, &len, NULL) != 0) {
+        return;
+    }
+    message = "SET_NETWORK " + ans + " mesh_fwding 0";
     if (wpa_ctrl_request(link->wpa_message_listener, message.c_str(), message.length(),
                          buf, &len, NULL) != 0) {
         return;

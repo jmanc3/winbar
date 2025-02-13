@@ -8,6 +8,7 @@
 #include "wifi_backend.h"
 #include "settings_menu.h"
 #include "components.h"
+#include "search_menu.h"
 
 #include <fstream>
 #include <iostream>
@@ -278,6 +279,32 @@ recheck_wifi_status(AppClient *client) {
     
 }
 
+std::string generate_psk(const std::string& ssid, const std::string& passphrase) {
+    std::string command = "wpa_passphrase \"" + ssid + "\" \"" + passphrase + "\"";
+    std::array<char, 128> buffer;
+    std::string result;
+    
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+    
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    
+    // Extract the hashed PSK (second occurrence of "psk=" line)
+    size_t pos = result.find("psk=");
+    if (pos != std::string::npos) {
+        pos = result.find("psk=", pos + 4); // Find second occurrence
+        if (pos != std::string::npos) {
+            size_t end = result.find('\n', pos);
+            return result.substr(pos + 4, end - pos - 4); // Extract hashed key
+        }
+    }
+    return "";
+}
+
 static void
 clicked_connect(AppClient *client, cairo_t *cr, Container *container) {
     auto first_child = container->parent->parent->children[0];
@@ -347,7 +374,16 @@ clicked_connect(AppClient *client, cairo_t *cr, Container *container) {
         auto *first_data = (WifiOptionData *) first_child->user_data;
         if (!field_data->text.empty()) {
             // actually do the next
-            wifi_connect_network(first_data->info, field_data->text);
+            if (script_exists("wpa_passphrase")) {
+                auto psk = generate_psk(first_data->info.network_name, field_data->text);
+                if (psk.empty()) {
+                    wifi_connect_network(first_data->info, field_data->text);
+                } else {
+                    wifi_connect_network(first_data->info, psk);
+                }
+            } else {
+                wifi_connect_network(first_data->info, field_data->text);
+            }
             recheck_wifi_status(client);
         }
     };
@@ -398,6 +434,20 @@ paint_disconnect(AppClient *client, cairo_t *cr, Container *container) {
 static void
 option_clicked(AppClient *client, cairo_t *cr, Container *container) {
     show = false;
+    if (auto content = container_by_name("content", client->root)) {
+        for (auto c: content->children) {
+            if (c->children[0] == container)
+                continue;
+            for (int i = c->children.size() - 1; i >= 1; i--) {
+                delete c->children[i];
+                c->children.erase(c->children.begin() + i);
+            }
+            auto dd = (WifiOptionData *) c->children[0]->user_data;
+            dd->clicked = false;
+            c->wanted_bounds.h = WIFI_OPTION_HEIGHT * config->dpi;
+        }
+    }
+    
     auto data = (WifiOptionData *) container->user_data;
     auto button_height = 36 * config->dpi;
     auto pad = ((WIFI_OPTION_HEIGHT - 36) * config->dpi) * .5;
