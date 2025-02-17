@@ -1419,8 +1419,8 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
     auto s = (ScrollContainer *) container;
     
     std::string text("Pinned Apps");
-    int x = container->real_bounds.x;
-    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_apps_text), text, container->real_bounds, 5, (int) (x + 3 * config->dpi), (int) (container->real_bounds.y + 12 * config->dpi + container->scroll_v_visual));
+    int x = container->real_bounds.x + (container->real_bounds.w - 100 * config->dpi * 3) / 2;
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_apps_text), text, container->real_bounds, 5, x - container->real_bounds.x, (int) (12 * config->dpi + container->scroll_v_visual));
     
     for (auto pin: launchers) {
         if (pin->get_pinned() && pin->info.x == -1) {
