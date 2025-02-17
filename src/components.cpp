@@ -72,7 +72,7 @@ void fine_scrollpane_scrolled(AppClient *client,
         container->scroll_v_real += scroll_y;
     }
 //#define SCALE 1.8
-#define SCALE 2.2
+#define SCALE 1.45
     
     if (container->type == newscroll && !came_from_touchpad) {
         auto *scroll = (ScrollContainer *) container;
@@ -130,7 +130,7 @@ void fine_scrollpane_scrolled(AppClient *client,
             }
             scalar = getEasingFunction(EaseOutCubic)(scalar);
         }
-        double anim_time = 50 - (14 * scalar);
+        double anim_time = 100 - (50 * scalar);
         if (!not_first) {
             ease = getEasingFunction(EaseInSine);
             anim_time = 140;

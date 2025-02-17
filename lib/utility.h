@@ -15,6 +15,26 @@
 #define MIDX(v) v->real_bounds.x + v->real_bounds.w / 2
 #define MIDY(v) v->real_bounds.y + v->real_bounds.h / 2
 
+#define execute_this_function_later(client, container, func_name) { \
+    static bool not_called_from_timeout = true; \
+    static bool not_created_timeout_yet = true; \
+    if (not_called_from_timeout) { \
+        if (not_created_timeout_yet) { \
+            not_created_timeout_yet = false; \
+            app_timeout_create(app, client, 1, [](App *, AppClient *client, Timeout *timeout, void *cont) { \
+                if (container_by_container((Container *) cont, client->root)) {  \
+                    not_called_from_timeout = false;  \
+                    func_name(client, client->cr, (Container *) cont);  \
+                    not_called_from_timeout = true; \  
+                    not_created_timeout_yet = true; \
+                }  \
+            }, container, "execute_later option_clicked");  \
+        } \
+        return; \
+    } \
+}
+
+
 static bool parse_hex(std::string hex, double *a, double *r, double *g, double *b) {
     while (hex[0] == '#') { // remove leading pound sign
         hex.erase(0, 1);

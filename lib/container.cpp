@@ -1373,43 +1373,31 @@ out vec4 FragColor;
 void main()
 {
     // Compute the fragment's coordinate in rectangle space.
-    // p will be in [0, rectSize].
     vec2 p = fragUV * rectSize;
-
-    // Compute the center of the rectangle.
     vec2 center = rectSize * 0.5;
-
-    // The half-size of the rectangle.
     vec2 halfSize = rectSize * 0.5;
-
-    // Compute the "corner" for the SDF:
-    // This is the amount by which the half-size is inset by the radius.
     vec2 inner = halfSize - vec2(radius);
 
     // Shift p so that the rectangle is centered at (0,0)
     vec2 pos = p - center;
 
-    // Compute the distance to the edge of the box with rounded corners.
-    // For a rounded rectangle SDF, we first take the absolute value.
+    // Compute the SDF for a rounded rectangle.
     vec2 d = abs(pos) - inner;
-    // d.x or d.y may be negative if inside the inner box.
     float outsideDistance = length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0) - radius;
-
-    // The signed distance from the fragment to the rounded rect boundary.
     float sd = outsideDistance;
 
-    // Anti-aliasing factor based on the derivative.
+    // Compute anti-aliasing factor.
     float aa = fwidth(sd);
 
     float alpha = 0.0;
     if(strokeWidth > 0.0)
     {
-        // Stroke mode: we want a band where sd is between -strokeWidth/2 and +strokeWidth/2.
-        float halfStroke = strokeWidth * 0.5;
-        // smoothstep creates an anti-aliased band at both inner and outer boundaries.
-        float innerEdge = smoothstep(-halfStroke - aa, -halfStroke, sd);
-        float outerEdge = smoothstep(halfStroke, halfStroke + aa, sd);
-        alpha = innerEdge - outerEdge;
+        // Improved stroke mode:
+        // Compute the distance from the stroke’s center (sd==0) and subtract half the stroke width.
+//        float halfStroke = strokeWidth * 0.7;
+  //      float d = abs(sd) - halfStroke;
+    //    alpha = 1.0 - smoothstep(-aa, aa, d);
+        alpha = 1.0 - smoothstep(0.0, aa, sd);
     }
     else
     {
@@ -1801,7 +1789,8 @@ FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
     
     // Force a UCS2 charmap (unchanged)
     force_ucs2_charmap(face);
-    FT_Set_Char_Size(face, 0, std::round((float) size * 64.0f * (100.0f / 76.0f)), 72, 72);
+//    FT_Set_Char_Size(face, 0, std::round((float) size * 64.0f * (100.0f / 76.0f)), 72, 72);
+    FT_Set_Char_Size(face, 0, std::round((float) size * 64.0f), 96, 96);
     
     FT_Library_SetLcdFilter(ft, FT_LCD_FILTER_DEFAULT);
     hb_buffer = hb_buffer_create();

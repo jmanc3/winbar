@@ -76,7 +76,7 @@ paint_option(AppClient *client, cairo_t *cr, Container *container) {
     
     ArgbColor subtitle_color = config->color_volume_text;
     subtitle_color.a = .6;
-    auto text = "Open";
+    std::string text = "Open";
     if (data->info.saved_network) {
         if (data->info.auth != AUTH_NONE_OPEN) {
             text = "Connected";
@@ -86,7 +86,8 @@ paint_option(AppClient *client, cairo_t *cr, Container *container) {
     } else if (data->info.auth != AUTH_NONE_OPEN) {
         text = "Secured";
     }
-    draw_text(client, 9 * config->dpi, config->font, EXPAND(subtitle_color), data->info.network_name, container->real_bounds, 5, 48 * config->dpi, 29 * config->dpi);
+    text += " (" + data->info.mac + ")";
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(subtitle_color), text, container->real_bounds, 5, 48 * config->dpi, 29 * config->dpi);
     
     // TODO: signal strength into account
     int strength = 0;
@@ -149,6 +150,8 @@ recheck_wifi_status(AppClient *client);
 
 static void
 clicked_forget(AppClient *client, cairo_t *cr, Container *container) {
+    execute_this_function_later(client, container, clicked_forget);
+    
     auto data = (WifiOptionData *) container->parent->parent->children[0]->user_data;
     wifi_forget_network(data->info);
     recheck_wifi_status(client);
@@ -306,7 +309,43 @@ std::string generate_psk(const std::string& ssid, const std::string& passphrase)
 }
 
 static void
+clicked_next(AppClient *client, cairo_t *, Container *container) {
+    execute_this_function_later(client, container, clicked_next);
+    
+    auto field_container = container->parent->parent->children[0]->children[0];
+    auto *field_data = (FieldData *) field_container->user_data;
+    auto first_child = container->parent->parent->parent->children[0];
+    auto *first_data = (WifiOptionData *) first_child->user_data;
+    if (!field_data->text.empty()) {
+        // actually do the next
+        if (script_exists("wpa_passphrase")) {
+            auto psk = generate_psk(first_data->info.network_name, field_data->text);
+            if (psk.empty()) {
+                wifi_connect_network(first_data->info, field_data->text);
+            } else {
+                wifi_connect_network(first_data->info, psk);
+            }
+        } else {
+            wifi_connect_network(first_data->info, field_data->text);
+        }
+        recheck_wifi_status(client);
+    }
+}
+
+static void
+clicked_cancel(AppClient *client, cairo_t *cr, Container *container) {
+    execute_this_function_later(client, container, clicked_cancel);
+
+    auto first_child = container->parent->parent->parent->children[0];
+    auto data = (WifiOptionData *) first_child->user_data;
+    data->clicked = false; // So that it's like a reset
+    option_clicked(client, cr, first_child);
+}
+
+static void
 clicked_connect(AppClient *client, cairo_t *cr, Container *container) {
+    execute_this_function_later(client, container, clicked_connect);
+    
     auto first_child = container->parent->parent->children[0];
     auto data = (WifiOptionData *) first_child->user_data;
     auto not_enc = data->info.auth == AUTH_NONE_OPEN || data->info.auth == AUTH_NONE_WEP;
@@ -341,6 +380,18 @@ clicked_connect(AppClient *client, cairo_t *cr, Container *container) {
             show = !show;
         }
     };
+    
+    textarea->when_key_event = [](AppClient *client, cairo_t *cr, Container *container, bool is_string, xkb_keysym_t keysym,
+                                  char *string, uint16_t mods, xkb_key_direction direction) {
+        if (direction == XKB_KEY_UP)
+            return;
+        if (keysym == XKB_KEY_Return) {
+            clicked_next(client, cr, container->parent->parent->children[2]->children[1]);
+            return;
+        }
+        key_event_textfield(client, cr, container, is_string, keysym, string, mods, direction);
+    };
+    
     set_active(client, textarea, true);
     // pad
     button_container->child(FILL_SPACE, FILL_SPACE);
@@ -367,36 +418,12 @@ clicked_connect(AppClient *client, cairo_t *cr, Container *container) {
             text_color.a = .7;
         draw_text(client, config->dpi * 10, config->font, EXPAND(text_color), "Next", container->real_bounds);
     };
-    next->when_clicked = [](AppClient *client, cairo_t *, Container *container) {
-        auto field_container = container->parent->parent->children[0]->children[0];
-        auto *field_data = (FieldData *) field_container->user_data;
-        auto first_child = container->parent->parent->parent->children[0];
-        auto *first_data = (WifiOptionData *) first_child->user_data;
-        if (!field_data->text.empty()) {
-            // actually do the next
-            if (script_exists("wpa_passphrase")) {
-                auto psk = generate_psk(first_data->info.network_name, field_data->text);
-                if (psk.empty()) {
-                    wifi_connect_network(first_data->info, field_data->text);
-                } else {
-                    wifi_connect_network(first_data->info, psk);
-                }
-            } else {
-                wifi_connect_network(first_data->info, field_data->text);
-            }
-            recheck_wifi_status(client);
-        }
-    };
+    next->when_clicked = clicked_next;
     auto cancel = hbox_cont->child(FILL_SPACE, FILL_SPACE);
     cancel->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
         paint_label(client, cr, container, "Cancel");
     };
-    cancel->when_clicked = [](AppClient *client, cairo_t *cr, Container *container) {
-        auto first_child = container->parent->parent->parent->children[0];
-        auto data = (WifiOptionData *) first_child->user_data;
-        data->clicked = false; // So that it's like a reset
-        option_clicked(client, cr, first_child);
-    };
+    cancel->when_clicked = clicked_cancel;
     
     // pad
     button_container->child(FILL_SPACE, FILL_SPACE);
@@ -433,6 +460,8 @@ paint_disconnect(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 option_clicked(AppClient *client, cairo_t *cr, Container *container) {
+    execute_this_function_later(client, container, option_clicked);
+ 
     show = false;
     if (auto content = container_by_name("content", client->root)) {
         for (auto c: content->children) {
