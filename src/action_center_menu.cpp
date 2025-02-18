@@ -6,6 +6,7 @@
 #include <pango/pango-layout.h>
 #include <icons.h>
 #include <dpi.h>
+#include <fstream>
 #include "action_center_menu.h"
 #include "application.h"
 #include "config.h"
@@ -115,7 +116,95 @@ static void paint_icon(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
-static bool is_blacklisted(std::string title, std::string body, std::string subtitle) {
+bool is_blacklisted(std::string title, std::string body, std::string subtitle) {
+    // Read notifications_blacklist.txt
+    std::string notification_blacklist_path(getenv("HOME"));
+    notification_blacklist_path += "/.config/winbar/notifications_blacklist.txt";
+    
+    std::ifstream file(notification_blacklist_path);
+    if (!file)
+        return false;
+    
+    enum PARSE_STATE {
+        NONE,
+        TITLE,
+        BODY,
+        SUBTITLE
+    };
+    
+    struct Match {
+        std::string text;
+        bool partial = false;
+    };
+    
+    std::string line;
+    int state = PARSE_STATE::NONE;
+    std::vector<Match> titles;
+    std::vector<Match> bodies;
+    std::vector<Match> subtitles;
+    bool partial = false;
+    std::string active_text;
+    while (std::getline(file, line)) { // Read file line by line
+        if (!line.empty()) {
+            if (line[0] == '#') // Skip comments
+                continue;
+            if (starts_with(line, ":version ")) // Skip version tag
+                continue;
+            if (starts_with(line, ":title_start")) {
+                active_text = "";
+                state = PARSE_STATE::TITLE;
+                continue;
+            }
+            if (starts_with(line, ":body_start")) {
+                active_text = "";
+                state = PARSE_STATE::BODY;
+                continue;
+            }
+            if (starts_with(line, ":subtitle_start")) {
+                active_text = "";
+                state = PARSE_STATE::SUBTITLE;
+                continue;
+            }
+            if (starts_with(line, ":partial")) {
+                partial = true;
+                continue;
+            }
+            if (starts_with(line, ":title_end") || starts_with(line, ":body_end") ||
+                starts_with(line, ":subtitle_end")) {
+                if (state == PARSE_STATE::TITLE) {
+                    titles.push_back({active_text, partial});
+                } else if (state == PARSE_STATE::BODY) {
+                    bodies.push_back({active_text, partial});
+                } else if (state == PARSE_STATE::SUBTITLE) {
+                    subtitles.push_back({active_text, partial});
+                }
+                partial = false;
+                state = PARSE_STATE::NONE;
+                continue;
+            }
+            
+            active_text += line;
+        }
+    }
+    file.close(); // Close the file
+
+#define is_inside(target, match) \
+    for (auto t: match) { \
+        if (t.partial) { \
+            if (target.find(t.text) != std::string::npos) { \
+                return true; \
+            } \
+        } else { \
+            if (target == t.text) { \
+                return true; \
+            } \
+        } \
+    }
+    
+    is_inside(title, titles);
+    is_inside(body, bodies);
+    is_inside(subtitle, subtitles);
+    
     return false;
 }
 

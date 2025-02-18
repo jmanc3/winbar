@@ -1494,6 +1494,8 @@ void client_close(App *app, AppClient *client) {
     client->animations.shrink_to_fit();
     
     xcb_unmap_window(app->connection, client->window);
+    glXDestroyWindow(app->display, client->gl_window);
+    glXDestroyContext(app->display, client->context);
     xcb_destroy_window(app->connection, client->window);
     xcb_flush(app->connection);
     

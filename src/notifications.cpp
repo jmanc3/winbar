@@ -10,6 +10,7 @@
 #include "icons.h"
 #include "simple_dbus.h"
 #include "main.h"
+#include "action_center_menu.h"
 
 #include <pango/pangocairo.h>
 
@@ -321,10 +322,6 @@ static bool root_pierced_handler(Container *container, int mouse_x, int mouse_y)
         }
     }
     return bounds_contains(container->real_bounds, mouse_x, mouse_y);
-}
-
-static bool is_blacklisted(std::string title, std::string body, std::string subtitle) {
-    return false;
 }
 
 Container *create_notification_container(App *app, NotificationInfo *notification_info, int width) {
