@@ -181,12 +181,13 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
     double openess = (container->real_bounds.w - (48 * config->dpi)) / (256 * config->dpi);
     
     auto color = correct_opaqueness(client, config->color_apps_background);
-    if (container->real_bounds.w != (48 * config->dpi)) {
+    // TODO: wrong color because this is not determinative of openes
+    if (bounds_contains(container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
         color = correct_opaqueness(client, config->color_apps_background);
         lighten(&color, 2 * openess);
+        draw_colored_rect(client, color, container->real_bounds);
     }
-    draw_colored_rect(client, color, container->real_bounds);
-    
+   
     draw_operator(client, CAIRO_OPERATOR_OVER);
     
     easingFunction ease = getEasingFunction(easing_functions::EaseInCubic);
@@ -202,7 +203,7 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
                                      (int) (container->real_bounds.y), 1, (int) (container->real_bounds.h)));
         }
     }
-    
+
     draw_clip_begin(client, container->real_bounds);
     for (auto c: container->children)
         if (c->when_paint)
@@ -821,17 +822,47 @@ possibly_resize_after_pin_unpin() {
 }
 
 static void
-projected_live_tile_position_based_on_drag(const int left_edge_x, const int top_edge_y,
+projected_live_tile_position_based_on_drag(int left_edge_x, int top_edge_y,
                                            const int w, const int h,
                                            int *result_x, int *result_y, Launcher *launcher, int scroll_v, bool pin = false) {
     auto client = (AppClient *) client_by_name(app, "app_menu");
     if (!client) return;
     auto live_scroll = container_by_name("live_scroll", client->root);
-    int x = live_scroll->real_bounds.x + (live_scroll->real_bounds.w - (100 * config->dpi) * 3) / 2;
+    
+    int extra_pages = winbar_settings->extra_live_tile_pages;
+    int pages = 1 + extra_pages;
+    int page_size = live_scroll->real_bounds.w / pages;
+    int pad_size = (page_size - (100 * config->dpi) * 3) / 2;
+    int x = live_scroll->real_bounds.x + pad_size;
+    if (left_edge_x < x)
+        left_edge_x = x;
+    
+    int page =
+            std::floor(((double) (left_edge_x + pad_size) / (double) live_scroll->real_bounds.w) * (double) pages) - 1;
+    int max_overlap = 0;
+    for (int i = 0; i < pages; i++) {
+        int page_start_x = live_scroll->real_bounds.x + i * page_size;
+        int page_end_x = page_start_x + page_size;
+        int tile_w = w * (50 * config->dpi);
+        int tile_x = left_edge_x;
+        int tile_end_x = tile_x + tile_w;
+        
+        int overlap = std::max(0, std::min(tile_end_x, page_end_x) - std::max(tile_x, page_start_x));
+        
+        if (overlap > max_overlap) {
+            max_overlap = overlap;
+            page = i;
+        }
+    }
+    
     float title_pad = 40 * config->dpi;
     float pad = 2 * config->dpi;
+    
     float start_x = x + pad;
     float start_y = live_scroll->real_bounds.y + pad + title_pad;
+    
+    if (page >= 1)
+        left_edge_x -= page * page_size;
     
     float offset_x = std::max(0.0f, left_edge_x - start_x);
     float offset_y = std::max(0.0f, top_edge_y - start_y);
@@ -843,6 +874,9 @@ projected_live_tile_position_based_on_drag(const int left_edge_x, const int top_
     if (bounds_contains(live_scroll->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
         launcher->info.x = tile_x;
         launcher->info.y = tile_y;
+        if (page >= pages)
+            page = pages - 1;
+        launcher->info.page = page;
         if (result_x != nullptr) {
             *result_x = tile_x;
             *result_y = tile_y;
@@ -1412,6 +1446,7 @@ next_pin_location(int w, int h, int *x, int *y) {
     }
 }
 
+// client_layout layout live tile
 void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
     auto v = container->scroll_v_visual;
     ::layout(client, cr, container, container->real_bounds);
@@ -1419,8 +1454,22 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
     auto s = (ScrollContainer *) container;
     
     std::string text("Pinned Apps");
-    int x = container->real_bounds.x + (container->real_bounds.w - 100 * config->dpi * 3) / 2;
-    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_apps_text), text, container->real_bounds, 5, x - container->real_bounds.x, (int) (12 * config->dpi + container->scroll_v_visual));
+    
+    int extra_pages = winbar_settings->extra_live_tile_pages;
+    int pages = 1 + extra_pages;
+    
+    // Assumes only one page exists
+    // int x = container->real_bounds.x + (container->real_bounds.w - 100 * config->dpi * 3) / 2;
+    int page_size = container->real_bounds.w / pages;
+    
+    int page = 0;
+    int x = container->real_bounds.x + ((page_size - 100 * config->dpi * 3) / 2) + page * page_size;
+    
+    draw_clip_begin(client, container->parent->real_bounds);
+    
+    draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_apps_text), text, container->real_bounds, 5,
+              x - container->real_bounds.x + container->scroll_h_visual,
+              (int) (12 * config->dpi + container->scroll_v_visual));
     
     for (auto pin: launchers) {
         if (pin->get_pinned() && pin->info.x == -1) {
@@ -1440,8 +1489,16 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
         if (info->type == 0 && item->when_paint) { // what is type specifiying here?
             auto live = (LiveTileData *) item->user_data;
             
+            page = live->launcher->info.page;
+            if (page >= pages) {
+                item->exists = false;
+            } else {
+                item->exists = true;
+            }
+            int x = container->real_bounds.x + ((page_size - 100 * config->dpi * 3) / 2) + page * page_size;
+            
             float pad = 2 * config->dpi;
-            float start_x = x + pad;
+            float start_x = x + pad + container->scroll_h_visual;
             float start_y = container->real_bounds.y + pad + title_pad + container->scroll_v_visual;
             item->real_bounds.x = start_x + live->launcher->info.x * (50 * config->dpi);
             item->real_bounds.y = start_y + live->launcher->info.y * (50 * config->dpi);
@@ -1451,6 +1508,7 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
             paint_live_tile(client, cr, item);
         }
     }
+    draw_clip_end(client);
 }
 
 void
@@ -1930,11 +1988,13 @@ fill_root(AppClient *client) {
     Container *stack = root_hbox->child(::stack, 320 * config->dpi, FILL_SPACE);
     
     // settings.w = 660 * config->dpi;
-    auto live_tile_width = (660 - 320) * config->dpi;
+    //auto live_tile_width = (660 - 320) * config->dpi;
+    auto live_tile_width = FILL_SPACE;
     Container *live_tile_root = root_hbox->child(::hbox, live_tile_width, FILL_SPACE);
     Container *resize_edge = root_hbox->child(::hbox, 2 * config->dpi, FILL_SPACE);
     
     ScrollPaneSettings tile_scroll(config->dpi);
+    tile_scroll.bottom_show_amount = ScrollShow::SNever;
     ScrollContainer *live_scroll = make_newscrollpane_as_child(live_tile_root, tile_scroll);
     live_scroll->content->should_layout_children = false;
     live_scroll->content->spacing = 4 * config->dpi;
@@ -2787,7 +2847,7 @@ void start_app_menu(bool autoclose) {
                                                 app_menu->mouse_current_x, app_menu->mouse_current_y);
                 auto data = (PaneDragData *) app_menu->root->children[0]->user_data;
                 
-                if (!in_taskbar && !in_start && !data->dragging) {
+                if (!in_taskbar && !in_start && !data->dragging && !client_by_name(app, "drag_window")) {
                     client_close_threaded(app, app_menu);
                     timeout->keep_running = false;
                     return;
