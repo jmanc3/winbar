@@ -2785,7 +2785,9 @@ void start_app_menu(bool autoclose) {
                                                   taskbar->mouse_current_x, taskbar->mouse_current_y);
                 bool in_start = bounds_contains(Bounds(0, 0, app_menu->bounds->w, app_menu->bounds->h),
                                                 app_menu->mouse_current_x, app_menu->mouse_current_y);
-                if (!in_taskbar && !in_start) {
+                auto data = (PaneDragData *) app_menu->root->children[0]->user_data;
+                
+                if (!in_taskbar && !in_start && !data->dragging) {
                     client_close_threaded(app, app_menu);
                     timeout->keep_running = false;
                     return;
