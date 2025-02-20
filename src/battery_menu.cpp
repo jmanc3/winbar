@@ -226,11 +226,19 @@ scroll(AppClient *client, cairo_t *cr, Container *container, int scroll_x, int s
         cached_current = new_brightness;
         cached_current = cached_current < 0 ? 0 : cached_current > 1 ? 1 : cached_current;
     } else {
-        if (scroll_y > 0) {
-            new_brightness += .05;
-        } else if (scroll_y < 0) {
-            new_brightness -= .05;
-        }
+        // When changing brightness with mouse, round to next, 0, 5, 3, or 7
+        int full = std::round(new_brightness * 100);
+        int last_digit;
+        do {
+            if (scroll_y > 0) {
+                full++;
+            } else if (scroll_y < 0) {
+                full--;
+            }
+            last_digit = full % 10;
+        } while (!(last_digit == 0 || last_digit == 3 || last_digit == 5 || last_digit == 7));
+        
+        new_brightness = ((double) full) / 100.0;
     }
     
     new_brightness = new_brightness < 0 ? 0 : new_brightness > 1 ? 1 : new_brightness;
