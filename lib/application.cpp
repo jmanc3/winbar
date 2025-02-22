@@ -410,6 +410,7 @@ static void deliver_fine_scroll_event(App *app, int horizontal, int vertical, bo
     
     if (!pointer_reply)
         return;
+    defer(free(pointer_reply));
     
     for (auto *client: app->clients) {
         if (client->root) {

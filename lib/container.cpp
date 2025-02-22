@@ -1044,6 +1044,8 @@ AppClient::~AppClient() {
     this->app->previously_closed_client = name;
     this->app->previously_closed_client_time = get_current_time_in_ms();
     delete ctx;
+    if (cursor != -1)
+        xcb_free_cursor(app->connection, cursor);
 }
 
 ScrollPaneSettings::ScrollPaneSettings(float scale) {

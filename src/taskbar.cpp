@@ -3841,7 +3841,7 @@ update_window_title_name(xcb_window_t window) {
                             uint8_t success = xcb_ewmh_get_wm_name_reply(&app->ewmh, propertyCookie, &data,
                                                                          nullptr);
                             if (success) {
-                                windows_data->title = strndup(data.strings, data.strings_len);
+                                windows_data->title = std::string(data.strings, data.strings_len);
                                 xcb_ewmh_get_utf8_strings_reply_wipe(&data);
                                 return;
                             }

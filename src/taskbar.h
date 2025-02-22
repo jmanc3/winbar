@@ -178,7 +178,7 @@ public:
     int animation_bounce_direction = 0; // 0 is down, 1 is up
     double animation_bounce_amount = 0;
     
-    unsigned long last_frame_window_count;
+    unsigned long last_frame_window_count = 0;
     double window_opened_scalar = 0;
     
     double window_opened_bloom_scalar = 0;

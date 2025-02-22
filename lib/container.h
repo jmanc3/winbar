@@ -753,7 +753,7 @@ struct AppClient {
     
     bool marked_to_close = false;
     
-    ClientKeyboard *keyboard;
+    ClientKeyboard *keyboard = nullptr;
     
     void (*when_closed)(AppClient *client) = nullptr;
     
