@@ -49,6 +49,10 @@
 
 #define scale_ratio (config->taskbar_height / (35.0 * config->dpi))
 
+struct TaskbarData : UserData {
+    bool spring_animating = false;
+};
+
 static Container *active_container = nullptr;
 static xcb_window_t active_window = 0;
 static xcb_window_t backup_active_window = 0;
@@ -1805,7 +1809,7 @@ position_icons(AppClient *client, cairo_t *cr, Container *icons) {
     }
     
     // Queue spring animations
-    static auto start_time = get_current_time_in_ms();
+    auto start_time = client->creation_time;
     for (auto c: icons->children) {
         if (c->state.mouse_dragging) continue;
         auto *data = (LaunchableButton *) c->user_data;
@@ -1839,7 +1843,7 @@ position_icons(AppClient *client, cairo_t *cr, Container *icons) {
     }
     
     // Start animating, if not already
-    static bool running = false;
+    bool running = ((TaskbarData *) client->user_data)->spring_animating;
     for (auto c: icons->children) {
         auto *data = (LaunchableButton *) c->user_data;
         if (data->animating && !running) {
@@ -4562,6 +4566,7 @@ create_taskbar(App *app) {
     // Create the window
     
     AppClient *taskbar = client_new(app, settings, "taskbar");
+    taskbar->user_data = new TaskbarData;
     
     taskbar->creation_time = get_current_time_in_ms();
     times_painted = 0;
