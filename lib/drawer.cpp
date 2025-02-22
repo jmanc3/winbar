@@ -210,14 +210,32 @@ void draw_operator(AppClient *client, int op) {
     } else {
         if (op == (int) CAIRO_OPERATOR_OVER) {
             // Restore default blending for `CAIRO_OPERATOR_OVER`
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            // This is just wrong
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         } else if (op == (int) CAIRO_OPERATOR_SOURCE) {
             glBlendFunc(GL_ONE, GL_ZERO); // Directly replace destination with source
         }
     }
 }
     
-    
+void draw_push_temp(AppClient *client) {
+    if (client->should_use_gl) {
+        bool resize = client->bounds->w != client->ctx->buffer->width || client->bounds->h != client->ctx->buffer->height;
+        if (resize)
+            client->ctx->buffer->resize(client->bounds->w, client->bounds->h);
+        
+        client->ctx->buffer->push();
+    }
+}
+
+void draw_pop_temp(AppClient *client) {
+    if (client->should_use_gl) {
+        client->ctx->buffer->pop();
+    }
+}
+
+
 
 
 

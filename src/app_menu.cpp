@@ -181,8 +181,7 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
     double openess = (container->real_bounds.w - (48 * config->dpi)) / (256 * config->dpi);
     
     auto color = correct_opaqueness(client, config->color_apps_background);
-    // TODO: wrong color because this is not determinative of openes
-    if (bounds_contains(container->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+    if (std::abs(container->real_bounds.w - (48 * config->dpi)) > 1) {
         color = correct_opaqueness(client, config->color_apps_background);
         lighten(&color, 2 * openess);
         draw_colored_rect(client, color, container->real_bounds);
@@ -191,7 +190,7 @@ paint_left(AppClient *client, cairo_t *cr, Container *container) {
     draw_operator(client, CAIRO_OPERATOR_OVER);
     
     easingFunction ease = getEasingFunction(easing_functions::EaseInCubic);
-    if (container->real_bounds.w != (48 * config->dpi)) {
+    if (std::abs(container->real_bounds.w - (48 * config->dpi)) > 1) {
         int steps = 14 * config->dpi;
         for (int i = 0; i < steps; i++) {
             double scalar = ((double) (i)) / steps;

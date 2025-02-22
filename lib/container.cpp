@@ -1155,7 +1155,8 @@ void AppClient::gl_clear() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 RoundedRect::RoundedRect() {
@@ -1222,7 +1223,8 @@ void main()
     float frame = fragColor.a * smoothedAlpha * inter;
     q.a = mix(whole, frame, 1-panel);
     
-    FragColor = q;
+    vec4 srcColor = q;
+    FragColor = vec4(srcColor.rgb * srcColor.a, srcColor.a);
 }
 
 )";
@@ -1397,10 +1399,10 @@ void main()
     {
         // Improved stroke mode:
         // Compute the distance from the stroke’s center (sd==0) and subtract half the stroke width.
-//        float halfStroke = strokeWidth * 0.7;
-  //      float d = abs(sd) - halfStroke;
-    //    alpha = 1.0 - smoothstep(-aa, aa, d);
-        alpha = 1.0 - smoothstep(0.0, aa, sd);
+        float halfStroke = strokeWidth * 0.5;
+        float d = abs(sd) - halfStroke;
+        alpha = 1.0 - smoothstep(-aa, aa, d);
+        //alpha = 1.0 - smoothstep(0.0, aa, sd);
     }
     else
     {
@@ -1409,7 +1411,9 @@ void main()
     }
 
     // Multiply the incoming color's alpha by the computed alpha.
-    FragColor = vec4(fragColor.rgb, fragColor.a * alpha);
+    vec4 srcColor = vec4(fragColor.rgb, fragColor.a * alpha);
+
+    FragColor = vec4(srcColor.rgb * srcColor.a, srcColor.a);
 }
     )";
     
@@ -1831,9 +1835,10 @@ FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
       //start = pow(start, vec4(1.0 / 1.45)); // gamma white
       start = pow(start, vec4(1.0 / 1.8)); // gamma black
       //start = pow(start, vec4(1.0 / 2.2)); // gamma black
-      gl_FragColor = vec4((start.r * color.r),
+      vec4 srcColor = vec4((start.r * color.r),
                           (start.g * color.g),
                           (start.b * color.b), start.a * color.a);
+      gl_FragColor = vec4(srcColor.rgb * srcColor.a, srcColor.a);
     }
 )";
     // Compile shaders
@@ -2525,7 +2530,8 @@ void OffscreenFrameBuffer::push() {
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f); // Set clear color to transparent black (or any color you need)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear color and depth buffers (if depth is used)
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 void OffscreenFrameBuffer::pop(bool blur) {

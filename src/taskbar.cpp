@@ -518,16 +518,16 @@ static int get_label_width(AppClient *client, Container *container) {
         auto pad = 8.0f * config->dpi;
         auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, 0, 0, 0, 1, title, false);
         
-        auto label_width = w / PANGO_SCALE;
+        auto label_width = w;
         if (label_width > client->bounds->w / 12)
             label_width = client->bounds->w / 12;
         if (winbar_settings->label_uniform_size)
             label_width = client->bounds->w / 12;
-        return client->bounds->h + 4 * config->dpi + pad * 2 + label_width;
+        return client->bounds->h + 8 * config->dpi + pad * 2 + label_width;
     } else if (winbar_settings->pinned_icon_style == "win7" || winbar_settings->pinned_icon_style == "win7flat") {
         return 60 * config->dpi;
     } else {
-        return client->bounds->h + 4 * config->dpi;
+        return client->bounds->h + 8 * config->dpi;
     }
 }
 
@@ -1522,7 +1522,8 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
     ArgbColor color_foreground_pane_pressed_middle = darken(color_foreground_pane_pressed_left, 7);
     ArgbColor color_foreground_pane_pressed_right = darken(color_foreground_pane_pressed_left, 2);
     
-    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    draw_operator(client, CAIRO_OPERATOR_SOURCE);
+    //cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     
     { // Background pane
         if (windows_count > 1) {
@@ -1636,7 +1637,8 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
             }
         }
     }
-    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+    //cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+    draw_operator(client, CAIRO_OPERATOR_OVER);
     
     config->color_taskbar_application_icons_background = original_color_taskbar_application_icons_background;
 }
@@ -2920,7 +2922,7 @@ add_item_clicked(AppClient *popup, cairo_t *, Container *) {
     auto *taskbar = client_by_name(app, "taskbar");
     auto *icons = container_by_name("icons", taskbar->root);
     
-    Container *a = new Container(taskbar->bounds->h + 4 * config->dpi, FILL_SPACE);
+    Container *a = new Container(taskbar->bounds->h + 8 * config->dpi, FILL_SPACE);
     a->parent = icons;
     if (icons->alignment == container_alignment::ALIGN_RIGHT) {
         icons->children.erase(icons->children.begin() + (icons->children.size() - 1));
@@ -4849,7 +4851,7 @@ void add_window(App *app, xcb_window_t window) {
         }
     }
     
-    Container *a = icons->child(client->bounds->h + 4 * config->dpi, FILL_SPACE);
+    Container *a = icons->child(client->bounds->h + 8 * config->dpi, FILL_SPACE);
     if (icons->alignment == container_alignment::ALIGN_RIGHT) {
         icons->children.erase(icons->children.begin() + (icons->children.size() - 1));
         icons->children.insert(icons->children.begin(), a);
@@ -5408,7 +5410,7 @@ load_pinned_icons() {
         auto *child = new Container();
         child->parent = icons;
         child->wanted_bounds.h = FILL_SPACE;
-        child->wanted_bounds.w = client_entity->bounds->h + 4 * config->dpi;
+        child->wanted_bounds.w = client_entity->bounds->h + 8 * config->dpi;
         
         child->when_drag_end_is_click = false;
         child->minimum_x_distance_to_move_before_drag_begins = 15;

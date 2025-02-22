@@ -37,4 +37,9 @@ void draw_clip_end(AppClient *client);
 
 void draw_operator(AppClient *client, int op);
 
+void draw_push_temp(AppClient *client);
+
+void draw_pop_temp(AppClient *client);
+
+
 #endif //WINBAR_DRAWER_H

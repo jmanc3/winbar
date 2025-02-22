@@ -536,7 +536,8 @@ private:
         uniform sampler2D screenTexture;
 
         void main() {
-            FragColor = texture(screenTexture, TexCoords);
+            vec4 srcColor = texture(screenTexture, TexCoords);
+            FragColor = vec4(srcColor.rgb * srcColor.a, srcColor.a);
         }
     )glsl";
     
@@ -571,7 +572,8 @@ private:
             vec3 color = tex(st + noise + tex_offset);
             
             vec3 srgb = pow(color, vec3(1. / 2.2));
-            FragColor = mix(vec4(srgb, 1.0), texture(screenTexture, uv), 0.87);
+            vec4 srcColor = mix(vec4(srgb, 1.0), texture(screenTexture, uv), 0.87);
+            FragColor = vec4(srcColor.rgb * srcColor.a, srcColor.a);
         }
     )glsl";
 //
@@ -656,7 +658,7 @@ struct DrawContext {
     
     FontManager *font_manager = new FontManager();
     
-    OffscreenFrameBuffer *buffer;
+    OffscreenFrameBuffer *buffer = nullptr;
     
     RoundedRect round;
     
