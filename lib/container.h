@@ -638,6 +638,11 @@ struct FontReference {
     void draw_text_end(int x, int y, int param = 5);
     void end();
     Sizes sizes();
+    
+    ~FontReference() {
+        if (font)
+            delete font;
+    }
 };
 
 struct FontManager {

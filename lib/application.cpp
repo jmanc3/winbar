@@ -2782,7 +2782,7 @@ void app_clean(App *app) {
         cairo_device_destroy(app->device);
     }
     
-    xcb_disconnect(app->connection);
+    XCloseDisplay(app->display);
 }
 
 void

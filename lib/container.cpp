@@ -1043,6 +1043,7 @@ AppClient::command(const std::string &command, int timeout_in_ms, void (*functio
 AppClient::~AppClient() {
     this->app->previously_closed_client = name;
     this->app->previously_closed_client_time = get_current_time_in_ms();
+    delete ctx;
 }
 
 ScrollPaneSettings::ScrollPaneSettings(float scale) {
