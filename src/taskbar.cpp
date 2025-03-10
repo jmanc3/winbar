@@ -555,12 +555,12 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
             pad = container->real_bounds.h - w;
         }
         
-        Bounds b = Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w - 4 * config->dpi,
+        Bounds b = Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w - 11 * config->dpi,
                           container->real_bounds.h);
         draw_clip_begin(client, b);
         
         auto f = draw_get_font(client, 9 * config->dpi, config->font);
-        auto s = f->wrapped_text(data->windows_data_list[0]->title, container->real_bounds.w - (14 * config->dpi + w));
+        auto s = f->wrapped_text(data->windows_data_list[0]->title, container->real_bounds.w - (30 * config->dpi + w));
         
         std::istringstream stream(s);
         std::string line1, line2;

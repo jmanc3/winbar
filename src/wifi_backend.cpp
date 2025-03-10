@@ -12,6 +12,12 @@
 #include <sys/wait.h>
 #include <filesystem>
 
+#ifdef TRACY_ENABLE
+
+#include <tracy/Tracy.hpp>
+
+#endif
+
 WifiData *wifi_data = new WifiData;
 
 std::string_view trim(std::string_view s) {
@@ -49,6 +55,9 @@ void wifi_wpa_has_message(App *app, int fd, void *data) {
 }
 
 bool wifi_wpa_start(App *app, const std::string &interface) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
     // TODO: use the interfaces in the preferred_interfaces list, also each interface needs it's own message sender receiver
     //  so we need a new data structure
     for (auto item: wifi_data->links)

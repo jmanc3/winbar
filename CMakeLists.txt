@@ -95,8 +95,10 @@ set(
         xrender
         gl
         glew
-        glm
 )
+
+find_package(glm REQUIRED)
+target_link_libraries(${project_name} PUBLIC glm::glm)
 
 foreach (LIB IN LISTS LIBS)
     pkg_check_modules(D_${LIB} ${LIB})
