@@ -53,6 +53,7 @@ public:
     int day;
     int year;
     int month;
+    bool show_every_year = false;
 };
 
 static std::vector<UniqueTextState *> unique_day_text_state;
@@ -227,6 +228,9 @@ paint_weekday_title(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+clicked_date(AppClient *client, cairo_t *cr, Container *container);
+
+static void
 paint_events(AppClient *client, cairo_t *cr, Container *container) {
     if (!agenda_showing || !container->exists) {
         return;
@@ -238,7 +242,76 @@ paint_events(AppClient *client, cairo_t *cr, Container *container) {
     int day_index = 0;
     day_index = day(agenda_day, agenda_month + 1, agenda_year);
     std::string text = std::string(date_names[day_index]) + " " + std::to_string(agenda_day);
-    draw_text(client, 13 * config->dpi, config->font, EXPAND(config->color_date_weekday_monthday), text, container->real_bounds, 5, 24 * config->dpi, 21 * config->dpi);
+    
+    auto [f, w, h] = draw_text_begin(client, 13 * config->dpi, config->font, EXPAND(config->color_date_weekday_monthday), text);
+    f->draw_text_end(container->real_bounds.x + 24 * config->dpi, 
+                     container->real_bounds.y + 21 * config->dpi);
+    
+        
+    std::string shown_amount_str = "Shown every year";
+    bool found = false;
+    for (auto ud: unique_day_text_state) {
+        bool year_okay = (ud->year == agenda_year) || ud->show_every_year;
+        if (ud->day == agenda_day && ud->month == agenda_month && year_okay) { // active ud
+            found = true;
+            if (!ud->show_every_year) {
+                shown_amount_str = "Only for specific day";
+            }
+            if (ud->state->text.empty()) {
+                return; // early return
+            }
+        }
+    }
+    if (!found) {
+        return; // early return;
+    }
+        
+    auto color = config->color_date_text_default_button;
+    auto [ff, ww, hh] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(color), shown_amount_str);
+    auto text_bounds = Bounds(container->real_bounds.x + 24 * config->dpi + w + 8 * config->dpi, 
+                              container->real_bounds.y + 21 * config->dpi, ww, h);
+    bool hovering = bounds_contains(text_bounds, client->mouse_current_x, client->mouse_current_y);
+    static int previous_state_static = 0;
+    int previous_state = previous_state_static;
+    if (hovering || (hovering && container->state.mouse_pressing)) {
+        if (container->state.mouse_pressing) {
+            color = config->color_date_text_pressed_button;
+            previous_state_static = 2;
+        } else {
+            color = config->color_date_text_hovered_button;
+            previous_state_static = 1;
+        }
+    }
+    // Bug where if you show every year, but then go to a different year and you un-show every year, that one gets bugged the next time you show every year
+    if (previous_state == 2 && previous_state_static == 1) { // clicked toggle
+        request_refresh(app, client);
+        // also remove agenda if not ud is active
+        for (auto ud: unique_day_text_state) {
+            bool year_okay = (ud->year == agenda_year) || ud->show_every_year;
+            if (ud->day == agenda_day && ud->month == agenda_month && year_okay) { // active ud
+                ud->show_every_year = !ud->show_every_year;
+            }
+        }
+        
+        // click on date container so that agenda box is 'fixed'
+        if (auto dates = container_by_name("dates_container", client->root)) {
+            for (int y = 0; y < 6; y++) {
+                auto row = dates->children[y];
+                for (int x = 0; x < 7; x++) {
+                    auto date = row->children[x];
+                    auto *data = (date_title *) date->user_data;
+                    
+                    if (agenda_day == data->day && agenda_month == data->month && agenda_year == data->year) { 
+                        clicked_date(client, client->cr, date);
+                    }
+                }
+            }
+        }
+    }
+    
+    ff->set_color(EXPAND(color));
+   
+    ff->draw_text_end(container->real_bounds.x + 24 * config->dpi + w + 8 * config->dpi, container->real_bounds.y + 21 * config->dpi + (h - hh) / 2);
 }
 
 static void
@@ -313,13 +386,12 @@ paint_date_title(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (date_title *) container->user_data;
     
     for (auto *ud: unique_day_text_state) {
-        if (ud->day == data->day && ud->month == data->month && ud->year == data->year &&
-            !ud->state->text.empty()) {
+        bool year_okay = (ud->year == data->year) || ud->show_every_year;
+        if (ud->day == data->day && ud->month == data->month && year_okay && !ud->state->text.empty()) { 
             draw_margins_rect(client, config->color_date_cal_border, container->real_bounds, 1, -1);
         }
     }
     
-    set_argb(cr, config->color_date_cal_foreground); // TODO: is this needed?
     bool is_today =
             data->month == current_month && data->year == current_year && data->day == current_day;
     bool is_day_chosen =
@@ -400,11 +472,23 @@ clicked_date(AppClient *client, cairo_t *cr, Container *container) {
     agenda_day = data->day;
     
     UniqueTextState *unique_day = nullptr;
+    // TODO: let's prefer show every year vs unique for now but in the future we have to combine.
+    // because otherwise, when the date is clicked, it'll be empty, because it'll have created a ud that is going to be seen and shown before,
+    // the every year text as it's more specific
+
     for (auto *ud: unique_day_text_state) {
-        if (ud->day == agenda_day && ud->year == agenda_year && ud->month == agenda_month) {
+        bool year_okay = ud->show_every_year;
+        if (ud->day == agenda_day && year_okay && ud->month == agenda_month)
             unique_day = ud;
+    }
+    if (!unique_day) {
+        for (auto *ud: unique_day_text_state) {
+            bool year_okay = ud->year == data->year;
+            if (ud->day == agenda_day && year_okay && ud->month == agenda_month)
+                unique_day = ud;
         }
     }
+
     if (unique_day == nullptr) {
         unique_day = new UniqueTextState;
         unique_day->day = agenda_day;
@@ -607,6 +691,17 @@ fill_root(AppClient *client) {
             Container *date = temp_hbox->child(FILL_SPACE, FILL_SPACE);
             date->when_paint = paint_date_title;
             date->when_clicked = clicked_date;
+            date->when_fine_scrolled = [](AppClient *client,
+                          cairo_t *cr,
+                          Container *container,
+                          int scroll_x,
+                          int scroll_y, bool came_from_touchpad) {
+                if (scroll_y > 0) {
+                    clicked_up_arrow(client, cr, container);
+                } else if (scroll_y < 0) {
+                    clicked_down_arrow(client, cr, container);
+                }
+            };
             auto *data = new date_title;
             data->text = std::to_string(x);
             date->user_data = data;
@@ -712,6 +807,9 @@ write_agenda_to_disk(AppClient *client) {
             myfile.open(calendarPath +
                         std::string(std::to_string(ds->day) + "_" + std::to_string(ds->month) +
                                     "_" + std::to_string(ds->year) + ".txt"));
+            if (ds->show_every_year) {
+                myfile << ":show_every_year\n";
+            }
             myfile << ds->state->text;
             myfile.close();
         }
@@ -814,8 +912,14 @@ read_agenda_from_disk(AppClient *client) {
                         ds->day = day;
                         ds->month = month;
                         ds->year = year;
-                        
-                        ds->state->text = strStream.str(); // str holds the content of the file
+                        std::string file_content = strStream.str();
+                        std::string target_phrase = ":show_every_year\n";
+                        auto position = file_content.find(target_phrase);
+                        if (position != std::string::npos) {
+                            ds->show_every_year = true;
+                            file_content.erase(position, position + target_phrase.size());
+                        }
+                        ds->state->text = file_content; // str holds the content of the file
                         unique_day_text_state.push_back(ds);
                     }
                 }
