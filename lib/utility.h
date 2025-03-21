@@ -25,7 +25,7 @@
                 if (container_by_container((Container *) cont, client->root)) {  \
                     not_called_from_timeout = false;  \
                     func_name(client, client->cr, (Container *) cont);  \
-                    not_called_from_timeout = true; \  
+                    not_called_from_timeout = true; \
                     not_created_timeout_yet = true; \
                 }  \
             }, container, "execute_later option_clicked");  \

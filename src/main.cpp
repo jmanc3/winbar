@@ -80,11 +80,14 @@ int main(int argc, char* argv[]) {
     }
     out:
     
+    read_settings_file();
+    if (!winbar_settings->auto_dpi) {
+        config->dpi = winbar_settings->scale_factor;
+    }
+ 
     config->taskbar_height = config->taskbar_height * config->dpi;
     
     check_config_version();
-    
-    read_settings_file();
     
     load_in_fonts();
     

@@ -50,6 +50,8 @@ struct WinbarSettings {
     bool label_uniform_size = false;
     bool use_opengl = false;
     bool minimize_maximize_animation = true;
+    bool auto_dpi = true;
+    float scale_factor = 1.0;
     std::string shutdown_command;
     std::string restart_command;
     std::string pinned_icon_style = "win10";

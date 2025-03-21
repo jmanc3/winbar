@@ -696,10 +696,27 @@ fill_root(AppClient *client) {
                           Container *container,
                           int scroll_x,
                           int scroll_y, bool came_from_touchpad) {
-                if (scroll_y > 0) {
-                    clicked_up_arrow(client, cr, container);
-                } else if (scroll_y < 0) {
-                    clicked_down_arrow(client, cr, container);
+                bool allowed = true;
+                if (came_from_touchpad) {
+                    allowed = false;
+                    static float threshold = 0;
+                    threshold += scroll_y;
+                    // reset threshold if direction changed
+                    if (threshold > 0 && scroll_y < 0)
+                        threshold = 0;
+                    if (threshold < 0 && scroll_y > 0)
+                        threshold = 0;
+                    if (std::abs(threshold) > 120) {
+                        threshold = 0;
+                        allowed = true;
+                    }
+                }
+                if (allowed) {
+                    if (scroll_y > 0) {
+                        clicked_up_arrow(client, cr, container);
+                    } else if (scroll_y < 0) {
+                        clicked_down_arrow(client, cr, container);
+                    }
                 }
             };
             auto *data = new date_title;

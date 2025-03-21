@@ -16,6 +16,7 @@
 #include "simple_dbus.h"
 #include "search_menu.h"
 #include "drawer.h"
+#include "dpi.h"
 
 #ifdef TRACY_ENABLE
 
@@ -764,11 +765,12 @@ void title(std::string text, Container *container) {
 
 struct OriginalBool : public UserData {
     bool *boolean = nullptr;
+    void (*on_clicked)() = nullptr;
     
     explicit OriginalBool(bool *boolean) : boolean(boolean) {}
 };
 
-void bool_checkbox_indent(const std::string &text, int indent, bool *boolean, Container *container, AppClient *client) {
+void bool_checkbox_indent(const std::string &text, int indent, bool *boolean, Container *container, AppClient *client, void (*on_clicked)() = nullptr) {
     float font_size = std::round(10);
     float pad = std::round(12 * config->dpi);
     PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size * config->dpi, PANGO_WEIGHT_NORMAL);
@@ -783,7 +785,9 @@ void bool_checkbox_indent(const std::string &text, int indent, bool *boolean, Co
     full_label_container->alignment = ALIGN_CENTER;
     full_label_container->wanted_pad.x = indent;
     full_label_container->spacing = pad;
-    full_label_container->user_data = new OriginalBool(boolean);
+    auto orig_bool = new OriginalBool(boolean);
+    full_label_container->user_data = orig_bool;
+    orig_bool->on_clicked = on_clicked;
     
     auto check = full_label_container->child(size, size);
     auto data = new Checkbox;
@@ -813,12 +817,182 @@ void bool_checkbox_indent(const std::string &text, int indent, bool *boolean, Co
             label_change(client_by_name(app, "taskbar"));
         }
         save_settings_file();
+        if (ours->on_clicked)
+            ours->on_clicked();
     };
     full_label_container->receive_events_even_if_obstructed_by_one = true;
 }
 
 void bool_checkbox(const std::string &text, bool *boolean, Container *container, AppClient *client) {
     bool_checkbox_indent(text, 0, boolean, container, client);
+}
+
+struct SliderInfo : UserData {
+    float value = 0;
+    float *target = nullptr;
+};
+
+void slider(const std::string &text, int indent, float *target, Container *container, AppClient *client) {
+    float font_size = std::round(10);
+    float pad = std::round(12 * config->dpi);
+    PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size * config->dpi, PANGO_WEIGHT_NORMAL);
+    int width;
+    int height;
+    pango_layout_set_text(layout, text.c_str(), text.length());
+    pango_layout_get_pixel_size_safe(layout, &width, &height);
+        
+    float slider_width = 200 * config->dpi;
+    float size = 14 * config->dpi; // of checkbox that is
+    auto full_label_container = container->child(layout_type::hbox, FILL_SPACE, 32 * config->dpi);
+    //full_label_container->alignment = ALIGN_CENTER;
+    full_label_container->wanted_pad.x = indent;
+    full_label_container->spacing = pad;
+
+    auto label = full_label_container->child(width, FILL_SPACE);
+    auto label_data = new Label(text);
+    label_data->size = font_size;
+    label->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
+        auto *data = (Label *) container->user_data;
+        ArgbColor text_color = config->color_pinned_icon_editor_field_default_text;
+        if (winbar_settings->auto_dpi) {
+            text_color.a = .4f;
+        }
+        data->color = text_color;
+        paint_label(client, cr, container);
+    };
+
+    label->user_data = label_data;
+     
+    auto slider_container = full_label_container->child(slider_width, FILL_SPACE);
+    auto slider_info = new SliderInfo;
+    slider_container->user_data = slider_info;
+    slider_info->target = target;
+    // TODO: the value is being set wrong here
+    slider_info->value = (*target) - 1.0f;
+    
+    slider_container->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
+        auto slider_info = (SliderInfo *) container->user_data;
+        //draw_colored_rect(client, ArgbColor(.4, .4, .4, .8), container->real_bounds);
+        //draw_round_rect(client, color, Bounds(x, y, width, height), corner_radius, stroke_w);
+        auto foreground = config->color_volume_slider_foreground;
+        if (winbar_settings->auto_dpi) {
+            foreground = config->color_volume_slider_background;
+        }
+        
+        // draw slider background line
+        double line_height = 2 * config->dpi;
+        draw_colored_rect(client, config->color_volume_slider_background, Bounds(container->real_bounds.x,
+                container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
+                container->real_bounds.w, line_height));
+        // value can be between .5 to 3
+        float marker_position = slider_info->value * container->real_bounds.w;
+        draw_colored_rect(client, foreground, Bounds(container->real_bounds.x,
+                container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
+                marker_position, line_height));
+        
+        double marker_height = 24 * config->dpi;
+        double marker_width = 8 * config->dpi;
+        ArgbColor color = foreground;
+        rounded_rect(client,
+             4 * config->dpi,
+             container->real_bounds.x + marker_position - marker_width / 2,
+             container->real_bounds.y + container->real_bounds.h / 2 - marker_height / 2,
+             marker_width,
+             marker_height, color);
+    };
+    slider_container->when_drag = [](AppClient *client, cairo_t *cr, Container *container) {
+        if (winbar_settings->auto_dpi)
+            return; // early out
+ 
+        // TODO: check mouse position in reference to container real_bounds.x and real_bounds.w and then store that in the label, which can then be applied later
+        auto slider_info = (SliderInfo *) container->user_data;
+        
+        int x_offset_within_slider = client->mouse_current_x;
+        if (x_offset_within_slider < container->real_bounds.x) {
+            x_offset_within_slider = container->real_bounds.x;
+        } else if (x_offset_within_slider > container->real_bounds.x + container->real_bounds.w) {
+            x_offset_within_slider = container->real_bounds.x + container->real_bounds.w;
+        }
+        x_offset_within_slider -= container->real_bounds.x; // because we're trying to extract the scalar, we need to remove the left indent offset
+        slider_info->value = x_offset_within_slider / container->real_bounds.w;
+        if (slider_info->value < 0) {
+            slider_info->value = 0;
+        } else if (slider_info->value > 1) {
+            slider_info->value = 1;
+        }
+        float notch_count = 10.0f;
+        float notch = std::round(slider_info->value * notch_count);
+        slider_info->value = notch / notch_count;
+        
+        bool found_me = false;
+        for (auto c: container->parent->children) {
+            if (found_me) {
+                auto data = (Label *) c->user_data;
+                data->text = std::to_string((int) std::round(slider_info->value *  100) + 100) + "%";
+                break;
+            }
+            if (c == container) {
+                found_me = true;
+            }
+        }
+    };
+    
+    int perc_width;
+    int perc_height;
+    pango_layout_set_text(layout, "100%", -1);
+    pango_layout_get_pixel_size_safe(layout, &perc_width, &perc_height);
+    
+    auto scale_label = full_label_container->child(perc_width, FILL_SPACE);
+    auto scale_data = new Label(std::to_string((int) std::round(slider_info->value * 100) + 100) + "%");
+    scale_data->size = font_size;
+    scale_label->when_paint = label->when_paint;
+    scale_label->user_data = scale_data;
+    
+    int apply_width;
+    int apply_height;
+    pango_layout_set_text(layout, "Apply", 5);
+    pango_layout_get_pixel_size_safe(layout, &apply_width, &apply_height);
+
+    auto apply_label = full_label_container->child(apply_width * 1.8f, FILL_SPACE);
+    auto apply_data = new Label("Apply");
+    apply_data->size = font_size;
+    apply_label->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
+        auto label = (Label *) container->user_data;
+        int size = label->size;
+        ArgbColor color = config->color_pinned_icon_editor_field_default_text;
+        if (winbar_settings->auto_dpi) {
+            color.a = .4f;
+        }
+
+        draw_text(client, size * config->dpi, config->font, EXPAND(color), label->text, container->real_bounds, 5);
+        
+        if (winbar_settings->auto_dpi)
+            return; // early out
+            
+        if (container->state.mouse_hovering || container->state.mouse_pressing) {
+            color = ArgbColor(.4, .4, .4, .5);
+            if (container->state.mouse_pressing) {
+                color = config->color_volume_slider_foreground;
+            }
+            float pad = 3 * config->dpi;
+            Bounds smaller = Bounds(container->real_bounds.x + pad, container->real_bounds.y + pad,
+                                    container->real_bounds.w - pad * 2, container->real_bounds.h - pad * 2);
+            draw_round_rect(client, color, smaller, 4 * config->dpi, 1.25 * config->dpi);
+        }
+    };
+    apply_label->when_clicked = [](AppClient *client, cairo_t *cr, Container *container) {
+        if (winbar_settings->auto_dpi)
+            return; // early out
+        auto c = container->parent->children[1];
+        auto slider_info = (SliderInfo *) c->user_data;
+        // .2 == 1.0;
+        auto scalar = slider_info->value + 1.0f;
+        winbar_settings->scale_factor = scalar;
+        save_settings_file();
+        client->app->running = false;
+        restart = true;
+    };
+    apply_label->user_data = apply_data;
 }
 
 static void paint_textarea_border(AppClient *client, cairo_t *cr, Container *container) {
@@ -949,6 +1123,26 @@ fill_root(AppClient *client, Container *root) {
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     other_root->exists = false;
     title("Other", other_root);
+    bool_checkbox_indent("Use automatic scale", 0, &winbar_settings->auto_dpi, other_root, client, []() {
+        if (winbar_settings->auto_dpi) {
+            // Calculate what the automatic scale factor will be when we do the restart and save that
+            for (auto &i: screens) {
+                auto *screen = (ScreenInformation *) i;
+                if (screen->is_primary) {
+                    winbar_settings->scale_factor = screen->height_in_pixels / 1080.0;
+                    winbar_settings->scale_factor = std::round(winbar_settings->scale_factor * 2) / 2;
+                    if (winbar_settings->scale_factor < 1)
+                        winbar_settings->scale_factor = 1;
+                    break;
+                }
+            }
+            
+            save_settings_file();
+            app->running = false;
+            restart = true;
+        }
+    });
+    slider("Global scale:", 16 * config->dpi, &winbar_settings->scale_factor, other_root, client);
     
     for (int i = 0; i < 3; ++i) {
         auto tab = tabs->child(FILL_SPACE, 36 * config->dpi);
@@ -1227,6 +1421,12 @@ void save_settings_file() {
     out_file << "minimize_maximize_animation=" << (winbar_settings->minimize_maximize_animation ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "auto_dpi=" << (winbar_settings->auto_dpi ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
+    out_file << "scale_factor=\"" << std::to_string(winbar_settings->scale_factor) << "\"";
+    out_file << std::endl << std::endl;
+      
     out_file << "use_opengl=" << (winbar_settings->use_opengl ? "true" : "false");
     out_file << std::endl << std::endl;
     
@@ -1436,6 +1636,20 @@ void read_settings_file() {
                         }
                     }
                 }
+            } else if (key == "scale_factor") {
+                parser.until(LineParser::Token::IDENT);
+                if (parser.current_token == LineParser::Token::IDENT) {
+                    std::string text = parser.until(LineParser::Token::END_OF_LINE);
+                    trim(text);
+                    if (!text.empty()) {
+                        try {
+                            float scale_factor = std::atof(text.c_str());
+                            winbar_settings->scale_factor = scale_factor;
+                        } catch (...) {
+                        
+                        }
+                    }
+                }
             } else if (key == "extra_live_tile_pages") {
                 parser.until(LineParser::Token::IDENT);
                 if (parser.current_token == LineParser::Token::IDENT) {
@@ -1475,6 +1689,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "labels", &winbar_settings->labels);
                 parse_bool(&parser, key, "label_uniform_size", &winbar_settings->label_uniform_size);
                 parse_bool(&parser, key, "minimize_maximize_animation", &winbar_settings->minimize_maximize_animation);
+                parse_bool(&parser, key, "auto_dpi", &winbar_settings->auto_dpi);
                 parse_bool(&parser, key, "use_opengl", &winbar_settings->use_opengl);
                 parse_string(&parser, key, "custom_desktops_directory", &winbar_settings->custom_desktops_directory);
                 parse_string(&parser, key, "shutdown_command", &winbar_settings->shutdown_command);

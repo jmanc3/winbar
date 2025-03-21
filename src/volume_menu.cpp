@@ -280,12 +280,12 @@ static void
 drag(AppClient *client_entity, cairo_t *cr, Container *container, bool force) {
     auto data = static_cast<option_data *>(container->parent->parent->user_data);
     if (!force) {
-        long delta = get_current_time_in_ms() - data->last_update;
+        long delta = client_entity->app->current - data->last_update;
         if (delta < 10) {
             return;
         }
     }
-    data->last_update = get_current_time_in_ms();
+    data->last_update = client_entity->app->current;
     audio([&data, &client_entity, &container]() {
         AudioClient *client = nullptr;
         for (auto c: audio_clients) {
