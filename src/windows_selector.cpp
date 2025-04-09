@@ -299,14 +299,14 @@ clicked_sleep(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     auto frozen = new SleptWindows;
     frozen->pid = pid;
-    frozen->window_str = std::to_string((int) window);
+    frozen->window_id = (int) window;
     slept.push_back(frozen);
     
-    std::string s = "xdo hide ";
-    s += std::to_string((int) window);
-    system(s.c_str());
+    xcb_unmap_window(app->connection, frozen->window_id);
     
     send_signal(pid, SIGSTOP);
+    
+    merge_order_with_taskbar();
 }
 
 static void paint_option_hovered_or_pressed(Container *container, bool &hovered, bool &pressed) {

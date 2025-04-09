@@ -12,6 +12,7 @@
 #include "main.h"
 #include "config.h"
 #include "components.h"
+#include "windows_selector.h"
 #include "utility.h"
 #include "simple_dbus.h"
 #include "search_menu.h"
@@ -698,6 +699,7 @@ void merge_order_with_taskbar() {
         if (already->name == "systray") {
             for (auto c: taskbar->root->children) {
                 if (c->name.find("frozen") != std::string::npos) {
+                    c->exists = !slept.empty();
                     containers.insert(containers.begin() + i, c);
                     goto out;
                 }

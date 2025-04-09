@@ -2951,13 +2951,12 @@ static void send_signal(pid_t pid, int signal) {
 static void
 clicked_frozen_restore(AppClient *client, cairo_t *cr, Container *container) {
     for (auto frozen: slept) {
-        std::string s = "xdo show ";
-        s += frozen->window_str;
-        system(s.c_str());
+        xcb_map_window(app->connection, frozen->window_id);
         send_signal(frozen->pid, SIGCONT);
         delete frozen;
     }
     slept.clear();
+    merge_order_with_taskbar();
 }
 
 static void

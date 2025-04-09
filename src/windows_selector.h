@@ -12,7 +12,7 @@ extern bool have_drag;
 
 struct SleptWindows {
     int pid;
-    std::string window_str;
+    int window_id;
     // surface texture data
 };
 
