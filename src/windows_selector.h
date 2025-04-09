@@ -3,11 +3,20 @@
 
 #include "container.h"
 #include "taskbar.h"
+#include <vector>
 
 extern int option_width;
 extern int option_height;
 extern bool drag_and_dropping;
 extern bool have_drag;
+
+struct SleptWindows {
+    int pid;
+    std::string window_str;
+    // surface texture data
+};
+
+extern std::vector<SleptWindows *> slept;
 
 class PinnedIconInfo : public IconButton {
 public:

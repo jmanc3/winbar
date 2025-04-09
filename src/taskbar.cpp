@@ -2250,6 +2250,22 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
     active_window_changed(-1);
     container->parent->should_layout_children = false;
     auto *data = static_cast<LaunchableButton *>(container->user_data);
+    if (winbar_settings->on_drag_show_trash) {
+        auto end = client_entity->root->child(32 * config->dpi, FILL_SPACE);
+        end->name = "trash";
+        end->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
+            draw_text(client, 10 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), "\uE107", container->real_bounds);
+        };
+         
+        auto start = client_entity->root->child(32 * config->dpi, FILL_SPACE);
+        start->name = "trash";
+        start->when_paint = end->when_paint;
+
+        client_entity->root->children.pop_back();
+        client_entity->root->children.insert(client_entity->root->children.begin(), start);
+        
+        client_layout(app, client_entity);
+    }
     client_create_animation(app, client_entity, &data->animation_zoom_amount, data->lifetime, 0, 55 * data->animation_zoom_amount,
                             nullptr,
                             0);
@@ -2277,7 +2293,29 @@ pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container
     ZoneScoped;
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
-    
+    if (winbar_settings->on_drag_show_trash) {
+        bool trash_it = false;
+        for (int i = client_entity->root->children.size() - 1; i >= 0; i--) {
+            auto c = client_entity->root->children[i];
+            if (c->name == "trash") {
+                if (bounds_contains(c->real_bounds, client_entity->mouse_current_x, client_entity->mouse_current_y)) {
+                    trash_it = true;
+                }
+                client_entity->root->children.erase(client_entity->root->children.begin() + i);
+            }
+        }
+        client_layout(app, client_entity);
+        if (trash_it) {
+            for (auto w : data->windows_data_list) {
+                xcb_ewmh_request_close_window(&app->ewmh,
+                                              app->screen_number,
+                                              w->id,
+                                              XCB_CURRENT_TIME,
+                                              XCB_EWMH_CLIENT_SOURCE_TYPE_NORMAL);
+            }
+        }
+    }
+   
     client_create_animation(app, client_entity, &data->animation_zoom_amount, data->lifetime, 0, 85 * data->animation_zoom_amount,
                             nullptr,
                             0);
@@ -2797,6 +2835,18 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
+paint_frozen(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_hoverable_button_background(client, cr, container);
+    
+    if (!slept.empty()) {
+        draw_text(client, 10 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), "\uF738", container->real_bounds, -5, -1, container->real_bounds.h / 2 - (10 * config->dpi) / 2);
+    } 
+}
+
+static void
 paint_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -2890,6 +2940,24 @@ clicked_wifi(AppClient *client, cairo_t *cr, Container *container) {
             launch_command(config->wifi_command);
         }
     }
+}
+
+static void send_signal(pid_t pid, int signal) {
+    if (kill(pid, signal) == 0) {
+        std::cout << "Signal " << signal << " sent to process " << pid << std::endl;
+    }
+}
+
+static void
+clicked_frozen_restore(AppClient *client, cairo_t *cr, Container *container) {
+    for (auto frozen: slept) {
+        std::string s = "xdo show ";
+        s += frozen->window_str;
+        system(s.c_str());
+        send_signal(frozen->pid, SIGCONT);
+        delete frozen;
+    }
+    slept.clear();
 }
 
 static void
@@ -3631,6 +3699,9 @@ fill_root(App *app, AppClient *client, Container *root) {
 //    Container *button_chatgpt = root->child(48 * config->dpi, FILL_SPACE);
     Container *button_workspace = root->child(48 * config->dpi, FILL_SPACE);
     Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
+    
+    Container *container_frozen = root->child(24 * config->dpi, FILL_SPACE);
+    
     Container *button_systray = root->child(24 * config->dpi, FILL_SPACE);
     
     make_plugins(app, client, root);
@@ -3707,6 +3778,12 @@ fill_root(App *app, AppClient *client, Container *root) {
     container_icons->should_layout_children = false;
     container_icons->distribute_overflow_to_children = true;
     
+    container_frozen->when_paint = paint_frozen;
+    auto button_frozen_data = new IconButton;
+    container_frozen->name = "frozen";
+    container_frozen->user_data = button_frozen_data;
+    container_frozen->when_clicked = clicked_frozen_restore;
+
     button_systray->when_paint = paint_systray;
     auto button_systray_data = new IconButton;
     button_systray_data->invalidate_button_press_if_client_with_this_name_is_open = "display";

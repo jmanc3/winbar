@@ -30,7 +30,8 @@ void merge_order_with_taskbar();
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    draw_colored_rect(client, correct_opaqueness(client, config->color_pinned_icon_editor_background), container->real_bounds); 
+    draw_colored_rect(client, ArgbColor(.953, .953, .953, 1), container->real_bounds); 
+//    draw_colored_rect(client, correct_opaqueness(client, config->color_pinned_icon_editor_background), container->real_bounds); 
 }
 
 static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
@@ -692,6 +693,19 @@ void merge_order_with_taskbar() {
         ADD("Notifications", "action")
         ADD("Show Desktop", "minimize")
     }
+    for (int i = 0; i < containers.size(); i++) {
+        auto already = containers[i];
+        if (already->name == "systray") {
+            for (auto c: taskbar->root->children) {
+                if (c->name.find("frozen") != std::string::npos) {
+                    containers.insert(containers.begin() + i, c);
+                    goto out;
+                }
+            }
+        }
+    }
+    out:
+    
     taskbar->root->children.clear();
     for (auto c: containers) {
         taskbar->root->children.push_back(c);
@@ -1116,6 +1130,7 @@ fill_root(AppClient *client, Container *root) {
                          &winbar_settings->label_uniform_size, scroll_root, client);
     bool_checkbox("Icon minimize/maximize bounce animation", &winbar_settings->minimize_maximize_animation, scroll_root, client);
     bool_checkbox("Use OpenGL", &winbar_settings->use_opengl, scroll_root, client);
+    bool_checkbox("On drag show app closer on edges", &winbar_settings->on_drag_show_trash, scroll_root, client);
     string_textfield("Shutdown command: ", &winbar_settings->shutdown_command, scroll_root, client, "pkexec shutdown -P now");
     scroll_root->child(FILL_SPACE, 6 * config->dpi);
     string_textfield("Restart command: ", &winbar_settings->restart_command, scroll_root, client, "pkexec reboot");
@@ -1175,7 +1190,8 @@ fill_root(AppClient *client, Container *root) {
             auto *data = (SelectedLabel *) container->user_data;
             
             if (data->selected) {
-                auto a = darken(config->color_pinned_icon_editor_background, 3);
+                //auto a = darken(config->color_pinned_icon_editor_background, 3);
+                auto a = ArgbColor(1, 1, 1, 1);
                 rounded_rect(client, container->real_bounds.h * .13, container->real_bounds.x, container->real_bounds.y,
                              container->real_bounds.w, container->real_bounds.h, a);
             }
@@ -1428,6 +1444,9 @@ void save_settings_file() {
     out_file << std::endl << std::endl;
       
     out_file << "use_opengl=" << (winbar_settings->use_opengl ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
+    out_file << "on_drag_show_trash=" << (winbar_settings->on_drag_show_trash ? "true" : "false");
     out_file << std::endl << std::endl;
     
     // Thumbnails
@@ -1691,6 +1710,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "minimize_maximize_animation", &winbar_settings->minimize_maximize_animation);
                 parse_bool(&parser, key, "auto_dpi", &winbar_settings->auto_dpi);
                 parse_bool(&parser, key, "use_opengl", &winbar_settings->use_opengl);
+                parse_bool(&parser, key, "on_drag_show_trash", &winbar_settings->on_drag_show_trash);
                 parse_string(&parser, key, "custom_desktops_directory", &winbar_settings->custom_desktops_directory);
                 parse_string(&parser, key, "shutdown_command", &winbar_settings->shutdown_command);
                 parse_string(&parser, key, "restart_command", &winbar_settings->restart_command);

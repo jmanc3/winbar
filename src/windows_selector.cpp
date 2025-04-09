@@ -268,6 +268,47 @@ clicked_close(AppClient *client_entity, cairo_t *cr, Container *container) {
     window_option_closed(client_entity, cr, container->parent->parent);
 }
 
+static void send_signal(pid_t pid, int signal) {
+    if (kill(pid, signal) == 0) {
+        std::cout << "Signal " << signal << " sent to process " << pid << std::endl;
+    }
+}
+
+std::vector<SleptWindows *> slept;
+
+static void
+clicked_sleep(AppClient *client_entity, cairo_t *cr, Container *container) {
+    container = container->parent->parent;
+    
+    int index = 0;
+    for (int i = 0; i < container->parent->children.size(); i++) {
+        if (container->parent->children[i] == container) {
+            index = i;
+            break;
+        }
+    }
+ 
+    auto pii = (PinnedIconInfo *) client_entity->root->user_data;
+    xcb_window_t window = pii->data->windows_data_list[index]->id;
+   
+    xcb_get_property_cookie_t prop_cookie = xcb_ewmh_get_wm_pid(&app->ewmh, window);
+    uint32_t pid = -1;
+    xcb_ewmh_get_wm_pid_reply(&app->ewmh, prop_cookie, &pid, NULL);
+    if (pid == -1)
+        return;
+    
+    auto frozen = new SleptWindows;
+    frozen->pid = pid;
+    frozen->window_str = std::to_string((int) window);
+    slept.push_back(frozen);
+    
+    std::string s = "xdo hide ";
+    s += std::to_string((int) window);
+    system(s.c_str());
+    
+    send_signal(pid, SIGSTOP);
+}
+
 static void paint_option_hovered_or_pressed(Container *container, bool &hovered, bool &pressed) {
     Container *titlebar = container->children[0]->children[0];
     Container *close = container->children[0]->children[1];
@@ -335,12 +376,7 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
         draw_colored_rect(client_entity, color, container->real_bounds);
     }
     
-    bool active = container->state.mouse_pressing || container->state.mouse_hovering ||// US
-                  container->parent->children[0]->state.mouse_pressing ||
-                  container->parent->children[0]->state.mouse_hovering ||// TITLE
-                  container->parent->parent->children[1]->state.mouse_pressing ||
-                  container->parent->parent->children[1]->state.mouse_hovering;// BODY
-    
+    bool active = container->state.mouse_pressing || container->state.mouse_hovering || bounds_contains(client_entity->root->real_bounds, client_entity->mouse_current_x, client_entity->mouse_current_y);
     
     if (active) {
         PangoLayout *layout =
@@ -359,6 +395,48 @@ paint_close(AppClient *client_entity, cairo_t *cr, Container *container) {
         int width;
         int height;
         pango_layout_set_text(layout, "\uE10A", strlen("\uE83F"));
+        
+        pango_layout_get_pixel_size_safe(layout, &width, &height);
+        cairo_save(cr);
+        cairo_move_to(cr,
+                      container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
+                      container->real_bounds.y + container->real_bounds.h / 2 - width / 2);
+        pango_cairo_show_layout(cr, layout);
+        cairo_restore(cr);
+    }
+}
+
+static void
+paint_sleep(AppClient *client_entity, cairo_t *cr, Container *container) {
+    if (container->state.mouse_pressing || container->state.mouse_hovering) {
+        ArgbColor color;
+        if (container->state.mouse_pressing) {
+            color = config->color_windows_selector_close_icon_pressed_background;
+        } else {
+            color = config->color_windows_selector_close_icon_hovered_background;
+        }
+        draw_colored_rect(client_entity, color, container->real_bounds);
+    }
+    
+    bool active = container->state.mouse_pressing || container->state.mouse_hovering || bounds_contains(client_entity->root->real_bounds, client_entity->mouse_current_x, client_entity->mouse_current_y);
+        
+    if (active) {
+        PangoLayout *layout =
+                get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+        
+        if (container->state.mouse_pressing || container->state.mouse_hovering) {
+            if (container->state.mouse_pressing) {
+                set_argb(cr, config->color_windows_selector_close_icon_pressed);
+            } else {
+                set_argb(cr, config->color_windows_selector_close_icon_hovered);
+            }
+        } else {
+            set_argb(cr, config->color_windows_selector_close_icon);
+        }
+        
+        int width;
+        int height;
+        pango_layout_set_text(layout, "\uECC5", strlen("\uE83F"));
         
         pango_layout_get_pixel_size_safe(layout, &width, &height);
         cairo_save(cr);
@@ -616,6 +694,10 @@ fill_root(AppClient *client, Container *root) {
         option_titlebar->when_mouse_enters_container = option_entered;
         option_titlebar->when_mouse_leaves_container = option_exited;
         option_top_hbox->children.push_back(option_titlebar);
+        
+        Container *option_sleep_button = option_top_hbox->child(close_width, FILL_SPACE);
+        option_sleep_button->when_clicked = clicked_sleep;
+        option_sleep_button->when_paint = paint_sleep;
         
         Container *option_close_button = new Container();
         option_close_button->parent = option_top_hbox;
