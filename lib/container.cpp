@@ -138,6 +138,12 @@ modify_all(Container *container, double x_change, double y_change) {
 }
 
 void layout_vbox(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
+    for (auto child: container->children) {
+        if (child && child->pre_layout) {
+            child->pre_layout(client, child, bounds);
+        }
+    }
+ 
     double fill_h = single_filler_height(container);
     
     double offset = 0;
@@ -296,6 +302,12 @@ single_filler_width(Container *container, const Bounds bounds) {
 }
 
 void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bounds &bounds) {
+    for (auto child: container->children) {
+        if (child && child->pre_layout) {
+            child->pre_layout(client, child, bounds);
+        }
+    }
+
     double fill_w = single_filler_width(container, bounds);
     
     double offset = 0;
@@ -979,6 +991,8 @@ Container::~Container() {
         }
     }
 //    auto data = static_cast<UserData *>(user_data);
+    if (skip_delete)
+        return;
     auto data = (UserData *) user_data;
     if (data != nullptr) {
         data->destroy();

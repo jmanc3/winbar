@@ -31,7 +31,9 @@ void merge_order_with_taskbar();
 
 static void
 paint_root(AppClient *client, cairo_t *cr, Container *container) {
-    draw_colored_rect(client, ArgbColor(.953, .953, .953, 1), container->real_bounds); 
+    draw_colored_rect(client, ArgbColor(.941, .957, .976, 1), container->real_bounds); 
+    client_layout(app, client);
+//    draw_colored_rect(client, ArgbColor(.953, .953, .953, 1), container->real_bounds); 
 //    draw_colored_rect(client, correct_opaqueness(client, config->color_pinned_icon_editor_background), container->real_bounds); 
 }
 
@@ -99,6 +101,12 @@ static void paint_on_off(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     float size = 14 * config->dpi;
+    draw_round_rect(client, ArgbColor(.984, .988, .992, 1), 
+                        Bounds(container->real_bounds.x + container->real_bounds.w / 2 - size / 2,
+                               container->real_bounds.y + container->real_bounds.h / 2 - size / 2,
+                               size,
+                               size), 5 * config->dpi, 0);
+    
     rounded_rect(client, 2 * config->dpi,
                  container->real_bounds.x + container->real_bounds.w / 2 - size / 2,
                  container->real_bounds.y + container->real_bounds.h / 2 - size / 2,
@@ -107,7 +115,10 @@ static void paint_on_off(AppClient *client, cairo_t *cr, Container *container) {
     if (!data->on)
         return;
     
-    draw_text(client, 14 * config->dpi, config->icons, 1, 1, 1, 1, "\uF13E", container->real_bounds);
+    auto [c_f, c_w, c_h] = draw_text_begin(client, 14 * config->dpi, config->icons, 1, 1, 1, 1, "\uF13E");
+    double kern_y = -1.0 * config->dpi;
+    c_f->draw_text_end(container->real_bounds.x + container->real_bounds.w / 2 - c_w / 2,
+                       container->real_bounds.y + container->real_bounds.h / 2 - c_h / 2 + kern_y);
 }
 
 static void paint_remove(AppClient *client, cairo_t *cr, Container *container) {
@@ -292,7 +303,7 @@ void when_size_field_key_event(AppClient *client, cairo_t *cr, Container *self, 
 }
 
 static void add_item(Container *reorder_list, std::string n, bool on_off_state) {
-    auto r = reorder_list->child(::hbox, FILL_SPACE, 28 * config->dpi);
+    auto r = reorder_list->child(::hbox, FILL_SPACE, 36 * config->dpi);
     r->when_paint = paint_reordable_item;
     r->receive_events_even_if_obstructed_by_one = true;
 //    r->clip = true;
@@ -788,7 +799,7 @@ struct OriginalBool : public UserData {
 
 void bool_checkbox_indent(const std::string &text, int indent, bool *boolean, Container *container, AppClient *client, void (*on_clicked)() = nullptr) {
     float font_size = std::round(10);
-    float pad = std::round(12 * config->dpi);
+    float pad = std::round(6 * config->dpi);
     PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size * config->dpi, PANGO_WEIGHT_NORMAL);
     int width;
     int height;
@@ -1029,7 +1040,12 @@ static void paint_textarea_border(AppClient *client, cairo_t *cr, Container *con
     } else {
         color = config->color_pinned_icon_editor_field_default_border;
     }
-    draw_margins_rect(client, color, container->real_bounds, 2, 0);
+    float size = 14 * config->dpi;
+    //draw_colored_rect(client, ArgbColor(.984, .988, .992, 1), container->real_bounds);
+    //draw_margins_rect(client, color, container->real_bounds, 2, 0);
+    
+    draw_round_rect(client, ArgbColor(.984, .988, .992, 1), container->real_bounds, 5 * config->dpi, 0);
+    draw_round_rect(client, color, container->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
 }
 
 struct PathHolder : public UserData {
@@ -1088,6 +1104,426 @@ void string_textfield(const std::string &text, std::string *path, Container *con
     textarea->parent->when_paint = paint_textarea_border;
 }
 
+struct SettingBoolData : UserData {
+    std::string icon;
+    std::string title;
+    std::string description;
+    std::string *target_str = nullptr;
+    bool *target = nullptr;
+    bool *existance_target = nullptr;
+    bool squares_up = false;
+    long open_start = 0;
+    long close_start = 0;
+};
+
+static void
+setting_bool(Container *container, std::string icon, std::string title, std::string description, bool *target, bool squares_up = false) {
+    auto full_label_container = container->child(layout_type::hbox, FILL_SPACE, 69 * config->dpi);
+    auto data = new SettingBoolData;
+    data->icon = icon;
+    data->title = title;
+    data->description = description;
+    data->target = target;
+    data->squares_up = squares_up;
+    full_label_container->user_data = data;
+    full_label_container->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) 
+    {
+        auto data = (SettingBoolData *) c->user_data;
+        if (data->target != nullptr) {
+            *data->target = !(*data->target);
+        }
+        save_settings_file();
+    };
+
+    full_label_container->when_paint = [](AppClient *client, cairo_t *cr, Container *c) 
+    {
+        Bounds backup = c->real_bounds;
+        c->real_bounds.x += .5;
+        c->real_bounds.y += .5;
+        c->real_bounds.w -= 1;
+        c->real_bounds.h -= 1;
+
+        auto data = (SettingBoolData *) c->user_data;
+        
+        if (data->squares_up) {
+            if (data->target != nullptr && *data->target) {
+                draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y, c->real_bounds.w, c->real_bounds.h - 6 * config->dpi));
+            }
+        }
+        
+        // bg
+        ArgbColor bg_color;
+        if (c->state.mouse_hovering || c->state.mouse_pressing) {
+            bg_color = ArgbColor(.965, .965, .965, 1);
+            draw_round_rect(client, bg_color, c->real_bounds, 5 * config->dpi, 0);
+        } else {
+            //draw_round_rect(client, ArgbColor(.984, .984, .984, 1), c->real_bounds, 5 * config->dpi, 0);
+            bg_color = ArgbColor(.984, .988, .992, 1);
+            draw_round_rect(client, bg_color, c->real_bounds, 5 * config->dpi, 0);
+        }
+        
+        // border
+        ArgbColor border_color;
+        if (c->state.mouse_hovering || c->state.mouse_pressing) {
+            border_color = ArgbColor(.818, .818, .818, .75);
+            draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+            int height = 3 * config->dpi;
+            draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y + c->real_bounds.h - height, c->real_bounds.w, height));
+            if (!c->state.mouse_pressing) {
+                border_color = ArgbColor(.75, .75, .75, 1);
+                draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+            }
+            draw_clip_end(client);
+        } else {
+            border_color = ArgbColor(.818, .818, .818, 1);
+            draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+       }
+        
+        if (data->squares_up) {
+            if (data->target != nullptr && *data->target) {
+                draw_clip_end(client);
+                
+                draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y + c->real_bounds.h - 6 * config->dpi, c->real_bounds.w, 6 * config->dpi));
+                draw_round_rect(client, bg_color, c->real_bounds, 0, 0);
+                draw_round_rect(client, border_color, c->real_bounds, 0, std::floor(1.0 * config->dpi));
+                draw_clip_end(client);
+            }
+        }
+
+        // icon
+        if (!data->icon.empty()) {
+            draw_text(client, 16 * config->dpi, config->icons, EXPAND(config->color_pinned_icon_editor_field_default_text), data->icon, c->real_bounds, -5, 19 * config->dpi);
+        }
+        
+        static int size_title = 11;
+        static int size_description = 9;
+        int kern_y_off = 3 * config->dpi;
+       
+        auto color = config->color_pinned_icon_editor_field_default_text;
+        // d = description
+        auto [d_f, d_w, d_h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color), data->description);
+        d_f->end();
+        
+        draw_clip_begin(client, c->real_bounds);
+        color.a = .92;
+        auto [f, w, h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color), data->title);
+        float total_height = h + d_h;
+        f->draw_text_end(c->real_bounds.x + 60 * config->dpi, c->real_bounds.y + c->real_bounds.h / 2 - total_height / 2 + kern_y_off);
+        
+        color.a = .7;
+        // d_r = description real (in terms of drawing the text)
+        auto [d_r_f, d_r_w, d_r_h] = draw_text_begin(client, size_description * config->dpi, config->font, EXPAND(color), data->description);
+        d_r_f->draw_text_end(c->real_bounds.x + 60 * config->dpi, c->real_bounds.y + c->real_bounds.h / 2 - total_height / 2 + h + kern_y_off);
+        draw_clip_end(client);
+        
+        if (data->squares_up) {
+            if (data->target != nullptr && *data->target) {
+                draw_clip_begin(client, c->real_bounds);
+                // TODO:??????
+                draw_clip_end(client);
+            }
+        }
+        
+        // On off text
+        std::string on_off = "Off";
+        if (data->target != nullptr && *data->target) {
+            on_off = "On";
+        }
+        color.a = .9;
+        draw_text(client, 11 * config->dpi, config->font, EXPAND(color), on_off, c->real_bounds, -5, c->real_bounds.w - 94 * config->dpi);
+        
+        // Check
+        auto check_bounds = Bounds(c->real_bounds.x + c->real_bounds.w - 65 * config->dpi,
+                                   c->real_bounds.y + c->real_bounds.h / 2 - 10 * config->dpi,
+                                   40 * config->dpi, 20 * config->dpi);
+        if (on_off == "On") {
+            draw_round_rect(client, config->color_search_accent, check_bounds, 10 * config->dpi, 0);
+            
+            check_bounds.x = check_bounds.x + check_bounds.w - 16 * config->dpi;
+            check_bounds.y = check_bounds.y + check_bounds.h / 2 - 6 * config->dpi;
+            check_bounds.w = 12 * config->dpi;
+            check_bounds.h = 12 * config->dpi;
+            draw_round_rect(client, ArgbColor(1, 1, 1, 1), check_bounds, 6 * config->dpi);
+        } else {
+            draw_round_rect(client, ArgbColor(.537, .537, .537, 1), check_bounds, 10 * config->dpi, std::floor(1.0 * config->dpi));
+            
+            check_bounds.x = check_bounds.x + 4 * config->dpi;
+            check_bounds.y = check_bounds.y + check_bounds.h / 2 - 6 * config->dpi;
+            check_bounds.w = 12 * config->dpi;
+            check_bounds.h = 12 * config->dpi;
+            draw_round_rect(client, ArgbColor(.365, .365, .365, 1), check_bounds, 6 * config->dpi);
+        }
+        c->real_bounds = backup;
+        //draw_round_rect(client, ArgbColor(.965, .965, .965, 1), c->real_bounds, 5 * config->dpi, 0);
+    };
+}
+
+static void
+setting_bool_attachment(Container *scroll_root, std::string icon, std::string title, std::string desc, bool *target, bool *existance_target, bool squared) {
+    // Conditional existance
+    //auto dd = scroll_root->child(FILL_SPACE, 30 * config->dpi + 20 * config->dpi);
+    auto data = new SettingBoolData;
+    data->icon = icon;
+    data->title = title;
+    data->description = desc;
+    data->target = target;
+    data->existance_target = existance_target;
+    data->squares_up = squared;
+    
+    auto dd = scroll_root->child(FILL_SPACE, 0);
+    dd->user_data = data;
+    
+    dd->pre_layout = [](AppClient *client, Container *dd, const Bounds &bounds) {
+        auto data = (SettingBoolData *) dd->user_data;
+        if (data->existance_target == nullptr) {
+            dd->wanted_bounds.h = (69.0 * .70f) * config->dpi;
+            dd->exists = true;
+            return;
+        }
+        dd->wanted_bounds.h = (69.0 * .70f) * config->dpi;
+        dd->exists = *data->existance_target;
+    };
+    
+    dd->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
+        auto data = (SettingBoolData *) c->user_data;
+        *data->target = !*data->target;
+        save_settings_file();
+    };
+    
+    dd->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
+        Bounds backup = c->real_bounds;
+        c->real_bounds.x += .5;
+        c->real_bounds.y += .5;
+        c->real_bounds.w -= 1;
+        c->real_bounds.h -= 1;
+        auto data = (SettingBoolData *) c->user_data;
+        auto bg_color = ArgbColor(.984, .988, .992, 1);
+        draw_colored_rect(client, bg_color, c->real_bounds);
+        
+        auto border_color = ArgbColor(.818, .818, .818, 1);
+        auto extended = Bounds(c->real_bounds.x, c->real_bounds.y - std::floor(1.0 * config->dpi), c->real_bounds.w, c->real_bounds.h + std::floor(1.0 * config->dpi) * 2);
+        if (data->squares_up) {
+            draw_round_rect(client, border_color, extended, 0, std::floor(1.0 * config->dpi));
+        } else {
+            // top part
+            Bounds b = c->real_bounds;
+            int halves = std::round(10 * config->dpi);
+            draw_clip_begin(client, Bounds(b.x, b.y, b.w, b.h - halves));
+            draw_round_rect(client, border_color, extended, 0, std::floor(1.0 * config->dpi));
+            draw_clip_end(client);
+            
+            // bottom part
+            draw_clip_begin(client, Bounds(b.x, b.y + b.h - halves, b.w, halves + 10));
+            draw_round_rect(client, border_color, extended, 5 * config->dpi, std::floor(1.0 * config->dpi));
+            draw_clip_end(client);
+        }
+        
+        static int size_title = 10;
+        static int size_description = 9;
+        int kern_y_off = 3 * config->dpi;
+        kern_y_off = 0;
+ 
+        auto color = config->color_pinned_icon_editor_field_default_text;
+        // d = description
+        auto [d_f, d_w, d_h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color), data->description);
+        d_f->end();
+        
+        draw_clip_begin(client, c->real_bounds);
+        color.a = .92;
+        auto [f, w, h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color), data->title);
+        float total_height = h + d_h;
+        f->draw_text_end(c->real_bounds.x + 87 * config->dpi, c->real_bounds.y + c->real_bounds.h / 2 - h / 2 + kern_y_off);
+        draw_clip_end(client);
+        
+        color = config->color_pinned_icon_editor_field_default_border;
+        if (c->state.mouse_hovering)
+            color = config->color_pinned_icon_editor_field_hovered_border;
+        if (c->state.mouse_pressing)
+            color = config->color_pinned_icon_editor_field_pressed_border;
+        if (*data->target)
+            color = config->color_pinned_icon_editor_field_pressed_border;
+        
+        float stroke = 0.0f;
+        if (!*data->target) {
+            stroke = std::round(1 * config->dpi);
+        }
+        
+        float size = 18 * config->dpi;
+        draw_round_rect(client, ArgbColor(.984, .988, .992, 1), 
+                        Bounds(c->real_bounds.x + 60 * config->dpi,
+                               c->real_bounds.y + c->real_bounds.h / 2 - size / 2,
+                               size,
+                               size), 5 * config->dpi, 0);
+        
+        rounded_rect(client, 2 * config->dpi,
+                     c->real_bounds.x + 60 * config->dpi,
+                     c->real_bounds.y + c->real_bounds.h / 2 - size / 2,
+                     size, size, color, stroke);
+        
+        if (*data->target) {
+            auto [c_f, c_w, c_h] = draw_text_begin(client, 16 * config->dpi, config->icons, 1, 1, 1, 1, "\uF13E");
+            double kern_x = .5 * config->dpi;
+            double kern_y = -1.5 * config->dpi;
+            c_f->draw_text_end(c->real_bounds.x + 60 * config->dpi + size / 2 - c_w / 2 + kern_x,
+                               c->real_bounds.y + c->real_bounds.h / 2 - c_h / 2 + kern_y);
+        }
+        
+        c->real_bounds = backup;
+    };
+}
+
+static void
+setting_field(AppClient *client, Container *container, std::string icon, std::string title, std::string description, std::string *target_str, bool squared = false) {
+//    setting_bool(container, icon, title, description, nullptr, false);
+    auto full = container->child(layout_type::vbox, FILL_SPACE, (69 + 20) * config->dpi);
+    auto data = new SettingBoolData;
+    data->icon = icon;
+    data->title = title;
+    data->description = description;
+    data->target_str = target_str;
+    data->squares_up = squared;
+    full->user_data = data;
+
+    full->when_paint = [](AppClient *client, cairo_t *cr, Container *c) 
+    {
+        Bounds backup = c->real_bounds;
+        c->real_bounds.x += .5;
+        c->real_bounds.y += .5;
+        c->real_bounds.w -= 1;
+        c->real_bounds.h -= 1;
+
+        auto data = (SettingBoolData *) c->user_data;
+        
+        if (data->squares_up) {
+            draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y, c->real_bounds.w, c->real_bounds.h - 6 * config->dpi));
+        }
+        
+        // bg
+        ArgbColor bg_color;
+        if (c->state.mouse_hovering || c->state.mouse_pressing) {
+            bg_color = ArgbColor(.965, .965, .965, 1);
+            draw_round_rect(client, bg_color, c->real_bounds, 5 * config->dpi, 0);
+        } else {
+            //draw_round_rect(client, ArgbColor(.984, .984, .984, 1), c->real_bounds, 5 * config->dpi, 0);
+            bg_color = ArgbColor(.984, .988, .992, 1);
+            draw_round_rect(client, bg_color, c->real_bounds, 5 * config->dpi, 0);
+        }
+        
+        // border
+        ArgbColor border_color;
+        if (c->state.mouse_hovering || c->state.mouse_pressing) {
+            border_color = ArgbColor(.818, .818, .818, .75);
+            draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+            int height = 3 * config->dpi;
+            draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y + c->real_bounds.h - height, c->real_bounds.w, height));
+            if (!c->state.mouse_pressing) {
+                border_color = ArgbColor(.75, .75, .75, 1);
+                draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+            }
+            draw_clip_end(client);
+        } else {
+            border_color = ArgbColor(.818, .818, .818, 1);
+            draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+        }
+        
+        if (data->squares_up) {
+            draw_clip_end(client);
+            
+            draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y + c->real_bounds.h - 6 * config->dpi, c->real_bounds.w, 6 * config->dpi));
+            draw_round_rect(client, bg_color, c->real_bounds, 0, 0);
+            draw_round_rect(client, border_color, c->real_bounds, 0, std::floor(1.0 * config->dpi));
+            draw_clip_end(client);
+        }
+
+        // icon
+        if (!data->icon.empty()) {
+            draw_text(client, 16 * config->dpi, config->icons, EXPAND(config->color_pinned_icon_editor_field_default_text), data->icon, c->real_bounds, -5, 19 * config->dpi);
+        }
+        
+        static int size_title = 11;
+        static int size_description = 9;
+        int kern_y_off = 3 * config->dpi;
+       
+        auto color = config->color_pinned_icon_editor_field_default_text;
+        // d = description
+        auto [d_f, d_w, d_h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color), data->description);
+        d_f->end();
+        
+        draw_clip_begin(client, c->real_bounds);
+        color.a = .92;
+        auto [f, w, h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color), data->title);
+        float total_height = h + d_h;
+        f->draw_text_end(c->real_bounds.x + 60 * config->dpi, c->real_bounds.y + c->real_bounds.h / 2 - (26 * config->dpi) / 2 - h - 1 * config->dpi);
+        
+        color.a = .7;
+        // d_r = description real (in terms of drawing the text)
+        auto [d_r_f, d_r_w, d_r_h] = draw_text_begin(client, size_description * config->dpi, config->font, EXPAND(color), data->description);
+        d_r_f->draw_text_end(c->real_bounds.x + 60 * config->dpi, c->real_bounds.y + c->real_bounds.h - d_r_h - 6 * config->dpi - 1 * config->dpi);
+        draw_clip_end(client);
+        
+        c->real_bounds = backup;
+        //draw_round_rect(client, ArgbColor(.965, .965, .965, 1), c->real_bounds, 5 * config->dpi, 0);
+    };
+    
+    
+    TextAreaSettings settings(config->dpi);
+    settings.single_line = true;
+    settings.bottom_show_amount = 2;
+    settings.right_show_amount = 2;
+    //settings.prompt = std::move(prompt);
+    settings.color_prompt = ArgbColor(.1, .1, .1, .5);
+    settings.font_size__ = 10 * config->dpi;
+    settings.color = config->color_pinned_icon_editor_field_default_text;
+    settings.color_cursor = config->color_pinned_icon_editor_cursor;
+    settings.pad = Bounds(4 * config->dpi, 5 * config->dpi, 8 * config->dpi, 2 * config->dpi);
+    full->child(FILL_SPACE, full->wanted_bounds.h / 2 - (26 * config->dpi) / 2 + 3 * config->dpi);
+    auto field_parent = full->child(FILL_SPACE, 26 * config->dpi);
+    field_parent->wanted_pad = Bounds(60 * config->dpi, 0, 25 * config->dpi, 0);
+    
+    Container *textarea = make_textarea(app, client, field_parent, settings);
+    textarea->parent->skip_delete = true;
+    textarea->parent->user_data = data;
+    textarea->parent->when_paint = paint_textarea_border;
+    textarea->when_key_event = [](AppClient *client, cairo_t *cr, Container *container, bool is_string, xkb_keysym_t keysym, char string[64], uint16_t mods, xkb_key_direction direction) {
+        if (direction == XKB_KEY_UP) {
+            return;
+        }
+        if (container->parent->active || container->active) {
+            textarea_handle_keypress(client, container, is_string, keysym, string, mods, XKB_KEY_DOWN);
+            auto *data = (TextAreaData *) container->user_data;
+            auto *holder = (SettingBoolData *) container->parent->user_data;
+            *holder->target_str = data->state->text;
+        }
+    };
+
+    auto tt = (TextAreaData *) textarea->user_data;
+    tt->state->text = *target_str;
+}
+
+static void
+setting_subheading(Container *container, std::string title) {
+    auto heading = container->child(layout_type::hbox, FILL_SPACE, 69 * config->dpi);
+    auto data = new Label(title);
+    heading->user_data = data;
+    heading->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
+        auto data = (Label *) c->user_data;
+        auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text), data->text, true);
+        f->draw_text_end(c->real_bounds.x, c->real_bounds.y + 40 * config->dpi);
+    };
+}
+
+static void
+setting_subheading_no_indent(Container *container, std::string title) {
+    auto heading = container->child(layout_type::hbox, FILL_SPACE, 29 * config->dpi);
+    auto data = new Label(title);
+    heading->user_data = data;
+    heading->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
+        auto data = (Label *) c->user_data;
+        auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text), data->text, true);
+        f->draw_text_end(c->real_bounds.x, c->real_bounds.y);
+    };
+}
+
 static void
 fill_root(AppClient *client, Container *root) {
     auto real_root = root;
@@ -1109,33 +1545,67 @@ fill_root(AppClient *client, Container *root) {
     auto scroll_container = make_newscrollpane_as_child(winbar_behaviour_root, ss);
     auto scroll_root = scroll_container->content;
     title("Winbar Behaviour", scroll_root);
-    bool_checkbox("Thumbnails", &winbar_settings->thumbnails, scroll_root, client);
-    bool_checkbox("Battery warning notifications", &winbar_settings->battery_notifications, scroll_root,
-                  client);
-    bool_checkbox("Pinned icons shortcuts: Meta+[0-9]", &winbar_settings->pinned_icon_shortcut, scroll_root,
-                  client);
-    bool_checkbox("Allow live tiles", &winbar_settings->allow_live_tiles, scroll_root, client);
-    bool_checkbox("Open start menu on mouse moved to corner", &winbar_settings->open_start_menu_on_bottom_left_hover,
-                  scroll_root, client);
-    bool_checkbox_indent("Autoclose on mouse leaves area", 16 * config->dpi,
-                         &winbar_settings->autoclose_start_menu_if_hover_opened, scroll_root, client);
-    bool_checkbox("Clicking icon cycles to next window", &winbar_settings->click_icon_tab_next_window, scroll_root, client);
-    string_textfield("Custom desktop files location: ", &winbar_settings->custom_desktops_directory,
-                     scroll_root, client);
-    bool_checkbox_indent("Make directory the exclusive source for desktop files", 16 * config->dpi,
-                         &winbar_settings->custom_desktops_directory_exclusive, scroll_root, client);
-    bool_checkbox("Ignore 'Only Show In' instruction in desktop files", &winbar_settings->ignore_only_show_in, scroll_root, client);
-    bool_checkbox("Meter animations in volume menu", &winbar_settings->meter_animations, scroll_root, client);
-    bool_checkbox("Use default super icon", &winbar_settings->super_icon_default, scroll_root, client);
-    bool_checkbox("Labels", &winbar_settings->labels, scroll_root, client);
-    bool_checkbox_indent("Uniform pinned icon width", 16 * config->dpi,
-                         &winbar_settings->label_uniform_size, scroll_root, client);
-    bool_checkbox("Icon minimize/maximize bounce animation", &winbar_settings->minimize_maximize_animation, scroll_root, client);
-    bool_checkbox("Use OpenGL", &winbar_settings->use_opengl, scroll_root, client);
-    bool_checkbox("On drag show app closer on edges", &winbar_settings->on_drag_show_trash, scroll_root, client);
-    string_textfield("Shutdown command: ", &winbar_settings->shutdown_command, scroll_root, client, "pkexec shutdown -P now");
-    scroll_root->child(FILL_SPACE, 6 * config->dpi);
-    string_textfield("Restart command: ", &winbar_settings->restart_command, scroll_root, client, "pkexec reboot");
+    
+    setting_subheading_no_indent(scroll_root, "Taskbar");
+
+    setting_bool(scroll_root, "\uE8A1", "Thumbnails", "Show application preview when hovering a window icon", &winbar_settings->thumbnails);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+
+    setting_bool(scroll_root, "\uEDA7", "Icon shortcuts", "Lanch or activate programs on Taskbar with Super+$NUMBER", &winbar_settings->pinned_icon_shortcut);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+
+    setting_bool(scroll_root, "\uE8EE", "Window cycling", "Clicking an icon with multiple windows open cycles to the next one", &winbar_settings->click_icon_tab_next_window);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+     
+    setting_bool(scroll_root, "\uF605", "Battery warnings", "Receive alerts to plug-in and unplug charger", &winbar_settings->battery_notifications);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+    
+    setting_bool(scroll_root, "\uECA5", "Live tiles", "Show in Start menu", &winbar_settings->allow_live_tiles);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+   
+    setting_bool(scroll_root, "\uF466", "Labels", "Show labels on Taskbar pins", &winbar_settings->labels, true);
+    setting_bool_attachment(scroll_root, "", "Make every label have the same width", "", &winbar_settings->label_uniform_size, &winbar_settings->labels, false);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+
+    setting_bool(scroll_root, "\uE8CB", "Animate minimize/maximize action", "Taskbar pins will bounce when an application is minimized/maximized", &winbar_settings->minimize_maximize_animation);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+    
+    setting_bool(scroll_root, "\uE107", "Close windows with drag", "When dragging a window, add edges which will close the window if drag ended on them", &winbar_settings->on_drag_show_trash);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+    
+    setting_subheading(scroll_root, "Start menu");
+   
+    setting_bool(scroll_root, "\uE7B3", "Show all applications", "Ignore the 'Only Show In' instruction found in .desktop files", &winbar_settings->ignore_only_show_in);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+    
+    setting_bool(scroll_root, "\uE782", "Default Start menu icon", "Switches to the default winbar icon", &winbar_settings->super_icon_default);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+    
+    setting_bool(scroll_root, "\uEDE3", "Start menu corner activate", "Open the Start menu when the mouse moves into the bottom left corner", &winbar_settings->open_start_menu_on_bottom_left_hover, true);
+    setting_bool_attachment(scroll_root, "", "Autoclose menu if mouse leaves area", "", &winbar_settings->autoclose_start_menu_if_hover_opened, &winbar_settings->open_start_menu_on_bottom_left_hover, false);
+    
+    scroll_root->child(FILL_SPACE, 6.5 * config->dpi);
+    
+    setting_field(client, scroll_root, "\uE74C", "Custom desktop files folder", "Adds the specified path to the directories to search for .desktop files",  &winbar_settings->custom_desktops_directory, true); 
+    
+    setting_bool_attachment(scroll_root, "", "Make directory the exclusive source for desktop files", "", &winbar_settings->custom_desktops_directory_exclusive, nullptr, false);
+
+    //bool_checkbox_indent("Make directory the exclusive source for desktop files", 16 * config->dpi,
+    //                     &winbar_settings->custom_desktops_directory_exclusive, scroll_root, client);
+    
+    setting_subheading(scroll_root, "General");
+    
+    setting_bool(scroll_root, "\uE767", "Animated volume playback", "Shows the meter of audio clients", &winbar_settings->meter_animations);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+
+    setting_bool(scroll_root, "\uEDFB", "Use OpenGL", "Switch off cairo backend for experimental OpenGL backend", &winbar_settings->use_opengl);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+
+    setting_field(client, scroll_root, "\uE7E8", "Shutdown command", "Command to be executed when attempting to shutdown",  &winbar_settings->shutdown_command); 
+//    string_textfield("Shutdown command: ", &winbar_settings->shutdown_command, scroll_root, client, "pkexec shutdown -P now");
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+    setting_field(client, scroll_root, "\uE777", "Restart command", "Command to be executed when attempting to restart",  &winbar_settings->restart_command); 
+//    string_textfield("Restart command: ", &winbar_settings->restart_command, scroll_root, client, "pkexec reboot");
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     other_root->exists = false;
@@ -1250,7 +1720,7 @@ fill_root(AppClient *client, Container *root) {
     }
     
     {
-        auto x = root->child(::hbox, FILL_SPACE, 28 * config->dpi);
+        auto x = root->child(::hbox, FILL_SPACE, 36 * config->dpi);
         x->when_paint = paint_centered_text;
         x->user_data = new Label("Reset to default");
         x->when_clicked = clicked_reset;

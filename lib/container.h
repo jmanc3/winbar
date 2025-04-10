@@ -953,6 +953,10 @@ struct Container {
     void (*before_layout)(AppClient *client, Container *self, const Bounds &bounds, double *target_w,
                           double *target_h) = nullptr;
     
+    // Gives you the opportunity to set wanted bounds before layout
+    void (*pre_layout)(AppClient *client, Container *self, const Bounds &bounds) = nullptr;
+    
+    
     // When layout is called on this container and generate_event is true on that
     // call
     void (*when_layout)(AppClient *client, Container *self, const Bounds &bounds, double *target_w,
@@ -973,6 +977,8 @@ struct Container {
     Container(double wanted_width, double wanted_height);
     
     Container(const Container &c);
+    
+    bool skip_delete = false;
     
     virtual ~Container();
     

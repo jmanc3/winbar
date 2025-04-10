@@ -2976,7 +2976,7 @@ void paint_generic_combobox(AppClient *client, cairo_t *cr, Container *container
 
 void paint_reordable_item(AppClient *client, cairo_t *cr, Container *container) {
     rounded_rect(client, 4 * config->dpi, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
-                 container->real_bounds.h, config->color_pinned_icon_editor_background);
+                 container->real_bounds.h, ArgbColor(.984, .988, .992, 1));
     
     auto color = config->color_pinned_icon_editor_field_default_border;
     if (container->state.mouse_hovering)
@@ -2984,5 +2984,5 @@ void paint_reordable_item(AppClient *client, cairo_t *cr, Container *container) 
     if (container->state.mouse_pressing)
         color = config->color_pinned_icon_editor_field_pressed_border;
     rounded_rect(client, 4 * config->dpi, container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
-                 container->real_bounds.h, color, std::round(1 * config->dpi));
+                 container->real_bounds.h, color, std::floor(1 * config->dpi));
 }
