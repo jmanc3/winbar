@@ -1851,10 +1851,12 @@ position_icons(AppClient *client, cairo_t *cr, Container *icons) {
         if (data->animating && !running) {
             running = true;
             client_register_animation(app, client);
+            ((TaskbarData *) client->user_data)->spring_animating = true;
             return;
         }
     }
     if (running) {
+        ((TaskbarData *) client->user_data)->spring_animating = false;
         client_unregister_animation(app, client);
         running = false;
     }
@@ -2497,9 +2499,11 @@ static void start_zoom_animation(AppClient *client, Container *pinned_icon) {
     LaunchableButton *data = (LaunchableButton *) pinned_icon->user_data;
     
     app_timeout_create(app, client, 10000, [](App *app, AppClient *client, Timeout *timeout, void *user_data){
-        client_unregister_animation(app, client);
         auto data = (ZoomData *) user_data;
         if (data->lifetime.lock()) {
+            if (data->launchable->animation_zoom_locked == 1) {
+                client_unregister_animation(app, client);
+            }
             data->launchable->animation_zoom_locked = 0;
             data->launchable->animation_zoom_locked_time = get_current_time_in_ms();
             data->launchable->attempting_to_launch_first_window = false;
@@ -4902,6 +4906,9 @@ void add_window(App *app, xcb_window_t window) {
             
             data->attempting_to_launch_first_window = false;
             data->windows_data_list.push_back(new WindowsData(app, window));
+            if (data->animation_zoom_locked == 1) {
+                client_unregister_animation(app, client);
+            }
             data->animation_zoom_locked = 0;
             data->animation_zoom_locked_time = get_current_time_in_ms();
             update_window_title_name(window);

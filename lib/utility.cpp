@@ -21,6 +21,8 @@
 #include <xcb/xcb_aux.h>
 #include <iostream>
 #include <sys/poll.h>
+#include <random>
+
 
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
 #ifdef TRACY_ENABLE
@@ -808,4 +810,13 @@ void SpringAnimation::update(float deltaTime) {
 
 void SpringAnimation::setTarget(float newTarget) {
     target = newTarget;
+}
+
+// Function to generate a random float between 0 and 1
+float random_float() {
+    static std::random_device rd;   // Used to seed the generator
+    static std::mt19937 gen(rd());  // Mersenne Twister engine
+    static std::uniform_real_distribution<float> dist(0.0f, 1.0f); // Range [0.0, 1.0)
+
+    return dist(gen);
 }

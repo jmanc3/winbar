@@ -351,4 +351,6 @@ void pango_layout_get_pixel_size_safe(PangoLayout *layout, int *w, int *h);
 bool
 starts_with(const std::string &str, const std::string &prefix);
 
+float random_float();
+
 #endif

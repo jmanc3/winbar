@@ -3016,6 +3016,7 @@ bool client_set_position_and_size(App *app, AppClient *client, int x, int y, int
 }
 
 void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void *user_data) {
+    //printf("Client: %s has %d animations running\n", client->name.c_str(), (int) client->animations.size());
     while ((event = xcb_poll_for_event(app->connection))) {
         handle_event(app);
         free(event);
