@@ -140,6 +140,7 @@ public:
     std::string command_launched_by;
     int initial_mouse_click_before_drag_offset_x = 0;
     long creation_time = get_current_time_in_ms();
+    int initial_index = -1;
     
     int old_natural_position_x = INT_MAX;
     int natural_position_x = INT_MAX;

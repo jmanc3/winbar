@@ -820,3 +820,17 @@ float random_float() {
 
     return dist(gen);
 }
+
+bool already_began(AppClient *client, double *value, double target) {
+    if (*value == target)
+        return true;
+    for (auto a: client->animations) {
+        if (a.value == value) {
+            if (target == -1) { // being passed in -1 means match against any value
+                return true;
+            }
+            return a.target == target;
+        }
+    }   
+    return false;
+}

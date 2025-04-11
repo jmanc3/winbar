@@ -2243,6 +2243,12 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    for (int i = 0; i < container->parent->children.size(); i++) {
+        if (container->parent->children[i] == container) {
+            auto *data = static_cast<LaunchableButton *>(container->user_data);
+            data->initial_index = i;
+        }
+    }
     for (auto c: app->clients) {
         if (c->name == "windows_selector") {
             client_close_threaded(app, c);
@@ -2315,6 +2321,7 @@ pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container
                                               XCB_CURRENT_TIME,
                                               XCB_EWMH_CLIENT_SOURCE_TYPE_NORMAL);
             }
+            // Move the launchuble button to inital_index
         }
     }
    

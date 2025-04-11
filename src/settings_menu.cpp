@@ -303,7 +303,7 @@ void when_size_field_key_event(AppClient *client, cairo_t *cr, Container *self, 
 }
 
 static void add_item(Container *reorder_list, std::string n, bool on_off_state) {
-    auto r = reorder_list->child(::hbox, FILL_SPACE, 36 * config->dpi);
+    auto r = reorder_list->child(::hbox, FILL_SPACE, 32 * config->dpi);
     r->when_paint = paint_reordable_item;
     r->receive_events_even_if_obstructed_by_one = true;
 //    r->clip = true;
@@ -1114,6 +1114,10 @@ struct SettingBoolData : UserData {
     bool squares_up = false;
     long open_start = 0;
     long close_start = 0;
+    double open_amount = 0;
+    double slide_amount = 0;
+    double slide_open = 0;
+    std::shared_ptr<bool> lifetime = std::make_shared<bool>();
 };
 
 static void
@@ -1133,7 +1137,8 @@ setting_bool(Container *container, std::string icon, std::string title, std::str
             *data->target = !(*data->target);
         }
         save_settings_file();
-    };
+        request_refresh(app, client_by_name(app, "taskbar"));
+   };
 
     full_label_container->when_paint = [](AppClient *client, cairo_t *cr, Container *c) 
     {
@@ -1236,22 +1241,55 @@ setting_bool(Container *container, std::string icon, std::string title, std::str
         auto check_bounds = Bounds(c->real_bounds.x + c->real_bounds.w - 65 * config->dpi,
                                    c->real_bounds.y + c->real_bounds.h / 2 - 10 * config->dpi,
                                    40 * config->dpi, 20 * config->dpi);
-        if (on_off == "On") {
-            draw_round_rect(client, config->color_search_accent, check_bounds, 10 * config->dpi, 0);
-            
-            check_bounds.x = check_bounds.x + check_bounds.w - 16 * config->dpi;
-            check_bounds.y = check_bounds.y + check_bounds.h / 2 - 6 * config->dpi;
-            check_bounds.w = 12 * config->dpi;
-            check_bounds.h = 12 * config->dpi;
-            draw_round_rect(client, ArgbColor(1, 1, 1, 1), check_bounds, 6 * config->dpi);
+        float circ_size_small = 12;
+        float circ_size_big = 14;
+        float circ_anim_time = 70;
+        
+        bool sliding = already_began(client, &data->slide_amount, -1);
+        if (bounds_contains(check_bounds, client->mouse_current_x, client->mouse_current_y) || c->state.mouse_pressing || sliding) {
+            if (!already_began(client, &data->slide_open, 1))
+                client_create_animation(app, client, &data->slide_open, data->lifetime, 0, circ_anim_time, nullptr, 1);
         } else {
+            if (!already_began(client, &data->slide_open, 0))
+                client_create_animation(app, client, &data->slide_open, data->lifetime, 0, circ_anim_time, nullptr, 0);
+        }
+        float circ_extra_width = 5.5 * data->slide_open;
+        
+
+        if (bounds_contains(c->real_bounds, client->mouse_current_x, client->mouse_current_y)) {
+            if (!already_began(client, &data->open_amount, 1))
+                client_create_animation(app, client, &data->open_amount, data->lifetime, 0, circ_anim_time, nullptr, 1);
+        } else {
+            if (!already_began(client, &data->open_amount, 0))
+                client_create_animation(app, client, &data->open_amount, data->lifetime, 0, circ_anim_time, nullptr, 0);
+        }
+        float circ_size = circ_size_small + (circ_size_big - circ_size_small) * data->open_amount;
+        float left = check_bounds.x + 4 * config->dpi - ((circ_size - circ_size_small) * .5) * config->dpi;
+        float right = check_bounds.x + check_bounds.w - circ_size * config->dpi + ((circ_size - circ_size_small) * .5) * config->dpi - 4 * config->dpi - circ_extra_width * data->open_amount;
+        float position = (right - left) * data->slide_amount  + left;
+        if (on_off == "On") {
+            if (!already_began(client, &data->slide_amount, 1))
+                client_create_animation(app, client, &data->slide_amount, data->lifetime, 0, circ_anim_time * .5, nullptr, 1);
+
+            auto accent = config->color_search_accent;
+            draw_round_rect(client, accent, check_bounds, 10 * config->dpi, 0);
+            
+            check_bounds.x = position;
+            check_bounds.y = check_bounds.y + check_bounds.h / 2 - (circ_size * .5) * config->dpi;
+            check_bounds.w = circ_size * config->dpi + circ_extra_width * data->open_amount;
+            check_bounds.h = circ_size * config->dpi;
+            draw_round_rect(client, ArgbColor(1, 1, 1, 1), check_bounds, (circ_size * .5) * config->dpi);
+        } else {
+            if (!already_began(client, &data->slide_amount, 0))
+                client_create_animation(app, client, &data->slide_amount, data->lifetime, 0, circ_anim_time * .5, nullptr, 0);
+
             draw_round_rect(client, ArgbColor(.537, .537, .537, 1), check_bounds, 10 * config->dpi, std::floor(1.0 * config->dpi));
             
-            check_bounds.x = check_bounds.x + 4 * config->dpi;
-            check_bounds.y = check_bounds.y + check_bounds.h / 2 - 6 * config->dpi;
-            check_bounds.w = 12 * config->dpi;
-            check_bounds.h = 12 * config->dpi;
-            draw_round_rect(client, ArgbColor(.365, .365, .365, 1), check_bounds, 6 * config->dpi);
+            check_bounds.x = position;
+            check_bounds.y = check_bounds.y + check_bounds.h / 2 - (circ_size * .5) * config->dpi;
+            check_bounds.w = circ_size * config->dpi + circ_extra_width * data->open_amount;
+            check_bounds.h = circ_size * config->dpi;
+            draw_round_rect(client, ArgbColor(.365, .365, .365, 1), check_bounds, (circ_size * .5) * config->dpi);
         }
         c->real_bounds = backup;
         //draw_round_rect(client, ArgbColor(.965, .965, .965, 1), c->real_bounds, 5 * config->dpi, 0);
@@ -1280,14 +1318,25 @@ setting_bool_attachment(Container *scroll_root, std::string icon, std::string ti
             dd->exists = true;
             return;
         }
-        dd->wanted_bounds.h = (69.0 * .70f) * config->dpi;
-        dd->exists = *data->existance_target;
+        dd->exists = data->slide_amount != 0;
+        
+        float anim_time = 55;
+        if (*data->existance_target) {
+            if (!already_began(client, &data->slide_amount, 1))
+                client_create_animation(app, client, &data->slide_amount, data->lifetime, 0, anim_time, nullptr, 1);
+        } else {
+            if (!already_began(client, &data->slide_amount, 0))
+                client_create_animation(app, client, &data->slide_amount, data->lifetime, 0, anim_time, nullptr, 0);
+        }
+        
+        dd->wanted_bounds.h = ((69.0 * .70f) * config->dpi) * data->slide_amount;
     };
     
     dd->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
         auto data = (SettingBoolData *) c->user_data;
         *data->target = !*data->target;
         save_settings_file();
+        request_refresh(app, client_by_name(app, "taskbar"));
     };
     
     dd->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
@@ -1333,7 +1382,6 @@ setting_bool_attachment(Container *scroll_root, std::string icon, std::string ti
         auto [f, w, h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color), data->title);
         float total_height = h + d_h;
         f->draw_text_end(c->real_bounds.x + 87 * config->dpi, c->real_bounds.y + c->real_bounds.h / 2 - h / 2 + kern_y_off);
-        draw_clip_end(client);
         
         color = config->color_pinned_icon_editor_field_default_border;
         if (c->state.mouse_hovering)
@@ -1367,6 +1415,7 @@ setting_bool_attachment(Container *scroll_root, std::string icon, std::string ti
             c_f->draw_text_end(c->real_bounds.x + 60 * config->dpi + size / 2 - c_w / 2 + kern_x,
                                c->real_bounds.y + c->real_bounds.h / 2 - c_h / 2 + kern_y);
         }
+        draw_clip_end(client);
         
         c->real_bounds = backup;
     };
@@ -1606,6 +1655,7 @@ fill_root(AppClient *client, Container *root) {
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
     setting_field(client, scroll_root, "\uE777", "Restart command", "Command to be executed when attempting to restart",  &winbar_settings->restart_command); 
 //    string_textfield("Restart command: ", &winbar_settings->restart_command, scroll_root, client, "pkexec reboot");
+    scroll_root->child(FILL_SPACE, 60 * config->dpi);
     
     auto other_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     other_root->exists = false;

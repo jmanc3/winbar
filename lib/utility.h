@@ -353,4 +353,6 @@ starts_with(const std::string &str, const std::string &prefix);
 
 float random_float();
 
+bool already_began(AppClient *client, double *value, double target);
+
 #endif
