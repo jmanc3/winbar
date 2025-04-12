@@ -1117,6 +1117,9 @@ struct SettingBoolData : UserData {
     double open_amount = 0;
     double slide_amount = 0;
     double slide_open = 0;
+    bool dragging = false;
+    float position_scalar_read_only = 0;
+    double drag_start_x = 0;
     std::shared_ptr<bool> lifetime = std::make_shared<bool>();
 };
 
@@ -1130,6 +1133,26 @@ setting_bool(Container *container, std::string icon, std::string title, std::str
     data->target = target;
     data->squares_up = squares_up;
     full_label_container->user_data = data;
+    full_label_container->minimum_x_distance_to_move_before_drag_begins = 4 * config->dpi;
+    full_label_container->minimum_y_distance_to_move_before_drag_begins = 4 * config->dpi;
+    full_label_container->when_drag_start = [](AppClient *client, cairo_t *cr, Container *c) {
+        auto data = (SettingBoolData *) c->user_data;
+        auto check_bounds = Bounds(c->real_bounds.x + c->real_bounds.w - 65 * config->dpi,
+                                       c->real_bounds.y + c->real_bounds.h / 2 - 10 * config->dpi,
+                                       40 * config->dpi, 20 * config->dpi);
+        if (bounds_contains(check_bounds, client->mouse_current_x, client->mouse_current_y)) {
+            data->dragging = true;
+            data->drag_start_x = client->mouse_initial_x;
+        }
+    };
+    full_label_container->when_drag_end_is_click = false;
+    full_label_container->when_drag_end = [](AppClient *client, cairo_t *cr, Container *c) {
+        auto data = (SettingBoolData *) c->user_data;
+        data->dragging = false;
+        *data->target = data->position_scalar_read_only > .5;
+        data->slide_amount = data->position_scalar_read_only;
+    };
+ 
     full_label_container->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) 
     {
         auto data = (SettingBoolData *) c->user_data;
@@ -1267,6 +1290,15 @@ setting_bool(Container *container, std::string icon, std::string title, std::str
         float left = check_bounds.x + 4 * config->dpi - ((circ_size - circ_size_small) * .5) * config->dpi;
         float right = check_bounds.x + check_bounds.w - circ_size * config->dpi + ((circ_size - circ_size_small) * .5) * config->dpi - 4 * config->dpi - circ_extra_width * data->open_amount;
         float position = (right - left) * data->slide_amount  + left;
+        if (data->dragging) {
+            auto diff = client->mouse_current_x - data->drag_start_x;
+            position += diff;
+            if (position < left)
+                position = left;
+            if (position > right)
+                position = right;
+            data->position_scalar_read_only = ((position - left) / (right - left));
+        }
         if (on_off == "On") {
             if (!already_began(client, &data->slide_amount, 1))
                 client_create_animation(app, client, &data->slide_amount, data->lifetime, 0, circ_anim_time * .5, nullptr, 1);
