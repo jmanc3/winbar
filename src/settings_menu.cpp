@@ -1615,15 +1615,34 @@ fill_root(AppClient *client, Container *root) {
     tabs->wanted_pad = Bounds(16 * config->dpi, 140 * config->dpi, 0, 0);
     
     auto root_stack = root->child(layout_type::stack, FILL_SPACE, FILL_SPACE);
+    root_stack->name = "root_stack";
     
     auto taskbar_order_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     title("Taskbar Order", taskbar_order_root);
     
     auto winbar_behaviour_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     winbar_behaviour_root->exists = false;
+    winbar_behaviour_root->name = "wbr";
     
     ScrollPaneSettings ss(config->dpi);
     auto scroll_container = make_newscrollpane_as_child(winbar_behaviour_root, ss);
+    tabs->skip_delete = true;
+    tabs->receive_events_even_if_obstructed = true;
+    tabs->when_fine_scrolled = [](AppClient *client,
+                                  cairo_t *cr,
+                                  Container *container,
+                                  int scroll_x,
+                                  int scroll_y,
+                                  bool came_from_touchpad) {
+        auto c = (Container *) container->user_data;
+        if (c->when_fine_scrolled) {
+            if (auto wb = container_by_name("wbr", client->root)) {
+                if (wb->exists)
+                    c->when_fine_scrolled(client, cr, c, scroll_x, scroll_y, came_from_touchpad);
+            }
+        }
+    };
+    tabs->user_data = scroll_container;
     auto scroll_root = scroll_container->content;
     title("Winbar Behaviour", scroll_root);
     
