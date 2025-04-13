@@ -9,6 +9,7 @@
 #include "root.h"
 #include "systray.h"
 #include "taskbar.h"
+#include "windows_selector.h"
 #include "config.h"
 #include "globals.h"
 #include "notifications.h"
@@ -134,6 +135,8 @@ int main(int argc, char* argv[]) {
     
     // Start our listening loop until the end of the program
     app_main(app);
+    
+    free_slept();
     
     unload_icons();
     

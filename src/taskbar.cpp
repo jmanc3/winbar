@@ -11,6 +11,7 @@
 #include "battery_menu.h"
 #include "components.h"
 #include "config.h"
+#include "sleep_menu.h"
 #include "date_menu.h"
 #include "icons.h"
 #include "main.h"
@@ -2953,21 +2954,21 @@ clicked_wifi(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
-static void send_signal(pid_t pid, int signal) {
-    if (kill(pid, signal) == 0) {
-        std::cout << "Signal " << signal << " sent to process " << pid << std::endl;
-    }
-}
-
 static void
 clicked_frozen_restore(AppClient *client, cairo_t *cr, Container *container) {
-    for (auto frozen: slept) {
-        xcb_map_window(app->connection, frozen->window_id);
-        send_signal(frozen->pid, SIGCONT);
-        delete frozen;
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
+        free_slept();
+        //open_right_click_menu(client, cr, container);
+        return;
     }
-    slept.clear();
-    merge_order_with_taskbar();
+    auto *data = (IconButton *) container->user_data;
+    if (!data->invalid_button_down) {
+        if (auto c = client_by_name(app, "sleep_menu")) {
+            client_close_threaded(app, c);
+        } else {
+            start_sleep_menu();
+        }
+    }
 }
 
 static void
@@ -3790,8 +3791,10 @@ fill_root(App *app, AppClient *client, Container *root) {
     
     container_frozen->when_paint = paint_frozen;
     auto button_frozen_data = new IconButton;
+    button_frozen_data->invalidate_button_press_if_client_with_this_name_is_open = "sleep_menu";
     container_frozen->name = "frozen";
     container_frozen->user_data = button_frozen_data;
+    container_frozen->when_mouse_down = invalidate_icon_button_press_if_window_open;
     container_frozen->when_clicked = clicked_frozen_restore;
 
     button_systray->when_paint = paint_systray;

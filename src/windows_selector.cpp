@@ -276,6 +276,47 @@ static void send_signal(pid_t pid, int signal) {
 
 std::vector<SleptWindows *> slept;
 
+// Optional cleanup callback for Cairo to free the copied data
+void free_surface_data(void* data) {
+    free(data);
+}
+
+cairo_surface_t* copy_cairo_image_surface(cairo_surface_t* original) {
+    if (!original) return nullptr;
+
+    cairo_format_t format = cairo_image_surface_get_format(original);
+    int width = cairo_image_surface_get_width(original);
+    int height = cairo_image_surface_get_height(original);
+    int stride = cairo_image_surface_get_stride(original);
+    unsigned char* original_data = cairo_image_surface_get_data(original);
+
+    // Allocate new memory for the copied surface data
+    unsigned char* copied_data = (unsigned char*)malloc(stride * height);
+    if (!copied_data) return nullptr;
+
+    memcpy(copied_data, original_data, stride * height);
+
+    // Create the new surface using the copied data
+    cairo_surface_t* new_surface = cairo_image_surface_create_for_data(
+        copied_data, format, width, height, stride
+    );
+
+    if (cairo_surface_status(new_surface) != CAIRO_STATUS_SUCCESS) {
+        free(copied_data);
+        return nullptr;
+    }
+
+    // Set a user data key to free the data when the surface is destroyed
+    cairo_surface_set_user_data(
+        new_surface,
+        nullptr, // You can use a static const pointer if you want a custom key
+        copied_data,
+        free_surface_data
+    );
+
+    return new_surface;
+}
+
 static void
 clicked_sleep(AppClient *client_entity, cairo_t *cr, Container *container) {
     container = container->parent->parent;
@@ -289,7 +330,8 @@ clicked_sleep(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
  
     auto pii = (PinnedIconInfo *) client_entity->root->user_data;
-    xcb_window_t window = pii->data->windows_data_list[index]->id;
+    auto w_data = pii->data->windows_data_list[index];
+    xcb_window_t window = w_data->id;
    
     xcb_get_property_cookie_t prop_cookie = xcb_ewmh_get_wm_pid(&app->ewmh, window);
     uint32_t pid = -1;
@@ -300,6 +342,10 @@ clicked_sleep(AppClient *client_entity, cairo_t *cr, Container *container) {
     auto frozen = new SleptWindows;
     frozen->pid = pid;
     frozen->window_id = (int) window;
+    frozen->title = w_data->title;
+    frozen->width = w_data->width;
+    frozen->height = w_data->height;
+    frozen->surface = copy_cairo_image_surface(w_data->scaled_thumbnail_surface);
     slept.push_back(frozen);
     
     xcb_unmap_window(app->connection, frozen->window_id);
@@ -848,4 +894,13 @@ void start_windows_selector(Container *container, selector_type selector_state) 
 
 PinnedIconInfo::~PinnedIconInfo() {
     cairo_surface_destroy(icon_surface);
+}
+
+void free_slept() {
+    for (auto frozen: slept) {
+        xcb_map_window(app->connection, frozen->window_id);
+        send_signal(frozen->pid, SIGCONT);
+        delete frozen;
+    }
+    slept.clear();
 }
