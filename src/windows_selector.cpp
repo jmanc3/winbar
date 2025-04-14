@@ -525,39 +525,17 @@ paint_titlebar(AppClient *client_entity, cairo_t *cr, Container *container) {
         title = pii->data->class_name;
     }
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 9 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+    bool active = container->state.mouse_pressing || container->state.mouse_hovering || bounds_contains(client_entity->root->real_bounds, client_entity->mouse_current_x, client_entity->mouse_current_y);
     
-    int width;
-    int height;
-    pango_layout_set_text(layout, title.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    int close_w = close_width;
-    bool hovered = false;
-    bool pressed = false;
-    paint_option_hovered_or_pressed(container->parent->parent, hovered, pressed);
-    if (hovered || pressed) {
-        close_w = 0;
+    auto bounds = container->parent->real_bounds;
+    bounds.w -= option_pad;
+    if (active) {
+        bounds.w -= close_width * 2;
     }
-    int pad = option_pad;
-    if (close_w == 0) {
-        pad = 5;
-    }
-    pango_layout_set_width(layout,
-                           (((container->real_bounds.w - (pad * 2)) + close_w) - 24 * config->dpi) * PANGO_SCALE);
-    pango_layout_set_ellipsize(layout, PangoEllipsizeMode::PANGO_ELLIPSIZE_END);
-    if (close_w == 0) {
-        pad = option_pad;
-    }
-    
-    set_argb(cr, config->color_windows_selector_text);
-    cairo_move_to(cr,
-                  container->real_bounds.x + ((pad + 24 * config->dpi)),
-                  container->real_bounds.y + container->real_bounds.h / 2 - (height / 2));
-    pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
-    pango_cairo_show_layout(cr, layout);
-    pango_layout_set_width(layout, -1); // because other people using this cached layout don't expect wrapping
+    draw_clip_begin(client_entity, bounds);
+    draw_text(client_entity, 9 * config->dpi, config->font, EXPAND(config->color_windows_selector_text),
+                  title, container->real_bounds, 5, option_pad + 24 * config->dpi);
+    draw_clip_end(client_entity);
 }
 
 static void

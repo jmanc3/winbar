@@ -121,7 +121,11 @@ void start_sleep_menu() {
                 
                 //cairo_restore(cr);
                 auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, 1, 1, 1, 1, sleeper->frozen->title);
-                f->draw_text_end(c->real_bounds.x + 4 * config->dpi, c->real_bounds.y + close_height / 2 - h / 2);
+                auto bounds = c->real_bounds;
+                bounds.w -= 8 * config->dpi;
+                draw_clip_begin(client, bounds);
+                f->draw_text_end(c->real_bounds.x + 8 * config->dpi, c->real_bounds.y + close_height / 2 - h / 2);
+                draw_clip_end(client);
             };
             pane->when_clicked = [](AppClient *client, cairo_t *, Container *c) {
                 auto sleeper = (Sleeper *) c->user_data;

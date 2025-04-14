@@ -50,7 +50,7 @@ static void paint_background(AppClient *client, cairo_t *cr, Container *containe
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    draw_colored_rect(client, config->color_pinned_icon_editor_background, container->real_bounds); 
+    draw_colored_rect(client, ArgbColor(.941, .957, .976, 1), container->real_bounds); 
 }
 
 
@@ -75,49 +75,15 @@ static void paint_icon(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
-static void paint_state_label(AppClient *client, cairo_t *cr, Container *container) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    auto label = (Label *) container->user_data;
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    if (width < container->real_bounds.w) {
-        pango_layout_set_width(layout, container->real_bounds.w * PANGO_SCALE);
-    }
-    pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
-    
-    
-    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
-    cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y + container->real_bounds.h);
-    pango_cairo_show_layout(cr, layout);
-    pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
-    pango_layout_set_width(layout, -1);
-}
-
 static void paint_label(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
     auto label = (Label *) container->user_data;
-    PangoWeight weight = PangoWeight::PANGO_WEIGHT_BOLD;
-    if (label->weight == PangoWeight::PANGO_WEIGHT_BOLD)
-        weight = PangoWeight::PANGO_WEIGHT_NORMAL;
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 11 * config->dpi, weight);
     
-    int width;
-    int height;
-    pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_pinned_icon_editor_field_default_text);
-    cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y + container->real_bounds.h);
-    pango_cairo_show_layout(cr, layout);
+    bool bold = true;
+    auto [f, w, h] = draw_text_begin(client, 11 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text), label->text, bold);
+    f->draw_text_end(container->real_bounds.x, container->real_bounds.y + container->real_bounds.h);
 }
 
 static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
@@ -138,18 +104,7 @@ static void paint_button(AppClient *client, cairo_t *cr, Container *container) {
     }
     
     auto label = (Label *) container->user_data;
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_pinned_icon_editor_button_text_default);
-    cairo_move_to(cr, container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text), label->text, container->real_bounds);
 }
 
 static void update_icon(AppClient *client);
@@ -182,19 +137,8 @@ static void paint_icon_option(AppClient *client, cairo_t *cr, Container *contain
     } else {
         draw_colored_rect(client, color, container->real_bounds);
     }
-    
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, label->label->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
-    
-    set_argb(cr, config->color_pinned_icon_editor_button_text_default);
-    cairo_move_to(cr, container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    color = config->color_pinned_icon_editor_button_text_default;
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(color), label->label->text, container->real_bounds);
 }
 
 static void paint_restore(AppClient *client, cairo_t *cr, Container *container) {
@@ -227,22 +171,14 @@ static void paint_restore(AppClient *client, cairo_t *cr, Container *container) 
     }
     
     auto label = (Label *) container->user_data;
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 11 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    int width;
-    int height;
-    pango_layout_set_text(layout, label->text.c_str(), -1);
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
     
     if (disabled) {
-        set_argb(cr, lighten(config->color_pinned_icon_editor_button_text_default, 45));
+        color = lighten(config->color_pinned_icon_editor_button_text_default, 45);
     } else {
-        set_argb(cr, config->color_pinned_icon_editor_button_text_default);
+        color = config->color_pinned_icon_editor_button_text_default;
     }
-    cairo_move_to(cr, container->real_bounds.x + container->real_bounds.w / 2 - width / 2,
-                  container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    pango_cairo_show_layout(cr, layout);
+    
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(color), label->text, container->real_bounds);
 }
 
 static void paint_textarea_border(AppClient *client, cairo_t *cr, Container *container) {
@@ -263,7 +199,12 @@ static void paint_textarea_border(AppClient *client, cairo_t *cr, Container *con
     } else {
         color = config->color_pinned_icon_editor_field_default_border;
     }
-    draw_margins_rect(client, color, container->real_bounds, 2, 0);
+    float size = 14 * config->dpi;
+    //draw_colored_rect(client, ArgbColor(.984, .988, .992, 1), container->real_bounds);
+    //draw_margins_rect(client, color, container->real_bounds, 2, 0);
+    
+    draw_round_rect(client, ArgbColor(.984, .988, .992, 1), container->real_bounds, 5 * config->dpi, 0);
+    draw_round_rect(client, color, container->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
 }
 
 static Container *make_button(AppClient *client, Container *parent, std::string text) {
@@ -702,8 +643,8 @@ static void fill_root(AppClient *client) {
     ZoneScoped;
 #endif
     Container *root = client->root;
-    root->wanted_pad = Bounds(10 * config->dpi, 10 * config->dpi, 10 * config->dpi, 10 * config->dpi);
-    root->spacing = 10 * config->dpi;
+    root->wanted_pad = Bounds(16 * config->dpi, 16 * config->dpi, 16 * config->dpi, 16 * config->dpi);
+    root->spacing = 16 * config->dpi;
     root->type = vbox;
     root->when_paint = paint_background;
     
@@ -930,7 +871,6 @@ void start_pinned_icon_editor(Container *icon_container, bool creating) {
     settings.w = 750 * config->dpi;
     settings.h = 580 * config->dpi;
     settings.skip_taskbar = false;
-    settings.keep_above = true;
     
     if (auto client = client_new(app, settings, "pinned_icon_editor")) {
         xcb_ewmh_set_wm_icon_name(&app->ewmh, client->window, strlen("settings"), "settings");
