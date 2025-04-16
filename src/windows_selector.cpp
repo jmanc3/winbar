@@ -270,7 +270,7 @@ clicked_close(AppClient *client_entity, cairo_t *cr, Container *container) {
 
 static void send_signal(pid_t pid, int signal) {
     if (kill(pid, signal) == 0) {
-        std::cout << "Signal " << signal << " sent to process " << pid << std::endl;
+        //std::cout << "Signal " << signal << " sent to process " << pid << std::endl;
     }
 }
 
@@ -343,8 +343,8 @@ clicked_sleep(AppClient *client_entity, cairo_t *cr, Container *container) {
     frozen->pid = pid;
     frozen->window_id = (int) window;
     frozen->title = w_data->title;
-    frozen->width = w_data->width;
-    frozen->height = w_data->height;
+    frozen->width = w_data->width_final;
+    frozen->height = w_data->height_final;
     frozen->surface = copy_cairo_image_surface(w_data->scaled_thumbnail_surface);
     slept.push_back(frozen);
     
@@ -566,6 +566,8 @@ paint_body(AppClient *client_entity, cairo_t *cr, Container *container) {
     if (data->scaled_thumbnail_surface) {
         double width = data->width * scale_w;
         double height = data->height * scale_h;
+        data->width_final = width;
+        data->height_final = height;
         
         double dest_x = container->real_bounds.x + pad + target_width / 2 - width / 2;
         double dest_y = container->real_bounds.y + target_height / 2 - height / 2;

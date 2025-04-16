@@ -107,6 +107,8 @@ public:
     // This is where we rescale the screenshot to the correct thumbnail size
     cairo_surface_t *scaled_thumbnail_surface = nullptr;
     cairo_t *scaled_thumbnail_cr = nullptr;
+    int width_final = -1;
+    int height_final = -1;
     
     bool marked_to_close = false;
     

@@ -10,7 +10,7 @@
 
 static void send_signal(pid_t pid, int signal) {
     if (kill(pid, signal) == 0) {
-        std::cout << "Signal " << signal << " sent to process " << pid << std::endl;
+        //std::cout << "Signal " << signal << " sent to process " << pid << std::endl;
     }
 }
 
@@ -45,12 +45,16 @@ void start_sleep_menu() {
     settings.y = app->bounds.h - settings.h - config->taskbar_height;
     if (auto *taskbar = client_by_name(app, "taskbar")) {
         auto *container = container_by_name("frozen", taskbar->root);
-        // TOOD: center position
-        if (container) {
+        if (container)
             settings.x = taskbar->bounds->x + container->real_bounds.x + container->real_bounds.w / 2 - settings.w / 2;
-        }
         
         settings.y = taskbar->bounds->y - settings.h;
+        
+        // Keep on screen
+        if (settings.x < taskbar->bounds->x)
+            settings.x = taskbar->bounds->x;
+        if (settings.x + settings.w > taskbar->bounds->x + taskbar->bounds->w)
+            settings.x = taskbar->bounds->x + taskbar->bounds->w - settings.w;
     }
     settings.force_position = true;
     
@@ -66,12 +70,6 @@ void start_sleep_menu() {
  
         auto root = scrollpane->content;
         root->type = ::vbox;
-        
-        root->when_paint =  [](AppClient *client, cairo_t *, Container *c) {
-            auto color = config->color_volume_background;
-            color.a = 1;
-            draw_colored_rect(client, color, c->real_bounds);
-        };
         root->receive_events_even_if_obstructed = true;
         
         for (auto frozen: slept) {
@@ -84,6 +82,10 @@ void start_sleep_menu() {
                 auto sleeper = (Sleeper *) c->user_data;
                 if (!sleeper)
                     return;
+                
+                auto color = config->color_volume_background;
+                color.a = 1;
+                draw_colored_rect(client, color, c->real_bounds);
                 
                 if (c->state.mouse_hovering || c->state.mouse_pressing) {
                     auto color = config->color_apps_pressed_item;
@@ -98,26 +100,10 @@ void start_sleep_menu() {
                 if (!sleeper->gsurf)
                     sleeper->gsurf = new gl_surface();
                 
-                double close_width = 32 * config->dpi;
                 double close_height = 32 * config->dpi;
+                double width = sleeper->frozen->width;
                 
-                double pad = 8 * config->dpi;
-                double target_width = option_width - pad * 2;
-                double target_height = option_height - pad;
-                double scale_w = target_width / sleeper->frozen->width;
-                double scale_h = target_height / sleeper->frozen->height;
-                if (scale_w < scale_h) {
-                    scale_h = scale_w;
-                } else {
-                    scale_w = scale_h;
-                }
-                double width = sleeper->frozen->width * scale_w;
-                double option_min_width = 100 * 1.2 * config->dpi;
-                if (width < option_min_width) {
-                    width = option_min_width;
-                }
-                
-                draw_gl_texture(client, sleeper->gsurf, sleeper->frozen->surface, c->real_bounds.w / 2 - (width / 2) + pad, close_height + c->real_bounds.y);
+                draw_gl_texture(client, sleeper->gsurf, sleeper->frozen->surface, c->real_bounds.x + c->real_bounds.w / 2 - width / 2, close_height + c->real_bounds.y);
                 
                 //cairo_restore(cr);
                 auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, 1, 1, 1, 1, sleeper->frozen->title);
