@@ -1156,10 +1156,11 @@ client_new(App *app, Settings settings, const std::string &name) {
                             5,
                             &settings.slide_data);
     }
-    
+
     // Set the WM_CLASS
+    std::string wm_class = name + '\0' + name;
     auto set_wm_class_cookie = xcb_icccm_set_wm_class_checked(app->connection, window,
-                                                              name.length(), name.c_str());
+                                                              wm_class.size(), wm_class.c_str());
     xcb_generic_error_t *error = xcb_request_check(app->connection, set_wm_class_cookie);
     if (error) {
         printf("Couldn't set the WM_CLASS property for client: %s\n", name.c_str());
