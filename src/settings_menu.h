@@ -50,7 +50,7 @@ struct WinbarSettings {
     bool label_uniform_size = false;
     bool use_opengl = false;
     bool minimize_maximize_animation = true;
-    bool always_hide = true;
+    bool always_hide = false;
     bool on_drag_show_trash = false;
     bool auto_dpi = true;
     float scale_factor = 1.0;
