@@ -527,8 +527,60 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
                 auto mask = xcb_input_raw_button_press_valuator_mask(rmt_event);
                 bool is_scroll_event = (mask[0] & (1 << 2)) || (mask[0] & (1 << 3));
                 bool is_mouse_event = (mask[0] & (1 << 0)) || (mask[0] & (1 << 1));
-                if (is_mouse_event) {
-                
+
+                if (is_mouse_event)
+                {
+                    // if user has always_hide enabled.
+                    if (winbar_settings->always_hide)
+                    {
+                        // find global mouse position.
+                        xcb_query_pointer_cookie_t pointer_cookie = xcb_query_pointer(
+                            app->connection, app->screen->root);
+                        xcb_query_pointer_reply_t* pointer_reply = xcb_query_pointer_reply(
+                            app->connection, pointer_cookie, nullptr);
+
+                        // if mouse position found.
+                        if (pointer_reply)
+                        {
+                            AppClient* client = client_by_name(app, "taskbar");
+
+                            bool someone_has = false;
+
+                            // if any client is mapped then someone_has
+                            for (auto c : app->clients)
+                            {
+                                if (c->mapped && c->name != "taskbar")
+                                {
+                                    someone_has = true;
+                                    break;
+                                }
+                            }
+
+                            bool inside_client = bounds_contains(*client->bounds, pointer_reply->root_x,
+                                                                 pointer_reply->root_y);
+
+                            // if client mouse position is in bounds.
+                            if (pointer_reply->root_y >= app->screen->height_in_pixels - 1)
+                            {
+                                if (!client->mapped)
+                                {
+                                    // show taskbar
+                                    client_show(app, client);
+                                }
+                            }
+                            else
+                            {
+                                if (client->mapped && !inside_client && !someone_has)
+                                {
+                                    // hide taskbar
+                                    client_hide(app, client);
+                                    client->mouse_current_x = -1;
+                                    client->mouse_current_y = -1;
+                                }
+                            }
+                        }
+                        free(pointer_reply);
+                    }
                 } else if (is_scroll_event) {
                     auto raw_values = xcb_input_raw_button_press_axisvalues(
                             (xcb_input_raw_button_press_event_t *) event);

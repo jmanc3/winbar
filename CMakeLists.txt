@@ -76,6 +76,7 @@ set(
         x11
         x11-xcb
         xcb-xinput
+        freetype2
         pangocairo # to paint pango text layouts using cairo
         xcb-randr # to gain brightness control
         xcb-aux # to force the Xorg server to really finish with all the events before xcb_sync_aux called
