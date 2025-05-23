@@ -1670,6 +1670,9 @@ fill_root(AppClient *client, Container *root) {
     setting_bool(scroll_root, "\uE8CB", "Animate minimize/maximize action", "Taskbar pins will bounce when an application is minimized/maximized", &winbar_settings->minimize_maximize_animation);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
     
+    setting_bool(scroll_root, "\uE78B", "Auto hide", "Only show taskbar when mouse is nearby", &winbar_settings->always_hide);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+    
     setting_bool(scroll_root, "\uE107", "Close windows with drag", "When dragging a window, add edges which will close the window if drag ended on them", &winbar_settings->on_drag_show_trash);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
     
@@ -2010,6 +2013,14 @@ void save_settings_file() {
     out_file << "minimize_maximize_animation=" << (winbar_settings->minimize_maximize_animation ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "always_hide=" << (winbar_settings->always_hide ? "true" : "false");
+    out_file << std::endl << std::endl;
+    if (winbar_settings->always_hide) {
+        client_hide(app, client_by_name(app, "taskbar"));
+    } else {
+        client_show(app, client_by_name(app, "taskbar"));
+    }
+    
     out_file << "auto_dpi=" << (winbar_settings->auto_dpi ? "true" : "false");
     out_file << std::endl << std::endl;
     
@@ -2281,6 +2292,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "labels", &winbar_settings->labels);
                 parse_bool(&parser, key, "label_uniform_size", &winbar_settings->label_uniform_size);
                 parse_bool(&parser, key, "minimize_maximize_animation", &winbar_settings->minimize_maximize_animation);
+                parse_bool(&parser, key, "always_hide", &winbar_settings->always_hide);
                 parse_bool(&parser, key, "auto_dpi", &winbar_settings->auto_dpi);
                 parse_bool(&parser, key, "use_opengl", &winbar_settings->use_opengl);
                 parse_bool(&parser, key, "on_drag_show_trash", &winbar_settings->on_drag_show_trash);
