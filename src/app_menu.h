@@ -25,7 +25,7 @@ public:
     std::string icon;
     std::string exec;
     std::string wmclass;
-    std::string name;
+    std::string launcher_name;
     
     // TODO: gl_surfaces are only valid for their respective clients, not across client
     cairo_surface_t *icon_16__ = nullptr;

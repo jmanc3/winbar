@@ -555,7 +555,7 @@ void update_options() {
                         } else if (active_tab == "Apps") {
                             // We create a copy because app_menu relies on the order
                             std::vector<Launcher *> launchers_copy;
-                            for (auto *l: launchers) {
+                            for (auto l: launchers) {
                                 launchers_copy.push_back(l);
                             }
                             sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text,
