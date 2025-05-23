@@ -49,6 +49,7 @@ struct WinbarSettings {
     bool super_icon_default = true;
     bool label_uniform_size = false;
     bool use_opengl = false;
+    bool show_windows_from_all_desktops = false;
     bool minimize_maximize_animation = true;
     bool always_hide = false;
     bool on_drag_show_trash = false;

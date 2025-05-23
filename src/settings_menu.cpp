@@ -1120,17 +1120,20 @@ struct SettingBoolData : UserData {
     bool dragging = false;
     float position_scalar_read_only = 0;
     double drag_start_x = 0;
+    void (*on_change)() = nullptr;
     std::shared_ptr<bool> lifetime = std::make_shared<bool>();
 };
 
 static void
-setting_bool(Container *container, std::string icon, std::string title, std::string description, bool *target, bool squares_up = false) {
+setting_bool(Container *container, std::string icon, std::string title, std::string description, bool *target, bool squares_up = false,
+             void (*on_change)() = nullptr) {
     auto full_label_container = container->child(layout_type::hbox, FILL_SPACE, 69 * config->dpi);
     auto data = new SettingBoolData;
     data->icon = icon;
     data->title = title;
     data->description = description;
     data->target = target;
+    data->on_change = on_change;
     data->squares_up = squares_up;
     full_label_container->user_data = data;
     full_label_container->minimum_x_distance_to_move_before_drag_begins = 4 * config->dpi;
@@ -1150,6 +1153,8 @@ setting_bool(Container *container, std::string icon, std::string title, std::str
         auto data = (SettingBoolData *) c->user_data;
         data->dragging = false;
         *data->target = data->position_scalar_read_only > .5;
+        if (data->on_change)
+            data->on_change();
         data->slide_amount = data->position_scalar_read_only;
     };
  
@@ -1158,6 +1163,8 @@ setting_bool(Container *container, std::string icon, std::string title, std::str
         auto data = (SettingBoolData *) c->user_data;
         if (data->target != nullptr) {
             *data->target = !(*data->target);
+            if (data->on_change)
+                data->on_change();
         }
         save_settings_file();
         request_refresh(app, client_by_name(app, "taskbar"));
@@ -1670,7 +1677,19 @@ fill_root(AppClient *client, Container *root) {
     setting_bool(scroll_root, "\uE8CB", "Animate minimize/maximize action", "Taskbar pins will bounce when an application is minimized/maximized", &winbar_settings->minimize_maximize_animation);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
     
-    setting_bool(scroll_root, "\uE78B", "Auto hide", "Only show taskbar when mouse is nearby", &winbar_settings->always_hide);
+    setting_bool(scroll_root, "", "Auto hide", "Only show taskbar when mouse is nearby", &winbar_settings->always_hide, false, []() {
+        if (winbar_settings->always_hide) {
+            client_hide(app, client_by_name(app, "taskbar"));
+        } else {
+            client_show(app, client_by_name(app, "taskbar"));
+        }
+    });
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+    
+    //
+    setting_bool(scroll_root, "", "Show windows from all desktops", "Display every window from every desktop", &winbar_settings->show_windows_from_all_desktops, false, []() {
+        on_desktop_change();
+    });
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
     
     setting_bool(scroll_root, "\uE107", "Close windows with drag", "When dragging a window, add edges which will close the window if drag ended on them", &winbar_settings->on_drag_show_trash);
@@ -2015,11 +2034,9 @@ void save_settings_file() {
     
     out_file << "always_hide=" << (winbar_settings->always_hide ? "true" : "false");
     out_file << std::endl << std::endl;
-    if (winbar_settings->always_hide) {
-        client_hide(app, client_by_name(app, "taskbar"));
-    } else {
-        client_show(app, client_by_name(app, "taskbar"));
-    }
+    
+    out_file << "show_windows_from_all_desktops=" << (winbar_settings->show_windows_from_all_desktops ? "true" : "false");
+    out_file << std::endl << std::endl;
     
     out_file << "auto_dpi=" << (winbar_settings->auto_dpi ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -2293,6 +2310,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "label_uniform_size", &winbar_settings->label_uniform_size);
                 parse_bool(&parser, key, "minimize_maximize_animation", &winbar_settings->minimize_maximize_animation);
                 parse_bool(&parser, key, "always_hide", &winbar_settings->always_hide);
+                parse_bool(&parser, key, "show_windows_from_all_desktops", &winbar_settings->show_windows_from_all_desktops);
                 parse_bool(&parser, key, "auto_dpi", &winbar_settings->auto_dpi);
                 parse_bool(&parser, key, "use_opengl", &winbar_settings->use_opengl);
                 parse_bool(&parser, key, "on_drag_show_trash", &winbar_settings->on_drag_show_trash);

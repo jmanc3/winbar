@@ -66,8 +66,9 @@ root_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t) {
             if (e->atom == get_cached_atom(app, "_NET_CLIENT_LIST_STACKING")) {
                 update_stacking_order();
             }
-            if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
-//                printf("here\n");
+            if (e->atom == get_cached_atom(app, "_NET_CURRENT_DESKTOP")) {
+            //if (e->atom == get_cached_atom(app, "_NET_WM_DESKTOP")) {
+                on_desktop_change();
             }
             update_active_window();
             break;

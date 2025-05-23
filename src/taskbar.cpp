@@ -2267,7 +2267,7 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
         end->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
             draw_text(client, 10 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), "\uE107", container->real_bounds);
         };
-         
+        
         auto start = client_entity->root->child(32 * config->dpi, FILL_SPACE);
         start->name = "trash";
         start->when_paint = end->when_paint;
@@ -2857,7 +2857,7 @@ paint_frozen(AppClient *client, cairo_t *cr, Container *container) {
     
     if (!slept.empty()) {
         draw_text(client, 10 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), "\uF738", container->real_bounds, -5, -1, container->real_bounds.h / 2 - (10 * config->dpi) / 2);
-    } 
+    }
 }
 
 static void
@@ -3600,8 +3600,11 @@ scrolled_workspace(AppClient *client_entity,
                    int horizontal_scroll,
                    int vertical_scroll) {
     int current = desktops_current(app);
-    current -= vertical_scroll;
-    current -= horizontal_scroll;// we subtract to correct the direction
+    if (vertical_scroll > 0) {
+        current += 1;
+    } else {
+        current += -1;
+    }
     
     int count = desktops_count(app);
     if (current < 0)
@@ -3610,6 +3613,28 @@ scrolled_workspace(AppClient *client_entity,
         current = 0;
     desktops_change(app, current);
 }
+
+static void
+fine_scrolled_workspace(AppClient *client_entity,
+                        cairo_t *cr,
+                        Container *container,
+                        int horizontal_scroll,
+                        int vertical_scroll, bool came_from_touchpad) {
+    static int delta = 0;
+    if (client_entity->app->current - client_entity->app->last_touchpad_time > 300) {
+        delta = 0;
+    }
+    if (came_from_touchpad) {
+        delta += vertical_scroll;
+        if (std::abs(delta) > 230) {
+            scrolled_workspace(client_entity, cr, container, 0, delta);
+            delta = 0;
+        }
+    } else {
+        scrolled_workspace(client_entity, cr, container, horizontal_scroll, vertical_scroll);
+    }
+}
+
 
 void gnome_stuck_mouse_state_fix(App *app, AppClient *client, Timeout *, void *) {
     if (valid_client(app, client)) {
@@ -3625,6 +3650,13 @@ clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
         open_right_click_menu(client_entity, cr, container);
         return;
     }
+    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) { // left
+        scrolled_workspace(client_entity, cr, container, 0, 1);
+    } else { // right
+        scrolled_workspace(client_entity, cr, container, 0, -1);
+    }
+    return;
+    
     if (dbus_connection_session) {
         for (const auto &s: running_dbus_services) {
             if (s == "org.kde.kglobalaccel") {
@@ -3640,12 +3672,6 @@ clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
                 }
             }
         }
-    }
-    
-    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) {// left
-        scrolled_workspace(client_entity, cr, container, 0, -1);
-    } else {// right
-        scrolled_workspace(client_entity, cr, container, 0, 1);
     }
 }
 
@@ -3770,7 +3796,7 @@ fill_root(App *app, AppClient *client, Container *root) {
     
     button_workspace->when_paint = paint_workspace;
     button_workspace->user_data = new IconButton;
-    button_workspace->when_scrolled = scrolled_workspace;
+    button_workspace->when_fine_scrolled = fine_scrolled_workspace;
     button_workspace->when_clicked = clicked_workspace;
     button_workspace->name = "workspace";
     
@@ -4850,9 +4876,16 @@ void add_window(App *app, xcb_window_t window) {
         err = nullptr;
     }
     
-    auto cookie_get_wm_desktop = xcb_ewmh_get_wm_desktop(&app->ewmh, window);
-    uint32_t desktop = 0;
-    xcb_ewmh_get_wm_desktop_from_reply(&desktop, NULL);
+    if (!winbar_settings->show_windows_from_all_desktops) {
+        xcb_get_property_cookie_t co = xcb_ewmh_get_wm_desktop(&app->ewmh, window);
+        uint32_t desktop_window_is_on = 0;
+        if (xcb_ewmh_get_wm_desktop_reply(&app->ewmh, co, &desktop_window_is_on, NULL)) {
+            int active_desktop = desktops_current(app);
+            if (active_desktop != desktop_window_is_on) {
+                return;
+            }
+        }
+    }
     
     std::vector<xcb_window_t> old_windows;
     AppClient *client = client_by_name(app, "taskbar");
@@ -5948,4 +5981,31 @@ void label_change(AppClient *taskbar) {
 gl_surface::gl_surface() {
     // TODO: why do we need this?
     //this->client = client_by_name(app, "taskbar");
+}
+
+void on_desktop_change() {
+    xcb_get_property_cookie_t cookie =
+            xcb_get_property(app->connection,
+                             0,
+                             app->screen->root,
+                             get_cached_atom(app, "_NET_CLIENT_LIST_STACKING"),
+                             XCB_ATOM_WINDOW,
+                             0,
+                             -1);
+    
+    xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, NULL);
+    defer(free(reply));
+    
+    long windows_count = xcb_get_property_value_length(reply) / sizeof(xcb_window_t);
+    auto *windows = (xcb_window_t *) xcb_get_property_value(reply);
+    for (int i = 0; i < windows_count; i++) {
+        if (windows[i] != 0) {
+            remove_window(app, windows[i]);
+        }
+    }
+    for (int i = 0; i < windows_count; i++) {
+        if (windows[i] != 0) {
+            add_window(app, windows[i]);
+        }
+    }
 }

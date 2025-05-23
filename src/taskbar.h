@@ -232,4 +232,6 @@ void label_change(AppClient *taskbar);
 
 void battery_display_device_state_changed();
 
+void on_desktop_change();
+
 #endif// TASKBAR_H

@@ -555,17 +555,37 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
                                                                  pointer_reply->root_y);
                             
                             // if client mouse position is in bounds.
+                            static bool should = false;
                             if (pointer_reply->root_y >= app->screen->height_in_pixels - 1) {
+                                should = false;
                                 if (!client->mapped) {
                                     // show taskbar
                                     client_show(app, client);
                                 }
                             } else {
                                 if (client->mapped && !inside_client && !someone_has) {
-                                    // hide taskbar
-                                    client_hide(app, client);
-                                    client->mouse_current_x = -1;
-                                    client->mouse_current_y = -1;
+                                    should = true;
+                                    static long start_time = 0;
+                                    start_time = app->current;
+                                    bool started = false;
+                                    for (auto t: app->timeouts) {
+                                        if (t->text == "auto_hide") {
+                                            started = true;
+                                        }
+                                    }
+                                    if (!started) {
+                                        auto timeout = app_timeout_create(app, client, 20,
+                                                                              [](App *app, AppClient *client, Timeout *t, void *user_data) {
+                                                                                  t->keep_running = true;
+                                                                                  auto start_time = (long *) user_data;
+                                                                                  if (app->current - *start_time > 150 && should) {
+                                                                                      t->keep_running = false;
+                                                                                      client_hide(app, client);
+                                                                                      client->mouse_current_x = -1;
+                                                                                      client->mouse_current_y = -1;
+                                                                                  }
+                                                                              }, &start_time, "auto_hide");
+                                    }
                                 }
                             }
                         }
