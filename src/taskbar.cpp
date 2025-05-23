@@ -3646,10 +3646,6 @@ void gnome_stuck_mouse_state_fix(App *app, AppClient *client, Timeout *, void *)
 
 static void
 clicked_workspace(AppClient *client_entity, cairo_t *cr, Container *container) {
-    if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
-        open_right_click_menu(client_entity, cr, container);
-        return;
-    }
     if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_1) { // left
         scrolled_workspace(client_entity, cr, container, 0, 1);
     } else { // right
