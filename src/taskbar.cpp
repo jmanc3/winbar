@@ -1970,7 +1970,7 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
     auto c = client_new(app, settings, "tooltip_taskbar");
     c->root->user_data = new Label(text);
     
-    app_timeout_create(app, c, 100, [](App *app, AppClient *tooltip, Timeout *t, void *) {
+    app_timeout_create(app, c, 100, [](App *app, AppClient *tooltip, Timeout *t, void *userdata) {
         t->keep_running = false;
         if (auto c = client_by_name(app, "taskbar")) {
             if (auto icons = container_by_name("icons", c->root)) {
@@ -1980,8 +1980,10 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
                     if (container->state.mouse_hovering && data->windows_data_list.empty()) {
                         t->keep_running = true;
                         auto label = (Label *) tooltip->root->user_data;
-                        if (label->text != data->class_name) {
-                            label->text = data->class_name;
+                        
+                        std::string text = data->class_name;
+                        if (label->text != text) {
+                            label->text = text;
                             PangoLayout *layout =
                                     get_cached_pango_font(tooltip->cr, config->font, 12 * config->dpi,
                                                           PangoWeight::PANGO_WEIGHT_NORMAL);

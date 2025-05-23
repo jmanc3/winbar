@@ -2690,6 +2690,7 @@ void load_desktop_files(std::string directory) {
                            ::tolower);
             launcher->exec = exec;
             launcher->wmclass = wmclass;
+            launcher->name = name;
             launcher->icon = icon;
             struct stat buffer{};
             if (stat(path.c_str(), &buffer) != 0) {

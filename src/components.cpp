@@ -1484,6 +1484,9 @@ paint_textarea(AppClient *client, cairo_t *cr, Container *container) {
     set_argb(cr, data->color);
     
     //cairo_move_to(cr, container->real_bounds.x, container->real_bounds.y);
+    
+    // TODO: this 0, 0 position is wrong for cairo and makes is draw the cursor in the wrong spot
+    // The problem is that the texts are different widths
     draw_text(client, data->font_size, config->font, EXPAND(data->color), data->state->text, container->real_bounds, 5, 0, 0);
     
     //pango_cairo_show_layout(cr, layout);
