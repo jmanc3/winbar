@@ -115,7 +115,10 @@ int main(int argc, char* argv[]) {
     load_historic_apps();
     load_live_tiles();
     
-    client_show(app, taskbar);
+    if (!winbar_settings->always_hide) {
+      client_show(app, taskbar);
+    }
+
     xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, taskbar->window, XCB_CURRENT_TIME);
     
     static int first = 0;

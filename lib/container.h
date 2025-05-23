@@ -703,8 +703,9 @@ struct AppClient {
     int previous_x = -1;
     int previous_y = -1;
     bool left_mouse_down = false;
-    
-    bool mapped = true;
+
+    bool inside = false;
+    bool mapped = false;
     
     long creation_time;
     long last_repaint_time;
