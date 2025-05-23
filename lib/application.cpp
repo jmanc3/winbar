@@ -485,7 +485,7 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
     static int keys_down_count = 0;
     static bool clean = true;
     static bool num = true;
-    
+
     if (event->response_type == XCB_GE_GENERIC) {
         auto *generic_event = (xcb_ge_generic_event_t *) event;
         if (generic_event->event_type == XCB_INPUT_KEY_PRESS) {
@@ -2236,7 +2236,6 @@ void handle_mouse_enter_notify(App *app) {
         return;
 
     handle_mouse_motion(app, client, e->event_x, e->event_y);
-    client->inside = true;
 }
 
 void handle_mouse_leave_notify(App *app) {
@@ -2276,8 +2275,6 @@ void handle_mouse_leave_notify(App *app) {
             }
         }
     }
-
-    client->inside = false;
 }
 
 void handle_configure_notify(App *app, AppClient *client, double x, double y, double w, double h) {
