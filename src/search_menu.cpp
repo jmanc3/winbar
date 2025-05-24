@@ -24,6 +24,8 @@
 #include <algorithm>
 #include <fstream>
 #include <pango/pangocairo.h>
+#define FTS_FUZZY_MATCH_IMPLEMENTATION
+#include "fts_fuzzy_match.h"
 
 class Script : public Sortable {
 public:
@@ -99,137 +101,6 @@ paint_left_bg(AppClient *client, cairo_t *cr, Container *container) {
     draw_operator(client, CAIRO_OPERATOR_SOURCE);
     draw_colored_rect(client, correct_opaqueness(client, config->color_search_content_left_background), container->real_bounds);
     draw_operator(client, CAIRO_OPERATOR_OVER);
-}
-
-static inline int
-determine_priority(Sortable *item,
-                   const std::string &text,
-                   const std::string &lowercase_text,
-                   const std::vector<HistoricalNameUsed *> &history) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    if (text.empty())
-        return 11;
-    // Sort priority (this won't try to do anything smart when searching for multiple words at the same time: "Firefox Steam")
-    //
-    // 0: name found somewhere in history TODO: need to implement this
-    // 1: Perfect match is highest
-    // 2: Start of string, correct capitalization, closest in length
-    // 3: Start of string, any     capitalization, closest in length
-    // 4: Any position in string, correct capitalization, closest in length
-    // 5: Any position in string, any     capitalization, closets in length
-    //
-    // For normal text
-    
-    unsigned long normal_find = item->name.find(text);
-    unsigned long lowercase_find = item->lowercase_name.find(text);
-    
-    int prio = 11;
-    if (normal_find == 0 && item->name.length() == text.length()) {
-        prio = -1;// absolute perfect matches come before everything even historical
-    } else if (normal_find == 0) {
-        prio = 2;
-    } else if ((lowercase_find) == 0) {
-        prio = 3;
-    } else if (normal_find != std::string::npos) {
-        prio = 4;
-    } else if (lowercase_find != std::string::npos) {
-        prio = 5;
-    }
-    
-    // For lowercase_text
-    if (prio == 11) {
-        normal_find = item->name.find(lowercase_text);
-        if (normal_find == 0 && item->name.length() == lowercase_text.length()) {// perfect match
-            prio = 6;
-        } else if (normal_find == 0) {
-            prio = 7;
-        } else if ((lowercase_find = item->lowercase_name.find(lowercase_text)) == 0) {
-            prio = 8;
-        } else if (normal_find != std::string::npos) {
-            prio = 9;
-        } else if (lowercase_find != std::string::npos) {
-            prio = 10;
-        }
-    }
-    
-    // Find it in history and attach a ranking
-    if (prio != -1) {    // if it wasn't a perfect match
-        if (prio != 11) {// but it was a match
-            for (int i = 0; i < history.size(); i++) {
-                HistoricalNameUsed *h = (history)[i];
-                auto lowercase_historic_find = h->text.find(item->lowercase_name);
-                if (lowercase_historic_find != std::string::npos) {
-                    item->historical_ranking = i;
-                    prio = 0;
-                    return prio;
-                }
-            }
-        }
-    }
-    
-    return prio;
-}
-
-static inline int
-determine_priority_location(const Sortable &item,
-                            const std::string &text,
-                            const std::string &lowercase_text,
-                            int *location) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
-    // Sort priority (this won't try to do anything smart when searching for multiple words)
-    //
-    // 0: name found somewhere in history TODO: need to implement this
-    // 1: Perfect match is highest
-    // 2: Start of string, correct capitalization, closest in length
-    // 3: Start of string, any     capitalization, closest in length
-    // 4: Any position in string, correct capitalization, closest in length
-    // 5: Any position in string, any     capitalization, closets in length
-    //
-    // For normal text
-    unsigned long normal_find = item.name.find(text);
-    unsigned long lowercase_find;
-    if (normal_find == 0 && item.name.length() == text.length()) {// perfect match
-        *location = normal_find;
-        return 1;
-    } else if (normal_find == 0) {
-        *location = normal_find;
-        return 2;
-    } else if ((lowercase_find = item.lowercase_name.find(text)) == 0) {
-        *location = lowercase_find;
-        return 3;
-    } else if (normal_find != std::string::npos) {
-        *location = normal_find;
-        return 4;
-    } else if (lowercase_find != std::string::npos) {
-        *location = lowercase_find;
-        return 5;
-    }
-    
-    // For lowercase_text
-    normal_find = item.name.find(lowercase_text);
-    if (normal_find == 0 && item.name.length() == lowercase_text.length()) {// perfect match
-        *location = normal_find;
-        return 6;
-    } else if (normal_find == 0) {
-        *location = normal_find;
-        return 7;
-    } else if ((lowercase_find = item.lowercase_name.find(lowercase_text)) == 0) {
-        *location = lowercase_find;
-        return 8;
-    } else if (normal_find != std::string::npos) {
-        *location = normal_find;
-        return 9;
-    } else if (lowercase_find != std::string::npos) {
-        *location = lowercase_find;
-        return 10;
-    }
-    
-    *location = -1;
-    return 11;
 }
 
 static void
@@ -894,25 +765,38 @@ void sort_and_add(std::vector<T> *sortables,
                   std::string text,
                   const std::vector<HistoricalNameUsed *> &history) {
     std::vector<T> sorted;
-    
-    {
-#ifdef TRACY_ENABLE
-        ZoneScopedN("sorting_options");
-#endif
-        std::string lowercase_text(text);
-        std::transform(
-                lowercase_text.begin(), lowercase_text.end(), lowercase_text.begin(), ::tolower);
-        
-        for (int i = 0; i < sortables->size(); i++) {
-            Sortable *s = (*sortables)[i];
-            s->priority = determine_priority(s, text, lowercase_text, history);
-            if (s->priority != 11) {
-                sorted.push_back((*sortables)[i]);
+    for (int i = 0; i < sortables->size(); i++) {
+        Sortable *s = (*sortables)[i];
+        s->priority = 0;
+        int out = 0;
+        bool possible = fts::fuzzy_match(text.c_str(), s->name.c_str(), out);
+        if (possible) {
+            s->priority = out;
+            for (int i = 0; i < history.size(); i++) {
+                HistoricalNameUsed *h = (history)[i];
+                if (h->text == s->lowercase_name) {
+                    s->historical_ranking = i;
+                }
             }
+ 
+            sorted.push_back((*sortables)[i]);
         }
-        
-        std::stable_sort(sorted.begin(), sorted.end(), compare_priority);
     }
+
+    std::stable_sort(sorted.begin(), sorted.end(),
+                     [](Sortable *a, Sortable *b) {
+                         if (a->historical_ranking != -1 || b->historical_ranking != -1) {
+                             if (a->historical_ranking != -1 && b->historical_ranking == -1) {
+                                 return true;
+                             } else if (a->historical_ranking == -1 && b->historical_ranking != -1) {
+                                 return false;
+                             } else {
+                                 return a->historical_ranking < b->historical_ranking;
+                             }
+                         }
+                         
+                         return a->priority > b->priority;
+                     });
     
     {
 #ifdef TRACY_ENABLE
