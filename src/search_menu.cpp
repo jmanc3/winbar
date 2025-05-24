@@ -768,34 +768,60 @@ void sort_and_add(std::vector<T> *sortables,
     for (int i = 0; i < sortables->size(); i++) {
         Sortable *s = (*sortables)[i];
         s->priority = 0;
+        s->match_level = 100;
         int out = 0;
-        bool possible = fts::fuzzy_match(text.c_str(), s->name.c_str(), out);
-        if (possible) {
-            s->priority = out;
-            for (int i = 0; i < history.size(); i++) {
-                HistoricalNameUsed *h = (history)[i];
-                if (h->text == s->lowercase_name) {
-                    s->historical_ranking = i;
-                }
+        if (fts::fuzzy_match(text.c_str(), s->name.c_str(), out)) {
+            s->match_level = 0;
+            goto success;
+        }
+        if (!s->generic_name.empty()) {
+            if (fts::fuzzy_match(text.c_str(), s->generic_name.c_str(), out)) {
+                s->match_level = 0;
+                goto success;
             }
- 
-            sorted.push_back((*sortables)[i]);
+        }
+        for (auto k: s->keywords) {
+            if (fts::fuzzy_match(text.c_str(), k.c_str(), out))
+                goto success;
+        }
+        for (auto k: s->categories) {
+            if (fts::fuzzy_match(text.c_str(), k.c_str(), out))
+                goto success;
+        }
+        continue;
+        success:
+        s->priority = out;
+        sorted.push_back((*sortables)[i]);
+    }
+    
+    for (int i = 0; i < sorted.size(); i++) {
+        Sortable *s = (sorted)[i];
+        for (int i = 0; i < history.size(); i++) {
+            HistoricalNameUsed *h = (history)[i];
+            if (h->text == s->lowercase_name) {
+                s->historical_ranking = i;
+            }
         }
     }
-
     std::stable_sort(sorted.begin(), sorted.end(),
                      [](Sortable *a, Sortable *b) {
-                         if (a->historical_ranking != -1 || b->historical_ranking != -1) {
-                             if (a->historical_ranking != -1 && b->historical_ranking == -1) {
-                                 return true;
-                             } else if (a->historical_ranking == -1 && b->historical_ranking != -1) {
-                                 return false;
-                             } else {
-                                 return a->historical_ranking < b->historical_ranking;
+                         if (a->match_level == b->match_level) {
+                             if (a->historical_ranking != -1 || b->historical_ranking != -1) {
+                                 if (a->historical_ranking != -1 && b->historical_ranking == -1) {
+                                     return true;
+                                 } else if (a->historical_ranking == -1 && b->historical_ranking != -1) {
+                                     return false;
+                                 } else {
+                                     // TODO: have priority be able to outstrip ranking if its a MUCH better match
+                                     //  'steam' is a problem because 'system settings' beats it
+                                     return a->historical_ranking < b->historical_ranking;
+                                 }
                              }
+                             
+                             return a->priority > b->priority;
+                         } else {
+                             return a->match_level < b->match_level;
                          }
-                         
-                         return a->priority > b->priority;
                      });
     
     {

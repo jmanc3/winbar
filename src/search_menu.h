@@ -13,9 +13,12 @@ class Sortable {
 public:
     std::string name;
     std::vector<std::string> keywords;
+    std::vector<std::string> categories;
+    std::string generic_name;
     std::string lowercase_name;
     int priority = -1;
     int historical_ranking = -1;
+    int match_level = 100;
     std::string full_path;
 };
 

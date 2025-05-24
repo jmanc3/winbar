@@ -2610,6 +2610,7 @@ void load_desktop_files(std::string directory) {
             std::string wmclass = desktop_application.Get("Desktop Entry", "StartupWMClass", "");
             std::string exec = desktop_application.Get("Desktop Entry", "Exec", "");
             std::string keywords = desktop_application.Get("Desktop Entry", "Keywords", "");
+            std::string categories = desktop_application.Get("Desktop Entry", "Categories", "");
             std::string generic_name = desktop_application.Get("Desktop Entry", "GenericName", "");
             std::string icon = desktop_application.Get("Desktop Entry", "Icon", "");
             std::string no_display_text = desktop_application.Get("Desktop Entry", "NoDisplay", "");
@@ -2678,10 +2679,21 @@ void load_desktop_files(std::string directory) {
                     }
                 }
             }
+            if (!categories.empty()) {
+                std::stringstream ss(categories);
+                std::string item;
+                while (std::getline(ss, item, ';')) {
+                    if (!item.empty()) { // Skip empty tokens if any
+                        std::transform(item.begin(), item.end(), item.begin(),
+                                       [](unsigned char c) { return std::tolower(c); });
+                        launcher->categories.push_back(item);
+                    }
+                }
+            }
             if (!generic_name.empty()) {
                 std::transform(generic_name.begin(), generic_name.end(), generic_name.begin(),
                                [](unsigned char c) { return std::tolower(c); });
-                launcher->keywords.push_back(generic_name);
+                launcher->generic_name = generic_name;
             }
             
             std::transform(launcher->lowercase_name.begin(),
