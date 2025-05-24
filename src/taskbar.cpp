@@ -4628,6 +4628,33 @@ void inotify_event_wakeup(App *app, int fd) {
 //    update_battery(app);
 }
 
+bool set_window_desktop(xcb_connection_t* conn, xcb_window_t window, uint32_t desktop) {
+    xcb_atom_t message_type = get_cached_atom(app, "_NET_WM_DESKTOP");
+    
+    // Send ClientMessage event
+    xcb_client_message_event_t event{};
+    event.response_type = XCB_CLIENT_MESSAGE;
+    event.format = 32;
+    event.window = window;
+    event.type = message_type;
+    event.data.data32[0] = desktop;
+    event.data.data32[1] = 2; // From pager
+    event.data.data32[2] = 0;
+    event.data.data32[3] = 0;
+    event.data.data32[4] = 0;
+    
+    xcb_void_cookie_t cookie = xcb_send_event(
+            conn,
+            0,
+            app->screen->root,
+            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+            reinterpret_cast<const char*>(&event)
+    );
+    
+    xcb_flush(conn);
+    return true;
+}
+
 AppClient *
 create_taskbar(App *app) {
 #ifdef TRACY_ENABLE
@@ -4639,6 +4666,7 @@ create_taskbar(App *app) {
     settings.decorations = false;
     settings.dock = true;
     settings.skip_taskbar = true;
+    settings.keep_above = true;
 //    settings.reserve_side = true;
 //    settings.reserve_bottom = config->taskbar_height;
     settings.slide = true;
@@ -4676,7 +4704,7 @@ create_taskbar(App *app) {
     settings.y = primary_screen_info->y + primary_screen_info->height_in_pixels - config->taskbar_height;
     settings.w = primary_screen_info->width_in_pixels;
     settings.h = config->taskbar_height;
-    settings.sticky = true;
+    //settings.sticky = true;
     settings.force_position = true;
     
     // Create the window
@@ -5991,6 +6019,10 @@ void on_desktop_change() {
     
     xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, NULL);
     defer(free(reply));
+    
+    if (auto client = client_by_name(app, "taskbar")) {
+        set_window_desktop(client->app->connection, client->window, desktops_current(app));
+    }
     
     long windows_count = xcb_get_property_value_length(reply) / sizeof(xcb_window_t);
     auto *windows = (xcb_window_t *) xcb_get_property_value(reply);
