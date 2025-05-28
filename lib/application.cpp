@@ -404,14 +404,8 @@ void set_active(AppClient *client, const std::vector<Container *> &active_contai
 
 static void deliver_fine_scroll_event(App *app, int horizontal, int vertical, bool came_from_touchpad) {
     if (came_from_touchpad)
-        app->last_touchpad_time = get_current_time_in_ms();
-    xcb_query_pointer_cookie_t pointer_cookie = xcb_query_pointer(app->connection, app->screen->root);
-    xcb_query_pointer_reply_t *pointer_reply = xcb_query_pointer_reply(app->connection, pointer_cookie, nullptr);
-    
-    if (!pointer_reply)
-        return;
-    defer(free(pointer_reply));
-    
+        app->last_touchpad_time = app->current;
+   
     for (auto *client: app->clients) {
         if (client->root) {
 //            if (client->root->children.empty())
@@ -420,9 +414,9 @@ static void deliver_fine_scroll_event(App *app, int horizontal, int vertical, bo
             continue;
         }
         
-        if (bounds_contains(*client->bounds, pointer_reply->root_x, pointer_reply->root_y)) {
-            double x = pointer_reply->root_x - client->bounds->x;
-            double y = pointer_reply->root_y - client->bounds->y;
+        if (client->inside) {
+            double x = client->mouse_current_x;
+            double y = client->mouse_initial_y;
             
             client->mouse_initial_x = x;
             client->mouse_initial_y = y;
@@ -2237,13 +2231,11 @@ void handle_mouse_enter_notify(App *app) {
     ZoneScoped;
 #endif
     auto *e = (xcb_enter_notify_event_t *) (event);
-    if (e->mode != XCB_NOTIFY_MODE_NORMAL)// clicks generate leave and enter
-        // notifies when you're grabbing wtf xlib
-        return;
     
     auto client = client_by_window(app, e->event);
     if (!valid_client(app, client))
         return;
+    client->inside = true;
     
     handle_mouse_motion(app, client, e->event_x, e->event_y);
 }
@@ -2253,13 +2245,11 @@ void handle_mouse_leave_notify(App *app) {
     ZoneScoped;
 #endif
     auto *e = (xcb_leave_notify_event_t *) (event);
-    if (e->mode != XCB_NOTIFY_MODE_NORMAL)// clicks generate leave and enter
-        // notifies when you're grabbing wtf xlib
-        return;
     
     auto client = client_by_window(app, e->event);
     if (!valid_client(app, client))
         return;
+    client->inside = false;
     
     client->mouse_current_x = e->event_x;
     client->mouse_current_y = e->event_y;
@@ -2494,8 +2484,8 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         }
         case XCB_LEAVE_NOTIFY: {
             auto *e = (xcb_leave_notify_event_t *) event;
-            if (e->mode != 0) {
-                return;
+            if (e->mode == 1) { // we receive 1 when scrolling which is just completely wrong
+                break;
             }
             if (auto client = client_by_window(app, window_number)) {
                 if (change_event_source) {
@@ -2509,8 +2499,8 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         }
         case XCB_ENTER_NOTIFY: {
             auto *e = (xcb_enter_notify_event_t *) event;
-            if (e->mode != 0) {
-                return;
+            if (e->mode == 1) { // we receive 1 when scrolling which is just completely wrong
+                break;
             }
             if (auto client = client_by_window(app, window_number)) {
                 if (change_event_source) {
