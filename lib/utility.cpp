@@ -22,7 +22,7 @@
 #include <iostream>
 #include <sys/poll.h>
 #include <random>
-
+#include <fstream>
 
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
 #ifdef TRACY_ENABLE
@@ -446,6 +446,8 @@ lighten(ArgbColor color, double amount) {
     return result;
 }
 
+bool paint_xpm_to_surface(cairo_surface_t *surface, std::string path, int target_size);
+
 void
 load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surface, std::string path, int target_size) {
 #ifdef TRACY_ENABLE
@@ -457,6 +459,9 @@ load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surfac
     } else if (path.find("png") != std::string::npos) {
         *surface = accelerated_surface(app, client_entity, target_size, target_size);
         paint_png_to_surface(*surface, path, target_size);
+    } else if (path.find("xpm") != std::string::npos) {
+        *surface = accelerated_surface(app, client_entity, target_size, target_size);
+        paint_xpm_to_surface(*surface, path, target_size);
     }
 }
 
@@ -534,6 +539,119 @@ bool paint_png_to_surface(cairo_surface_t *surface, std::string path, int target
     return true;
 }
 
+cairo_surface_t* cairo_image_surface_create_from_xpm(const std::string& path) {
+    std::ifstream file(path);
+    if (!file) {
+        std::cerr << "Failed to open XPM file: " << path << std::endl;
+        return nullptr;
+    }
+
+    std::string line;
+    std::vector<std::string> lines;
+
+    // Read lines into a buffer
+    while (std::getline(file, line)) {
+        size_t start = line.find('"');
+        size_t end = line.rfind('"');
+        if (start != std::string::npos && end != std::string::npos && end > start) {
+            lines.push_back(line.substr(start + 1, end - start - 1));
+        }
+    }
+
+    if (lines.empty()) return nullptr;
+
+    // Parse header
+    std::istringstream header(lines[0]);
+    int width, height, num_colors, chars_per_pixel;
+    header >> width >> height >> num_colors >> chars_per_pixel;
+
+    // Parse color map
+    std::unordered_map<std::string, uint32_t> color_map;
+    for (int i = 1; i <= num_colors; ++i) {
+        std::string entry = lines[i];
+        std::string key = entry.substr(0, chars_per_pixel);
+        std::string color_str = entry.substr(entry.find("c ") + 2);
+
+        uint32_t color = 0x00000000; // Default to transparent
+
+        if (color_str == "None") {
+            color = 0x00000000;
+        } else if (color_str[0] == '#') {
+            // Parse hex color
+            color_str = color_str.substr(1); // skip '#'
+            unsigned int r = 0, g = 0, b = 0;
+
+            if (color_str.length() == 6) {
+                std::istringstream(color_str.substr(0, 2)) >> std::hex >> r;
+                std::istringstream(color_str.substr(2, 2)) >> std::hex >> g;
+                std::istringstream(color_str.substr(4, 2)) >> std::hex >> b;
+            }
+
+            color = (0xFF << 24) | (r << 16) | (g << 8) | b; // ARGB
+        }
+
+        color_map[key] = color;
+    }
+
+    // Create surface
+    cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
+    unsigned char* data = cairo_image_surface_get_data(surface);
+    int stride = cairo_image_surface_get_stride(surface);
+
+    // Parse pixels
+    for (int y = 0; y < height; ++y) {
+        const std::string& row = lines[y + 1 + num_colors];
+        for (int x = 0; x < width; ++x) {
+            std::string key = row.substr(x * chars_per_pixel, chars_per_pixel);
+            uint32_t color = color_map.count(key) ? color_map[key] : 0x00000000;
+
+            unsigned char* pixel = data + y * stride + x * 4;
+            pixel[0] = (color >> 0) & 0xFF;   // B
+            pixel[1] = (color >> 8) & 0xFF;   // G
+            pixel[2] = (color >> 16) & 0xFF;  // R
+            pixel[3] = (color >> 24) & 0xFF;  // A
+        }
+    }
+
+    cairo_surface_mark_dirty(surface);
+    return surface;
+}
+
+bool paint_xpm_to_surface(cairo_surface_t *surface, std::string path, int target_size) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *xpm_surface = cairo_image_surface_create_from_xpm(path.c_str());
+    if (!xpm_surface)
+        return false;
+    
+    if (cairo_surface_status(xpm_surface) != CAIRO_STATUS_SUCCESS) {
+        cairo_surface_destroy(xpm_surface);
+        return false;
+    }
+    
+    auto *temp_context = cairo_create(surface);
+    int w = cairo_image_surface_get_width(xpm_surface);
+    
+    cairo_save(temp_context);
+    cairo_set_operator(temp_context, CAIRO_OPERATOR_CLEAR);
+    cairo_paint(temp_context);
+    cairo_restore(temp_context);
+    
+    cairo_save(temp_context);
+    if (target_size != w) {
+        double scale = ((double) target_size) / ((double) w);
+        cairo_scale(temp_context, scale, scale);
+    }
+    cairo_set_source_surface(temp_context, xpm_surface, 0, 0);
+    cairo_paint(temp_context);
+    cairo_restore(temp_context);
+    cairo_destroy(temp_context);
+    cairo_surface_destroy(xpm_surface);
+    
+    return true;
+}
+
 bool
 paint_surface_with_image(cairo_surface_t *surface, std::string path, int target_size, void (*upon_completion)(bool)) {
 #ifdef TRACY_ENABLE
@@ -544,6 +662,8 @@ paint_surface_with_image(cairo_surface_t *surface, std::string path, int target_
         success = paint_svg_to_surface(surface, path, target_size);
     } else if (path.find(".png") != std::string::npos) {
         success = paint_png_to_surface(surface, path, target_size);
+    } else if (path.find(".xpm") != std::string::npos) {
+        success = paint_xpm_to_surface(surface, path, target_size);
     }
     if (upon_completion != nullptr) {
         upon_completion(success);

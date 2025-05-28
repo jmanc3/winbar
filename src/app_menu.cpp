@@ -1546,13 +1546,18 @@ void paint_live_tile(AppClient *client, cairo_t *cr, Container *container) {
         delete data->gsurf;
         data->gsurf = new gl_surface;
 
-        std::vector<IconTarget> targets;
-        targets.emplace_back(data->launcher->icon);
-        search_icons(targets);
-        pick_best(targets, size);
-        for (const auto &item: targets[0].candidates) {
-            paint_surface_with_image(data->__surface, item.full_path(), size, nullptr);
-            break;
+        if (!data->launcher->icon.empty() && data->launcher->icon[0] == '/') {
+            paint_surface_with_image(data->__surface, data->launcher->icon, size, nullptr);
+        } else {
+            std::vector<IconTarget> targets;
+            // TODO: if icon is path, use path
+            targets.emplace_back(data->launcher->icon);
+            search_icons(targets);
+            pick_best(targets, size);
+            for (const auto &item: targets[0].candidates) {
+                paint_surface_with_image(data->__surface, item.full_path(), size, nullptr);
+                break;
+            }
         }
     }
     

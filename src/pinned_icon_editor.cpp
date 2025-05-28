@@ -421,6 +421,22 @@ static void
 show_icon_options() {
     auto c = client_by_name(app, "pinned_icon_editor");
     
+    std::vector<std::string_view> names;
+    auto *field = container_by_name("icon_name_field", c->root);
+    std::string &target = ((TextAreaData *) field->user_data)->state->text;
+    if (!target.empty()) {
+        get_options(names, target, 200);
+        std::vector<IconTarget> targets;
+    }
+    if (names.empty()) {
+        auto popup = client_by_name(app, "icon_list_popup");
+        if (popup != nullptr) {
+            client_close_threaded(app, popup);
+        }
+        return;
+    }
+
+    
     if (client_by_name(app, "icon_list_popup") == nullptr) {
         PopupSettings popup_settings;
         popup_settings.close_on_focus_out = true;
@@ -479,8 +495,6 @@ show_icon_options() {
         auto *field = container_by_name("icon_name_field", c->root);
         std::string &target = ((TextAreaData *) field->user_data)->state->text;
         if (!target.empty()) {
-            std::vector<std::string_view> names;
-            get_options(names, target, 200);
             std::vector<IconTarget> targets;
             for (auto view: names) {
                 targets.emplace_back(std::string(view));
