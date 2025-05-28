@@ -2159,6 +2159,8 @@ fill_root(AppClient *client) {
         child->when_clicked = clicked_item;
         child->name = l->name;
         child->when_drag_end_is_click = false;
+        child->minimum_x_distance_to_move_before_drag_begins = 4 * config->dpi;
+        child->minimum_y_distance_to_move_before_drag_begins = 4 * config->dpi;
 
         child->when_drag = [](AppClient *client, cairo_t *cr, Container *c) {
             if (auto drag = client_by_name(app, "drag_window")) {
