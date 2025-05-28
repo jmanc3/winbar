@@ -2485,7 +2485,7 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         }
         case XCB_LEAVE_NOTIFY: {
             auto *e = (xcb_leave_notify_event_t *) event;
-            if (e->mode == 1) { // we receive 1 when scrolling which is just completely wrong
+            if (e->detail == XCB_NOTIFY_DETAIL_ANCESTOR) {
                 break;
             }
             if (auto client = client_by_window(app, window_number)) {
@@ -2500,7 +2500,7 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         }
         case XCB_ENTER_NOTIFY: {
             auto *e = (xcb_enter_notify_event_t *) event;
-            if (e->mode == 1) { // we receive 1 when scrolling which is just completely wrong
+            if (e->detail == XCB_NOTIFY_DETAIL_ANCESTOR) {
                 break;
             }
             if (auto client = client_by_window(app, window_number)) {
