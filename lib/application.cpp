@@ -2232,6 +2232,9 @@ void handle_mouse_enter_notify(App *app) {
     ZoneScoped;
 #endif
     auto *e = (xcb_enter_notify_event_t *) (event);
+    if (e->mode != XCB_NOTIFY_MODE_NORMAL)// clicks generate leave and enter
+        // notifies when you're grabbing wtf xlib
+        return;
     
     auto client = client_by_window(app, e->event);
     if (!valid_client(app, client))
@@ -2246,6 +2249,9 @@ void handle_mouse_leave_notify(App *app) {
     ZoneScoped;
 #endif
     auto *e = (xcb_leave_notify_event_t *) (event);
+    if (e->mode != XCB_NOTIFY_MODE_NORMAL)// clicks generate leave and enter
+        // notifies when you're grabbing wtf xlib
+        return;
     
     auto client = client_by_window(app, e->event);
     if (!valid_client(app, client))
@@ -2485,8 +2491,8 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         }
         case XCB_LEAVE_NOTIFY: {
             auto *e = (xcb_leave_notify_event_t *) event;
-            if (e->detail == XCB_NOTIFY_DETAIL_ANCESTOR) {
-                break;
+            if (e->mode != 0) {
+                return;
             }
             if (auto client = client_by_window(app, window_number)) {
                 if (change_event_source) {
@@ -2500,8 +2506,8 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         }
         case XCB_ENTER_NOTIFY: {
             auto *e = (xcb_enter_notify_event_t *) event;
-            if (e->detail == XCB_NOTIFY_DETAIL_ANCESTOR) {
-                break;
+            if (e->mode != 0) {
+                return;
             }
             if (auto client = client_by_window(app, window_number)) {
                 if (change_event_source) {
