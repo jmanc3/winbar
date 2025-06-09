@@ -23,6 +23,9 @@ check_if_client_dpi_should_change_or_if_it_was_moved_to_another_screen(App *app,
     // FIGURE OUT WHICH SCREEN THE CLIENT BELONGS TO
     ScreenInformation *screen_client_overlaps_most = nullptr;
     double greatest_overlap_percentage = 0;
+    if (!came_from_movement) {
+        greatest_overlap_percentage = -1;
+    }
     for (auto screen: screens) {
         auto overlap_amount = calculate_overlap_percentage(client->bounds->x, client->bounds->y,
                                                            client->bounds->w, client->bounds->h,
