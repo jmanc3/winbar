@@ -366,9 +366,10 @@ void wifi_wpa_parse_scan_results(InterfaceLink *link) {
 
 void wifi_stop() {
     for (auto l: wifi_data->links) {
+        wpa_ctrl_detach(l->wpa_message_listener);
+        wpa_ctrl_detach(l->wpa_message_sender);
         wpa_ctrl_close(l->wpa_message_sender);
         wpa_ctrl_close(l->wpa_message_listener);
-        wpa_ctrl_detach(l->wpa_message_listener);
         delete l;
     }
     
