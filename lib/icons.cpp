@@ -652,7 +652,7 @@ void search_icons(std::vector<IconTarget> &targets) {
                             candidate.extension = 1;
                         } else if (extension_str == ".svg") {
                             candidate.extension = 0;
-                        } else if (extension_str == ".xmp") {
+                        } else if (extension_str == ".xpm") {
                             candidate.extension = 2;
                         } else {
                             candidate.extension = 1; // Unknown extension

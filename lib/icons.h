@@ -53,7 +53,7 @@ struct Candidate {
         } else if (extension == 1) {
             temp.append(".png");
         } else if (extension == 2) {
-            temp.append(".xmp");
+            temp.append(".xpm");
         }
         temp.erase(std::remove(temp.begin(), temp.end(), '\0'), temp.end());
     
