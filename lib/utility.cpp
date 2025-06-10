@@ -679,13 +679,18 @@ accelerated_surface(App *app, AppClient *client_entity, int w, int h) {
     if (client_entity && client_entity->cr == nullptr)
         return nullptr;
     
+    cairo_surface_t *raw_surface = cairo_image_surface_create(
+            CAIRO_FORMAT_ARGB32, w, h);
+    
+    /*
     cairo_surface_t *fast_surface = cairo_surface_create_similar_image(
             cairo_get_target(client_entity->cr), CAIRO_FORMAT_ARGB32, w, h);
+            */
     
-    if (cairo_surface_status(fast_surface) != CAIRO_STATUS_SUCCESS)
+    if (cairo_surface_status(raw_surface) != CAIRO_STATUS_SUCCESS)
         return nullptr;
     
-    return fast_surface;
+    return raw_surface;
 }
 
 cairo_surface_t *
