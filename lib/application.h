@@ -174,6 +174,12 @@ struct App {
     long current = 0; // Time at start of frame
     long creation_time; // Creation time of app
     
+    bool attempted_to_verify_if_raw_scroll_available = false;
+    
+    bool has_seen_raw_scroll = false;
+    
+    bool raw_scroll_available = true;
+    
     int loop = 0;
     
     long last_touchpad_time = 0;

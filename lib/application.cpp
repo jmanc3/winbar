@@ -587,6 +587,7 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
                 if (is_mouse_event) {
 
                 } else if (is_scroll_event) {
+                    app->has_seen_raw_scroll = true;
                     auto raw_values = xcb_input_raw_button_press_axisvalues(
                             (xcb_input_raw_button_press_event_t *) event);
                     
@@ -673,7 +674,7 @@ void get_raw_motion_and_scroll_events(App *app) {
     se_mask.iem.mask_len = 1;
     se_mask.xiem = (xcb_input_xi_event_mask_t) (XCB_INPUT_XI_EVENT_MASK_KEY_PRESS |
                                                 XCB_INPUT_XI_EVENT_MASK_KEY_RELEASE |
-                                                XCB_INPUT_XI_EVENT_MASK_RAW_MOTION | XCB_INPUT_XI_EVENT_MASK_MOTION);
+                                                XCB_INPUT_XI_EVENT_MASK_MOTION |XCB_INPUT_XI_EVENT_MASK_RAW_MOTION);
     xcb_input_xi_select_events(app->connection, app->screen->root, 1, &se_mask.iem);
 }
 
@@ -2118,22 +2119,37 @@ void handle_mouse_button_press(App *app) {
         
         // Check if its a scroll event and call when_scrolled if so
         if (e->detail >= 4 && e->detail <= 7) {
-            if (p->when_scrolled || app->wayland) {
-                if (e->detail == 4 || e->detail == 5) {
-                    if (app->wayland && p->when_fine_scrolled) {
-                        p->when_fine_scrolled(client, client->cr, p, 0, e->detail == 4 ? 1 * 12 * 3 * config->dpi: -1 * 12 * 3 * config->dpi, false);
-                    } else if (p->when_scrolled) {
-                        p->when_scrolled(client, client->cr, p, 0, e->detail == 4 ? 1 * 12 * 3 * config->dpi: -1 * 12 * 3 * config->dpi);
-                    }
-                } else {
-                    if (app->wayland && p->when_fine_scrolled) {
-                        p->when_fine_scrolled(client, client->cr, p, e->detail == 6 ? 1 * 12 * 3 * config->dpi: -1 * 12 * 3 * config->dpi, 0, false);
-                    } else if (p->when_scrolled)  {
-                        p->when_scrolled(client, client->cr, p, e->detail == 6 ? 1 * 12 * 3 * config->dpi: -1 * 12 * 3 * config->dpi, 0);
+            if (!app->attempted_to_verify_if_raw_scroll_available) {
+                app->attempted_to_verify_if_raw_scroll_available = true;
+                app_timeout_create(app, client, 30, [](App *app, AppClient *, Timeout *, void *) {
+                    app->raw_scroll_available = app->has_seen_raw_scroll;
+                }, nullptr, "attempt to verify if raw scrolls are happening");
+            }
+            if (!app->raw_scroll_available) {
+                if (p->when_fine_scrolled || app->wayland) {
+                    if (e->detail == 4 || e->detail == 5) {
+                        if (app->wayland && p->when_fine_scrolled) {
+                            p->when_fine_scrolled(client, client->cr, p, 0,
+                                                  e->detail == 4 ? 1 * 12 * 3 * config->dpi : -1 * 12 * 3 * config->dpi,
+                                                  false);
+                        } else if (p->when_fine_scrolled) {
+                            p->when_fine_scrolled(client, client->cr, p, 0,
+                                                  e->detail == 4 ? 1 * 12 * 3 * config->dpi : -1 * 12 * 3 * config->dpi,
+                                                  false);
+                        }
+                    } else {
+                        if (app->wayland && p->when_fine_scrolled) {
+                            p->when_fine_scrolled(client, client->cr, p,
+                                                  e->detail == 6 ? 1 * 12 * 3 * config->dpi : -1 * 12 * 3 * config->dpi,
+                                                  0, false);
+                        } else if (p->when_scrolled) {
+                            p->when_fine_scrolled(client, client->cr, p,
+                                             e->detail == 6 ? 1 * 12 * 3 * config->dpi : -1 * 12 * 3 * config->dpi, 0, false);
+                        }
                     }
                 }
+                handle_mouse_motion(app, client, e->event_x, e->event_y);
             }
-            handle_mouse_motion(app, client, e->event_x, e->event_y);
             continue;
         }
         
