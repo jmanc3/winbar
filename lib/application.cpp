@@ -1119,9 +1119,11 @@ client_new(App *app, Settings settings, const std::string &name) {
         xcb_icccm_wm_hints_set_input(&hints, XCB_INPUT_FOCUS_NONE);
         xcb_icccm_set_wm_hints(app->connection, window, &hints);
     } else {
+        /*
         xcb_icccm_wm_hints_t hints;
         xcb_icccm_wm_hints_set_input(&hints, XCB_INPUT_FOCUS_FOLLOW_KEYBOARD);
         xcb_icccm_set_wm_hints(app->connection, window, &hints);
+*/
     }
     
     if (settings.dock) {
