@@ -487,6 +487,11 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
             auto *press = (xcb_input_key_press_event_t *) event;
 
             xcb_keysym_t keysym = xcb_key_symbols_get_keysym(app->key_symbols, press->detail, 0);
+            // this will be innacruate in the case where the user holds both shifts downs, but if you're doing that, you deserve it!
+            if (keysym == XK_Shift_L || keysym == XK_Shift_R)
+                app->shift_held = true;
+            if (keysym == XK_Control_L || keysym == XK_Control_R)
+                app->ctrl_held = true;
             
             if (clean && (press->detail >= 10 && press->detail <= 19)) {
                 num = true;
@@ -504,6 +509,10 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
             auto *release = (xcb_input_key_release_event_t *) event;
 
             xcb_keysym_t keysym = xcb_key_symbols_get_keysym(app->key_symbols, release->detail, 0);
+            if (keysym == XK_Shift_L || keysym == XK_Shift_R)
+                app->shift_held = false;
+            if (keysym == XK_Control_L || keysym == XK_Control_R)
+                app->ctrl_held = false;
             
             bool is_meta = keysym == XK_Super_L || keysym == XK_Super_R;
             if (is_meta && clean && !num) {

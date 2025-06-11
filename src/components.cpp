@@ -62,10 +62,7 @@ void fine_scrollpane_scrolled(AppClient *client,
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    auto cookie = xcb_xkb_get_state(client->app->connection, client->keyboard->device_id);
-    auto reply = xcb_xkb_get_state_reply(client->app->connection, cookie, nullptr);
-    
-    if (reply->mods & XKB_KEY_Shift_L || reply->mods & XKB_KEY_Control_L) {
+    if (client->app->shift_held || client->app->ctrl_held) {
         container->scroll_h_real += scroll_x + scroll_y;
     } else {
         container->scroll_h_real += scroll_x;
@@ -77,7 +74,7 @@ void fine_scrollpane_scrolled(AppClient *client,
     if (container->type == newscroll && !came_from_touchpad) {
         auto *scroll = (ScrollContainer *) container;
         
-        long current_time = get_current_time_in_ms();
+        long current_time = client->app->current;
         double ms_between_scroll = current_time - scroll->previous_time_scrolled;
         scroll->previous_time_scrolled = current_time;
         bool not_first = true;
@@ -101,7 +98,7 @@ void fine_scrollpane_scrolled(AppClient *client,
         if (need_timeout && not_first) {
             app_timeout_create(client->app, client, 5, [](App *, AppClient *c, Timeout *timeout, void *data) {
                 timeout->keep_running = true;
-                auto current = get_current_time_in_ms();
+                auto current = c->app->current;
                 if (current - ms_between > 35) {
                     timeout->kill = true;
                     timeout->keep_running = false;
@@ -1530,13 +1527,13 @@ clicked_textarea(AppClient *client, cairo_t *cr, Container *container) {
     container = container->children[0];
     auto *data = (TextAreaData *) container->user_data;
     
-    if ((get_current_time_in_ms() - data->state->last_time_mouse_press) < 220) {
+    if ((client->app->current - data->state->last_time_mouse_press) < 220) {
         data->state->cursor = data->state->text.size();
         data->state->selection_x = 0;
         put_cursor_on_screen(client, container);
         return;
     }
-    data->state->last_time_mouse_press = get_current_time_in_ms();
+    data->state->last_time_mouse_press = client->app->current;
     
     PangoLayout *layout = get_cached_pango_font(
             client->cr, data->font, data->font_size, PangoWeight::PANGO_WEIGHT_NORMAL);
@@ -2144,7 +2141,7 @@ textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string,
         return;
     }
     auto *data = (TextAreaData *) textarea->user_data;
-    data->state->last_time_key_press = get_current_time_in_ms();
+    data->state->last_time_key_press = client->app->current;
     data->state->cursor_on = true;
     
     blink_on(client->app, client, textarea);

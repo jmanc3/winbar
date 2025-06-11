@@ -180,6 +180,9 @@ struct App {
     
     bool raw_scroll_available = true;
     
+    bool shift_held = false;
+    bool ctrl_held = false;
+    
     int loop = 0;
     
     long last_touchpad_time = 0;
