@@ -346,6 +346,8 @@ void open_systray() {
     settings.y = -settings.h * 2;
     settings.no_input_focus = false;
     settings.override_redirect = true;
+    if (app->wayland)
+        settings.override_redirect = false;
     settings.background = argb_to_color(config->color_systray_background);
     
     if (auto taskbar = client_by_name(app, "taskbar")) {
