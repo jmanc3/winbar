@@ -1350,6 +1350,8 @@ void start_search_menu() {
         settings.y = taskbar->bounds->y - settings.h;
     }
     settings.override_redirect = true;
+    if (app->wayland)
+        settings.override_redirect = false;
     
     if (auto taskbar = client_by_name(app, "taskbar")) {
         PopupSettings popup_settings;

@@ -992,6 +992,8 @@ void start_date_menu() {
     settings.force_position = true;
     settings.sticky = true;
     settings.override_redirect = true;
+    if (app->wayland)
+        settings.override_redirect = false;
     settings.slide = true;
     settings.slide_data[0] = -1;
     settings.slide_data[2] = 160;

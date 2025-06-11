@@ -2834,6 +2834,8 @@ void start_app_menu(bool autoclose) {
     settings.skip_taskbar = true;
     settings.decorations = false;
     settings.override_redirect = true;
+    if (app->wayland)
+        settings.override_redirect = false;
     settings.slide = true;
     settings.slide_data[0] = -1;
     settings.slide_data[1] = 3;

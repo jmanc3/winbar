@@ -165,7 +165,11 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
     if (times_painted == 0) {
         times_painted++;
         std::thread t([client]() -> void {
-            reserve(client, client->bounds->h);
+            if (app->wayland) {
+                reserve(client, client->bounds->h * (1.0f / config->dpi));
+            } else {
+                reserve(client, client->bounds->h);
+            }
         });
         t.detach();
     }
