@@ -597,6 +597,8 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
 
                 } else if (is_scroll_event) {
                     app->has_seen_raw_scroll = true;
+                    if (app->wayland)
+                        app->has_seen_raw_scroll = false;
                     auto raw_values = xcb_input_raw_button_press_axisvalues(
                             (xcb_input_raw_button_press_event_t *) event);
                     
@@ -779,6 +781,8 @@ App *app_new() {
     if (current_desktop != nullptr) {
         app->on_kde = strcmp(current_desktop, "KDE") == 0;
     }
+    if (app->wayland)
+        app->raw_scroll_available = false;
 
     xcb_intern_atom_cookie_t *c = xcb_ewmh_init_atoms(app->connection, &app->ewmh);
     if (!xcb_ewmh_init_atoms_replies(&app->ewmh, c, NULL)) {
