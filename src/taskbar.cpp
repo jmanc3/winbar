@@ -3464,7 +3464,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
         }
         
         static bool full_warning = false;
-        if (std::stoi(data->capacity) >= 80 && !full_warning) {
+        if (std::stoi(data->capacity) >= 80 && !full_warning && app->current - app->creation_time > 20000) {
             full_warning = true;
             launch_command("notify-send \"Battery Full\" \"Unplug charger\" -a \"Winbar\" -i battery-full-charged");
         } else if (std::stoi(data->capacity) < 75) {
