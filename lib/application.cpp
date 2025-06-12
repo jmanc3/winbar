@@ -14,6 +14,7 @@
 #include "../src/root.h"
 #include "audio.h"
 #include "../src/settings_menu.h"
+#include "../src/main.h"
 
 #include <algorithm>
 #include <iostream>
@@ -2726,6 +2727,12 @@ void handle_xcb_event(App *app) {
 }
 
 void xcb_poll_wakeup(App *app, int fd, void *) {
+    if (xcb_connection_has_error(app->connection) > 0) {
+        restart = true;
+        app->running = false;
+        return;
+    }
+    
     handle_xcb_event(app);
 }
 
