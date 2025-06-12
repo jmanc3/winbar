@@ -1460,7 +1460,7 @@ setting_bool_attachment(Container *scroll_root, std::string icon, std::string ti
     };
 }
 
-static void
+void
 setting_field(AppClient *client, Container *container, std::string icon, std::string title, std::string description, std::string *target_str, bool squared = false) {
 //    setting_bool(container, icon, title, description, nullptr, false);
     auto full = container->child(layout_type::vbox, FILL_SPACE, (69 + 20) * config->dpi);
@@ -1588,6 +1588,186 @@ setting_field(AppClient *client, Container *container, std::string icon, std::st
     tt->state->text = *target_str;
 }
 
+void text_input(std::string icon, std::string title, std::string default_value, std::string description, int indent, std::string *target_str, Container *container, AppClient *client, bool squared = false) {
+    
+    //    setting_bool(container, icon, title, description, nullptr, false);
+    auto full = container->child(layout_type::vbox, FILL_SPACE, (69 + 20) * config->dpi);
+    auto data = new SettingBoolData;
+    data->icon = icon;
+    data->title = title;
+    data->description = description;
+    data->target_str = target_str;
+    data->squares_up = squared;
+    full->user_data = data;
+    
+    full->when_paint = [](AppClient *client, cairo_t *cr, Container *c)
+    {
+        Bounds backup = c->real_bounds;
+        c->real_bounds.x += .5;
+        c->real_bounds.y += .5;
+        c->real_bounds.w -= 1;
+        c->real_bounds.h -= 1;
+        
+        auto data = (SettingBoolData *) c->user_data;
+        
+        if (data->squares_up) {
+            draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y, c->real_bounds.w, c->real_bounds.h - 6 * config->dpi));
+        }
+        
+        // bg
+        ArgbColor bg_color;
+        if (c->state.mouse_hovering || c->state.mouse_pressing) {
+            bg_color = ArgbColor(.965, .965, .965, 1);
+            draw_round_rect(client, bg_color, c->real_bounds, 5 * config->dpi, 0);
+        } else {
+            //draw_round_rect(client, ArgbColor(.984, .984, .984, 1), c->real_bounds, 5 * config->dpi, 0);
+            bg_color = ArgbColor(.984, .988, .992, 1);
+            draw_round_rect(client, bg_color, c->real_bounds, 5 * config->dpi, 0);
+        }
+        
+        // border
+        ArgbColor border_color;
+        if (c->state.mouse_hovering || c->state.mouse_pressing) {
+            border_color = ArgbColor(.818, .818, .818, .75);
+            draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+            int height = 3 * config->dpi;
+            draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y + c->real_bounds.h - height, c->real_bounds.w, height));
+            if (!c->state.mouse_pressing) {
+                border_color = ArgbColor(.75, .75, .75, 1);
+                draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+            }
+            draw_clip_end(client);
+        } else {
+            border_color = ArgbColor(.818, .818, .818, 1);
+            draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+        }
+        
+        if (data->squares_up) {
+            draw_clip_end(client);
+            
+            draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y + c->real_bounds.h - 6 * config->dpi, c->real_bounds.w, 6 * config->dpi));
+            draw_round_rect(client, bg_color, c->real_bounds, 0, 0);
+            draw_round_rect(client, border_color, c->real_bounds, 0, std::floor(1.0 * config->dpi));
+            draw_clip_end(client);
+        }
+        
+        // icon
+        if (!data->icon.empty()) {
+            draw_text(client, 16 * config->dpi, config->icons, EXPAND(config->color_pinned_icon_editor_field_default_text), data->icon, c->real_bounds, -5, 19 * config->dpi);
+        }
+        
+        static int size_title = 11;
+        static int size_description = 9;
+        int kern_y_off = 3 * config->dpi;
+        
+        auto color = config->color_pinned_icon_editor_field_default_text;
+        // d = description
+        auto [d_f, d_w, d_h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color), data->description);
+        d_f->end();
+        
+        draw_clip_begin(client, c->real_bounds);
+        color.a = .92;
+        auto [f, w, h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color), data->title);
+        float total_height = h + d_h;
+        f->draw_text_end(c->real_bounds.x + 60 * config->dpi, c->real_bounds.y + c->real_bounds.h / 2 - (26 * config->dpi) / 2 - h - 1 * config->dpi);
+        
+        color.a = .7;
+        // d_r = description real (in terms of drawing the text)
+        auto [d_r_f, d_r_w, d_r_h] = draw_text_begin(client, size_description * config->dpi, config->font, EXPAND(color), data->description);
+        d_r_f->draw_text_end(c->real_bounds.x + 60 * config->dpi, c->real_bounds.y + c->real_bounds.h - d_r_h - 6 * config->dpi - 1 * config->dpi);
+        draw_clip_end(client);
+        
+        c->real_bounds = backup;
+        //draw_round_rect(client, ArgbColor(.965, .965, .965, 1), c->real_bounds, 5 * config->dpi, 0);
+    };
+    
+    
+    TextAreaSettings settings(config->dpi);
+    settings.single_line = true;
+    settings.bottom_show_amount = 2;
+    settings.right_show_amount = 2;
+    //settings.prompt = std::move(prompt);
+    settings.color_prompt = ArgbColor(.1, .1, .1, .5);
+    settings.font_size__ = 10 * config->dpi;
+    settings.color = config->color_pinned_icon_editor_field_default_text;
+    settings.color_cursor = config->color_pinned_icon_editor_cursor;
+    settings.prompt = default_value;
+    ArgbColor prompt_color = config->color_pinned_icon_editor_field_default_text;
+    prompt_color.a *= .4;
+    settings.color_prompt = prompt_color;
+    settings.pad = Bounds(4 * config->dpi, 5 * config->dpi, 8 * config->dpi, 2 * config->dpi);
+    full->child(FILL_SPACE, full->wanted_bounds.h / 2 - (26 * config->dpi) / 2 + 3 * config->dpi);
+    auto together_parent = full->child(::hbox, FILL_SPACE, 26 * config->dpi);
+    together_parent->spacing = 8 * config->dpi;
+    together_parent->wanted_pad = Bounds(60 * config->dpi, 0, 25 * config->dpi, 0);
+    
+    auto field_parent = together_parent->child(FILL_SPACE, FILL_SPACE);
+    auto reset_button = together_parent->child(50 * config->dpi, FILL_SPACE);
+    reset_button->user_data = new Label("Reset");
+    reset_button->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
+        auto data = (Label *) c->user_data;
+        
+        draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text), data->text, c->real_bounds);
+        
+        if (c->state.mouse_hovering || c->state.mouse_pressing) {
+            ArgbColor color = ArgbColor(.4, .4, .4, .5);
+            if (c->state.mouse_pressing) {
+                color = config->color_volume_slider_foreground;
+            }
+            draw_round_rect(client, color, c->real_bounds, 4 * config->dpi, 1.25 * config->dpi);
+        }
+    };
+    reset_button->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
+        if (auto textarea = container_by_name("text_input_area", c->parent)) {
+            auto *data = (TextAreaData *) textarea->user_data;
+            data->state->text = "";
+            data->state->cursor = 0;
+            data->state->selection_x = -1;
+            
+            auto *holder = (SettingBoolData *) textarea->parent->user_data;
+            *holder->target_str = data->state->text;
+            
+            save_settings_file();
+            restart = true;
+            app->running = false;
+        }
+    };
+    auto apply_button = together_parent->child(50 * config->dpi, FILL_SPACE);
+    apply_button->user_data = new Label("Apply");
+    apply_button->when_paint = reset_button->when_paint;
+    apply_button->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
+        if (auto textarea = container_by_name("text_input_area", c->parent)) {
+            auto *data = (TextAreaData *) textarea->user_data;
+            auto *holder = (SettingBoolData *) textarea->parent->user_data;
+            *holder->target_str = data->state->text;
+            
+            save_settings_file();
+            restart = true;
+            app->running = false;
+        }
+    };
+    
+    Container *textarea = make_textarea(app, client, field_parent, settings);
+    textarea->parent->skip_delete = true;
+    textarea->parent->user_data = data;
+    textarea->parent->when_paint = paint_textarea_border;
+    textarea->name = "text_input_area";
+    textarea->when_key_event = [](AppClient *client, cairo_t *cr, Container *container, bool is_string, xkb_keysym_t keysym, char string[64], uint16_t mods, xkb_key_direction direction) {
+        if (direction == XKB_KEY_UP) {
+            return;
+        }
+        if (container->parent->active || container->active) {
+            textarea_handle_keypress(client, container, is_string, keysym, string, mods, XKB_KEY_DOWN);
+            auto *data = (TextAreaData *) container->user_data;
+            auto *holder = (SettingBoolData *) container->parent->user_data;
+            *holder->target_str = data->state->text;
+        }
+    };
+    auto tt = (TextAreaData *) textarea->user_data;
+    tt->state->text = *target_str;
+}
+
+
 static void
 setting_subheading(Container *container, std::string title) {
     auto heading = container->child(layout_type::hbox, FILL_SPACE, 69 * config->dpi);
@@ -1663,7 +1843,7 @@ fill_root(AppClient *client, Container *root) {
 
     setting_bool(scroll_root, "\uE8EE", "Window cycling", "Clicking an icon with multiple windows open cycles to the next one", &winbar_settings->click_icon_tab_next_window);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
-     
+    
     setting_bool(scroll_root, "\uF605", "Battery warnings", "Receive alerts to plug-in and unplug charger", &winbar_settings->battery_notifications);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
     
@@ -1708,7 +1888,7 @@ fill_root(AppClient *client, Container *root) {
     
     scroll_root->child(FILL_SPACE, 6.5 * config->dpi);
     
-    setting_field(client, scroll_root, "\uE74C", "Custom desktop files folder", "Adds the specified path to the directories to search for .desktop files",  &winbar_settings->custom_desktops_directory, true); 
+    setting_field(client, scroll_root, "\uE74C", "Custom desktop files folder", "Adds the specified path to the directories to search for .desktop files",  &winbar_settings->custom_desktops_directory, true);
     
     setting_bool_attachment(scroll_root, "", "Make directory the exclusive source for desktop files", "", &winbar_settings->custom_desktops_directory_exclusive, nullptr, false);
 
@@ -1723,10 +1903,10 @@ fill_root(AppClient *client, Container *root) {
     setting_bool(scroll_root, "\uEDFB", "Use OpenGL", "Switch off cairo backend for experimental OpenGL backend", &winbar_settings->use_opengl);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
 
-    setting_field(client, scroll_root, "\uE7E8", "Shutdown command", "Command to be executed when attempting to shutdown",  &winbar_settings->shutdown_command); 
+    setting_field(client, scroll_root, "\uE7E8", "Shutdown command", "Command to be executed when attempting to shutdown",  &winbar_settings->shutdown_command);
 //    string_textfield("Shutdown command: ", &winbar_settings->shutdown_command, scroll_root, client, "pkexec shutdown -P now");
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
-    setting_field(client, scroll_root, "\uE777", "Restart command", "Command to be executed when attempting to restart",  &winbar_settings->restart_command); 
+    setting_field(client, scroll_root, "\uE777", "Restart command", "Command to be executed when attempting to restart",  &winbar_settings->restart_command);
 //    string_textfield("Restart command: ", &winbar_settings->restart_command, scroll_root, client, "pkexec reboot");
     scroll_root->child(FILL_SPACE, 60 * config->dpi);
     
@@ -1753,6 +1933,8 @@ fill_root(AppClient *client, Container *root) {
         }
     });
     slider("Global scale:", 16 * config->dpi, &winbar_settings->scale_factor, other_root, client);
+    other_root->child(FILL_SPACE, 9.5 * config->dpi);
+    text_input("\uE185", "Font", "Segoe UI Variable Mod", "The font used by the interface", 0, &winbar_settings->user_font, other_root, client);
     
     for (int i = 0; i < 3; ++i) {
         auto tab = tabs->child(FILL_SPACE, 36 * config->dpi);
@@ -2005,6 +2187,9 @@ void save_settings_file() {
     out_file << std::endl << std::endl;
     
     out_file << "shutdown_command=" << winbar_settings->shutdown_command;
+    out_file << std::endl << std::endl;
+    
+    out_file << "user_font=" << winbar_settings->user_font;
     out_file << std::endl << std::endl;
     
     out_file << "restart_command=" << winbar_settings->restart_command;
@@ -2317,6 +2502,7 @@ void read_settings_file() {
                 parse_string(&parser, key, "custom_desktops_directory", &winbar_settings->custom_desktops_directory);
                 parse_string(&parser, key, "shutdown_command", &winbar_settings->shutdown_command);
                 parse_string(&parser, key, "restart_command", &winbar_settings->restart_command);
+                parse_string(&parser, key, "user_font", &winbar_settings->user_font);
             }
         }
     }

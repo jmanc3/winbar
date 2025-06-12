@@ -1919,7 +1919,7 @@ delete_action(AppClient *client, Container *textarea, TextAreaData *data, int am
     put_cursor_on_screen(client, textarea);
 }
 
-static void
+void
 replace_action(AppClient *client, Container *textarea, TextAreaData *data, std::string text) {
     auto undo_action = new UndoAction;
     undo_action->type = UndoType::REPLACE;
@@ -2329,6 +2329,12 @@ textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string,
         } else if (keysym == XKB_KEY_c) {
             if (control) {
             
+            }
+        } else if (keysym == XKB_KEY_x) {
+            if (control) {
+                if (data->state->selection_x != -1) {
+                    replace_action(client, textarea, data, "");
+                }
             }
         } else if (keysym == XKB_KEY_v) {
             std::string text = clipboard();

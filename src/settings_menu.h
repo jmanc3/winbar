@@ -57,6 +57,7 @@ struct WinbarSettings {
     float scale_factor = 1.0;
     std::string shutdown_command;
     std::string restart_command;
+    std::string user_font;
     std::string pinned_icon_style = "win10";
     
     std::vector<std::string> preferred_interfaces;

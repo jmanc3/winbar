@@ -171,6 +171,10 @@ blink_on(App *app, AppClient *client, void *textarea);
 void
 insert_action(AppClient *client, Container *textarea, TextAreaData *data, std::string text);
 
+void
+replace_action(AppClient *client, Container *textarea, TextAreaData *data, std::string text);
+
+
 enum Transition {
     ANIM_NONE = 1 << 0,
     

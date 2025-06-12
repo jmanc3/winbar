@@ -87,6 +87,9 @@ int main(int argc, char* argv[]) {
     }
  
     config->taskbar_height = config->taskbar_height * config->dpi;
+    if (!winbar_settings->user_font.empty()) {
+        config->font = winbar_settings->user_font;
+    }
     
     check_config_version();
     
