@@ -185,7 +185,7 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
         
         draw_colored_rect(client, ArgbColor(0.0, 0.0, 0.0, 0.7),
                           Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w, h));
-        draw_colored_rect(client, ArgbColor(1.0, 1.0, 1.0, 0.425),
+        draw_colored_rect(client, ArgbColor(1.0, 1.0, 1.0, 0.29),
                           Bounds(container->real_bounds.x, container->real_bounds.y + h, container->real_bounds.w, h));
     }
 }
@@ -287,7 +287,7 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
     paint_hoverable_button_background(client, cr, container);
     
     if (winbar_settings->super_icon_default) {
-        float icon_size = icon_width(client);
+        float icon_size = icon_width(client) * .73;
         if (!data->already_attempted) {
             data->already_attempted = true;
             data->surface__ = accelerated_surface(app, client, icon_size, icon_size);
