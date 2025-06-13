@@ -1900,7 +1900,10 @@ fill_root(AppClient *client, Container *root) {
     setting_bool(scroll_root, "\uE767", "Animated volume playback", "Shows the meter of audio clients", &winbar_settings->meter_animations);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
 
-    setting_bool(scroll_root, "\uEDFB", "Use OpenGL", "Switch off cairo backend for experimental OpenGL backend", &winbar_settings->use_opengl);
+    setting_bool(scroll_root, "\uEDFB", "Use OpenGL", "Switch off cairo backend for experimental OpenGL backend", &winbar_settings->use_opengl, false, []() {
+        restart = true;
+        app->running = false;
+    });
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
 
     setting_field(client, scroll_root, "\uE7E8", "Shutdown command", "Command to be executed when attempting to shutdown",  &winbar_settings->shutdown_command);
