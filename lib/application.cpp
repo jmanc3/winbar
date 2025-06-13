@@ -520,67 +520,6 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
                 meta_pressed(0);
                 clean = false;
             }
-        } else if (generic_event->event_type == XI_Motion) {
-            xcb_input_motion_event_t *motion = (xcb_input_motion_event_t *)event;
-
-            float x = motion->event_x / 65536.0;  // fixed-point format
-            float y = motion->event_y / 65536.0;
-            
-            // if user has always_hide enabled.
-            if (winbar_settings->always_hide) {
-                // find global mouse position.
-                AppClient *client = client_by_name(app, "taskbar");
-                if (!client)
-                    return false;
-                
-                bool someone_has = false;
-                
-                // if any client is mapped then someone_has
-                for (auto c: app->clients) {
-                    if (c->mapped && c->name != "taskbar" && c->name != "settings_menu") {
-                        someone_has = true;
-                        break;
-                    }
-                }
-                
-                bool inside_client = bounds_contains(*client->bounds, x, y);
-                
-                // if client mouse position is in bounds.
-                static bool should = false;
-                if (y >= app->screen->height_in_pixels - 1) {
-                    should = false;
-                    if (!client->mapped) {
-                        // show taskbar
-                        client_show(app, client);
-                    }
-                } else {
-                    if (client->mapped && !inside_client && !someone_has) {
-                        should = true;
-                        static long start_time = 0;
-                        start_time = app->current;
-                        bool started = false;
-                        for (auto t: app->timeouts) {
-                            if (t->text == "auto_hide") {
-                                started = true;
-                            }
-                        }
-                        if (!started) {
-                            auto timeout = app_timeout_create(app, client, 20,
-                                                              [](App *app, AppClient *client, Timeout *t, void *user_data) {
-                                                                  t->keep_running = true;
-                                                                  auto start_time = (long *) user_data;
-                                                                  if (app->current - *start_time > 150 && should) {
-                                                                      t->keep_running = false;
-                                                                      client_hide(app, client);
-                                                                      client->mouse_current_x = -1;
-                                                                      client->mouse_current_y = -1;
-                                                                  }
-                                                              }, &start_time, "auto_hide");
-                        }
-                    }
-                }
-            }
-        
         } else if (generic_event->event_type == XCB_INPUT_RAW_MOTION) {
             auto *rmt_event = (xcb_input_raw_motion_event_t *) event;
             int axis_len = xcb_input_raw_button_press_axisvalues_length(rmt_event);
@@ -595,7 +534,65 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
                 bool is_mouse_event = (mask[0] & (1 << 0)) || (mask[0] & (1 << 1));
                 
                 if (is_mouse_event) {
-
+                   // if user has always_hide enabled.
+                    if (winbar_settings->always_hide) {
+                        xcb_query_pointer_cookie_t cookie = xcb_query_pointer(app->connection, app->screen->root);
+                        xcb_query_pointer_reply_t *reply = xcb_query_pointer_reply(app->connection, cookie, nullptr);
+                        float x = reply->root_x;  // fixed-point format
+                        float y = reply->root_y;
+                        
+                        // find global mouse position.
+                        AppClient *client = client_by_name(app, "taskbar");
+                        if (!client)
+                            return false;
+                        
+                        bool someone_has = false;
+                        
+                        // if any client is mapped then someone_has
+                        for (auto c: app->clients) {
+                            if (c->mapped && c->name != "taskbar" && c->name != "settings_menu") {
+                                someone_has = true;
+                                break;
+                            }
+                        }
+                        
+                        bool inside_client = bounds_contains(*client->bounds, x, y);
+                        
+                        // if client mouse position is in bounds.
+                        static bool should = false;
+                        if (y >= app->screen->height_in_pixels - 1) {
+                            should = false;
+                            if (!client->mapped) {
+                                // show taskbar
+                                client_show(app, client);
+                            }
+                        } else {
+                            if (client->mapped && !inside_client && !someone_has) {
+                                should = true;
+                                static long start_time = 0;
+                                start_time = app->current;
+                                bool started = false;
+                                for (auto t: app->timeouts) {
+                                    if (t->text == "auto_hide") {
+                                        started = true;
+                                    }
+                                }
+                                if (!started) {
+                                    auto timeout = app_timeout_create(app, client, 20,
+                                                                      [](App *app, AppClient *client, Timeout *t, void *user_data) {
+                                                                          t->keep_running = true;
+                                                                          auto start_time = (long *) user_data;
+                                                                          if (app->current - *start_time > 150 && should) {
+                                                                              t->keep_running = false;
+                                                                              client_hide(app, client);
+                                                                              client->mouse_current_x = -1;
+                                                                              client->mouse_current_y = -1;
+                                                                          }
+                                                                      }, &start_time, "auto_hide");
+                                }
+                            }
+                        }
+                    }
                 } else if (is_scroll_event) {
                     app->has_seen_raw_scroll = true;
                     if (app->wayland)
@@ -686,7 +683,7 @@ void get_raw_motion_and_scroll_events(App *app) {
     se_mask.iem.mask_len = 1;
     se_mask.xiem = (xcb_input_xi_event_mask_t) (XCB_INPUT_XI_EVENT_MASK_KEY_PRESS |
                                                 XCB_INPUT_XI_EVENT_MASK_KEY_RELEASE |
-                                                XCB_INPUT_XI_EVENT_MASK_MOTION |XCB_INPUT_XI_EVENT_MASK_RAW_MOTION);
+                                                XCB_INPUT_XI_EVENT_MASK_RAW_MOTION);
     xcb_input_xi_select_events(app->connection, app->screen->root, 1, &se_mask.iem);
 }
 
