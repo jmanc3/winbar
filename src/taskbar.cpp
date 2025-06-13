@@ -522,6 +522,7 @@ static int get_label_width(AppClient *client, Container *container) {
     if (winbar_settings->labels && !data->windows_data_list.empty() && !trim(title).empty()) {
         auto pad = 8.0f * config->dpi;
         auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, 0, 0, 0, 1, title, false);
+        f->end();
         
         auto label_width = w;
         if (label_width > client->bounds->w / 12)
