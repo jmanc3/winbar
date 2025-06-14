@@ -2445,10 +2445,7 @@ static void
 mouse_leaves_volume(AppClient *client_entity,
                     cairo_t *cr,
                     Container *container) {
-    if (volume_open_because_of_scroll && client_by_name(app, "volume")) {
-        client_close_threaded(app, client_by_name(app, "volume"));
-    }
-    volume_open_because_of_scroll = false;
+
 }
 
 static void
@@ -2477,6 +2474,32 @@ scrolled_volume(AppClient *client_entity,
     if (client_by_name(app, "volume") == nullptr) {
         open_volume_menu();
         volume_open_because_of_scroll = true;
+        bool already_has = false;
+        for (auto t: app->timeouts) {
+            if (t->text == "volume_scrolled_timeout") {
+                already_has = true;
+            }
+        }
+        if (!already_has) {
+            app_timeout_create(app, client_entity, 200,
+                               [](App *app, AppClient *client, Timeout *timeout, void *user_data) {
+                                   timeout->keep_running = false;
+                                   if (auto c = client_by_name(app, "volume")) {
+                                       if (c->inside) {
+                                           timeout->keep_running = true;
+                                       }
+                                   }
+                                   if (auto c = container_by_name("volume", client->root)) {
+                                       if (c->state.mouse_hovering) {
+                                           timeout->keep_running = true;
+                                       }
+                                   }
+                                   
+                                   if (!timeout->keep_running) {
+                                       client_close_threaded(app, client_by_name(app, "volume"));
+                                   }
+                               }, nullptr, "volume_scrolled_timeout");
+        }
     }
     
     audio([&client_entity, &cr, &container, horizontal_scroll, vertical_scroll, came_from_touchpad]() {
