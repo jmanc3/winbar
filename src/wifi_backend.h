@@ -22,6 +22,7 @@ enum {
 	AUTH_WPA2_EAP
 };
 
+// Actually this is an "AccessPoint" in NetworkManager terms
 struct ScanResult {
     std::string interface;
     
@@ -38,10 +39,20 @@ struct ScanResult {
     int auth = AUTH_NONE_OPEN;
     int encr = 0;
     bool is_scan_result = false;
+    
+    // Network Manager needed
+    std::string access_point;
+    std::vector<std::string> active_connections;
+    std::vector<std::string> settings_paths;
+    guint32 nm_flags = 0;
+    guint32 nm_rsnFlags = 0;
+    guint32 nm_wpaFlags = 0;
 };
 
+// Actually this is a "Device" in NetworkManager terms
 struct InterfaceLink {
     std::string interface;
+    std::string device_object_path;
     wpa_ctrl *wpa_message_sender = nullptr;
     wpa_ctrl *wpa_message_listener = nullptr;
     std::vector<ScanResult> results;

@@ -2863,6 +2863,8 @@ static void paint_combox_item_dark(AppClient *client, cairo_t *cr, Container *co
 
 void clicked_expand_generic_combobox_base(AppClient *client, cairo_t *cr, Container *container, double option_h, bool down, bool dark = false) {
     auto *data = (GenericComboBox *) container->user_data;
+    if (data->options.empty())
+        return;
     
     float total_text_height = 0;
     

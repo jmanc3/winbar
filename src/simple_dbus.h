@@ -22,6 +22,31 @@ struct BluetoothInterface;
 extern std::vector<BluetoothInterface *> bluetooth_interfaces;
 extern bool bluetooth_running;
 
+extern bool network_manager_running;
+
+void network_manager_request_scan(std::string device_path);
+
+DBusMessage *get_property(std::string bus_name, std::string path, std::string iface, std::string property_name);
+
+template<typename T>
+T get_num_property(std::string bus_name, std::string path, std::string iface, std::string property_name) {
+    DBusMessage *iface_reply = get_property(bus_name, path, iface, property_name);
+    if (!iface_reply)
+        return -1;
+    
+    // Get the serial in serial_reply
+    DBusMessageIter iter4;
+    dbus_message_iter_init(iface_reply, &iter4);
+    DBusMessageIter iter5;
+    dbus_message_iter_recurse(&iter4, &iter5);
+    T reply = -1;
+    dbus_message_iter_get_basic(&iter5, &reply);
+    dbus_message_unref(iface_reply);
+    return reply;
+}
+
+void network_manager_service_get_all_devices();
+
 void dbus_start(DBusBusType dbusType);
 
 void dbus_end();

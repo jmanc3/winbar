@@ -12,6 +12,8 @@
 #include "root.h"
 #include "audio.h"
 #include "settings_menu.h"
+#include "wifi_backend.h"
+#include "dbus_helper.h"
 
 #include <dbus/dbus.h>
 #include <defer.h>
@@ -50,11 +52,27 @@ bool registered_with_bluez = false;
 static double max_kde_brightness = 0;
 static bool gnome_brightness_running = false;
 
+bool network_manager_running = false;
+bool binded_network_manager = false;
+
+void network_manager_service_started();
+
+void network_manager_service_ended();
+
 void StatusNotifierItemRegistered(const std::string &service);
 
 void StatusNotifierItemUnregistered(const std::string &service);
 
 void StatusNotifierHostRegistered();
+
+
+Msg sys_method_call(std::string bus, std::string path, std::string iface, std::string method) {
+    return method_call(dbus_connection_system, bus, path, iface, method);
+}
+
+Msg sess_method_call(std::string bus, std::string path, std::string iface, std::string method) {
+    return method_call(dbus_connection_session, bus, path, iface, method);
+}
 
 void remove_service(const std::string &service) {
     for (int x = 0; x < status_notifier_items.size(); x++) {
@@ -74,6 +92,10 @@ void remove_service(const std::string &service) {
                 max_kde_brightness = 0;
             if (running_dbus_services[i] == "org.gnome.SettingsDaemon.Power")
                 gnome_brightness_running = false;
+            if (running_dbus_services[i] == "org.freedesktop.NetworkManager") {
+                network_manager_running = false;
+                network_manager_service_ended();
+            }
             if (running_dbus_services[i] == "org.bluez") {
                 bluetooth_service_ended();
                 bluetooth_running = false;
@@ -120,6 +142,10 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
                 dbus_kde_max_brightness();
             if (std::string(name) == "org.gnome.SettingsDaemon.Power")
                 gnome_brightness_running = true;
+            if (std::string(name) == "org.freedesktop.NetworkManager") {
+                network_manager_running = true;
+                network_manager_service_started();
+            }
             if (std::string(name) == "org.bluez") {
                 bluetooth_service_started();
                 bluetooth_running = true;
@@ -146,6 +172,10 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
             dbus_kde_max_brightness();
         if (std::string(name) == "org.gnome.SettingsDaemon.Power")
             gnome_brightness_running = true;
+        if (std::string(name) == "org.freedesktop.NetworkManager") {
+            network_manager_running = true;
+            network_manager_service_started();
+        }
         if (std::string(name) == "org.bluez") {
             bluetooth_service_started();
             bluetooth_running = true;
@@ -357,6 +387,10 @@ static void dbus_reply_to_list_names_request(DBusPendingCall *call, void *data) 
             dbus_kde_max_brightness();
         if (std::string(name) == "org.gnome.SettingsDaemon.Power")
             gnome_brightness_running = true;
+        if (std::string(name) == "org.freedesktop.NetworkManager") {
+            network_manager_running = true;
+            network_manager_service_started();
+        }
         if (std::string(name) == "org.bluez") {
             bluetooth_service_started();
             bluetooth_running = true;
@@ -1559,6 +1593,622 @@ void dbus_open_in_folder(std::string path) {
     dbus_connection_send(dbus_connection_session, dbus_msg, NULL);
 }
 
+void network_manager_service_ended() {
+    if (dbus_connection_system == nullptr) return;
+    binded_network_manager = false;
+}
+
+void nm_timeout_reload() {
+    static long start = app->current;
+    start = app->current;
+    for (auto t: app->timeouts)
+        if (t->text == "network_manager_timeout")
+            return;
+    
+    app_timeout_create(app, client_by_name(app, "taskbar"), 20, [](App *, AppClient *, Timeout *t, void *) {
+        t->keep_running = true;
+        if (app->current - start > 140) {
+            t->keep_running = false;
+            network_manager_service_get_all_devices();
+        }
+    }, nullptr, "network_manager_timeout");
+}
+
+static DBusHandlerResult network_manager_device_signal_filter(DBusConnection *dbus_connection,
+                                                              DBusMessage *message, void *user_data) {
+    if (dbus_message_is_signal(message, "org.freedesktop.DBus.Properties", "PropertiesChanged")) {
+        if (std::string(dbus_message_get_path(message)) == "/org/freedesktop/NetworkManager") {
+            DBusMessageIter args;
+            dbus_message_iter_init(message, &args);
+            dbus_message_iter_next(&args);
+            
+            auto any = parse_iter(&args);
+            if (auto dict = std::any_cast<DbusDict>(&any)) {
+                for (const auto &item: dict->map) {
+                    if (auto str = std::any_cast<std::string>(&item.first)) {
+                        if (*str == "ActiveConnections") {
+                            nm_timeout_reload();
+                        }
+                    }
+                }
+            }
+            
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
+    } else if (dbus_message_is_signal(message, "org.freedesktop.NetworkManager", "DeviceAdded")) {
+        // Get the object path
+        DBusMessageIter iter;
+        dbus_message_iter_init(message, &iter);
+        const char *object_path;
+        dbus_message_iter_get_basic(&iter, &object_path);
+        network_manager_service_get_all_devices();
+        return DBUS_HANDLER_RESULT_HANDLED;
+    } else if (dbus_message_is_signal(message, "org.freedesktop.NetworkManager", "DeviceRemoved")) {
+        // Get the object path
+        DBusMessageIter iter;
+        dbus_message_iter_init(message, &iter);
+        const char *object_path;
+        dbus_message_iter_get_basic(&iter, &object_path);
+        network_manager_service_get_all_devices();
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+}
+
+DBusMessage *get_property(std::string bus_name, std::string path, std::string iface, std::string property_name) {
+    DBusMessage *get_serial_msg = dbus_message_new_method_call(bus_name.c_str(),
+                                                               path.c_str(),
+                                                               "org.freedesktop.DBus.Properties",
+                                                               "Get");
+    defer(dbus_message_unref(get_serial_msg));
+    
+    // Append String
+    DBusMessageIter iter3;
+    dbus_message_iter_init_append(get_serial_msg, &iter3);
+    const char *interface_name = iface.c_str();
+    dbus_message_iter_append_basic(&iter3, DBUS_TYPE_STRING, &interface_name);
+    const char *property = property_name.c_str();
+    dbus_message_iter_append_basic(&iter3, DBUS_TYPE_STRING, &property);
+    
+    DBusError error;
+    dbus_error_init(&error);
+    
+    // Send the message
+    DBusMessage *iface_reply = dbus_connection_send_with_reply_and_block(dbus_connection_system,
+                                                                         get_serial_msg, 50, &error);
+    if (dbus_error_is_set(&error)) {
+        fprintf(stderr, "error: %s\n", error.message);
+        return nullptr;
+    }
+    return iface_reply;
+}
+
+std::string get_str_property(std::string bus_name, std::string path, std::string iface, std::string property_name) {
+    Msg reply = {get_property(bus_name, path, iface, property_name)};
+    if (!reply.msg)
+        return "";
+    std::any val = parse_message(reply.msg);
+    if (auto str = std::any_cast<std::string>(&val))
+        return *str;
+    return "";
+}
+
+std::string get_arr_b_property(std::string bus_name, std::string path, std::string iface, std::string property_name) {
+    Msg reply = {get_property(bus_name, path, iface, property_name)};
+    if (!reply.msg)
+        return "";
+    std::ostringstream oss;
+    std::any val = parse_message(reply.msg);
+    if (auto arr = std::any_cast<DbusArray>(&val))
+        for (const auto &element: arr->elements)
+            if (auto byte = std::any_cast<uint8_t>(element))
+                oss << (char) (byte);
+    return oss.str();
+}
+
+dbus_int64_t get_boottime_millis() {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_BOOTTIME, &ts) != 0) {
+        perror("clock_gettime");
+        return 0;
+    }
+    return (uint64_t(ts.tv_sec) * 1000) + (ts.tv_nsec / 1000000);
+}
+
+bool nm_scan_too_soon(std::string device_path) {
+    dbus_int64_t time = get_num_property<dbus_int64_t>("org.freedesktop.NetworkManager", device_path.c_str(),
+                                                       "org.freedesktop.NetworkManager.Device.Wireless", "LastScan");
+    if (time == -1) // -1 means never scanned (or error)
+        return false;
+    
+    dbus_int64_t delta_ms = get_boottime_millis() - time;
+    return delta_ms < 60000;
+}
+
+void network_manager_request_scan(std::string device_path) {
+    if (nm_scan_too_soon(device_path))
+        return;
+    
+    DBusMessage *scan = dbus_message_new_method_call("org.freedesktop.NetworkManager",
+                                                     device_path.c_str(),
+                                                     "org.freedesktop.NetworkManager.Device.Wireless",
+                                                     "RequestScan");
+    defer(dbus_message_unref(scan));
+    
+    DBusMessageIter args;
+    dbus_message_iter_init_append(scan, &args);
+    DBusMessageIter dict_iter;
+    dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &dict_iter);
+    
+    dbus_message_iter_close_container(&args, &dict_iter);
+    
+    // Send the message
+    DBusMessage *iface_reply = dbus_connection_send_with_reply_and_block(dbus_connection_system,
+                                                                         scan, 50, NULL);
+    defer(dbus_message_unref(iface_reply));
+}
+
+enum WIFISecurityMode : uint8_t {
+    WIFI_SECURITY_NONE          /* @text: NONE */,
+    WIFI_SECURITY_WPA_PSK       /* @text: WPA-PSK */,
+    WIFI_SECURITY_SAE           /* @text: SAE */,
+    WIFI_SECURITY_EAP           /* @text: EAP */,
+};
+
+/*! Error code: A recoverable, unexpected error occurred,
+ * as defined by one of the following values */
+typedef enum _WiFiErrorCode_t {
+    WIFI_SSID_CHANGED,              /**< The SSID of the network changed */
+    WIFI_CONNECTION_LOST,           /**< The connection to the network was lost */
+    WIFI_CONNECTION_FAILED,         /**< The connection failed for an unknown reason */
+    WIFI_CONNECTION_INTERRUPTED,    /**< The connection was interrupted */
+    WIFI_INVALID_CREDENTIALS,       /**< The connection failed due to invalid credentials */
+    WIFI_NO_SSID,                   /**< The SSID does not exist */
+    WIFI_UNKNOWN,                   /**< Any other error */
+    WIFI_AUTH_FAILED                /**< The connection failed due to auth failure */
+} WiFiErrorCode_t;
+
+// Enum 80211ApFlags
+enum NM80211ApFlags {
+    NM_802_11_AP_FLAGS_NONE = 0,
+    NM_802_11_AP_FLAGS_PRIVACY = 1,
+    NM_802_11_AP_FLAGS_WPS = 2,
+    NM_802_11_AP_FLAGS_WPS_PBC = 4,
+    NM_802_11_AP_FLAGS_WPS_PIN = 8,
+};
+
+enum NM80211ApSecurityFlags {
+    NM_802_11_AP_SEC_NONE = 0,
+    NM_802_11_AP_SEC_PAIR_WEP40 = 1,
+    NM_802_11_AP_SEC_PAIR_WEP104 = 2,
+    NM_802_11_AP_SEC_PAIR_TKIP = 4,
+    NM_802_11_AP_SEC_PAIR_CCMP = 8,
+    NM_802_11_AP_SEC_GROUP_WEP40 = 16,
+    NM_802_11_AP_SEC_GROUP_WEP104 = 32,
+    NM_802_11_AP_SEC_GROUP_TKIP = 64,
+    NM_802_11_AP_SEC_GROUP_CCMP = 128,
+    NM_802_11_AP_SEC_KEY_MGMT_PSK = 256,
+    NM_802_11_AP_SEC_KEY_MGMT_802_1X = 512,
+    NM_802_11_AP_SEC_KEY_MGMT_SAE = 1024,
+    NM_802_11_AP_SEC_KEY_MGMT_OWE = 2048,
+    NM_802_11_AP_SEC_KEY_MGMT_OWE_TM = 4096,
+    NM_802_11_AP_SEC_KEY_MGMT_EAP_SUITE_B_192 = 8192
+};
+
+// Function to convert percentage (0-100) to dBm string
+const char *convertPercentageToSignalStrengtStr(int percentage) {
+    
+    if (percentage <= 0 || percentage > 100) {
+        return "";
+    }
+    
+    /*
+     * -30 dBm to -50 dBm: Excellent signal strength.
+     * -50 dBm to -60 dBm: Very good signal strength.
+     * -60 dBm to -70 dBm: Good signal strength; acceptable for basic internet browsing.
+     * -70 dBm to -80 dBm: Weak signal; performance may degrade, slower speeds, and possible dropouts.
+     * -80 dBm to -90 dBm: Very poor signal; likely unusable or highly unreliable.
+     *  Below -90 dBm: Disconnected or too weak to establish a stable connection.
+     */
+    
+    // dBm range: -30 dBm (strong) to -90 dBm (weak)
+    const int max_dBm = -30;
+    const int min_dBm = -90;
+    int dBm_value = max_dBm + ((min_dBm - max_dBm) * (100 - percentage)) / 100;
+    static char result[8] = {0};
+    snprintf(result, sizeof(result), "%d", dBm_value);
+    return result;
+}
+
+std::string getSecurityModeString(guint32 flag, guint32 wpaFlags, guint32 rsnFlags) {
+    std::string securityStr = "[AP type: ";
+    if (flag == NM_802_11_AP_FLAGS_NONE)
+        securityStr += "NONE ";
+    else {
+        if ((flag & NM_802_11_AP_FLAGS_PRIVACY) != 0)
+            securityStr += "PRIVACY ";
+        if ((flag & NM_802_11_AP_FLAGS_WPS) != 0)
+            securityStr += "WPS ";
+        if ((flag & NM_802_11_AP_FLAGS_WPS_PBC) != 0)
+            securityStr += "WPS_PBC ";
+        if ((flag & NM_802_11_AP_FLAGS_WPS_PIN) != 0)
+            securityStr += "WPS_PIN ";
+    }
+    securityStr += "] ";
+    
+    if (!(flag & NM_802_11_AP_FLAGS_PRIVACY) && (wpaFlags != NM_802_11_AP_SEC_NONE) &&
+        (rsnFlags != NM_802_11_AP_SEC_NONE))
+        securityStr += ("Encrypted: ");
+    
+    if ((flag & NM_802_11_AP_FLAGS_PRIVACY) && (wpaFlags == NM_802_11_AP_SEC_NONE)
+        && (rsnFlags == NM_802_11_AP_SEC_NONE))
+        securityStr += ("WEP ");
+    if (wpaFlags != NM_802_11_AP_SEC_NONE)
+        securityStr += ("WPA ");
+    if ((rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_PSK)
+        || (rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X)) {
+        securityStr += ("WPA2 ");
+    }
+    if (rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_SAE) {
+        securityStr += ("WPA3 ");
+    }
+    if ((rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_OWE)
+        || (rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_OWE_TM)) {
+        securityStr += ("OWE ");
+    }
+    if ((wpaFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X)
+        || (rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X)) {
+        securityStr += ("802.1X ");
+    }
+    
+    if (securityStr.empty()) {
+        securityStr = "None";
+        return securityStr;
+    }
+    
+    uint32_t flags[2] = {wpaFlags, rsnFlags};
+    securityStr += "[WPA: ";
+    
+    for (int i = 0; i < 2; ++i) {
+        if (flags[i] & NM_802_11_AP_SEC_PAIR_WEP40)
+            securityStr += "pair_wep40 ";
+        if (flags[i] & NM_802_11_AP_SEC_PAIR_WEP104)
+            securityStr += "pair_wep104 ";
+        if (flags[i] & NM_802_11_AP_SEC_PAIR_TKIP)
+            securityStr += "pair_tkip ";
+        if (flags[i] & NM_802_11_AP_SEC_PAIR_CCMP)
+            securityStr += "pair_ccmp ";
+        if (flags[i] & NM_802_11_AP_SEC_GROUP_WEP40)
+            securityStr += "group_wep40 ";
+        if (flags[i] & NM_802_11_AP_SEC_GROUP_WEP104)
+            securityStr += "group_wep104 ";
+        if (flags[i] & NM_802_11_AP_SEC_GROUP_TKIP)
+            securityStr += "group_tkip ";
+        if (flags[i] & NM_802_11_AP_SEC_GROUP_CCMP)
+            securityStr += "group_ccmp ";
+        if (flags[i] & NM_802_11_AP_SEC_KEY_MGMT_PSK)
+            securityStr += "psk ";
+        if (flags[i] & NM_802_11_AP_SEC_KEY_MGMT_802_1X)
+            securityStr += "802.1X ";
+        if (flags[i] & NM_802_11_AP_SEC_KEY_MGMT_SAE)
+            securityStr += "sae ";
+        if (flags[i] & NM_802_11_AP_SEC_KEY_MGMT_OWE)
+            securityStr += "owe ";
+        if (flags[i] & NM_802_11_AP_SEC_KEY_MGMT_OWE_TM)
+            securityStr += "owe_transition_mode ";
+        if (flags[i] & NM_802_11_AP_SEC_KEY_MGMT_EAP_SUITE_B_192)
+            securityStr += "wpa-eap-suite-b-192 ";
+        
+        if (i == 0) {
+            securityStr += "] [RSN: ";
+        }
+    }
+    securityStr += "] ";
+    return securityStr;
+}
+
+
+uint8_t wifiSecurityModeFromAp(const std::string &ssid, guint32 flags, guint32 wpaFlags, guint32 rsnFlags) {
+    uint8_t security = WIFISecurityMode::WIFI_SECURITY_NONE;
+    //printf("ap [%s] security str %s", ssid.c_str(), getSecurityModeString(flags, wpaFlags, rsnFlags).c_str());
+    
+    if ((flags != NM_802_11_AP_FLAGS_PRIVACY) && (wpaFlags == NM_802_11_AP_SEC_NONE) &&
+        (rsnFlags == NM_802_11_AP_SEC_NONE)) // Open network
+        security = WIFISecurityMode::WIFI_SECURITY_NONE;
+    else if ((rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_PSK) &&
+             (rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_SAE)) // WPA2/WPA3 Transition
+        security = WIFISecurityMode::WIFI_SECURITY_WPA_PSK;
+    else if (rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_SAE)  // Pure WPA3 (SAE only): WPA3-Personal
+        security = WIFISecurityMode::WIFI_SECURITY_SAE;
+    else if (wpaFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X ||
+             rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X) // WPA2/WPA3 Enterprise: EAP present in either WPA or RSN
+        security = WIFISecurityMode::WIFI_SECURITY_EAP;
+    else
+        security = WIFISecurityMode::WIFI_SECURITY_WPA_PSK; // WPA2-PSK
+    
+    return security;
+}
+
+void add_access_point(std::string device_path, std::string ap_path) {
+    InterfaceLink *link = nullptr;
+    for (auto l: wifi_data->links) {
+        if (l->device_object_path == device_path) {
+            link = l;
+            break;
+        }
+    }
+    if (!link)
+        return;
+    
+    ScanResult result;
+    //std::string interface;
+    result.interface = link->interface;
+    result.access_point = ap_path;
+    
+    
+    std::string nm_bus = "org.freedesktop.NetworkManager";
+    std::string nm_iface = "org.freedesktop.NetworkManager.AccessPoint";
+    //std::string mac;
+    result.mac = get_str_property(nm_bus, ap_path, nm_iface, "HwAddress");
+    
+    //std::string network_name;
+    result.network_name = get_arr_b_property(nm_bus, ap_path, nm_iface, "Ssid");
+    
+    result.nm_flags = get_num_property<dbus_uint32_t>(nm_bus, ap_path, nm_iface, "Flags");
+    result.nm_rsnFlags = get_num_property<dbus_uint32_t>(nm_bus, ap_path, nm_iface, "RsnFlags");
+    result.nm_wpaFlags = get_num_property<dbus_uint32_t>(nm_bus, ap_path, nm_iface, "WpaFlags");
+    
+    uint8_t security = wifiSecurityModeFromAp(result.network_name, result.nm_flags, result.nm_wpaFlags,
+                                              result.nm_rsnFlags);
+    if (security != WIFI_SECURITY_NONE) {
+        result.encr = 1;
+        result.auth = AUTH_WPA2_PSK;
+    }
+    result.frequency = std::to_string(get_num_property<dbus_uint32_t>(nm_bus, ap_path, nm_iface, "Frequency"));
+    result.connection_quality = convertPercentageToSignalStrengtStr(
+            get_num_property<char>(nm_bus, ap_path, nm_iface, "Strength"));
+    
+    result.is_scan_result = true;
+    
+    // TODO: does this mean have active connection or working connection?
+    // I think its supposed to mean active working connection
+    //result.saved_network = true; does
+    
+    link->results.push_back(result);
+}
+
+void network_manager_service_get_all_access_points_of_device(std::string device_path) {
+    DBusError error;
+    dbus_error_init(&error);
+    
+    auto aps_message = get_property("org.freedesktop.NetworkManager", device_path,
+                                    "org.freedesktop.NetworkManager.Device.Wireless", "AccessPoints");
+    if (!aps_message)
+        return;
+    defer(dbus_message_unref(aps_message));
+    
+    DBusMessageIter msg_iter;
+    if (!dbus_message_iter_init(aps_message, &msg_iter)) {
+        fprintf(stderr, "Message has no arguments!\n");
+        return;
+    }
+    
+    if (dbus_message_iter_get_arg_type(&msg_iter) != DBUS_TYPE_VARIANT) {
+        fprintf(stderr, "Unexpected argument type: %c\n", dbus_message_iter_get_arg_type(&msg_iter));
+        return;
+    }
+    
+    DBusMessageIter variant_iter;
+    dbus_message_iter_recurse(&msg_iter, &variant_iter);
+    
+    if (dbus_message_iter_get_arg_type(&variant_iter) != DBUS_TYPE_ARRAY) {
+        fprintf(stderr, "Variant does not contain array, type: %c\n", dbus_message_iter_get_arg_type(&variant_iter));
+        return;
+    }
+    DBusMessageIter array_iter;
+    dbus_message_iter_recurse(&variant_iter, &array_iter);
+    while (dbus_message_iter_get_arg_type(&array_iter) == DBUS_TYPE_OBJECT_PATH) {
+        const char *ap_path = nullptr;
+        dbus_message_iter_get_basic(&array_iter, &ap_path);
+        add_access_point(device_path, ap_path);
+        
+        dbus_message_iter_next(&array_iter);
+    }
+}
+
+void update_device_results_based_on_active_connection_info(std::string active_connection_path) {
+    // SpecificOption property tells me what result it applies to
+    Msg ap_reply = {get_property("org.freedesktop.NetworkManager", active_connection_path,
+                                 "org.freedesktop.NetworkManager.Connection.Active", "SpecificObject")};
+    Msg settings_reply = {get_property("org.freedesktop.NetworkManager", active_connection_path,
+                                       "org.freedesktop.NetworkManager.Connection.Active", "Connection")};
+    if (!ap_reply.msg || !settings_reply.msg)
+        return;
+    
+    // TODO: actually we should use the Settings to determine if it's a saved config or not
+    auto ap_any = parse_message(ap_reply.msg);
+    auto settings_any = parse_message(settings_reply.msg);
+    if (auto access_point = std::any_cast<std::string>(&ap_any)) {
+        if (auto settings_path = std::any_cast<std::string>(&settings_any)) {
+            for (auto l: wifi_data->links) {
+                for (auto &item: l->results) {
+                    if (item.access_point == *access_point) {
+                        item.saved_network = true;
+                        if (std::find(item.active_connections.begin(), item.active_connections.end(), *access_point) ==
+                            item.active_connections.end()) {
+                            item.active_connections.push_back(*access_point);
+                        }
+                        if (std::find(item.settings_paths.begin(), item.settings_paths.end(), *settings_path) ==
+                            item.settings_paths.end()) {
+                            item.settings_paths.push_back(*settings_path);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void network_manager_update_active_connections() {
+    auto reply = sys_method_call("org.freedesktop.NetworkManager",
+                                 "/org/freedesktop",
+                                 "org.freedesktop.DBus.ObjectManager",
+                                 "GetManagedObjects");
+    if (!reply.msg)
+        return;
+    
+    for (auto l: wifi_data->links) {
+        for (auto &item: l->results) {
+            item.active_connections.clear();
+        }
+    }
+    
+    std::any val = parse_message(reply.msg);
+    if (auto dict = std::any_cast<DbusDict>(&val)) {
+        for (const auto &item: dict->map) {
+            if (auto object_path = std::any_cast<std::string>(&item.first)) {
+                if (object_path->find("/org/freedesktop/NetworkManager/ActiveConnection/") != std::string::npos) {
+                    update_device_results_based_on_active_connection_info(*object_path);
+                }
+            }
+        }
+    }
+}
+
+void network_manager_service_get_all_devices() {
+    DBusError error;
+    dbus_error_init(&error);
+    
+    DBusMessage *dbus_msg = dbus_message_new_method_call("org.freedesktop.NetworkManager",
+                                                         "/org/freedesktop/NetworkManager",
+                                                         "org.freedesktop.NetworkManager",
+                                                         "GetAllDevices");
+    defer(dbus_message_unref(dbus_msg));
+    DBusMessage *devices_reply = dbus_connection_send_with_reply_and_block(dbus_connection_system, dbus_msg, 16.6 * 5,
+                                                                           &error);
+    if (dbus_error_is_set(&error)) {
+        std::cerr << "Failed to get NetworkManager devices: " << error.message << std::endl;
+        dbus_error_free(&error);
+        return;
+    }
+    defer(dbus_message_unref(devices_reply));
+    
+    DBusMessageIter iter;
+    DBusMessageIter array_iter;
+    
+    if (!dbus_message_iter_init(devices_reply, &iter)) {
+        printf("Message has no arguments!\n");
+        return;
+    }
+    
+    if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_ARRAY) {
+        printf("Message argument is not an array!\n");
+        return;
+    }
+    
+    dbus_message_iter_recurse(&iter, &array_iter);
+    
+    for (auto links: wifi_data->links)
+        delete links;
+    wifi_data->links.clear();
+    
+    while (dbus_message_iter_get_arg_type(&array_iter) != DBUS_TYPE_INVALID) {
+        if (dbus_message_iter_get_arg_type(&array_iter) == DBUS_TYPE_OBJECT_PATH) {
+            const char *object_path;
+            dbus_message_iter_get_basic(&array_iter, &object_path);
+            
+            DBusMessage *dbus_msg = dbus_message_new_method_call("org.freedesktop.NetworkManager",
+                                                                 object_path,
+                                                                 "org.freedesktop.DBus.Introspectable",
+                                                                 "Introspect");
+            dbus_error_init(&error);
+            
+            defer(dbus_message_unref(dbus_msg));
+            DBusMessage *dbus_reply = dbus_connection_send_with_reply_and_block(dbus_connection_system, dbus_msg, 50,
+                                                                                &error);
+            
+            if (dbus_error_is_set(&error)) {
+                std::cerr << "Failed to get Device xml: " << error.message << std::endl;
+                dbus_error_free(&error);
+                return;
+            }
+            
+            if (dbus_reply) {
+                defer(dbus_message_unref(dbus_reply));
+                
+                const char *output;
+                if (dbus_message_get_args(dbus_reply, NULL, DBUS_TYPE_STRING, &output, DBUS_TYPE_INVALID)) {
+                    std::string xml(output);
+                    
+                    if (xml.find("org.freedesktop.NetworkManager.Device.Wireless") != std::string::npos) {
+                        std::string interface = get_str_property("org.freedesktop.NetworkManager", object_path,
+                                                                 "org.freedesktop.NetworkManager.Device", "Interface");
+                        if (!interface.empty()) {
+                            auto link = new InterfaceLink;
+                            link->interface = interface;
+                            link->device_object_path = object_path;
+                            wifi_data->links.push_back(link);
+                            wifi_data->seen_interfaces.emplace_back(interface);
+                            winbar_settings->set_preferred_interface(interface);
+                            
+                            network_manager_service_get_all_access_points_of_device(object_path);
+                        }
+                    }
+                }
+            }
+        } else {
+            printf("Unexpected type in array: %c\n", dbus_message_iter_get_arg_type(&array_iter));
+        }
+        
+        dbus_message_iter_next(&array_iter);
+    }
+    
+    // Determine if links->results are saved config via searching all active_connections info and seeing if they corrolate
+    network_manager_update_active_connections();
+    if (wifi_data->when_state_changed) {
+        wifi_data->when_state_changed();
+    }
+}
+
+void network_manager_service_started() {
+    if (dbus_connection_system == nullptr) return;
+    binded_network_manager = true;
+    
+    // Watch for device added and removed events
+    dbus_bus_add_match(dbus_connection_system,
+                       "type='signal',interface='org.freedesktop.NetworkManager',member='DeviceAdded'",
+                       NULL);
+    dbus_bus_add_match(dbus_connection_system,
+                       "type='signal',interface='org.freedesktop.NetworkManager',member='DeviceRemoved'",
+                       NULL);
+    DBusError error;
+    dbus_error_init(&error);
+    dbus_bus_add_match(dbus_connection_system,
+                       ("type='signal',"
+                        "sender='org.freedesktop.NetworkManager',"
+                        "interface='org.freedesktop.DBus.Properties',"
+                        "member='PropertiesChanged',"
+                        "path='" + std::string("/org/freedesktop/NetworkManager") + "'").c_str(),
+                       &error);
+    if (dbus_error_is_set(&error)) {
+        fprintf(stderr, "error: %s\n%s\n",
+                error.name, error.message);
+    }
+    /*
+    dbus_bus_add_match(dbus_connection_system,
+                       ("type='signal',"
+                        "sender='org.freedesktop.UPower',"
+                        "interface='org.freedesktop.DBus.Properties',"
+                        "member='PropertiesChanged',"
+                        "path='" + std::string("/org/freedesktop/UPower/devices/DisplayDevice") + "'").c_str(),
+                       &error);*/
+    
+    dbus_connection_add_filter(dbus_connection_system, network_manager_device_signal_filter, NULL, NULL);
+    
+    network_manager_service_get_all_devices();
+}
+
 /*************************************************
  *
  * Talking with org.bluez
@@ -2270,34 +2920,8 @@ bool iequals(const std::string &a, const std::string &b) {
 }
 
 void update_object_path(const std::string &object_path) {
-    DBusMessage *get_serial_msg = dbus_message_new_method_call("org.freedesktop.UPower",
-                                                               object_path.c_str(),
-                                                               "org.freedesktop.DBus.Properties",
-                                                               "Get");
-    defer(dbus_message_unref(get_serial_msg));
-    
-    // Append String
-    DBusMessageIter iter3;
-    dbus_message_iter_init_append(get_serial_msg, &iter3);
     const char *interface_name = "org.freedesktop.UPower.Device";
-    dbus_message_iter_append_basic(&iter3, DBUS_TYPE_STRING, &interface_name);
-    const char *serial_property = "Serial";
-    dbus_message_iter_append_basic(&iter3, DBUS_TYPE_STRING, &serial_property);
-    
-    // Send the message
-    DBusMessage *serial_reply = dbus_connection_send_with_reply_and_block(dbus_connection_system,
-                                                                          get_serial_msg, 500, NULL);
-    defer(dbus_message_unref(serial_reply));
-    
-    // Get the serial in serial_reply
-    DBusMessageIter iter4;
-    dbus_message_iter_init(serial_reply, &iter4);
-    
-    DBusMessageIter iter5;
-    dbus_message_iter_recurse(&iter4, &iter5);
-    
-    const char *serial;
-    dbus_message_iter_get_basic(&iter5, &serial);
+    std::string serial = get_str_property("org.freedesktop.UPower", object_path, interface_name, "Serial");
     
     for (auto interface: bluetooth_interfaces) {
         if (interface->type == BluetoothInterfaceType::Device) {

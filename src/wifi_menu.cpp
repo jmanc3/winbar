@@ -107,7 +107,7 @@ paint_option(AppClient *client, cairo_t *cr, Container *container) {
     } else {
         strength_icon = "\uE872";
     }
-        
+    
     {
         auto [f, w, h] = draw_text_begin(client, 24 * config->dpi, config->icons, EXPAND(config->color_taskbar_windows_button_default_icon), strength_icon);
         f->draw_text_end((int) (container->real_bounds.x + ((48 * config->dpi) / 2) - w / 2),
@@ -612,7 +612,7 @@ void state_changed_callback() {
     if (auto client = client_by_name(app, "wifi_menu")) {
 //        client_unregister_animation(app, client);
         auto data = (RootScanAnimationData *) client->root->user_data;
-        data->running = false;
+        //data->running = false;
     }
 }
 
@@ -659,11 +659,20 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
     
     auto data = (RootScanAnimationData *) container->user_data;
     
-    if (data->running) {
-        auto current_time = get_current_time_in_ms();
-        auto elapsed_time = current_time - data->start;
-        if (elapsed_time > 3800)
+    auto delta = client->app->current - data->start;
+    
+    if (delta > 3800) {
+        if (data->running) {
             data->running = false;
+            client_unregister_animation(app, client);
+        }
+    }
+    
+    if (data->running) {
+        auto current_time = client->app->current;
+        auto elapsed_time = current_time - data->start;
+        //if (elapsed_time > 3800)
+            //data->running = false;
         long animation_length = 2000; // in milliseconds (1000 is 1 second)
         double scalar = ((double) (elapsed_time % animation_length)) / ((double) animation_length);
         
@@ -684,9 +693,14 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
                     fixed = 1 - getEasingFunction(easing_functions::EaseOutQuad)((fixed * 2)) / 2;
                 }
                 
+                float scroll_off = 0;
+                if (!container->children.empty()) {
+                    auto scroll = (ScrollContainer *) container->children[0];
+                    scroll_off += scroll->scroll_v_real;
+                }
                 cairo_save(cr);
                 set_argb(cr, config->color_search_accent);
-                cairo_translate(cr, ((container->real_bounds.w + r * 2) * fixed) - r, r + (r / 2));
+                cairo_translate(cr, ((container->real_bounds.w + r * 2) * fixed) - r, r + (r / 2) + scroll_off);
                 cairo_arc(cr, 0, 0, r, 0, 2 * M_PI);
                 cairo_fill(cr);
                 cairo_restore(cr);
@@ -841,6 +855,10 @@ fill_root(AppClient *client) {
     
     {
         auto combo_data = new GenericComboBox("wifi_combobox", "");
+        for (auto l : wifi_data->links) {
+            combo_data->options.emplace_back(l->interface);
+        }
+        /*
         std::string network_interfaces_dir = "/var/run/wpa_supplicant";
         namespace fs = std::filesystem;
         try {
@@ -851,7 +869,7 @@ fill_root(AppClient *client) {
             }
         } catch (std::exception &e) {
             
-        }
+        }*/
         
         combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
             // TODO: this needs to reality check against available interfaces
@@ -954,7 +972,7 @@ void start_wifi_menu() {
 
 //        if (wifi_running()) {
 //        root_message = "Couldn't establish communication with wpa_supplicant";
-//        client_register_animation(app, client);
+        client_register_animation(app, client);
         wifi_data->when_state_changed = state_changed_callback;
         wifi_networks_and_cached_scan(get_active_link());
         wifi_scan(get_active_link());
