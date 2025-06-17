@@ -976,6 +976,7 @@ void start_wifi_menu() {
         wifi_data->when_state_changed = state_changed_callback;
         wifi_networks_and_cached_scan(get_active_link());
         wifi_scan(get_active_link());
+        state_changed_callback();
 //        } else {
 //            root_message = "Couldn't establish communication with wpa_supplicant";
 ////            root_message = "WIFI menu is not fully implemented yet";
