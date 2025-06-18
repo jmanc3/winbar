@@ -390,6 +390,16 @@ bool copy_resources_from_system_to_user() {
         return false;
     }
     try {
+        std::filesystem::copy("/usr/share/winbar/winbar.cfg", itemPath + "winbar.cfg", copyOptions);
+    } catch (...) {
+    
+    }
+    try {
+        std::filesystem::copy("/etc/winbar.cfg", itemPath + "winbar.cfg", copyOptions);
+    } catch (...) {
+    
+    }
+    try {
         if (!std::filesystem::exists(itemPath + "items_custom.ini"))
             std::filesystem::copy("/usr/share/winbar/items_custom.ini", itemPath + "items_custom.ini", copyOptions);
     } catch (...) {
