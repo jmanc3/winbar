@@ -79,9 +79,9 @@ int main(int argc, char* argv[]) {
             
             std::cout << "[Parent] Restarting child after failure...\n";
             auto current = get_current_time_in_ms();
-            if (current - last_crash_time < 20000) {
+            if (current - last_crash_time < 40000) {
                 crash_under_20_count++;
-                if (crash_under_20_count > 3) {
+                if (crash_under_20_count >= 3) {
                     keep_going = false;
                     std::cout << "[Parent] Quitting (crashed too many times)...\n";
                 }

@@ -193,7 +193,9 @@ paint_background(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_right_click_popup_background(AppClient *client, cairo_t *cr, Container *container) {
-    draw_colored_rect(client, correct_opaqueness(client, config->color_taskbar_background), container->real_bounds);
+    auto color = config->color_taskbar_background;
+    color.a = 1;
+    draw_colored_rect(client, color, container->real_bounds);
     
     bool is_light_theme = false;
     {
@@ -204,7 +206,7 @@ paint_right_click_popup_background(AppClient *client, cairo_t *cr, Container *co
         rgb2hsluv(real.r, real.g, real.b, &h, &s, &p);
         is_light_theme = p > 50; // if the perceived perceived brightness is greater than that we are a light theme
     }
-    auto color = correct_opaqueness(client, lighten(config->color_taskbar_background, 30));
+    color = correct_opaqueness(client, lighten(config->color_taskbar_background, 30));
     if (is_light_theme)
         color = correct_opaqueness(client, darken(config->color_taskbar_background, 30));
     draw_margins_rect(client, color, container->real_bounds, 0, std::round(1 * config->dpi));
