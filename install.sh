@@ -14,9 +14,8 @@ cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ../
 #actually compile
 make -j 16
 
-echo "Trying to install to /usr/local/bin/winbar"
+echo "Trying to install to /usr/bin/winbar"
 
-sudo mkdir -p /usr/local/bin
 sudo make -j 16 install
 
 # Create cache if it doesn't exist
