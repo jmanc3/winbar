@@ -1850,7 +1850,9 @@ fill_root(AppClient *client, Container *root) {
     setting_bool(scroll_root, "\uECA5", "Live tiles", "Show in Start menu", &winbar_settings->allow_live_tiles);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
    
-    setting_bool(scroll_root, "\uF466", "Labels", "Show labels on Taskbar pins", &winbar_settings->labels, true);
+    setting_bool(scroll_root, "\uF466", "Labels", "Show labels on Taskbar pins", &winbar_settings->labels, true, []() {
+       on_desktop_change();
+    });
     setting_bool_attachment(scroll_root, "", "Make every label have the same width", "", &winbar_settings->label_uniform_size, &winbar_settings->labels, false);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
 

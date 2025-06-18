@@ -99,6 +99,13 @@ std::any parse_iter(DBusMessageIter *iter) {
     }
 }
 
+std::any parse_iter_message(DBusMessage* msg) {
+    DBusMessageIter args;
+    dbus_message_iter_init(msg, &args);
+    dbus_message_iter_next(&args);
+    return parse_iter(&args);
+}
+
 /**
  *
  * return

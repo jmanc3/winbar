@@ -59,6 +59,8 @@ void network_manager_service_started();
 
 void network_manager_service_ended();
 
+void nm_timeout_reload();
+
 void StatusNotifierItemRegistered(const std::string &service);
 
 void StatusNotifierItemUnregistered(const std::string &service);
@@ -215,52 +217,79 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
         
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_signal(message, "org.freedesktop.DBus.ObjectManager", "InterfacesAdded")) {
+        // bluetooth or network manager has this signal
         DBusMessageIter args;
         dbus_message_iter_init(message, &args);
+        std::string mm;
+        if (dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_OBJECT_PATH) {
+            char *object_path;
+            dbus_message_iter_get_basic(&args, &object_path);
+            mm = object_path;
+        }
         
-        parse_and_add_or_update_interface(args);
-    
-        if (on_any_bluetooth_property_changed) {
-            on_any_bluetooth_property_changed();
+        if (mm.find("/org/freedesktop/NetworkManager") != std::string::npos) {
+            auto any = parse_iter_message(message);
+            if (auto str = std::any_cast<std::string>(&any)) {
+                nm_timeout_reload();
+            }
+        } else if (mm.find("/org/bluez") != std::string::npos) {
+            DBusMessageIter args;
+            dbus_message_iter_init(message, &args);
+            parse_and_add_or_update_interface(args);
+            if (on_any_bluetooth_property_changed) {
+                on_any_bluetooth_property_changed();
+            }
         }
     
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_signal(message, "org.freedesktop.DBus.ObjectManager", "InterfacesRemoved")) {
         DBusMessageIter args;
         dbus_message_iter_init(message, &args);
-        
+        std::string mm;
         if (dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_OBJECT_PATH) {
             char *object_path;
             dbus_message_iter_get_basic(&args, &object_path);
-            
-            for (int i = 0; i < bluetooth_interfaces.size(); i++) {
-                if (bluetooth_interfaces[i]->object_path == object_path) {
-                    DBusError error;
-                    dbus_error_init(&error);
-                    dbus_bus_remove_match(dbus_connection,
-                                          ("type='signal',"
-                                           "sender='org.bluez',"
-                                           "interface='org.freedesktop.DBus.Properties',"
-                                           "member='PropertiesChanged',"
-                                           "path='" + std::string(object_path) + "'").c_str(),
-                                          &error);
-                    if (dbus_error_is_set(&error)) {
-                        fprintf(stderr, "Error removing match for %s: %s\n", object_path, error.message);
+            mm = object_path;
+        }
+        if (mm.find("/org/freedesktop/NetworkManager") != std::string::npos) {
+            auto any = parse_iter_message(message);
+            if (auto str = std::any_cast<std::string>(&any)) {
+                nm_timeout_reload();
+            }
+        } else if (mm.find("/org/bluez") != std::string::npos) {
+            if (dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_OBJECT_PATH) {
+                char *object_path;
+                dbus_message_iter_get_basic(&args, &object_path);
+                
+                for (int i = 0; i < bluetooth_interfaces.size(); i++) {
+                    if (bluetooth_interfaces[i]->object_path == object_path) {
+                        DBusError error;
+                        dbus_error_init(&error);
+                        dbus_bus_remove_match(dbus_connection,
+                                              ("type='signal',"
+                                               "sender='org.bluez',"
+                                               "interface='org.freedesktop.DBus.Properties',"
+                                               "member='PropertiesChanged',"
+                                               "path='" + std::string(object_path) + "'").c_str(),
+                                              &error);
+                        if (dbus_error_is_set(&error)) {
+                            fprintf(stderr, "Error removing match for %s: %s\n", object_path, error.message);
+                        }
+                        
+                        if (bluetooth_interfaces[i]->type == BluetoothInterfaceType::Device) {
+                            delete (Device *) bluetooth_interfaces[i];
+                        } else if (bluetooth_interfaces[i]->type == BluetoothInterfaceType::Adapter) {
+                            delete (Adapter *) bluetooth_interfaces[i];
+                        }
+                        bluetooth_interfaces.erase(bluetooth_interfaces.begin() + i);
+                        break;
                     }
-                    
-                    if (bluetooth_interfaces[i]->type == BluetoothInterfaceType::Device) {
-                        delete (Device *) bluetooth_interfaces[i];
-                    } else if (bluetooth_interfaces[i]->type == BluetoothInterfaceType::Adapter) {
-                        delete (Adapter *) bluetooth_interfaces[i];
-                    }
-                    bluetooth_interfaces.erase(bluetooth_interfaces.begin() + i);
-                    break;
                 }
             }
-        }
-    
-        if (on_any_bluetooth_property_changed) {
-            on_any_bluetooth_property_changed();
+            
+            if (on_any_bluetooth_property_changed) {
+                on_any_bluetooth_property_changed();
+            }
         }
     
         return DBUS_HANDLER_RESULT_HANDLED;
@@ -270,6 +299,10 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
             battery_display_device_state_changed();
             return DBUS_HANDLER_RESULT_HANDLED;
         }
+        
+        if (std::string(str).find("/org/bluez/") == std::string::npos)
+            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+        
         for (auto *interface: bluetooth_interfaces) {
             if (dbus_message_has_path(message, interface->object_path.c_str())) {
                 DBusMessageIter args;
@@ -1594,6 +1627,14 @@ void dbus_open_in_folder(std::string path) {
 }
 
 void network_manager_service_ended() {
+    if (wifi_data) {
+        for (auto l: wifi_data->links)
+            delete l;
+        wifi_data->links.clear();
+        if (wifi_data->when_state_changed) {
+            wifi_data->when_state_changed();
+        }
+    }
     if (dbus_connection_system == nullptr) return;
     binded_network_manager = false;
 }
@@ -1618,15 +1659,11 @@ static DBusHandlerResult network_manager_device_signal_filter(DBusConnection *db
                                                               DBusMessage *message, void *user_data) {
     if (dbus_message_is_signal(message, "org.freedesktop.DBus.Properties", "PropertiesChanged")) {
         if (std::string(dbus_message_get_path(message)) == "/org/freedesktop/NetworkManager") {
-            DBusMessageIter args;
-            dbus_message_iter_init(message, &args);
-            dbus_message_iter_next(&args);
-            
-            auto any = parse_iter(&args);
+            auto any = parse_iter_message(message);
             if (auto dict = std::any_cast<DbusDict>(&any)) {
                 for (const auto &item: dict->map) {
                     if (auto str = std::any_cast<std::string>(&item.first)) {
-                        if (*str == "ActiveConnections") {
+                        if (*str == "ActiveConnections" || *str == "State") {
                             nm_timeout_reload();
                         }
                     }
@@ -1636,27 +1673,18 @@ static DBusHandlerResult network_manager_device_signal_filter(DBusConnection *db
             return DBUS_HANDLER_RESULT_HANDLED;
         }
     } else if (dbus_message_is_signal(message, "org.freedesktop.NetworkManager", "DeviceAdded")) {
-        // Get the object path
-        DBusMessageIter iter;
-        dbus_message_iter_init(message, &iter);
-        const char *object_path;
-        dbus_message_iter_get_basic(&iter, &object_path);
-        network_manager_service_get_all_devices();
+        nm_timeout_reload();
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_signal(message, "org.freedesktop.NetworkManager", "DeviceRemoved")) {
-        // Get the object path
-        DBusMessageIter iter;
-        dbus_message_iter_init(message, &iter);
-        const char *object_path;
-        dbus_message_iter_get_basic(&iter, &object_path);
-        network_manager_service_get_all_devices();
+        nm_timeout_reload();
         return DBUS_HANDLER_RESULT_HANDLED;
     }
     
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
-DBusMessage *get_property(std::string bus_name, std::string path, std::string iface, std::string property_name) {
+DBusMessage *get_property(DBusConnection *connection, std::string bus_name, std::string path, std::string iface,
+                          std::string property_name) {
     DBusMessage *get_serial_msg = dbus_message_new_method_call(bus_name.c_str(),
                                                                path.c_str(),
                                                                "org.freedesktop.DBus.Properties",
@@ -1675,13 +1703,17 @@ DBusMessage *get_property(std::string bus_name, std::string path, std::string if
     dbus_error_init(&error);
     
     // Send the message
-    DBusMessage *iface_reply = dbus_connection_send_with_reply_and_block(dbus_connection_system,
+    DBusMessage *iface_reply = dbus_connection_send_with_reply_and_block(connection,
                                                                          get_serial_msg, 50, &error);
     if (dbus_error_is_set(&error)) {
-        fprintf(stderr, "error: %s\n", error.message);
+        fprintf(stderr, "failed get: %s, error: %s\n", property_name.c_str(), error.message);
         return nullptr;
     }
     return iface_reply;
+}
+
+DBusMessage *get_property(std::string bus_name, std::string path, std::string iface, std::string property_name) {
+    return get_property(dbus_connection_system, bus_name, path, iface, property_name);
 }
 
 std::string get_str_property(std::string bus_name, std::string path, std::string iface, std::string property_name) {
@@ -1971,10 +2003,6 @@ void add_access_point(std::string device_path, std::string ap_path) {
     
     result.is_scan_result = true;
     
-    // TODO: does this mean have active connection or working connection?
-    // I think its supposed to mean active working connection
-    //result.saved_network = true; does
-    
     link->results.push_back(result);
 }
 
@@ -2026,7 +2054,6 @@ void update_device_results_based_on_active_connection_info(std::string active_co
     if (!ap_reply.msg || !settings_reply.msg)
         return;
     
-    // TODO: actually we should use the Settings to determine if it's a saved config or not
     auto ap_any = parse_message(ap_reply.msg);
     auto settings_any = parse_message(settings_reply.msg);
     if (auto access_point = std::any_cast<std::string>(&ap_any)) {
@@ -2195,14 +2222,27 @@ void network_manager_service_started() {
         fprintf(stderr, "error: %s\n%s\n",
                 error.name, error.message);
     }
-    /*
+    
     dbus_bus_add_match(dbus_connection_system,
-                       ("type='signal',"
-                        "sender='org.freedesktop.UPower',"
-                        "interface='org.freedesktop.DBus.Properties',"
-                        "member='PropertiesChanged',"
-                        "path='" + std::string("/org/freedesktop/UPower/devices/DisplayDevice") + "'").c_str(),
-                       &error);*/
+                       "type='signal',"
+                       "sender='org.freedesktop.NetworkManager',"
+                       "interface='org.freedesktop.DBus.ObjectManager',"
+                       "member='InterfacesAdded'",
+                       &error);
+    if (dbus_error_is_set(&error)) {
+        fprintf(stderr, "Couldn't watch signal InterfacesAdded because: %s\n%s\n",
+                error.name, error.message);
+    }
+    dbus_bus_add_match(dbus_connection_system,
+                       "type='signal',"
+                       "sender='org.freedesktop.NetworkManager',"
+                       "interface='org.freedesktop.DBus.ObjectManager',"
+                       "member='InterfacesRemoved'",
+                       &error);
+    if (dbus_error_is_set(&error)) {
+        fprintf(stderr, "Couldn't watch signal InterfacesRemoved because: %s\n%s\n",
+                error.name, error.message);
+    }
     
     dbus_connection_add_filter(dbus_connection_system, network_manager_device_signal_filter, NULL, NULL);
     
@@ -3091,32 +3131,17 @@ void upower_service_ended() {
 }
 
 void update_upower_battery() {
-    DBusMessage *get_devices_msg = dbus_message_new_method_call("org.freedesktop.UPower",
-                                                                "/org/freedesktop/UPower",
-                                                                "org.freedesktop.UPower",
-                                                                "EnumerateDevices");
-    defer(dbus_message_unref(get_devices_msg));
-    
-    DBusMessage *devices_reply = dbus_connection_send_with_reply_and_block(dbus_connection_system, get_devices_msg, 500,
-                                                                           NULL);
-    defer(dbus_message_unref(devices_reply));
-    
-    DBusMessageIter iter0;
-    dbus_message_iter_init(devices_reply, &iter0);
-    
-    if (dbus_message_iter_get_arg_type(&iter0) == DBUS_TYPE_ARRAY) {
-        DBusMessageIter iter1;
-        dbus_message_iter_recurse(&iter0, &iter1);
-        
-        while (dbus_message_iter_get_arg_type(&iter1) == DBUS_TYPE_OBJECT_PATH) {
-            const char *object_path;
-            dbus_message_iter_get_basic(&iter1, &object_path);
-            
-            update_object_path(object_path);
-            
-            dbus_message_iter_next(&iter1);
+    Msg reply = method_call(dbus_connection_system, "org.freedesktop.UPower", "/org/freedesktop/UPower",
+                            "org.freedesktop.UPower", "EnumerateDevices");
+    if (!reply.msg)
+        return;
+    auto any = parse_message(reply.msg);
+    if (auto *arr = std::any_cast<DbusArray>(&any)) {
+        for (auto el: arr->elements) {
+            if (auto *str = std::any_cast<std::string>(&el)) {
+                update_object_path(*str);
+            }
         }
-        
     }
 }
 

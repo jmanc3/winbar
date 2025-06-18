@@ -68,9 +68,14 @@ struct DbusDict {
     std::string sig = "{vv}";
 };
 
+// For dbusmessages returned from function calls
+std::any parse_message(DBusMessage* msg);
+
+// For DBusMessage Iters
 std::any parse_iter(DBusMessageIter *iter);
 
-std::any parse_message(DBusMessage* msg);
+// For dbusmessages which need one itereration first, before using (like signals)
+std::any parse_iter_message(DBusMessage* msg);
 
 bool write_dbus_message(DBusMessage *msg);
 

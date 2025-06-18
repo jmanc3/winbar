@@ -587,6 +587,7 @@ void scan_results(std::vector<ScanResult> &results) {
 
 void state_changed_callback() {
     if (auto l = get_active_link()) {
+        last_check = 0;
         if (auto client = client_by_name(app, "wifi_menu")) {
             auto content = container_by_name("content", client->root);
             // TODO: content->children is empty which is impossible
@@ -661,7 +662,7 @@ paint_root(AppClient *client, cairo_t *cr, Container *container) {
     
     auto delta = client->app->current - data->start;
     
-    if (delta > 3800) {
+    if (delta > 3800 * .5) {
         if (data->running) {
             data->running = false;
             client_unregister_animation(app, client);

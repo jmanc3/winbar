@@ -106,7 +106,7 @@ void possibly_open(App *app, Container *container, LaunchableButton *data) {
                                                                      on_open_timeout, container,
                                                                      const_cast<char *>(__PRETTY_FUNCTION__));
                 } else {
-                    auto timeout_ms = 420 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 300 : 0) + (winbar_settings->click_icon_tab_next_window ? 500 : 0);
+                    auto timeout_ms = 100 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 300 : 0) + (winbar_settings->click_icon_tab_next_window ? 500 : 0);
                     if (have_drag)
                         timeout_ms = 250;
                     data->possibly_open_timeout = app_timeout_create(app, nullptr,
@@ -624,7 +624,6 @@ static void paint_root(AppClient *client, cairo_t *, Container *root) {
                 std::vector<std::string> windows;
                 windows.push_back(std::to_string(currently_hovered));
                 highlight_windows(windows);
-                printf("fast change\n");
             } else {
                 if (!timeout_running) {
                     about_to_be = currently_hovered;

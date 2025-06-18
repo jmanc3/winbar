@@ -38,6 +38,7 @@
 #include <cairo.h>
 #include <cmath>
 #include <fstream>
+#include <filesystem>
 #include <iomanip>
 #include <cassert>
 #include <pango/pangocairo.h>
@@ -2172,13 +2173,9 @@ Container *get_pinned_icon_representing_window(xcb_window_t window) {
     return nullptr;
 }
 
-void active_window_changed(xcb_window_t new_active_window) {
-#ifdef TRACY_ENABLE
-    ZoneScoped;
-#endif
+void throttled_active_window_changed(xcb_window_t new_active_window) {
     if (new_active_window == active_window)
         return;
-    active_window = new_active_window;
     auto cookie = xcb_get_property(app->connection, 0, new_active_window, get_cached_atom(app, "_NET_WM_STATE"),
                                    XCB_ATOM_ATOM, 0, BUFSIZ);
     xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, nullptr);
@@ -2224,6 +2221,29 @@ void active_window_changed(xcb_window_t new_active_window) {
         }
         request_refresh(app, c);
     }
+    
+    active_window = new_active_window;
+}
+
+void active_window_changed(xcb_window_t new_active_window) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    static xcb_window_t target = 0;
+    static long start = 0;
+    target = new_active_window;
+    start = app->current;
+    for (auto t: app->timeouts)
+        if (t->text == "window_changed_timeout")
+            return;
+    
+    app_timeout_create(app, client_by_name(app, "taskbar"), 5, [](App *, AppClient *, Timeout *t, void *) {
+        t->keep_running = true;
+        if (app->current - start > 20) {
+            throttled_active_window_changed(target);
+            t->keep_running = false;
+        }
+    }, nullptr, "window_changed_timeout");
 }
 
 static void
@@ -4768,7 +4788,6 @@ create_taskbar(App *app) {
     merge_order_with_taskbar();
     
     update_time(app, taskbar, nullptr, nullptr);
-    update_active_window();
     
     load_pinned_icons();
     
@@ -4777,6 +4796,8 @@ create_taskbar(App *app) {
     uint32_t version = 5;
     xcb_change_property(app->connection, XCB_PROP_MODE_REPLACE, taskbar->window, get_cached_atom(app, "XdndAware"),
                         XCB_ATOM_ATOM, 32, 1, &version);
+    
+    update_active_window();
     
     /*
     inotify_fd = inotify_init1(IN_NONBLOCK);
@@ -5522,6 +5543,71 @@ void update_pinned_items_file(bool force_update) {
 }
 
 static void
+write_default_pinned_icons_file_if_none_exists(std::string file_path) {
+    std::ofstream file(file_path);
+    if (!file.is_open())
+        return;
+    defer(file.close());
+    
+    int index = 0;
+    auto attempt_to_add = [&index, &file](std::string wm_class, std::string icon, std::string command) {
+        if (!script_exists(command))
+            return false;
+        
+        file << "[PinnedIcon" << index++ << "]" << std::endl;
+        file << "#The class_name is a property that windows set on themselves so that they "
+                "can be stacked with windows of the same kind as them. If when you click this "
+                "pinned icon button, it launches a window that creates an icon button that "
+                "doesn't stack with this one then the this wm_class is wrong and you're going "
+                "to have to fix it by running xprop in your console and clicking the window "
+                "that opened to find the real WM_CLASS that should be set."
+             << std::endl;
+        file << "class_name=" << wm_class << std::endl;
+        file << "#If you want to change the icon, modify this." << std::endl;
+        file << "user_icon_name=" << std::endl;
+        file << "#If you want to change the icon use \"user_icon_name\" instead since this one can be overriden."
+             << std::endl;
+        file << "icon_name=" << icon << std::endl;
+        file << "#The command that is run when the icon is clicked" << std::endl;
+        file << "command=" << command << std::endl << std::endl;
+        file << std::endl;
+        return true;
+    };
+    bool has_browser = attempt_to_add("firefox", "firefox", "firefox");
+    if (!has_browser)
+        attempt_to_add("chromium", "chromium", "chromium");
+    
+    std::vector<std::string> file_managers = {
+            "dolphin", "thunar", "nautilus", "nemo", "pcmanfm", "krusader"
+    };
+    for (const auto &c: file_managers)
+        if (attempt_to_add(c, c, c))
+            break;
+    
+    std::vector<std::string> terms = {
+            "alacritty", "konsole", "gnome-terminal", "xfce4-terminal", "xterm", "lxterminal", "terminator", "urxvt",
+            "st", "kitty"
+    };
+    for (const auto &c: terms)
+        if (attempt_to_add(c, c, c))
+            break;
+    
+    std::vector<std::string> editors = {
+            "kate", "geany", "gedit", "mousepad", "leafpad"
+    };
+    for (const auto &c: editors)
+        if (attempt_to_add(c, c, c))
+            break;
+    
+    std::vector<std::string> music = {
+            "rhythmbox", "elisa", "clementine"
+    };
+    for (const auto &c: music)
+        if (attempt_to_add(c, c, c))
+            break;
+}
+
+static void
 load_pinned_icons() {
     AppClient *client_entity = client_by_name(app, "taskbar");
     auto *root = client_entity->root;
@@ -5552,6 +5638,10 @@ load_pinned_icons() {
     }
     
     itemsPath += "items.ini";
+    
+    if (!std::filesystem::exists(itemsPath)) {
+        write_default_pinned_icons_file_if_none_exists(itemsPath);
+    }
     
     // READ INI FILE
     INIReader itemFile(itemsPath);
