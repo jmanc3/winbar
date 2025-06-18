@@ -107,7 +107,7 @@ foreach (LIB IN LISTS LIBS)
     try_to_add_dependency(D_${LIB} ${LIB})
 endforeach ()
 
-# install ${project_name} executable to /usr/local/bin/${project_name}
+# install ${project_name} executable to /usr/bin/${project_name}
 #
 install(TARGETS ${project_name}
-        DESTINATION /usr/local/bin/)
+        DESTINATION /usr/bin/)
