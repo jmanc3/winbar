@@ -5579,12 +5579,15 @@ write_default_pinned_icons_file_if_none_exists(std::string file_path) {
     if (!has_browser)
         attempt_to_add("chromium", "chromium", "chromium");
     
-    std::vector<std::string> file_managers = {
-            "dolphin", "thunar", "nautilus", "nemo", "pcmanfm", "krusader"
-    };
-    for (const auto &c: file_managers)
-        if (attempt_to_add(c, c, c))
-            break;
+    bool has_file_manager = attempt_to_add("dolphin", "org.kde.dolphin", "dolphin");
+    if (!has_file_manager) {
+        std::vector<std::string> file_managers = {
+                "thunar", "nautilus", "nemo", "pcmanfm", "krusader"
+        };
+        for (const auto &c: file_managers)
+            if (attempt_to_add(c, c, c))
+                break;
+    }
     
     std::vector<std::string> terms = {
             "alacritty", "konsole", "gnome-terminal", "xfce4-terminal", "xterm", "lxterminal", "terminator", "urxvt",
