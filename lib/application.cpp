@@ -886,10 +886,10 @@ App *app_new() {
         return nullptr;
     }
     if (glewInit() != GLEW_OK) {
-        xcb_destroy_window(connection, window);
+        //xcb_destroy_window(connection, window);
         fprintf(stderr, "Glew init failed\n");
-        delete app;
-        return nullptr;
+        //delete app;
+        //return nullptr;
     }
     
     /**

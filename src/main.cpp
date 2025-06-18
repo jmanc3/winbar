@@ -2,6 +2,9 @@
 
 #include <pango/pangocairo.h>
 #include <cmath>
+#include <sys/wait.h>
+#include <csignal>
+
 #include "main.h"
 #include "app_menu.h"
 #include "application.h"
@@ -30,7 +33,70 @@ void load_in_fonts();
 
 bool copy_resources_from_system_to_user();
 
+int main_actual(int argc, char *argv[]);
+
+static long last_crash_time = 0;
+static int crash_under_20_count = 0;
+
 int main(int argc, char* argv[]) {
+    bool keep_going = true;
+    while (keep_going) {
+        pid_t pid = fork();
+        
+        if (pid == -1) {
+            std::cerr << "[Parent] Failed to fork process.\n";
+            return 1;
+        }
+        
+        if (pid == 0) {
+            // CHILD process
+            try {
+                main_actual(argc, argv);
+                return 0; // Normal exit
+            } catch (const std::exception &e) {
+                std::cerr << "[Child] Caught exception: " << e.what() << "\n";
+                return 1; // Abnormal exit
+            } catch (...) {
+                std::cerr << "[Child] Caught unknown exception.\n";
+                return 1;
+            }
+        } else {
+            // PARENT process
+            int status;
+            waitpid(pid, &status, 0);
+            
+            if (WIFEXITED(status)) {
+                int exitStatus = WEXITSTATUS(status);
+                std::cout << "[Parent] Child exited with code " << exitStatus << "\n";
+                if (exitStatus == 0) {
+                    std::cout << "[Parent] Child exited normally. Not restarting.\n";
+                    break;
+                }
+            } else if (WIFSIGNALED(status)) {
+                int signal = WTERMSIG(status);
+                std::cout << "[Parent] Child terminated by signal: " << signal << "\n";
+            }
+            
+            std::cout << "[Parent] Restarting child after failure...\n";
+            auto current = get_current_time_in_ms();
+            if (current - last_crash_time < 20000) {
+                crash_under_20_count++;
+                if (crash_under_20_count > 3) {
+                    keep_going = false;
+                    std::cout << "[Parent] Quitting (crashed too many times)...\n";
+                }
+            } else {
+                crash_under_20_count = 0;
+            }
+            last_crash_time = current;
+            sleep(1); // Optional: wait before restarting
+        }
+    }
+    
+    return 0;
+}
+
+int main_actual(int argc, char *argv[]) {
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--create-cache") == 0) {
             printf("Creating icon cache...\n");
