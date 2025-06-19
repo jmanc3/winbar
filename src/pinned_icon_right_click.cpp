@@ -7,6 +7,7 @@
 #include "taskbar.h"
 #include "pinned_icon_editor.h"
 
+#include <xcb/xcb.h>
 #include <sys/stat.h>
 
 class CustomItem {
@@ -26,6 +27,7 @@ enum option_data_type {
     OPEN = 4,
     CUSTOM = 5,
     EDIT = 6,
+    ENDTASK = 7,
 };
 
 class OptionData : public UserData {
@@ -105,6 +107,8 @@ paint_icon(AppClient *client, cairo_t *cr, Container *container, bool dye) {
         text = "\uE718";
     } else if (data->text == "Unpin from taskbar") {
         text = "\uE77A";
+    }else if (data->text == "End task" || data->text == "End tasks") {
+      text = "\uF140";
     } else if (data->text == "Close window" || data->text == "Close all windows") {
         text = "\uE10A";
     } else if (data->surface != nullptr) {
@@ -282,6 +286,17 @@ option_clicked(AppClient *client, cairo_t *cr, Container *container) {
             start_pinned_icon_editor(pinned_icon_container, false);
             break;
         }
+        case ENDTASK: {
+            for (auto window_list : pinned_icon_data->windows_data_list) {
+                auto window = window_list->id;
+
+                /* xcb_ewmh_connection_t has a public field `connection`
+                   that is exactly the xcb_connection_t* you need.   */
+                xcb_kill_client(app->ewmh.connection, window);
+            }
+            xcb_flush(app->connection);   // make sure the requests are sent
+            break;
+        }
     }
     
     client_close_threaded(app, client);
@@ -430,18 +445,31 @@ make_root(std::vector<DelayedSurfacePainting *> *delayed) {
     }
     
     if (!pinned_icon_data->windows_data_list.empty()) {
-        auto data = new OptionData();
+        // ENDTASK 
+        auto *endTaskData = new OptionData();
+        auto *endTask = root->child(FILL_SPACE, 30 * config->dpi);
+        endTask->when_paint = paint_option;
+        endTask->when_clicked = option_clicked;
+        endTaskData->option_type = option_data_type::ENDTASK;
+        endTaskData->text_offset = 40 * config->dpi;
+        endTask->user_data = endTaskData;
+        
+        // CLOSE 
+        auto *closeData = new OptionData();
         auto *close = root->child(FILL_SPACE, 30 * config->dpi);
         close->when_paint = paint_option;
         close->when_clicked = option_clicked;
-        data->option_type = option_data_type::CLOSE;
+        closeData->option_type = option_data_type::CLOSE;
+        closeData->text_offset = 40 * config->dpi;
+        close->user_data = closeData;
+
         if (pinned_icon_data->windows_data_list.size() == 1) {
-            data->text = "Close window";
+            endTaskData->text = "End task";
+            closeData->text = "Close window";
         } else {
-            data->text = "Close all windows";
+            endTaskData->text = "End tasks";
+            closeData->text = "Close all windows";
         }
-        data->text_offset = 40 * config->dpi;
-        close->user_data = data;
     }
     
     auto *end_pad = root->child(FILL_SPACE, pad);
