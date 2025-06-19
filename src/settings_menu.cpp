@@ -1840,7 +1840,10 @@ fill_root(AppClient *client, Container *root) {
 
     setting_bool(scroll_root, "\uEDA7", "Icon shortcuts", "Lanch or activate programs on Taskbar with Super+$NUMBER", &winbar_settings->pinned_icon_shortcut);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
-
+    
+    setting_bool(scroll_root, "\uEF90", "Animate icon positions", "Should smoothly swap position of pinned icons when re-ordering them", &winbar_settings->animate_icon_positions);
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+    
     setting_bool(scroll_root, "\uE8EE", "Window cycling", "Clicking an icon with multiple windows open cycles to the next one", &winbar_settings->click_icon_tab_next_window);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
     
@@ -2174,6 +2177,9 @@ void save_settings_file() {
     out_file << "pinned_icon_shortcut=" << (winbar_settings->pinned_icon_shortcut ? "true" : "false");
     out_file << std::endl << std::endl;
     
+    out_file << "animate_icon_positions=" << (winbar_settings->animate_icon_positions ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
     out_file << "allow_live_tiles=" << (winbar_settings->allow_live_tiles ? "true" : "false");
     out_file << std::endl << std::endl;
     
@@ -2479,6 +2485,7 @@ void read_settings_file() {
                     continue;
                 parse_bool(&parser, key, "battery_notifications", &winbar_settings->battery_notifications);
                 parse_bool(&parser, key, "pinned_icon_shortcut", &winbar_settings->pinned_icon_shortcut);
+                parse_bool(&parser, key, "animate_icon_positions", &winbar_settings->animate_icon_positions);
                 parse_bool(&parser, key, "allow_live_tiles", &winbar_settings->allow_live_tiles);
                 parse_bool(&parser, key, "open_start_menu_on_bottom_left_hover",
                            &winbar_settings->open_start_menu_on_bottom_left_hover);

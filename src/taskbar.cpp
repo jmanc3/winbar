@@ -635,20 +635,20 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
             auto elapsed = current - data->animation_zoom_locked_time;
             double total_time = 500;
             elapsed %= (long) total_time;
-            elapsed -= total_time / 2;
-            double scalar = ((double) elapsed) / (total_time / 2);
+            elapsed -= total_time * .5;
+            double scalar = ((double) elapsed) / (total_time * .5);
             if (scalar < 0)
                 scalar = -scalar;
             auto grow_factor = .22 * scalar;
             
             auto new_amount = 1 - (data->animation_zoom_locked * (1 - .61)) + grow_factor;
             
-            scale_amount = (new_amount + scale_amount) / 2;
+            scale_amount = (new_amount + scale_amount) * .5;
         }
         double current_w = w * scale_amount;
 
-        double xpos = container->real_bounds.x + container->real_bounds.w / 2 - surface_width / 2;
-        double ypos = container->real_bounds.y + container->real_bounds.h / 2 -surface_width / 2;
+        double xpos = container->real_bounds.x + container->real_bounds.w * .5 - surface_width * .5;
+        double ypos = container->real_bounds.y + container->real_bounds.h * .5 -surface_width * .5;
         if (winbar_settings->labels && !data->windows_data_list.empty()) {
             auto title = data->windows_data_list[0]->title;
             if (!trim(title).empty()) {
@@ -656,9 +656,10 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
             }
         }
         
-        xpos += (w - current_w) / 2;
-        ypos += (w - current_w) / 2;
-    
+        xpos += (w - current_w) * .5;
+        ypos += (w - current_w) * .5;
+        
+        // TODO: this scale_amount can be terrible
         cairo_scale(cr, scale_amount, scale_amount);
         double xpostrans = (xpos * (1 - scale_amount) / scale_amount);
         double ypostrans = (ypos * (1 - scale_amount) / scale_amount);
@@ -673,7 +674,7 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         if (!winbar_settings->minimize_maximize_animation)
             bounce_amount = 0;
         
-        double off = (((config->taskbar_height - w) - (11 * config->dpi)) / 2) * (bounce_amount);
+        double off = (((config->taskbar_height - w) - (11 * config->dpi)) * .5) * (bounce_amount);
         double draw_x = xpos - 1;
         draw_gl_texture(client, data->gsurf, data->surface__, std::round(draw_x), ypos + off, current_w, current_w);
         cairo_restore(cr);
@@ -1824,32 +1825,31 @@ position_icons(AppClient *client, cairo_t *cr, Container *icons) {
     for (auto c: icons->children) {
         if (c->state.mouse_dragging) continue;
         auto *data = (LaunchableButton *) c->user_data;
-        bool needs_animation = c->real_bounds.x != data->natural_position_x;
-        
-        if (get_current_time_in_ms() - start_time < 1000) {
-            needs_animation = false;
+        if (app->current - start_time < 1000 || !winbar_settings->animate_icon_positions) {
             c->real_bounds.x = data->natural_position_x;
+            continue;
         }
-        
-        if (needs_animation) {
-            if (data->animating) {
-                if (data->old_natural_position_x != data->natural_position_x) {
-                    data->spring.target = data->natural_position_x;
-                }
-            } else {
-                data->animating = true;
-                data->spring = SpringAnimation(data->old_natural_position_x, data->natural_position_x);
-            }
+        bool should_anim = std::abs(c->real_bounds.x - data->natural_position_x) >= 1;
+        bool invalid = false;
+        if (data->class_name == "firefox") {
+            int k = 1;
         }
+        if (data->natural_position_x != data->old_natural_position_x)
+            invalid = true;
         
-        if (data->animating) {
+        if (data->animating && !invalid) {
             data->spring.update((float) client->delta / 1000.0f);
             c->real_bounds.x = data->spring.position;
             float abs_vel = std::abs(data->spring.velocity);
             if (abs_vel < .05) {
                 data->animating = false;
-                c->real_bounds.x = data->spring.target;
+                c->real_bounds.x = data->natural_position_x;
             }
+        } else if (should_anim) {
+            auto dist = std::abs(c->real_bounds.x - data->natural_position_x);
+            data->spring = SpringAnimation(c->real_bounds.x, data->natural_position_x);
+            data->old_natural_position_x = data->natural_position_x;
+            data->animating = true;
         }
     }
     
@@ -2286,7 +2286,6 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
     }
     backup_active_window = active_window;
     active_window_changed(-1);
-    container->parent->should_layout_children = false;
     auto *data = static_cast<LaunchableButton *>(container->user_data);
     if (winbar_settings->on_drag_show_trash) {
         auto end = client_entity->root->child(32 * config->dpi, FILL_SPACE);
@@ -2304,7 +2303,7 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
         
         client_layout(app, client_entity);
     }
-    client_create_animation(app, client_entity, &data->animation_zoom_amount, data->lifetime, 0, 55 * data->animation_zoom_amount,
+    client_create_animation(app, client_entity, &data->animation_zoom_amount, data->lifetime, 0, 55,
                             nullptr,
                             0);
     data->initial_mouse_click_before_drag_offset_x =
@@ -2354,12 +2353,10 @@ pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container
             // Move the launchuble button to inital_index
         }
     }
-   
-    client_create_animation(app, client_entity, &data->animation_zoom_amount, data->lifetime, 0, 85 * data->animation_zoom_amount,
+    client_create_animation(app, client_entity, &data->animation_zoom_amount, data->lifetime, 0, 85,
                             nullptr,
                             0);
     
-    container->parent->should_layout_children = true;
     active_window_changed(backup_active_window);
     icons_align(client_entity, container->parent, false);
     container->z_index = 0;
@@ -2582,7 +2579,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
-    client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, 0, 85 * data->animation_zoom_amount, nullptr, 0);
+    client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, 0, 85, nullptr, 0);
     if (auto c = client_by_name(app, "tooltip_taskbar")) {
         client_close_threaded(app, c);
     }
@@ -2751,7 +2748,7 @@ pinned_icon_mouse_down(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LaunchableButton *) container->user_data;
     
     client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, 0,
-                            100 * (1 - data->animation_zoom_amount),
+                            100,
                             getEasingFunction(easing_functions::EaseOutQuad),
                             1);
 }
@@ -2760,7 +2757,7 @@ static void
 pinned_icon_mouse_up(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LaunchableButton *) container->user_data;
     
-    client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, 0, 85 * data->animation_zoom_amount, nullptr, 0);
+    client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, 0, 85, nullptr, 0);
 }
 
 static void

@@ -1783,6 +1783,12 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
                     cairo_paint(client->cr);
                 }
                 cairo_restore(client->cr);
+                
+                if (cairo_status(client->cr) != CAIRO_STATUS_SUCCESS) {
+                    restart = true;
+                    app->running = false;
+                    return;
+                }
             }
             
             {

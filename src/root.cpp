@@ -44,6 +44,8 @@ void update_active_window() {
                                                         -1);
     
     xcb_get_property_reply_t *reply = xcb_get_property_reply(app->connection, cookie, NULL);
+    if (!reply)
+        return;
     
     long windows_count = xcb_get_property_value_length(reply) / sizeof(xcb_window_t);
     auto *windows = (xcb_window_t *) xcb_get_property_value(reply);
