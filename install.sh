@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 
-#exit when any of the following commands fails
-set -e
-
 #make and enter the build directory if it doesn't exist already
 mkdir -p newbuild
 cd newbuild
 
 #let cmake find dependencies on system
 # NEEDS TO BE SUDO SO IT CAN INSTALL RESOURCES
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ../
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ../
 
 #actually compile
 make -j 16
@@ -33,4 +30,7 @@ sudo cp winbar/tofix.csv /usr/share/winbar
 sudo cp winbar/items_custom.ini /usr/share/winbar
 sudo cp winbar/winbar.cfg /etc
 sudo rm -r winbar
+
+# (old install location which should be deleted if still exists)
+sudo rm /usr/local/bin/winbar
 
