@@ -622,6 +622,21 @@ void on_plugin_sent_text(Subprocess *cc) {
                         plugin_error(tokenizer,
                                      "This is because \"set_icon_text\" was not followed by a single character string as was expected.");
                     }
+                } else if (token.text == "resize_me") {
+                  auto data = (PluginData*) taskbar_plugin_button->user_data;
+                  if (!data->icon_text.empty()) {
+                    auto client = client_by_name(app, "taskbar");
+                    PangoLayout *layout = get_cached_pango_font(client->cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+
+                    pango_layout_set_text(layout, data->icon_text.c_str(), data->icon_text.size());
+                    int width;
+                    int height;
+                    pango_layout_get_pixel_size_safe(layout, &width, &height);
+          
+                    taskbar_plugin_button->wanted_bounds.w = width + 16 * config->dpi;
+                    client_layout(app, client);
+                    request_refresh(app, client);
+                  }
                 } else if (token.text == "set_text_icon_color") {
                     token = get_token(tokenizer);
                     if (token.type == TokenType::STRING) {
