@@ -474,6 +474,78 @@ static void deliver_fine_scroll_event(App *app, int horizontal, int vertical, bo
     }
 }
 
+void actual_throttled_pointer_query(App *app, AppClient *client) {
+    // find global mouse position.
+    if (!client)
+        return;
+    
+    xcb_query_pointer_cookie_t cookie = xcb_query_pointer(app->connection, app->screen->root);
+    xcb_query_pointer_reply_t *reply = xcb_query_pointer_reply(app->connection, cookie, nullptr);
+    float x = reply->root_x;  // fixed-point format
+    float y = reply->root_y;
+    
+    bool someone_has = false;
+    
+    // if any client is mapped then someone_has
+    for (auto c: app->clients) {
+        if (c->mapped && c->name != "taskbar" && c->name != "settings_menu") {
+            someone_has = true;
+            break;
+        }
+    }
+    
+    bool inside_client = bounds_contains(*client->bounds, x, y);
+    
+    // if client mouse position is in bounds.
+    static bool should = false;
+    if (y >= app->screen->height_in_pixels - 1) {
+        should = false;
+        if (!client->mapped) {
+            // show taskbar
+            client_show(app, client);
+        }
+    } else {
+        if (client->mapped && !inside_client && !someone_has) {
+            should = true;
+            static long start_time = 0;
+            start_time = app->current;
+            bool started = false;
+            for (auto t: app->timeouts) {
+                if (t->text == "auto_hide") {
+                    started = true;
+                }
+            }
+            if (!started) {
+                auto timeout = app_timeout_create(app, client, 20,
+                                                  [](App *app, AppClient *client, Timeout *t, void *user_data) {
+                                                      t->keep_running = true;
+                                                      auto start_time = (long *) user_data;
+                                                      if (app->current - *start_time > 150 && should) {
+                                                          t->keep_running = false;
+                                                          client_hide(app, client);
+                                                          client->mouse_current_x = -1;
+                                                          client->mouse_current_y = -1;
+                                                      }
+                                                  }, &start_time, "auto_hide");
+            }
+        }
+    }
+}
+
+void throttled_pointer_query(App *app) {
+    auto client  = client_by_name(app, "taskbar");
+    if (!client)
+        return;
+    for (auto t: app->timeouts)
+        if (t->text == "throttled_pointer_query")
+            return;
+    
+    app_timeout_create(app, client, 30, [](App *app, AppClient *client, Timeout *t, void *) {
+        t->keep_running = false;
+        actual_throttled_pointer_query(app, client);
+    }, nullptr, "throttled_pointer_query");
+}
+
 static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xcb_window_t) {
     if (!app->key_symbols)
         app->key_symbols = xcb_key_symbols_alloc(app->connection);
@@ -536,62 +608,7 @@ static bool listen_for_raw_input_events(App *app, xcb_generic_event_t *event, xc
                 if (is_mouse_event) {
                    // if user has always_hide enabled.
                     if (winbar_settings->always_hide) {
-                        xcb_query_pointer_cookie_t cookie = xcb_query_pointer(app->connection, app->screen->root);
-                        xcb_query_pointer_reply_t *reply = xcb_query_pointer_reply(app->connection, cookie, nullptr);
-                        float x = reply->root_x;  // fixed-point format
-                        float y = reply->root_y;
-                        
-                        // find global mouse position.
-                        AppClient *client = client_by_name(app, "taskbar");
-                        if (!client)
-                            return false;
-                        
-                        bool someone_has = false;
-                        
-                        // if any client is mapped then someone_has
-                        for (auto c: app->clients) {
-                            if (c->mapped && c->name != "taskbar" && c->name != "settings_menu") {
-                                someone_has = true;
-                                break;
-                            }
-                        }
-                        
-                        bool inside_client = bounds_contains(*client->bounds, x, y);
-                        
-                        // if client mouse position is in bounds.
-                        static bool should = false;
-                        if (y >= app->screen->height_in_pixels - 1) {
-                            should = false;
-                            if (!client->mapped) {
-                                // show taskbar
-                                client_show(app, client);
-                            }
-                        } else {
-                            if (client->mapped && !inside_client && !someone_has) {
-                                should = true;
-                                static long start_time = 0;
-                                start_time = app->current;
-                                bool started = false;
-                                for (auto t: app->timeouts) {
-                                    if (t->text == "auto_hide") {
-                                        started = true;
-                                    }
-                                }
-                                if (!started) {
-                                    auto timeout = app_timeout_create(app, client, 20,
-                                                                      [](App *app, AppClient *client, Timeout *t, void *user_data) {
-                                                                          t->keep_running = true;
-                                                                          auto start_time = (long *) user_data;
-                                                                          if (app->current - *start_time > 150 && should) {
-                                                                              t->keep_running = false;
-                                                                              client_hide(app, client);
-                                                                              client->mouse_current_x = -1;
-                                                                              client->mouse_current_y = -1;
-                                                                          }
-                                                                      }, &start_time, "auto_hide");
-                                }
-                            }
-                        }
+                        throttled_pointer_query(app);
                     }
                 } else if (is_scroll_event) {
                     app->has_seen_raw_scroll = true;

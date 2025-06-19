@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-#exit when any of the following commands fails
-set -e
-
 #make and enter the build directory if it doesn't exist already
 mkdir -p newbuild
 cd newbuild
@@ -33,4 +30,7 @@ sudo cp winbar/tofix.csv /usr/share/winbar
 sudo cp winbar/items_custom.ini /usr/share/winbar
 sudo cp winbar/winbar.cfg /etc
 sudo rm -r winbar
+
+# (old install location which should be deleted if still exists)
+sudo rm /usr/local/bin/winbar
 
