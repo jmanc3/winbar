@@ -2307,7 +2307,8 @@ void read_settings_file() {
     char *home = getenv("HOME");
     std::string path = std::string(home) + "/.config/winbar/settings.conf";
     std::ifstream input_file(path);
-    if (input_file.good()) {
+    bool was_good = input_file.good();
+    if (was_good) {
         std::string line;
         while (std::getline(input_file, line)) {
             LineParser parser(line);
@@ -2533,6 +2534,13 @@ void read_settings_file() {
         } else {
             order.on = !found_order;
             order.target_index += 1000;
+        }
+    }
+    if (!was_good) { // First launch layout can be set here
+        for (auto &t: winbar_settings->taskbar_order) {
+            if (t.name == "Search Field") {
+                t.on = false;
+            }
         }
     }
     merge_order_with_taskbar();

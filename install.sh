@@ -32,5 +32,7 @@ sudo cp winbar/winbar.cfg /etc
 sudo rm -r winbar
 
 # (old install location which should be deleted if still exists)
-sudo rm /usr/local/bin/winbar
+if [[ -f /usr/local/bin/winbar ]]; then
+  sudo rm /usr/local/bin/winbar
+fi
 

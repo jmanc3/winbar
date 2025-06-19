@@ -22,7 +22,7 @@ struct TaskbarItem {
 struct WinbarSettings {
     std::vector<TaskbarItem> taskbar_order;
     bool bluetooth_enabled = true;
-    container_alignment icons_alignment = container_alignment::ALIGN_LEFT;
+    container_alignment icons_alignment = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
     std::string search_behaviour = "Default";
     std::string date_style = "windows 11 detailed";
     PangoAlignment date_alignment = PangoAlignment::PANGO_ALIGN_CENTER;
@@ -59,7 +59,7 @@ struct WinbarSettings {
     std::string shutdown_command;
     std::string restart_command;
     std::string user_font;
-    std::string pinned_icon_style = "win10";
+    std::string pinned_icon_style = "win7";
     
     std::vector<std::string> preferred_interfaces;
     

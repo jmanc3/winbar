@@ -1821,19 +1821,15 @@ position_icons(AppClient *client, cairo_t *cr, Container *icons) {
     }
     
     // Queue spring animations
-    auto start_time = client->creation_time;
     for (auto c: icons->children) {
         if (c->state.mouse_dragging) continue;
         auto *data = (LaunchableButton *) c->user_data;
-        if (app->current - start_time < 1000 || !winbar_settings->animate_icon_positions) {
+        if (app->current - data->creation_time < 1000 || !winbar_settings->animate_icon_positions) {
             c->real_bounds.x = data->natural_position_x;
             continue;
         }
         bool should_anim = std::abs(c->real_bounds.x - data->natural_position_x) >= 1;
         bool invalid = false;
-        if (data->class_name == "firefox") {
-            int k = 1;
-        }
         if (data->natural_position_x != data->old_natural_position_x)
             invalid = true;
         
