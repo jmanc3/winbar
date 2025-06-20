@@ -24,8 +24,8 @@ struct WinbarSettings {
     bool bluetooth_enabled = true;
     container_alignment icons_alignment = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
     std::string search_behaviour = "Default";
-    std::string date_style = "windows 11 detailed";
-    PangoAlignment date_alignment = PangoAlignment::PANGO_ALIGN_CENTER;
+    std::string date_style = "windows 11";
+    PangoAlignment date_alignment = PangoAlignment::PANGO_ALIGN_RIGHT;
     int date_size = 9;
     int start_menu_height = 641;
     int extra_live_tile_pages = 0;
