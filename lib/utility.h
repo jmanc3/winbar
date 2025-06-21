@@ -122,7 +122,7 @@ struct SpringAnimation {
     float dt = 0.016f; // Assuming 60 updates per second
     
     // Constructor to initialize the parameters
-    SpringAnimation(float pos = 0.0f, float tar = 0.0f, float damp = 29.5f, float stiff = 500.0f, float m = 1.0f)
+    SpringAnimation(float pos = 0.0f, float tar = 0.0f, float damp = 29.5f, float stiff = 350.0f, float m = 1.0f)
             : position(pos), velocity(0.0f), target(tar), damping(damp), stiffness(stiff), mass(m) {}
     
     // Method to update the animation state

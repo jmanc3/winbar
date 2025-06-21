@@ -2929,7 +2929,7 @@ paint_date(AppClient *client, cairo_t *cr, Container *container) {
         container->wanted_bounds.w = w + pad;
         client_layout(app, client);
         f->end();
-        client_paint(app, client);
+        request_refresh(app, client);
         return;
     }
     f->set_color(EXPAND(config->color_taskbar_date_time_text));
@@ -3053,7 +3053,7 @@ add_item_clicked(AppClient *popup, cairo_t *, Container *) {
         icons->children.insert(icons->children.begin(), a);
     }
     a->when_drag_end_is_click = false;
-    a->minimum_x_distance_to_move_before_drag_begins = 15;
+    a->minimum_x_distance_to_move_before_drag_begins = 5 * config->dpi;
     a->minimum_y_distance_to_move_before_drag_begins = 15 * config->dpi;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
     a->when_mouse_leaves_container = pinned_icon_mouse_leaves;
@@ -3068,7 +3068,7 @@ add_item_clicked(AppClient *popup, cairo_t *, Container *) {
     data->pinned = true;
     
     client_layout(app, taskbar);
-    client_paint(app, taskbar);
+    request_refresh(app, taskbar);
     start_pinned_icon_editor(a, true);
     if (popup) {
         client_close_threaded(app, popup);
@@ -4508,7 +4508,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                     client->motion_event_x = (int) x;
                     client->motion_event_y = (int) y;
                     handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
-                    client_paint(app, client, true);
+                    request_refresh(app, client);
                 
                     xcb_window_t drag_and_drop_source = e->data.data32[0];
                 
@@ -4538,7 +4538,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                     client->motion_event_x = (int) -1;
                     client->motion_event_y = (int) -1;
                     handle_mouse_motion(app, client, client->motion_event_x, client->motion_event_y);
-                    client_paint(app, client, true);
+                    request_refresh(app, client);
                 }
                 have_drag = false;
             } else if (e->type == get_cached_atom(app, "XdndDrop")) {
@@ -5053,7 +5053,7 @@ void add_window(App *app, xcb_window_t window) {
         icons->children.insert(icons->children.begin(), a);
     }
     a->when_drag_end_is_click = false;
-    a->minimum_x_distance_to_move_before_drag_begins = 15;
+    a->minimum_x_distance_to_move_before_drag_begins = 5 * config->dpi;
     a->minimum_y_distance_to_move_before_drag_begins = 15 * config->dpi;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
     a->when_mouse_leaves_container = pinned_icon_mouse_leaves;
@@ -5681,7 +5681,7 @@ load_pinned_icons() {
         child->wanted_bounds.w = client_entity->bounds->h + 8 * config->dpi;
         
         child->when_drag_end_is_click = false;
-        child->minimum_x_distance_to_move_before_drag_begins = 15;
+        child->minimum_x_distance_to_move_before_drag_begins = 5 * config->dpi;
         child->minimum_y_distance_to_move_before_drag_begins = 15 * config->dpi;
         child->when_mouse_enters_container = pinned_icon_mouse_enters;
         child->when_mouse_leaves_container = pinned_icon_mouse_leaves;

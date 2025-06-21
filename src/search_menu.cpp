@@ -434,7 +434,7 @@ void update_options() {
                         }
                     }
                     client_layout(app, search_menu_client);
-                    client_paint(app, search_menu_client);
+                    request_refresh(app, search_menu_client);
                 }
             }
         }

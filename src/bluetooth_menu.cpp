@@ -484,7 +484,7 @@ on_disconnect_response(BluetoothCallbackInfo *cci) {
             option_leaves(client, client->cr, con);
         
         client_layout(app, client);
-        client_paint(app, client);
+        request_refresh(app, client);
     }
 }
 
@@ -520,7 +520,7 @@ on_connect_response(BluetoothCallbackInfo *cci) {
             option_leaves(client, client->cr, con);
         
         client_layout(app, client);
-        client_paint(app, client);
+        request_refresh(app, client);
     }
 }
 
@@ -589,7 +589,7 @@ on_forget_response(BluetoothCallbackInfo *cci) {
         }
         
         client_layout(app, client);
-        client_paint(app, client);
+        request_refresh(app, client);
     }
 }
 
@@ -657,7 +657,7 @@ on_pair_response(BluetoothCallbackInfo *cci) {
         }
         
         client_layout(app, client);
-        client_paint(app, client);
+        request_refresh(app, client);
     }
 }
 
@@ -675,7 +675,7 @@ on_pair_cancel_response(BluetoothCallbackInfo *cci) {
         fill_devices(client);
         
         client_layout(app, client);
-        client_paint(app, client);
+        request_refresh(app, client);
     }
 }
 
@@ -712,7 +712,7 @@ remove_all_content(AppClient *client) {
         scroll->content->children.clear();
     }
     client_layout(app, client);
-    client_paint(app, client);
+    request_refresh(app, client);
 }
 
 static void
@@ -837,7 +837,7 @@ fill_devices(AppClient *client) {
         }
     }
     client_layout(app, client);
-    client_paint(app, client);
+    request_refresh(app, client);
 }
 
 static void
@@ -878,7 +878,7 @@ on_any_property_changed() {
         }
         
         client_layout(app, client);
-        client_paint(app, client);
+        request_refresh(app, client);
     }
 }
 
@@ -1175,7 +1175,7 @@ void bluetooth_service_started() {
             c->exists = winbar_settings->bluetooth_enabled;
         }
         client_layout(app, client);
-        client_paint(app, client);
+        request_refresh(app, client);
     }
 }
 
@@ -1186,7 +1186,7 @@ void bluetooth_service_ended() {
             c->exists = false;
         }
         client_layout(app, client);
-        client_paint(app, client);
+        request_refresh(app, client);
     }
 }
 

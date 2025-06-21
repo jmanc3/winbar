@@ -129,6 +129,9 @@ struct MouseState {
     // XCB_BUTTON_INDEX_3 = 3,
     int mouse_button_pressed = 0;
     
+    // Wether the minimum distance moved to be a drag vs a click was achived
+    bool passed_threshold = false;
+    
     void reset() {
         this->concerned = false;
         this->mouse_hovering = false;

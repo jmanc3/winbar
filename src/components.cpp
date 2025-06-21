@@ -2658,7 +2658,7 @@ static void layout_and_repaint(App *app, AppClient *client, Timeout *, void *use
     container->when_paint = nullptr;
     
     client_layout(client->app, client);
-    client_paint(client->app, client);
+    request_refresh(client->app, client);
 }
 
 void paint_transition(AppClient *client, cairo_t *cr, Container *container) {

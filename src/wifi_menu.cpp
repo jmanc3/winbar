@@ -581,7 +581,7 @@ void scan_results(std::vector<ScanResult> &results) {
         }
         
         client_layout(app, client);
-        client_paint(app, client);
+        request_refresh(app, client);
     }
 }
 

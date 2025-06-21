@@ -50,7 +50,7 @@ static void paint_background(AppClient *client, cairo_t *cr, Container *containe
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    draw_colored_rect(client, ArgbColor(.941, .957, .976, 1), container->real_bounds); 
+    draw_colored_rect(client, ArgbColor(.941, .957, .976, 1), container->real_bounds);
 }
 
 
@@ -852,7 +852,7 @@ closed_pinned_icon(AppClient *client) {
                     icons->children.push_back(pinned_icon_container);
                 }
                 client_layout(app, taskbar);
-                client_paint(app, taskbar);
+                request_refresh(app, taskbar);
             }
         } else {
             delete pinned_icon_container;

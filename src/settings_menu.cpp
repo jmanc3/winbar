@@ -117,7 +117,7 @@ static void paint_on_off(AppClient *client, cairo_t *cr, Container *container) {
     
     auto [c_f, c_w, c_h] = draw_text_begin(client, 14 * config->dpi, config->icons, 1, 1, 1, 1, "\uF13E");
     double kern_y = -1.0 * config->dpi;
-    c_f->draw_text_end(container->real_bounds.x + container->real_bounds.w / 2 - c_w / 2,
+    c_f->draw_text_end(container->real_bounds.x + container->real_bounds.w * .5 - size * .5,
                        container->real_bounds.y + container->real_bounds.h / 2 - c_h / 2 + kern_y);
 }
 
@@ -487,7 +487,7 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
                 client_close_threaded(app, client);
                 if (auto c = client_by_name(app, "taskbar")) {
                     client_layout(app, c);
-                    client_paint(app, c);
+                    request_refresh(app, c);
                 }
             };
             
@@ -543,7 +543,7 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
                 update_time(app, client, nullptr, nullptr);
                 if (auto c = client_by_name(app, "taskbar")) {
                     client_layout(app, c);
-                    client_paint(app, c);
+                    request_refresh(app, c);
                 }
             };
             
@@ -728,7 +728,7 @@ void merge_order_with_taskbar() {
     container_by_name("icons", taskbar->root)->alignment = winbar_settings->icons_alignment;
     
     client_layout(app, taskbar);
-    client_paint(app, taskbar);
+    request_refresh(app, taskbar);
 }
 
 static void clicked_reset(AppClient *client, cairo_t *, Container *) {
@@ -1902,7 +1902,7 @@ fill_root(AppClient *client, Container *root) {
     
     setting_subheading(scroll_root, "General");
     
-    setting_bool(scroll_root, "\uE767", "Animated volume playback", "Shows the meter of audio clients", &winbar_settings->meter_animations);
+    setting_bool(scroll_root, "\uE767", "Animated volume playback", "Shows the meter of audio clients (not recommended as can crash)", &winbar_settings->meter_animations);
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
 
     setting_bool(scroll_root, "\uEDFB", "Use OpenGL", "Switch off cairo backend for experimental OpenGL backend", &winbar_settings->use_opengl, false, []() {

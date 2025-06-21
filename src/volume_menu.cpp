@@ -740,7 +740,7 @@ void open_volume_menu() {
         }
     
         client_show(app, client_entity);
-        client_entity->fps = 90;
+        client_entity->fps = 165;
         client_entity->when_closed = closed_volume;
     }
 }

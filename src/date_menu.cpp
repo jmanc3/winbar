@@ -961,7 +961,7 @@ static void paint_date_menu(App *app, AppClient *client, Timeout *timeout, void 
     if (timeout)
         timeout->keep_running = true;
     if (auto *client = client_by_name(app, "date_menu")) {
-        client_paint(app, client);
+        request_refresh(app, client);
     }
 }
 

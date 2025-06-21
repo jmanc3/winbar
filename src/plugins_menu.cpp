@@ -465,7 +465,7 @@ key_event_combo_box(AppClient *client,
         xcb_configure_window(app->connection, client->window, value_mask, value_list_resize);
     }
     client_layout(client->app, client);
-    client_paint(client->app, client);
+    request_refresh(client->app, client);
 }
 
 void clicked_combo_box(AppClient *client, cairo_t *cr, Container *container) {
@@ -602,7 +602,7 @@ void on_plugin_sent_text(Subprocess *cc) {
                         plugin_data->gsurf->valid = false;
                         if (auto *client = client_by_name(app, "taskbar")) {
                             client_layout(app, client);
-                            client_paint(app, client);
+                            request_refresh(app, client);
                         }
                     } else {
                         plugin_error(tokenizer,
@@ -616,7 +616,7 @@ void on_plugin_sent_text(Subprocess *cc) {
                         plugin_data->icon_text = icon_name;
                         if (auto *client = client_by_name(app, "taskbar")) {
                             client_layout(app, client);
-                            client_paint(app, client);
+                            request_refresh(app, client);
                         }
                     } else {
                         plugin_error(tokenizer,
@@ -645,7 +645,7 @@ void on_plugin_sent_text(Subprocess *cc) {
                         plugin_data->icon_text_color = ArgbColor(icon_text_color);
                         if (auto *client = client_by_name(app, "taskbar")) {
                             client_layout(app, client);
-                            client_paint(app, client);
+                            request_refresh(app, client);
                         }
                     } else {
                         plugin_error(tokenizer,
@@ -805,7 +805,7 @@ void on_plugin_sent_text(Subprocess *cc) {
                                                     
                                                     if (auto *client = client_by_name(app, "plugin_menu")) {
                                                         client_layout(app, client);
-                                                        client_paint(app, client);
+                                                        request_refresh(app, client);
                                                     }
                                                 }
                                             } else {
@@ -1007,7 +1007,7 @@ void add_plugin(const std::string &path) {
             }
             
             client_layout(app, client);
-            client_paint(app, client);
+            request_refresh(app, client);
         } else {
             button_plugin = client->root->child(24 * config->dpi, FILL_SPACE);
         }

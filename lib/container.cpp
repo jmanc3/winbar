@@ -1139,7 +1139,7 @@ Subprocess::Subprocess(App *app, const std::string &command) {
 
 void AppClient::draw_start() {
     //printf("draw_start: %s\n", name.c_str());
-    if (!is_context_current) {
+    if (!is_context_current && mapped) {
         for (auto *item: app->clients)
             item->is_context_current = false;
         // TODO: this might be failing because we are doing it too fast when in opengl mode, because for some reason we never sleep?
@@ -1623,8 +1623,8 @@ void ImmediateTexture::create(unsigned char *pixels, int w, int h, bool keep_asp
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     
     // Use trilinear filtering (mipmaps + linear filtering)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 //    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, gl_order, GL_UNSIGNED_BYTE, pixels);
@@ -1818,7 +1818,7 @@ FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
     hb_font = hb_ft_font_create(face, NULL);
     features.push_back(HBFeature::KerningOn);
     
-    int num_nodes = (atlas_w * atlas_h) / size / 2;
+    int num_nodes = (atlas_w * atlas_h) / (size + 1) / 2;
     nodes = new stbrp_node[num_nodes];
     stbrp_init_target(&ctx, atlas_w, atlas_h, nodes, num_nodes);
     
@@ -1826,8 +1826,8 @@ FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
             R"(
     #version 330 core
 
-    attribute vec4 coord;
-    varying vec2 texpos;
+    in vec4 coord;
+    out vec2 texpos;
     uniform mat4 projection;
 
     void main() {
@@ -1839,20 +1839,20 @@ FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
             R"(
     #version 330 core
 
-    varying vec2 texpos;
+    in vec2 texpos;
     uniform sampler2D tex;
     uniform vec4 color;
 
+    out vec4 fragColor;
+
     void main(void) {
       // Get the current color at the fragment position
-      vec4 start = texture2D(tex, texpos);
-      //start = pow(start, vec4(1.0 / 1.45)); // gamma white
-      start = pow(start, vec4(1.0 / 1.8)); // gamma black
-      //start = pow(start, vec4(1.0 / 2.2)); // gamma black
+      vec4 start = texture(tex, texpos);
+      start = pow(start, vec4(1.0 / 1.43)); // gamma white
       vec4 srcColor = vec4((start.r * color.r),
                           (start.g * color.g),
                           (start.b * color.b), start.a * color.a);
-      gl_FragColor = vec4(srcColor.rgb * srcColor.a, srcColor.a);
+      fragColor = vec4(srcColor.rgb * srcColor.a, srcColor.a);
     }
 )";
     // Compile shaders
@@ -1868,6 +1868,7 @@ FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
     
+    glUseProgram(shader_program);
     // Get uniform location
     projection_uniform = glGetUniformLocation(shader_program, "projection");
     attribute_coord = glGetAttribLocation(shader_program, "coord");
@@ -1894,9 +1895,10 @@ FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
     /* Linear filtering usually looks best for text */
     glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
     glEnable(GL_BLEND);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1.0f);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glUseProgram(0);
 }
 
 void FreeFont::update_projection(const glm::mat4 &projection) {
@@ -2056,12 +2058,14 @@ void FreeFont::generate_info_needed_for_alignment() {
 void FreeFont::begin() {
     glUseProgram(shader_program);
     glBindTexture(GL_TEXTURE_2D, texture_id);
+    glEnable(GL_FRAMEBUFFER_SRGB);
 }
 
 void FreeFont::end() {
     glDisableVertexAttribArray(attribute_coord);
     glUseProgram(0);
     glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_FRAMEBUFFER_SRGB);
 }
 
 void FreeFont::set_text(std::string text) {
@@ -2128,7 +2132,7 @@ void FreeFont::draw_text(PangoAlignment align, float x, float y, float wrap) {
     glVertexAttribPointer(attribute_coord, 4, GL_FLOAT, GL_FALSE, 0, 0);
 
 //        glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1.0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     

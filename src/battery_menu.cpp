@@ -38,7 +38,7 @@ void set_brightness(double new_brightness) {
 void set_brightness_visual(double new_brightness) {
     marker_position_scalar = new_brightness;
     brightness_fake = (int) std::round(new_brightness * 100);
-    client_paint(app, client_by_name(app, "battery_menu"));
+    request_refresh(app, client_by_name(app, "battery_menu"));
 }
 
 static void
@@ -359,7 +359,7 @@ static void get_brightness_and_update_visually(App *app, AppClient *client, Time
         brightness_fake = brightness;
     }
     if (client) {
-        client_paint(app, client, true);
+        request_refresh(app, client);
     }
 }
 

@@ -131,19 +131,11 @@ paint_tooltip(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     auto *data = (TooltipMenuData *) client->user_data;
     paint_root(client, cr, container);
-    PangoLayout *layout =
-            get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
     
-    set_argb(cr, config->color_apps_text);
-    pango_layout_set_text(layout, data->path.c_str(), data->path.length());
-    
-    int width, height;
-    pango_layout_get_pixel_size_safe(layout, &width, &height);
+    auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_apps_text), data->path);
     int text_x = (int) (6 * config->dpi);
-    int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    cairo_move_to(cr, text_x, text_y);
-    
-    pango_cairo_show_layout(cr, layout);
+    int text_y = (int) (container->real_bounds.y + container->real_bounds.h * .5 - h * .5);
+    f->draw_text_end(text_x, text_y);
 }
 
 static void
@@ -1013,12 +1005,6 @@ paint_resize_button(AppClient *client, cairo_t *cr, Container *container) {
     paint_button_background(client, cr, container);
     auto data = (LiveTileButtonData *) container->user_data;
     
-    PangoLayout *icon_layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 12 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    
-    int width;
-    int height;
-    
     bool has_checkmark = false;
     if (data->lifetime.lock()) {
         auto *live = (LiveTileData *) data->tile->user_data;
@@ -1043,46 +1029,33 @@ paint_resize_button(AppClient *client, cairo_t *cr, Container *container) {
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     if (has_checkmark) {
-        pango_layout_set_text(icon_layout, "\uE73E", strlen("\uE83F"));
-        set_argb(cr, config->color_apps_icons);
-        
-        pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
-        cairo_move_to(cr,
-                      (int) (container->real_bounds.x + container->real_bounds.h / 2 - height / 2),
-                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-        pango_cairo_show_layout(cr, icon_layout);
+        draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_apps_icons), "\uE73E", container->real_bounds);
     }
     
+    std::string icon;
     if (data->text == "Small") {
-        pango_layout_set_text(icon_layout, "\uE743", strlen("\uE83F"));
+        icon = "\uE743";
     } else if (data->text == "Medium") {
-        pango_layout_set_text(icon_layout, "\uE744", strlen("\uE83F"));
+        icon = "\uE744";
     } else if (data->text == "Wide") {
-        pango_layout_set_text(icon_layout, "\uE745", strlen("\uE83F"));
+        icon = "\uE745";
     } else if (data->text == "Large") {
-        pango_layout_set_text(icon_layout, "\uE747", strlen("\uE83F"));
+        icon = "\uE747";
     }
     
-    set_argb(cr, config->color_apps_icons);
-    pango_layout_get_pixel_size_safe(icon_layout, &width, &height);
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + ((container->real_bounds.h / 2 - height / 2) * 2 + height)),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
-    pango_cairo_show_layout(cr, icon_layout);
-    
-    PangoLayout *layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    if (data->text == "START") {
-        layout = get_cached_pango_font(cr, config->font, 10 * config->dpi, PangoWeight::PANGO_WEIGHT_BOLD);
+    {
+        auto [f, w, h] = draw_text_begin(client, 12 * config->dpi, config->icons, EXPAND(config->color_apps_icons), data->text);
+        int text_x = (int) (container->real_bounds.x + ((container->real_bounds.h / 2 - h / 2) * 2 + h));
+        int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2);
+        f->draw_text_end(text_x, text_y);
     }
     
-    set_argb(cr, config->color_apps_text);
-    pango_layout_set_text(layout, data->text.c_str(), data->text.length());
-    
-    int text_x = (int) (container->real_bounds.x + ((container->real_bounds.h / 2 - height / 2) * 3) + height * 2);
-    int text_y = (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2);
-    cairo_move_to(cr, text_x, text_y);
-    
-    pango_cairo_show_layout(cr, layout);
+    {
+        auto [f, w, h] = draw_text_begin(client, 10 * config->dpi, config->font, EXPAND(config->color_apps_text), data->text);
+        int text_x = (int) (container->real_bounds.x + ((container->real_bounds.h * .5 - h * .5) * 3) + h * .5);
+        int text_y = (int) (container->real_bounds.y + container->real_bounds.h * .5 - h * .5);
+        f->draw_text_end(text_x, text_y);
+    }
 }
 
 template<int W, int H>
@@ -1225,6 +1198,7 @@ void something_timeout(App *app, AppClient *client, Timeout *timeout, void *user
     popup->name = "tooltip_popup";
     popup->root->when_paint = paint_tooltip;
     client_show(app, popup);
+    request_refresh(app, popup);
 }
 
 static void
@@ -1734,30 +1708,14 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
         draw_margins_rect(client, data->color, container->real_bounds, 2, 0);
     }
     
-    PangoLayout *layout =
-            get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 14 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-    std::string text(data->text);
-    if (data->text == "Recently added") {
-        pango_layout_set_text(layout, "\uE823", strlen("\uE972"));
-    } else {
-        pango_layout_set_text(layout, text.c_str(), text.size());
-    }
-    
-    PangoRectangle ink;
-    PangoRectangle logical;
-    pango_layout_get_extents(layout, &ink, &logical);
-    
-    if (container->interactable) {
-        set_argb(cr, config->color_apps_text);
-    } else {
-        set_argb(cr, config->color_apps_text_inactive);
-    }
-    cairo_move_to(cr,
-                  (int) (container->real_bounds.x + container->real_bounds.w / 2 -
-                         ((logical.width / PANGO_SCALE) / 2)),
-                  (int) (container->real_bounds.y + container->real_bounds.h / 2 -
-                         ((logical.height / PANGO_SCALE) / 2)));
-    pango_cairo_show_layout(cr, layout);
+    auto color = config->color_apps_text_inactive;
+    if (container->interactable)
+        color = config->color_apps_text;
+    std::string text = data->text;
+    if (text == "Recently added")
+        text = "\uE823";
+    color = ArgbColor(1, 1, 1, 1);
+    draw_text(client, 14 * config->dpi, config->font, EXPAND(color), text, container->real_bounds);
 }
 
 void
