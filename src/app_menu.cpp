@@ -1488,8 +1488,13 @@ void
 paint_live_tile_data(AppClient *client, cairo_t *cr, Container *container, cairo_surface_t *surface, gl_surface *gsurf,
                      Launcher *launcher) {
     auto bg = lighten(config->color_apps_background, 10);
-    bg.a = .4;
-    draw_colored_rect(client, bg, container->real_bounds);
+    bg.a = .5;
+    if (client->name == "drag_window") {
+        bg.a = 1.0;
+        draw_colored_rect(client, bg, container->real_bounds);
+    } else {
+        draw_colored_rect(client, bg, container->real_bounds);
+    }
     
     if (container->state.mouse_pressing && !container->state.mouse_dragging) {
         draw_margins_rect(client, lighten(bg, 65), container->real_bounds, 2 * config->dpi, 0);
