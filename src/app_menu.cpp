@@ -1351,45 +1351,59 @@ right_clicked_live_tile(AppClient *client, cairo_t *cr, Container *container) {
             l->name = "resize_button";
             l->when_clicked = live_tiles_resize_popup;
             l->when_mouse_enters_container = [](AppClient *client, cairo_t *cr, Container *c) {
-                if (auto c = client_by_name(app, "right_click_resize_popup"))
-                    return;
-                live_tiles_resize_popup(client, cr, c);
-                
                 for (auto t: app->timeouts)
                     if (t->text == "resize_tile_close_timeout")
                         return;
                 
                 // start a timeout, which checks if mouse still inside
-                app_timeout_create(app, client, 100, [](App *, AppClient *client, Timeout *t, void *) {
-                                           static int times = 0;
-                                           t->keep_running = true;
-                                           bool close = false;
-                                           auto r = client_by_name(app, "right_click_resize_popup");
-                                           if (!r) {
-                                               close = true;
-                                           } else if (!r->inside) {
-                                               close = true;
-                                           }
-                                           auto p = client_by_name(app, "live_tile_right_click_menu");
-                                           if (p) {
-                                               if (auto rb = container_by_name("resize_button", p->root))
-                                                   if (rb->state.mouse_hovering)
-                                                       close = false;
-                                           } else {
-                                               close = true;
-                                           }
-                                           
-                                           if (close) {
-                                               times++;
-                                           } else {
-                                               times = 0;
-                                           }
-                                           
-                                           if (times >= 8) {
-                                               t->keep_running = false;
-                                               times = 0;
-                                               client_close_threaded(app, r);
-                                           }
+                app_timeout_create(app, client, 300, [](App *, AppClient *client, Timeout *t, void *user_data) {
+                    t->keep_running = true;
+                    
+                    if (!client_by_name(app, "right_click_resize_popup")) {
+                        bool created = false;
+                        if (auto p = client_by_name(app, "live_tile_right_click_menu")) {
+                            if (auto rb = container_by_name("resize_button", p->root)) {
+                                if (rb->state.mouse_hovering) {
+                                    live_tiles_resize_popup(client, client->cr, rb);
+                                    created = true;
+                                }
+                            }
+                        }
+                        if (!created)
+                            t->keep_running = false;
+                        
+                        return;
+                    }
+                    
+                    
+                    static int times = 0;
+                    bool close = false;
+                    auto r = client_by_name(app, "right_click_resize_popup");
+                    if (!r) {
+                        close = true;
+                    } else if (!r->inside) {
+                        close = true;
+                    }
+                    auto p = client_by_name(app, "live_tile_right_click_menu");
+                    if (p) {
+                        if (auto rb = container_by_name("resize_button", p->root))
+                            if (rb->state.mouse_hovering)
+                                close = false;
+                    } else {
+                        close = true;
+                    }
+                    
+                    if (close) {
+                        times++;
+                    } else {
+                        times = 0;
+                    }
+                    
+                    if (times >= 2) {
+                        t->keep_running = false;
+                        times = 0;
+                        client_close_threaded(app, r);
+                    }
                 }, nullptr, "resize_tile_close_timeout");
             };
             l->when_paint = paint_button;
