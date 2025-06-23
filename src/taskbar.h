@@ -146,6 +146,7 @@ public:
     
     int old_natural_position_x = INT_MAX;
     int natural_position_x = INT_MAX;
+    int actual_w = 0; // determined by layout (used so that we can restore after sizing so no overlap)
     
     std::shared_ptr<bool> lifetime = std::make_shared<bool>();
     double active_amount = 0;

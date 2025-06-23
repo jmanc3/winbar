@@ -569,7 +569,7 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
         draw_clip_begin(client, b);
         
         auto f = draw_get_font(client, 9 * config->dpi, config->font);
-        auto s = f->wrapped_text(data->windows_data_list[0]->title, container->real_bounds.w - (30 * config->dpi + w));
+        auto s = f->wrapped_text(data->windows_data_list[0]->title, data->actual_w - (30 * config->dpi + w));
         
         std::istringstream stream(s);
         std::string line1, line2;
@@ -584,7 +584,7 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
         }
 
         auto [w_f, h_f] = f->begin(ss, EXPAND(config->color_taskbar_button_icons));
-        f->draw_text(5, container->real_bounds.x + 14 * config->dpi + w, MIDY(container) - h_f / 2, container->real_bounds.w - (14 * config->dpi + w));
+        f->draw_text(5, container->real_bounds.x + 14 * config->dpi + w, MIDY(container) - h_f / 2, data->actual_w - (14 * config->dpi + w));
         f->end();
         
 //        draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_taskbar_button_icons), data->windows_data_list[0]->title.c_str(), container->real_bounds, -5, 14 * config->dpi + w);
@@ -1872,9 +1872,27 @@ static void
 paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
     pixel_spacing = 1;
     if (winbar_settings->pinned_icon_style == "win7" || winbar_settings->pinned_icon_style == "win7flat") {
-        pixel_spacing = std::floor(pixel_spacing * config->dpi);
+        pixel_spacing = 0;
     }
     position_icons(client_entity, cr, container);
+    
+    // fit icons
+    for (int i = 0; i < container->children.size() - 1; i++) {
+        auto *active = container->children[i];
+        auto *active_data = (LaunchableButton *) active->user_data;
+        active_data->actual_w = active->real_bounds.w;
+        auto *next = container->children[i + 1];
+        auto *next_data = (LaunchableButton *) next->user_data;
+        next_data->actual_w = next->real_bounds.w;
+        if ((active->real_bounds.w + active->real_bounds.x) > next->real_bounds.x) {
+            if (!active->state.mouse_dragging && !next->state.mouse_dragging) {
+                if (!active_data->windows_data_list.empty()) {
+                    active->real_bounds.w = (next->real_bounds.x - active->real_bounds.x);
+                }
+            }
+        }
+    }
+    
     
     for (auto con: container->children) {
         double time = 250;
@@ -1926,6 +1944,13 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
             cairo_pop_group_to_source(cr);
             cairo_paint_with_alpha(cr, delta / time);
         }
+    }
+    
+    // restore sizes
+    for (int i = 0; i < container->children.size(); i++) {
+        auto *active = container->children[i];
+        auto *active_data = (LaunchableButton *) active->user_data;
+        active->real_bounds.w = active_data->actual_w;
     }
 }
 
