@@ -37,6 +37,7 @@ struct PluginData : IconButton {
     std::string icon;
     std::string icon_text;
     std::string path;
+    double scroll_scalar = 0;
     ArgbColor icon_text_color = config->color_taskbar_button_icons;
     bool tried_to_load = false;
     
@@ -623,20 +624,33 @@ void on_plugin_sent_text(Subprocess *cc) {
                                      "This is because \"set_icon_text\" was not followed by a single character string as was expected.");
                     }
                 } else if (token.text == "resize_me") {
-                  auto data = (PluginData*) taskbar_plugin_button->user_data;
-                  if (!data->icon_text.empty()) {
-                    auto client = client_by_name(app, "taskbar");
-                    PangoLayout *layout = get_cached_pango_font(client->cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
-
-                    pango_layout_set_text(layout, data->icon_text.c_str(), data->icon_text.size());
-                    int width;
-                    int height;
-                    pango_layout_get_pixel_size_safe(layout, &width, &height);
-          
-                    taskbar_plugin_button->wanted_bounds.w = width + 16 * config->dpi;
-                    client_layout(app, client);
-                    request_refresh(app, client);
-                  }
+                    auto data = (PluginData *) taskbar_plugin_button->user_data;
+                    if (!data->icon_text.empty()) {
+                        auto client = client_by_name(app, "taskbar");
+                        PangoLayout *layout = get_cached_pango_font(client->cr, "Segoe MDL2 Assets Mod",
+                                                                    10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
+                        
+                        pango_layout_set_text(layout, data->icon_text.c_str(), data->icon_text.size());
+                        int width;
+                        int height;
+                        pango_layout_get_pixel_size_safe(layout, &width, &height);
+                        token = get_token(tokenizer);
+                        taskbar_plugin_button->wanted_bounds.w = width + 16 * config->dpi;
+                        if (token.type == TokenType::STRING) {
+                            std::string resize = token.text;
+                            try {
+                                int w = std::atoi(resize.c_str());
+                                if (taskbar_plugin_button->wanted_bounds.w > w * config->dpi)
+                                    taskbar_plugin_button->wanted_bounds.w = w * config->dpi;
+                            } catch (...) {
+                                if (taskbar_plugin_button->wanted_bounds.w > 200 * config->dpi)
+                                    taskbar_plugin_button->wanted_bounds.w = 200 * config->dpi;
+                            }
+                        }
+                        
+                        client_layout(app, client);
+                        request_refresh(app, client);
+                    }
                 } else if (token.text == "set_text_icon_color") {
                     token = get_token(tokenizer);
                     if (token.type == TokenType::STRING) {
@@ -930,6 +944,25 @@ paint_plugin(AppClient *client, cairo_t *cr, Container *container) {
     auto *data = (PluginData *) container->user_data;
     
     if (!data->icon_text.empty()) {
+        bool found_timeout = false;
+        for (auto t: app->timeouts) {
+            if (t->text == (data->path + "_timeout")) {
+                found_timeout = true;
+            }
+        }
+        if (!found_timeout) {
+            app_timeout_create(app, client, 4000, [](App *, AppClient *client, Timeout *, void *user_data) {
+                double *scroll_scalar = (double *) user_data;
+                
+                if (*scroll_scalar == 1) {
+                    client_create_animation(app, client, scroll_scalar, client->lifetime, 0, 2000,
+                                            getEasingFunction(EaseInOutSine), 0);
+                } else {
+                    client_create_animation(app, client, scroll_scalar, client->lifetime, 0, 2000,
+                                            getEasingFunction(EaseInOutSine), 1);
+                }
+            }, &data->scroll_scalar, (data->path + "_timeout"));
+        };
         PangoLayout *layout =
                 get_cached_pango_font(cr, "Segoe MDL2 Assets Mod", 10 * config->dpi, PangoWeight::PANGO_WEIGHT_NORMAL);
         
@@ -942,10 +975,22 @@ paint_plugin(AppClient *client, cairo_t *cr, Container *container) {
         int height;
         pango_layout_get_pixel_size_safe(layout, &width, &height);
         
-        cairo_move_to(cr,
-                      (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
-                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        auto clip = container->real_bounds;
+        clip.w -= 8 * config->dpi;
+        draw_clip_begin(client, clip);
+        if (container->real_bounds.w > width) {
+            cairo_move_to(cr,
+                          (int) (container->real_bounds.x + container->real_bounds.w / 2 - width / 2),
+                          (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        } else {
+            float over = container->real_bounds.w - width - 16 * config->dpi;
+            cairo_move_to(cr,
+                          (int) (container->real_bounds.x + 8 * config->dpi + over * data->scroll_scalar),
+                          (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
+        }
+        
         pango_cairo_show_layout(cr, layout);
+        draw_clip_end(client);
     } else if (!data->icon.empty()) {
         if (data->surface__ == nullptr && !data->tried_to_load) {
             data->tried_to_load = true;
