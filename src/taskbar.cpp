@@ -532,7 +532,7 @@ static int get_label_width(AppClient *client, Container *container) {
             label_width = client->bounds->w / 12;
         if (winbar_settings->label_uniform_size)
             label_width = client->bounds->w / 12;
-        return client->bounds->h + 8 * config->dpi + pad * 2 + label_width;
+        return client->bounds->h + 14 * config->dpi + label_width;
     } else if (winbar_settings->pinned_icon_style == "win7" || winbar_settings->pinned_icon_style == "win7flat") {
         return 60 * config->dpi;
     } else {
@@ -564,12 +564,12 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
             pad = container->real_bounds.h - w;
         }
         
-        Bounds b = Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w - 11 * config->dpi,
+        Bounds b = Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w - 2 * config->dpi,
                           container->real_bounds.h);
         draw_clip_begin(client, b);
         
         auto f = draw_get_font(client, 9 * config->dpi, config->font);
-        auto s = f->wrapped_text(data->windows_data_list[0]->title, data->actual_w - (30 * config->dpi + w));
+        auto s = f->wrapped_text(data->windows_data_list[0]->title, data->actual_w - (7 * config->dpi * 3 + w));
         
         std::istringstream stream(s);
         std::string line1, line2;
@@ -584,7 +584,7 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
         }
 
         auto [w_f, h_f] = f->begin(ss, EXPAND(config->color_taskbar_button_icons));
-        f->draw_text(5, std::round(container->real_bounds.x + 14 * config->dpi + w), MIDY(container) - h_f / 2, data->actual_w - (14 * config->dpi + w));
+        f->draw_text(5, std::round(container->real_bounds.x + 14 * config->dpi + w), MIDY(container) - h_f / 2, data->actual_w - (7 * config->dpi * 3 + w));
         f->end();
         
 //        draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_taskbar_button_icons), data->windows_data_list[0]->title.c_str(), container->real_bounds, -5, 14 * config->dpi + w);
