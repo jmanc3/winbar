@@ -523,16 +523,46 @@ static int get_label_width(AppClient *client, Container *container) {
     if (!data->windows_data_list.empty())
         title = data->windows_data_list[0]->title;
     if (winbar_settings->labels && !data->windows_data_list.empty() && !trim(title).empty()) {
-        auto pad = 8.0f * config->dpi;
-        auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, 0, 0, 0, 1, title, false);
-        f->end();
+        float label_width = 0;
         
-        auto label_width = w;
-        if (label_width > client->bounds->w / 12)
-            label_width = client->bounds->w / 12;
-        if (winbar_settings->label_uniform_size)
-            label_width = client->bounds->w / 12;
-        return client->bounds->h + 14 * config->dpi + label_width;
+        {
+            auto pad = 8.0f * config->dpi;
+            auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, 0, 0, 0, 1, title, false);
+            f->end();
+            label_width = w;
+            if (label_width > client->bounds->w / 12)
+                label_width = client->bounds->w / 12;
+            if (winbar_settings->label_uniform_size)
+                label_width = client->bounds->w / 12;
+        }
+        float actual_w = client->bounds->h + 14 * config->dpi + label_width;
+        {
+            double w = 0;
+            if (data->surface__) {
+                w = cairo_image_surface_get_width(data->surface__);
+            }
+            
+            auto f = draw_get_font(client, 9 * config->dpi, config->font);
+            auto s = f->wrapped_text(data->windows_data_list[0]->title, actual_w - (7 * config->dpi * 3 + w));
+            
+            std::istringstream stream(s);
+            std::string line1, line2;
+            
+            std::getline(stream, line1);
+            std::getline(stream, line2);
+            
+            std::string ss = line1;
+            if (!line2.empty()) {
+                ss += "\n";
+                ss += line2;
+            }
+            
+            auto [w_f, h_f] = f->begin(ss, EXPAND(config->color_taskbar_button_icons));
+            f->end();
+            actual_w = client->bounds->h + 14 * config->dpi + w_f;
+        }
+        
+        return actual_w;
     } else if (winbar_settings->pinned_icon_style == "win7" || winbar_settings->pinned_icon_style == "win7flat") {
         return 60 * config->dpi;
     } else {
