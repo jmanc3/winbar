@@ -1373,6 +1373,9 @@ right_clicked_live_tile(AppClient *client, cairo_t *cr, Container *container) {
                             t->keep_running = false;
                         
                         return;
+                    } else {
+                        t->keep_running = false;
+                        return;
                     }
                     
                     

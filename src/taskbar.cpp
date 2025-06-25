@@ -1449,6 +1449,9 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (container->state.mouse_dragging) {
+        return;
+    }
     if (winbar_settings->pinned_icon_style == "win11") {
         paint_icon_background_win11(client, cr, container);
         return;

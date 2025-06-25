@@ -2353,6 +2353,7 @@ FontReference *FontManager::get(AppClient *client, int size, std::string font, b
     // This guy needs to account for different clients unlike the cairo version
     if (client->should_use_gl) {
         ref->font = new FreeFont(size, font, bold, italic);
+        ref->font->update_projection(client->projection);
     } else {
         // Create the font ref and add it to the list
 //        ref->layout = get_cached_pango_font(client->cr, font, size, PANGO_WEIGHT_NORMAL);

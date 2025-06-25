@@ -1764,7 +1764,7 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
                 //client->ctx->round.update_projection(glm::ortho(0.0f, (float) client->bounds->w, 0.0f, (float) client->bounds->h, 1.0f, -1.0f));
                 client->ctx->round.update_projection(client->projection);
                 for (auto f: client->ctx->font_manager->fonts) {
-                    if (f->font) {
+                    if (f->font && f->creation_client == client) {
                         f->font->update_projection(client->projection);
                     }
                 }
@@ -2609,6 +2609,9 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         case XCB_UNMAP_NOTIFY: {
             if (auto client = client_by_window(app, window_number)) {
                 client->mapped = false;
+                if (winbar_settings->use_opengl && client->name != "taskbar") {
+                    client_unregister_animation(app, client);
+                }
             }
             break;
         }
@@ -2646,6 +2649,9 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
                     }
                 }
                 xcb_flush(app->connection);
+                if (winbar_settings->use_opengl && client->name != "taskbar") {
+                    client_register_animation(app, client);
+                }
             }
             break;
         }
