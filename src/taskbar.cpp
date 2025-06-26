@@ -92,6 +92,16 @@ validate_layout(AppClient *client, PangoLayout *layout) {
 
 }
 
+float zoom_rem(AppClient *client, double *target) {
+    for (auto &a: client->animations) {
+        if (a.value == target) {
+            return (a.length - (client->app->current - a.start_time)) + 100;
+        }
+    }
+    return 100;
+}
+
+
 // Trim leading and trailing whitespace from a string in-place
 std::string trim(std::string str) {
     std::string copy = str;
@@ -629,6 +639,20 @@ double bounce_slam_animation(double input) {
         input = 1.0;
     }
     
+    // {"anchors":[{"x":-0.05,"y":1},{"x":0,"y":1},{"x":0.099,"y":0},{"x":0.275,"y":0},{"x":0.4,"y":1},{"x":2,"y":1}],"controls":[{"x":-0.025,"y":1},{"x":0.062286445030800566,"y":0.5686288518269855},{"x":0.187,"y":0},{"x":0.335555742312702,"y":0.340033163621689},{"x":1.2,"y":1}]}
+    std::vector<float> fls = { 0, 0, 0, 0, 0.121, 0.256, 0.40800000000000003, 0.579, 0.779, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.952, 0.847, 0.732, 0.605, 0.469, 0.32199999999999995, 0.16600000000000004, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    
+    
+    int i = std::round(input * fls.size() - 1);
+    if (i < 0)
+        i = 0;
+    if (i > fls.size() - 1)
+        i = fls.size() - 1;
+
+    return fls[i] * (2.0 * config->dpi);
+    
+    return 5.0;
+    
     // Define segment boundaries
     const double firstSegment = 0.25;  // 30%
     const double secondSegment = 0.7; // 30% + 50% = 80%
@@ -660,21 +684,6 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         double w = surface_width;
         
         auto scale_amount = 1 - (data->animation_zoom_amount * (1 - scale_afterwards));
-        if (data->animation_zoom_locked) {
-            auto current = get_current_time_in_ms();
-            auto elapsed = current - data->animation_zoom_locked_time;
-            double total_time = 500;
-            elapsed %= (long) total_time;
-            elapsed -= total_time * .5;
-            double scalar = ((double) elapsed) / (total_time * .5);
-            if (scalar < 0)
-                scalar = -scalar;
-            auto grow_factor = .22 * scalar;
-            
-            auto new_amount = 1 - (data->animation_zoom_locked * (1 - .61)) + grow_factor;
-            
-            scale_amount = (new_amount + scale_amount) * .5;
-        }
         double current_w = w * scale_amount;
 
         double xpos = container->real_bounds.x + container->real_bounds.w * .5 - surface_width * .5;
@@ -697,16 +706,16 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         // Assumes the size of the icon to be 24x24 and tries to draw it centered
         if (data->animation_bounce_amount == 1 || data->windows_data_list.empty())
             data->animation_bounce_amount = 0;
-        auto amount = data->animation_bounce_amount * 1.9;
+        auto amount = data->animation_bounce_amount ;
         double bounce_amount = bounce_slam_animation(amount);
         if (data->animation_bounce_direction)
             bounce_amount = -bounce_amount;
         if (!winbar_settings->minimize_maximize_animation)
             bounce_amount = 0;
         
-        double off = (((config->taskbar_height - w) - (11 * config->dpi)) * .5) * (bounce_amount);
+        //double off = (((config->taskbar_height - w) - (11 * config->dpi)) * .5) * (bounce_amount);
         double draw_x = xpos - 1;
-        draw_gl_texture(client, data->gsurf, data->surface__, std::round(draw_x), ypos + off, current_w, current_w);
+        draw_gl_texture(client, data->gsurf, data->surface__, std::round(draw_x), ypos + bounce_amount, current_w, current_w);
         cairo_restore(cr);
     }
 }
@@ -2357,7 +2366,7 @@ pinned_icon_drag_start(AppClient *client_entity, cairo_t *cr, Container *contain
         
         client_layout(app, client_entity);
     }
-    client_create_animation(app, client_entity, &data->animation_zoom_amount, data->lifetime, 0, 55,
+    client_create_animation(app, client_entity, &data->animation_zoom_amount, data->lifetime,  zoom_rem(client_entity, &data->animation_zoom_amount), 55,
                             nullptr,
                             0);
     data->initial_mouse_click_before_drag_offset_x =
@@ -2407,7 +2416,7 @@ pinned_icon_drag_end(AppClient *client_entity, cairo_t *cr, Container *container
             // Move the launchuble button to inital_index
         }
     }
-    client_create_animation(app, client_entity, &data->animation_zoom_amount, data->lifetime, 0, 85,
+    client_create_animation(app, client_entity, &data->animation_zoom_amount, data->lifetime, zoom_rem(client_entity, &data->animation_zoom_amount), 85,
                             nullptr,
                             0);
     
@@ -2633,7 +2642,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
-    client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, 0, 85, nullptr, 0);
+    client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, zoom_rem(client, &data->animation_zoom_amount), 85, nullptr, 0);
     if (auto c = client_by_name(app, "tooltip_taskbar")) {
         client_close_threaded(app, c);
     }
@@ -2743,7 +2752,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                     data->animation_bounce_amount = 0;
                     data->animation_bounce_direction = 0;
                     client_create_animation(app, client, &data->animation_bounce_amount, data->lifetime, 0,
-                                            651.2, nullptr, 1);
+                                            2000.2, nullptr, 1);
                 } else {
                     std::thread t([window]() -> void {
                         xcb_ewmh_request_change_active_window(&app->ewmh,
@@ -2769,7 +2778,7 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                 data->animation_bounce_amount = 0;
                 data->animation_bounce_direction = 1;
                 client_create_animation(app, client, &data->animation_bounce_amount, data->lifetime, 0,
-                                        651.2, nullptr, 1);
+                                        2000.2, nullptr, 1);
             }
         }
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_3) {
@@ -2811,7 +2820,7 @@ static void
 pinned_icon_mouse_up(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LaunchableButton *) container->user_data;
     
-    client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, 0, 85, nullptr, 0);
+    client_create_animation(app, client, &data->animation_zoom_amount, data->lifetime, zoom_rem(client, &data->animation_zoom_amount), 85, nullptr, 0);
 }
 
 static void
@@ -4354,7 +4363,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                                     data->animation_bounce_amount = 0;
                                     data->animation_bounce_direction = 1;
                                     client_create_animation(app, client, &data->animation_bounce_amount, data->lifetime, 0,
-                                                            651.2, nullptr, 1);
+                                                            2000.2, nullptr, 1);
                                 }
                             }
                         }
@@ -4376,7 +4385,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                                     data->animation_bounce_amount = 0;
                                     data->animation_bounce_direction = 0;
                                     client_create_animation(app, client, &data->animation_bounce_amount, data->lifetime, 0,
-                                                            651.2, nullptr, 1);
+                                                            2000.2, nullptr, 1);
                                 }
                             }
                         }
