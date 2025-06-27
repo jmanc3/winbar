@@ -339,6 +339,9 @@ bool overlaps(double ax, double ay, double aw, double ah,
 double calculate_overlap_percentage(double ax, double ay, double aw, double ah,
                                     double bx, double by, double bw, double bh);
 
+double calculate_b_covered_by_a(double ax, double ay, double aw, double ah,
+                                double bx, double by, double bw, double bh);
+
 bool is_light_theme(const ArgbColor &color);
 
 std::string clipboard();

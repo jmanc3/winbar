@@ -87,8 +87,9 @@ struct LiveTileData : LiveTileItemType {
     cairo_surface_t *__surface = nullptr;
     gl_surface *gsurf = nullptr;
     Container *tile = nullptr;
-//    int w = 2;
-//    int h = 2;
+    double vis_x = -1;
+    double vis_y = -1;
+
     std::weak_ptr<bool> lifetime;
     
     LiveTileData(Launcher *launcher) {
@@ -1502,6 +1503,7 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
         }
     }
     
+    float pad = 2 * config->dpi;
     float title_pad = 40 * config->dpi;
     for (auto item: s->content->children) {
         auto info = (LiveTileItemType *) item->user_data;
@@ -1516,14 +1518,117 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
             }
             int x = container->real_bounds.x + ((page_size - 100 * config->dpi * 3) / 2) + page * page_size;
             
-            float pad = 2 * config->dpi;
+            float pos_x = live->launcher->info.x;
+            float pos_y = live->launcher->info.y;
+            
             float start_x = x + pad + container->scroll_h_visual;
             float start_y = container->real_bounds.y + pad + title_pad + container->scroll_v_visual;
-            item->real_bounds.x = start_x + live->launcher->info.x * (50 * config->dpi);
-            item->real_bounds.y = start_y + live->launcher->info.y * (50 * config->dpi);
+            item->real_bounds.x = start_x + pos_x * (50 * config->dpi);
+            item->real_bounds.y = start_y + pos_y * (50 * config->dpi);
             item->real_bounds.w = live->launcher->info.w * (50 * config->dpi) - pad * 2;
             item->real_bounds.h = live->launcher->info.h * (50 * config->dpi) - pad * 2;
-            
+        }
+    }
+    
+    std::vector<Bounds> overlapped_tiles;
+    
+    // Move away from dragged live tile
+    if (auto drag = client_by_name(app, "drag_window")) {
+        // Now translate the window coordinates to root coordinates
+        xcb_translate_coordinates_cookie_t trans_cookie =
+                xcb_translate_coordinates(app->connection, drag->window, app->screen->root, 0, 0);
+        xcb_translate_coordinates_reply_t *trans_reply =
+                xcb_translate_coordinates_reply(app->connection, trans_cookie, nullptr);
+        defer(free(trans_reply));
+        xcb_get_geometry_cookie_t geomCookie = xcb_get_geometry(app->connection,
+                                                                drag->window);  // window is a xcb_drawable_t
+        xcb_get_geometry_reply_t *geom = xcb_get_geometry_reply(app->connection, geomCookie, NULL);
+        defer(free(geom));
+        Bounds drag_bounds = Bounds(trans_reply->dst_x, trans_reply->dst_y, geom->width, geom->height);
+        
+        for (auto item: s->content->children) {
+            auto info = (LiveTileItemType *) item->user_data;
+            if (info->type == 0 && item->when_paint) { // what is type specifiying here?
+                auto live = (LiveTileData *) item->user_data;
+                Bounds tile_real_bounds = item->real_bounds;
+                tile_real_bounds.x += client->bounds->x;
+                tile_real_bounds.y += client->bounds->y;
+                auto perc = calculate_b_covered_by_a(drag_bounds.x, drag_bounds.y, drag_bounds.w, drag_bounds.h,
+                                                     tile_real_bounds.x, tile_real_bounds.y, tile_real_bounds.w,
+                                                     tile_real_bounds.h);
+                auto perc_2 = calculate_b_covered_by_a(tile_real_bounds.x, tile_real_bounds.y, tile_real_bounds.w,
+                                                       tile_real_bounds.h, drag_bounds.x, drag_bounds.y, drag_bounds.w, drag_bounds.h);
+                if (perc > 25 || perc_2 > 25) {
+                    overlapped_tiles.push_back(item->real_bounds);
+                }
+            }
+        }
+        
+        for (auto item: s->content->children) {
+            auto info = (LiveTileItemType *) item->user_data;
+            if (info->type == 0 && item->when_paint) { // what is type specifiying here?
+                auto live = (LiveTileData *) item->user_data;
+                live->launcher->move_after_drag_y = 0;
+            }
+        }
+        
+        
+        // TODO: problem when smaller tile goes into big tile of not moving the big tile
+        std::vector<Container *> already_moved;
+        for (auto item: s->content->children) {
+            auto info = (LiveTileItemType *) item->user_data;
+            if (info->type == 0 && item->when_paint) { // what is type specifiying here?
+                auto live = (LiveTileData *) item->user_data;
+                
+                for (auto overlapped_bounds: overlapped_tiles) {
+                    overlapped_bounds.h = 100000;
+                    
+                    if (overlaps(overlapped_bounds, item->real_bounds)) {
+                        bool already = false;
+                        for (auto m: already_moved) {
+                            if (m == item) {
+                                already = true;
+                            }
+                        }
+                        
+                        if (!already) {
+                            item->real_bounds.y += geom->height + pad * 2;
+                            live->launcher->move_after_drag_y = std::round(((float) geom->height) / (50.0f * config->dpi));
+                            already_moved.push_back(item);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Setup the animations
+    for (auto item: s->content->children) {
+        auto info = (LiveTileItemType *) item->user_data;
+        if (info->type == 0 && item->when_paint) { // what is type specifiying here?
+            auto live = (LiveTileData *) item->user_data;
+            if (live->vis_x == -1) {
+                live->vis_x = item->real_bounds.x;
+                live->vis_y = item->real_bounds.y;
+            }
+            if (!already_began(client, &live->vis_x, item->real_bounds.x))
+                client_create_animation(app, client, &live->vis_x, client->lifetime, 0, 130.0f, getEasingFunction(EaseInOutSine),
+                                        item->real_bounds.x);
+            if (!already_began(client, &live->vis_y, item->real_bounds.y))
+                client_create_animation(app, client, &live->vis_y, client->lifetime, 0, 130.0f, getEasingFunction(EaseInOutSine),
+                                        item->real_bounds.y);
+            item->real_bounds.x = live->vis_x;
+            item->real_bounds.y = live->vis_y;
+        }
+    }
+    
+    // Paint live tiles
+    for (auto item: s->content->children) {
+        auto info = (LiveTileItemType *) item->user_data;
+        if (info->type == 0 && item->when_paint) { // what is type specifiying here?
+            auto live = (LiveTileData *) item->user_data;
+            item->real_bounds.x = live->vis_x;
+            item->real_bounds.y = live->vis_y;
             paint_live_tile(client, cr, item);
         }
     }
@@ -1852,6 +1957,8 @@ fill_live_tiles(ScrollContainer *live_scroll) {
         live_tile->minimum_y_distance_to_move_before_drag_begins = 4 * config->dpi;
         live_tile->minimum_x_distance_to_move_before_drag_begins = 4 * config->dpi;
         LiveTileData *live_data = new LiveTileData(launchers[i]);
+        live_data->launcher->info.y += live_data->launcher->move_after_drag_y;
+        live_data->launcher->move_after_drag_y = 0;
         live_tile->user_data = live_data;
         live_data->lifetime = live_tile->lifetime;
         live_data->tile = live_tile;

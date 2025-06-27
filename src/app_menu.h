@@ -48,6 +48,7 @@ public:
     
     int app_menu_priority = 0;
     PinInfo info;
+    double move_after_drag_y = 0;
     
     ~Launcher() {
         if (icon_16__)

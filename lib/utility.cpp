@@ -797,6 +797,34 @@ double calculate_overlap_percentage(double ax, double ay, double aw, double ah,
     return result;
 }
 
+double calculate_b_covered_by_a(double ax, double ay, double aw, double ah,
+                                double bx, double by, double bw, double bh) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    // Trivial no-overlap case
+    if (!overlaps(ax, ay, aw, ah, bx, by, bw, bh)) return 0.0;
+    
+    // Trivial full-coverage case (A and B are exactly the same)
+    if (ax == bx && ay == by && aw == bw && ah == bh) return 100.0;
+    
+    // Calculate intersection rectangle
+    double ix = std::max(ax, bx);
+    double iy = std::max(ay, by);
+    double ix2 = std::min(ax + aw, bx + bw);
+    double iy2 = std::min(ay + ah, by + bh);
+    
+    double iw = std::max(0.0, ix2 - ix);
+    double ih = std::max(0.0, iy2 - iy);
+    
+    double intersection_area = iw * ih;
+    double b_area = bw * bh;
+    
+    if (b_area == 0.0) return 0.0; // Avoid division by zero
+    
+    return (intersection_area / b_area) * 100.0;
+}
+
 uint32_t argb_to_color(ArgbColor color) {
     unsigned int r = color.r * 255;
     unsigned int g = color.g * 255;
