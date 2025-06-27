@@ -3133,7 +3133,7 @@ add_item_clicked(AppClient *popup, cairo_t *, Container *) {
         icons->children.insert(icons->children.begin(), a);
     }
     a->when_drag_end_is_click = false;
-    a->minimum_x_distance_to_move_before_drag_begins = 5 * config->dpi;
+    a->minimum_x_distance_to_move_before_drag_begins = 15 * config->dpi;
     a->minimum_y_distance_to_move_before_drag_begins = 15 * config->dpi;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
     a->when_mouse_leaves_container = pinned_icon_mouse_leaves;
@@ -5133,7 +5133,7 @@ void add_window(App *app, xcb_window_t window) {
         icons->children.insert(icons->children.begin(), a);
     }
     a->when_drag_end_is_click = false;
-    a->minimum_x_distance_to_move_before_drag_begins = 5 * config->dpi;
+    a->minimum_x_distance_to_move_before_drag_begins = 15 * config->dpi;
     a->minimum_y_distance_to_move_before_drag_begins = 15 * config->dpi;
     a->when_mouse_enters_container = pinned_icon_mouse_enters;
     a->when_mouse_leaves_container = pinned_icon_mouse_leaves;
@@ -5761,7 +5761,7 @@ load_pinned_icons() {
         child->wanted_bounds.w = client_entity->bounds->h + 8 * config->dpi;
         
         child->when_drag_end_is_click = false;
-        child->minimum_x_distance_to_move_before_drag_begins = 5 * config->dpi;
+        child->minimum_x_distance_to_move_before_drag_begins = 15 * config->dpi;
         child->minimum_y_distance_to_move_before_drag_begins = 15 * config->dpi;
         child->when_mouse_enters_container = pinned_icon_mouse_enters;
         child->when_mouse_leaves_container = pinned_icon_mouse_leaves;
