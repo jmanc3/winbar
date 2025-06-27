@@ -684,6 +684,19 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         double w = surface_width;
         
         auto scale_amount = 1 - (data->animation_zoom_amount * (1 - scale_afterwards));
+        if (data->animation_zoom_locked) {
+            auto current = client->app->current;
+            auto elapsed = current - data->animation_zoom_locked_time;
+            double total_time = 500;
+            elapsed %= (long) total_time;
+            elapsed -= total_time / 2;
+            double scalar = ((double) elapsed) / (total_time / 2);
+            if (scalar < 0)
+                scalar = -scalar;
+            auto grow_factor = .22 * scalar;
+            auto new_amount = 1 - (data->animation_zoom_locked * (1 - .61)) + grow_factor;
+            scale_amount = (new_amount + scale_amount) / 2;
+        }
         double current_w = w * scale_amount;
 
         double xpos = container->real_bounds.x + container->real_bounds.w * .5 - surface_width * .5;
