@@ -254,6 +254,8 @@ extern std::vector<CachedFont *> cached_fonts;
 
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color);
 
+void tint_surface(cairo_surface_t *surface, ArgbColor argb_color);
+
 void dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold);
 
 long get_current_time_in_ms();
@@ -357,5 +359,7 @@ starts_with(const std::string &str, const std::string &prefix);
 float random_float();
 
 bool already_began(AppClient *client, double *value, double target);
+
+cairo_surface_t* clone_cairo_surface(cairo_surface_t* original);
 
 #endif

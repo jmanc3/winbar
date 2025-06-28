@@ -43,7 +43,9 @@ struct gl_surface {
 class IconButton : public HoverableButton {
 public:
     cairo_surface_t *surface__ = nullptr;
+    cairo_surface_t *clicked_surface__ = nullptr;
     gl_surface *gsurf = nullptr;
+    gl_surface *clicked_gsurf = nullptr;
     
     // These three things are so that opening menus with buttons toggles between opening and closing
     std::string invalidate_button_press_if_client_with_this_name_is_open;
@@ -52,11 +54,16 @@ public:
     
     IconButton() {
         gsurf = new gl_surface();
-    }
+        clicked_gsurf = new gl_surface();
+   }
     
     ~IconButton() {
-        cairo_surface_destroy(surface__);
+        if (surface__)
+            cairo_surface_destroy(surface__);
+        if (clicked_surface__)
+            cairo_surface_destroy(clicked_surface__);
         delete gsurf;
+        delete clicked_gsurf;
     }
 };
 
@@ -160,6 +167,7 @@ public:
     
     bool attempting_to_launch_first_window = false;
     long attempting_to_launch_first_window_time = 0;
+    double attempt_opening_scalar = 0;
     
     int color_option = 0;
     ArgbColor actual_border_color = ArgbColor(0, 0, 0, 0);

@@ -428,6 +428,7 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
             combo_data->options.emplace_back("Windows 7");
             combo_data->options.emplace_back("Windows 7 Flat");
             combo_data->options.emplace_back("Windows 11");
+            combo_data->options.emplace_back("Mac OS");
             combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
                 if (winbar_settings->pinned_icon_style == "win7") {
                     return "Windows 7";
@@ -435,10 +436,13 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
                     return "Windows 7 Flat";
                 } else if (winbar_settings->pinned_icon_style == "win11") {
                     return "Windows 11";
+                } else if (winbar_settings->pinned_icon_style == "macos") {
+                    return "Mac OS";
                 }
                 return "Windows 10";
             };
             combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
+                winbar_settings->click_icon_tab_next_window = false;
                 if (((Label *) (self->user_data))->text == "Windows 10") {
                     winbar_settings->pinned_icon_style = "win10";
                 } else if (((Label *) (self->user_data))->text == "Windows 7") {
@@ -447,6 +451,9 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
                     winbar_settings->pinned_icon_style = "win7flat";
                 } else if (((Label *) (self->user_data))->text == "Windows 11") {
                     winbar_settings->pinned_icon_style = "win11";
+                } else if (((Label *) (self->user_data))->text == "Mac OS") {
+                    winbar_settings->pinned_icon_style = "macos";
+                    winbar_settings->click_icon_tab_next_window = true;
                 }
                 client_close_threaded(app, client);
                 merge_order_with_taskbar();

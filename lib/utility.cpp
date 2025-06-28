@@ -64,6 +64,50 @@ void dye_surface(cairo_surface_t *surface, ArgbColor argb_color) {
     }
 }
 
+void tint_surface(cairo_surface_t *surface, ArgbColor argb_color) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    if (surface == nullptr)
+        return;
+    cairo_surface_flush(surface);
+
+    unsigned char *data = cairo_image_surface_get_data(surface);
+    int width = cairo_image_surface_get_width(surface);
+    int height = cairo_image_surface_get_height(surface);
+    int stride = cairo_image_surface_get_stride(surface);
+
+    for (int y = 0; y < height; y++) {
+        auto row = (uint32_t *) data;
+        data += stride;
+
+        for (int x = 0; x < width; x++) {
+            uint32_t color = *row;
+
+            uint8_t a = (color >> 24) & 0xFF;
+            uint8_t r = (color >> 16) & 0xFF;
+            uint8_t g = (color >> 8)  & 0xFF;
+            uint8_t b = (color)       & 0xFF;
+
+            // Convert tint color to 0–255 range
+            uint8_t tint_r = static_cast<uint8_t>(argb_color.r * 255);
+            uint8_t tint_g = static_cast<uint8_t>(argb_color.g * 255);
+            uint8_t tint_b = static_cast<uint8_t>(argb_color.b * 255);
+
+            // Multiply source color by tint color (tinting)
+            // Values are premultiplied by alpha already in Cairo
+            uint8_t new_r = (r * tint_r) / 255;
+            uint8_t new_g = (g * tint_g) / 255;
+            uint8_t new_b = (b * tint_b) / 255;
+
+            *row = (a << 24) | (new_r << 16) | (new_g << 8) | new_b;
+            row++;
+        }
+    }
+
+    cairo_surface_mark_dirty(surface);
+}
+
 void dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -986,4 +1030,27 @@ bool already_began(AppClient *client, double *value, double target) {
         }
     }   
     return false;
+}
+
+cairo_surface_t* clone_cairo_surface(cairo_surface_t* original) {
+    if (!original)
+        return nullptr;
+
+    // Get width, height, and format of the original surface
+    int width = cairo_image_surface_get_width(original);
+    int height = cairo_image_surface_get_height(original);
+    cairo_format_t format = cairo_image_surface_get_format(original);
+
+    // Create a new surface with the same dimensions and format
+    cairo_surface_t* clone = cairo_image_surface_create(format, width, height);
+    if (cairo_surface_status(clone) != CAIRO_STATUS_SUCCESS)
+        return nullptr;
+
+    // Create a context for the new surface and paint the original content onto it
+    cairo_t* cr = cairo_create(clone);
+    cairo_set_source_surface(cr, original, 0, 0);
+    cairo_paint(cr);
+    cairo_destroy(cr);
+
+    return clone;
 }

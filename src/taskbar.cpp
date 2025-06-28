@@ -669,12 +669,65 @@ double bounce_slam_animation(double input) {
         return ease(1.0 - (input - secondSegment) / (lastSegment - secondSegment)); // linearly decrease from 1 to 0
     }
 }
+static void
+paint_icon_surface_macos(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    LaunchableButton *data = (LaunchableButton *) container->user_data;
+    if (data->surface__) {
+        double surface_width = cairo_image_surface_get_width(data->surface__);
+        //data->clicked_surface__;
+       
+        if (data->clicked_surface__ == nullptr) {
+            data->clicked_surface__ = clone_cairo_surface(data->surface__);
+            tint_surface(data->clicked_surface__, ArgbColor(.47, .47, .47, 1));
+        }
+        auto s = data->attempt_opening_scalar;
+        
+        // {"anchors":[{"x":0,"y":1},{"x":0.23,"y":0.1},{"x":0.42500000000000004,"y":0.05},{"x":0.5700000000000001,"y":1},{"x":2,"y":1}],"controls":[{"x":0.16880342532426876,"y":0.5337036980523004},{"x":0.3008547073755508,"y":-0.14129630194769957},{"x":0.5424572714781151,"y":0.36425925360785594},{"x":1.2850000000000001,"y":1}]}
+std::vector<float> fls = { 0, 0.04700000000000004, 0.09499999999999997, 0.14500000000000002, 0.19599999999999995, 0.25, 0.30500000000000005, 0.364, 0.42500000000000004, 0.49, 0.56, 0.636, 0.719, 0.813, 0.911, 0.957, 0.99, 1.013, 1.027, 1.034, 1.034, 1.029, 1.018, 1.004, 0.985, 0.962, 0.927, 0.876, 0.8180000000000001, 0.751, 0.671, 0.577, 0.45899999999999996, 0.30400000000000005, 0.06999999999999995, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+        
+        // {"anchors":[{"x":0,"y":1},{"x":0.23,"y":0.1},{"x":0.37,"y":0.1},{"x":0.5700000000000001,"y":1},{"x":2,"y":1}],"controls":[{"x":0.115,"y":0.55},{"x":0.3047864751571281,"y":-0.3540394818623859},{"x":0.47000000000000003,"y":0.55},{"x":1.2850000000000001,"y":1}]}
+//std::vector<float> fls = { 0, 0.06499999999999995, 0.13, 0.19599999999999995, 0.261, 0.32599999999999996, 0.391, 0.45699999999999996, 0.522, 0.587, 0.652, 0.7170000000000001, 0.783, 0.848, 0.92, 1.006, 1.07, 1.11, 1.127, 1.117, 1.081, 1.017, 0.923, 0.84, 0.765, 0.69, 0.615, 0.54, 0.46499999999999997, 0.39, 0.31499999999999995, 0.24, 0.16500000000000004, 0.08999999999999997, 0.015000000000000013, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+        
+        int i = std::round(s * fls.size() - 1);
+        if (i < 0)
+            i = 0;
+        if (i > fls.size() - 1)
+        i = fls.size() - 1;
+ 
+        float actual_s = fls[i];
+        if (actual_s > 1.0f)
+            actual_s = 1.0f;
+        
+        float y_off = -actual_s * (((container->real_bounds.h - surface_width) * .5) * .7);  // when launching first window;
+        
+        if (container->state.mouse_pressing && container->state.mouse_button_pressed == 1 && !container->state.mouse_dragging) {
+            draw_gl_texture(client, data->clicked_gsurf, data->clicked_surface__,
+                                container->real_bounds.x + container->real_bounds.w * .5 - surface_width * .5,
+                                container->real_bounds.y + container->real_bounds.h * .5 - surface_width * .5 + y_off);
+        } else {
+            draw_gl_texture(client, data->gsurf, data->surface__,
+                            container->real_bounds.x + container->real_bounds.w * .5 - surface_width * .5,
+                            container->real_bounds.y + container->real_bounds.h * .5 - surface_width * .5 + y_off);
+        }
+        // 7 * 16.6 darken when opening
+        // 1 * 16.6 when closing
+
+    }
+
+}
 
 static void
 paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (winbar_settings->pinned_icon_style == "macos") {
+        paint_icon_surface_macos(client, cr, container);
+        return;
+    }
     LaunchableButton *data = (LaunchableButton *) container->user_data;
     
     if (data->surface__) {
@@ -824,6 +877,109 @@ static void paint_pinnned_icon_pane(AppClient *client, Bounds bounds, double rad
     cairo_restore(cr);
     
     bounds.grow(width);
+}
+
+static void
+paint_icon_background_macos(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    auto *data = (LaunchableButton *) container->user_data;
+    int windows_count = data->windows_data_list.size();
+    bool should = data->attempting_to_launch_first_window && ((client->app->current - data->attempting_to_launch_first_window_time) < 10000);
+    if (data->windows_data_list.empty()) {
+        if (!should)
+            return;
+    }
+    double p; // perceived brightness
+    {
+        double h; // hue
+        double s; // saturation
+        ArgbColor real = config->color_taskbar_background;
+        rgb2hsluv(real.r, real.g, real.b, &h, &s, &p);
+    }
+    
+    bool dragging = container->state.mouse_dragging;
+    ArgbColor accent = config->color_taskbar_application_icons_accent;
+    ArgbColor accent_dark = p < 50 ? ArgbColor(.604, .604, .604, 1) : ArgbColor(.524, .524, .524, 1);
+    ArgbColor background = ArgbColor(1, 1, 1, 0);
+    
+    ArgbColor border_color = background;
+    ArgbColor gradient_color = background;
+    ArgbColor pane_color = background;
+    
+    int current_color_option = 1;
+    
+    // Maximum boost should be times 5 since the maximum alpha value is .2
+    double boost = 4 * (p / 100);
+    
+    bool just_finished = data->wants_attention_just_finished;
+    if (current_color_option != 1) {
+        if (current_color_option != data->color_option || just_finished) {
+            data->wants_attention_just_finished = false;
+            
+            int previous_color_option = data->color_option;
+            data->color_option = current_color_option;
+            
+            if (current_color_option == 2 ||
+                current_color_option == 1) { // In certain cases we want the border and gradient to be instant
+                data->actual_border_color = border_color;
+                data->actual_gradient_color = gradient_color;
+            } else {
+                animate_color_change(app, client, &data->actual_border_color, border_color);
+                animate_color_change(app, client, &data->actual_gradient_color, gradient_color);
+            }
+            
+            animate_color_change(app, client, &data->actual_pane_color, pane_color);
+        }
+    }
+    
+    if (data->wants_attention_amount != 0 && !just_finished) {
+        double blinks = 10.5;
+        double scalar = fmod(data->wants_attention_amount, (1.0 / blinks)); // get N blinks
+        scalar *= blinks;
+        if (scalar > .5)
+            scalar = 1 - scalar;
+        scalar *= 2;
+        if (data->wants_attention_amount == 1)
+            scalar = 1;
+        
+        accent = lerp_argb(scalar, accent_dark, config->color_taskbar_attention_accent);
+        accent_dark = accent;
+        
+        pane_color = config->color_taskbar_attention_background;
+        pane_color.a = 0;
+        data->actual_gradient_color.a = 0;
+        data->actual_pane_color = lerp_argb(scalar, pane_color, config->color_taskbar_attention_background);
+        data->actual_border_color = data->actual_pane_color;
+    }
+    
+    float dot_size = 3.0 * config->dpi;
+    
+    Bounds dot_bounds = Bounds(container->real_bounds.x + container->real_bounds.w * .5 - dot_size * .5,
+                                   container->real_bounds.y + container->real_bounds.h - dot_size * 1.4,
+                                   dot_size, dot_size);
+
+    
+    auto color = ArgbColor(1, 1, 1, .6);
+    if (data->wants_attention_amount != 0)
+        color = accent;
+    if (active_container == container)
+        color = config->color_taskbar_application_icons_accent;
+    if (should && data->windows_data_list.empty()) {
+        auto elapsed = client->app->current - data->attempting_to_launch_first_window_time;
+        if (elapsed > 2000) {
+            double total_time = 1000;
+            elapsed -= total_time * .5;
+            elapsed %= (long) total_time;
+            elapsed -= total_time / 2;
+            double scalar = ((double) elapsed) / (total_time / 2);
+            if (scalar < 0)
+                scalar = -scalar;
+            color.a -= scalar * (color.a * .7);
+        }
+    }
+    draw_round_rect(client, color, dot_bounds, dot_size * .5);
 }
 
 static void
@@ -1479,6 +1635,9 @@ paint_icon_background(AppClient *client, cairo_t *cr, Container *container) {
         return;
     } else if (winbar_settings->pinned_icon_style == "win7" || winbar_settings->pinned_icon_style == "win7flat") {
         paint_icon_background_win7(client, cr, container);
+        return;
+    } if (winbar_settings->pinned_icon_style == "macos") {
+        paint_icon_background_macos(client, cr, container);
         return;
     }
     
@@ -2252,6 +2411,7 @@ Container *get_pinned_icon_representing_window(xcb_window_t window) {
 }
 
 void throttled_active_window_changed(xcb_window_t new_active_window) {
+    defer(active_window = new_active_window);
     if (new_active_window == active_window)
         return;
     auto cookie = xcb_get_property(app->connection, 0, new_active_window, get_cached_atom(app, "_NET_WM_STATE"),
@@ -2299,8 +2459,6 @@ void throttled_active_window_changed(xcb_window_t new_active_window) {
         }
         request_refresh(app, c);
     }
-    
-    active_window = new_active_window;
 }
 
 void active_window_changed(xcb_window_t new_active_window) {
@@ -2664,7 +2822,9 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
         if (data->windows_data_list.empty() && !data->animation_zoom_locked) {
             if (data->windows_data_list.empty()) {
                 data->attempting_to_launch_first_window = true;
-                data->attempting_to_launch_first_window_time = get_current_time_in_ms();
+                data->attempting_to_launch_first_window_time = app->current;
+                data->attempt_opening_scalar = 0;
+                client_create_animation(app, client, &data->attempt_opening_scalar, data->lifetime, 0, 2000.0, nullptr, 1);
             }
             start_zoom_animation(client, container);
             launch_command(data->command_launched_by);
@@ -2806,7 +2966,9 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
     } else if (container->state.mouse_button_pressed == XCB_BUTTON_INDEX_2) {
         if (data->windows_data_list.empty()) {
             data->attempting_to_launch_first_window = true;
-            data->attempting_to_launch_first_window_time = get_current_time_in_ms();
+            data->attempting_to_launch_first_window_time = app->current;
+            data->attempt_opening_scalar = 0;
+            client_create_animation(app, client, &data->attempt_opening_scalar, data->lifetime, 0, 2000.0, nullptr, 1);
         }
         launch_command(data->command_launched_by);
         app_timeout_stop(client->app, client, data->possibly_open_timeout);
