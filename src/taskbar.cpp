@@ -702,14 +702,21 @@ std::vector<float> fls = { 0, 0.04700000000000004, 0.09499999999999997, 0.145000
             actual_s = 1.0f;
         
         float y_off = -actual_s * (((container->real_bounds.h - surface_width) * .5) * .7);  // when launching first window;
+        float xpos = container->real_bounds.x + container->real_bounds.w * .5 - surface_width * .5;
+        if (winbar_settings->labels && !data->windows_data_list.empty()) {
+            auto title = data->windows_data_list[0]->title;
+            if (!trim(title).empty()) {
+                xpos = container->real_bounds.x + 8 * config->dpi;
+            }
+        }
         
         if (container->state.mouse_pressing && container->state.mouse_button_pressed == 1 && !container->state.mouse_dragging) {
             draw_gl_texture(client, data->clicked_gsurf, data->clicked_surface__,
-                                container->real_bounds.x + container->real_bounds.w * .5 - surface_width * .5,
+                                xpos,
                                 container->real_bounds.y + container->real_bounds.h * .5 - surface_width * .5 + y_off);
         } else {
             draw_gl_texture(client, data->gsurf, data->surface__,
-                            container->real_bounds.x + container->real_bounds.w * .5 - surface_width * .5,
+                            xpos,
                             container->real_bounds.y + container->real_bounds.h * .5 - surface_width * .5 + y_off);
         }
         // 7 * 16.6 darken when opening
@@ -959,7 +966,13 @@ paint_icon_background_macos(AppClient *client, cairo_t *cr, Container *container
     Bounds dot_bounds = Bounds(container->real_bounds.x + container->real_bounds.w * .5 - dot_size * .5,
                                    container->real_bounds.y + container->real_bounds.h - dot_size * 1.4,
                                    dot_size, dot_size);
-
+    if (winbar_settings->labels && !data->windows_data_list.empty()) {
+        auto title = data->windows_data_list[0]->title;
+        if (!trim(title).empty()) {
+            double w = cairo_image_surface_get_width(data->surface__);
+            dot_bounds.x = container->real_bounds.x + 8 * config->dpi + w * .5 - dot_size * .5;
+        }
+    }
     
     auto color = ArgbColor(1, 1, 1, .6);
     if (data->wants_attention_amount != 0)
