@@ -2177,7 +2177,7 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
         if (auto icons = container_by_name("icons", c->root)) {
             for (Container *con: icons->children) {
                 auto *d = (LaunchableButton *) con->user_data;
-                if (con->state.mouse_hovering && !d->attempting_to_launch_first_window && d->windows_data_list.empty() &&
+                if (con->state.mouse_hovering && !d->attempting_to_launch_first_window &&
                     !con->state.mouse_dragging) {
                     container = con;
                 }
@@ -2187,6 +2187,11 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
     if (container == nullptr || container != (Container *) data)
         return;
     auto d = (LaunchableButton *) container->user_data;
+    if (winbar_settings->pinned_icon_style != "macos") {
+        if (!d->windows_data_list.empty()) {
+            return;
+        }
+    }
     std::string text = d->class_name;
     if (text.empty()) {
         return;
@@ -2218,7 +2223,11 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
                 for (Container *container: icons->children) {
                     auto data = (LaunchableButton *) container->user_data;
                     
-                    if (container->state.mouse_hovering && data->windows_data_list.empty()) {
+                    if (winbar_settings->pinned_icon_style != "macos")
+                        if (!data->windows_data_list.empty())
+                            continue;
+                            
+                    if (container->state.mouse_hovering) {
                         t->keep_running = true;
                         auto label = (Label *) tooltip->root->user_data;
                         
@@ -2275,8 +2284,12 @@ possibly_open_tooltip(AppClient *client, Container *container, LaunchableButton 
         return;
     }
     bool recently_touchpad = get_current_time_in_ms() - app->last_touchpad_time < 400;
+    auto time = 800 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0);
+    if (winbar_settings->pinned_icon_style == "macos") {
+        time = 1;
+    }
     data->possibly_open_tooltip_timeout = app_timeout_create(app, client,
-                                                             800 + (winbar_settings->labels ? 120 : 0) + (recently_touchpad ? 450 : 0),
+                                                             time,
                                                              on_tooltip_open, container,
                                                              const_cast<char *>(__PRETTY_FUNCTION__));
 }
@@ -2287,9 +2300,14 @@ pinned_icon_mouse_enters(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     LaunchableButton *data = (LaunchableButton *) container->user_data;
-    if (data->windows_data_list.empty()) {
+    if (winbar_settings->pinned_icon_style != "macos") {
+        if (data->windows_data_list.empty()) {
+            possibly_open_tooltip(client, container, data);
+        }
+    } else {
         possibly_open_tooltip(client, container, data);
     }
+ 
     possibly_open(app, container, data);
     if (winbar_settings->pinned_icon_style == "win7" || winbar_settings->pinned_icon_style == "win7flat") {
         client_create_animation(app, client, &data->hover_amount, data->lifetime, 0, 100, 0, 1);
