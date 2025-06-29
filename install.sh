@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# fail out on any error
+set -e
+
 #make and enter the build directory if it doesn't exist already
 mkdir -p newbuild
 cd newbuild
