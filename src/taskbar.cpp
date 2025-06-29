@@ -548,7 +548,7 @@ static int get_label_width(AppClient *client, Container *container) {
                 label_width = client->bounds->w / 12;
         }
         float actual_w = client->bounds->h + 14 * config->dpi + label_width;
-        {
+        if (!winbar_settings->label_uniform_size) {
             double w = 0;
             if (data->surface__) {
                 w = cairo_image_surface_get_width(data->surface__);
