@@ -434,7 +434,7 @@ std::string clean_double(double val) {
 std::string evaluate_math(std::string input) {
   PicoMath pm;
 
-  auto result = pm.evalExpression(input.substr(1).c_str());
+  auto result = pm.evalExpression(input.c_str());
   if (result.isOk()) {
       double r = result.getResult();
       return clean_double(r);
@@ -450,6 +450,17 @@ paint_calc_result(AppClient *client, cairo_t *cr, Container *container) {
   draw_colored_rect(client, ArgbColor(config->color_search_content_left_background), container->real_bounds); 
   draw_text(client, 10 * config->dpi, config->font, EXPAND(ArgbColor(config->color_search_content_text_primary)), data->text, container->real_bounds);
 
+}
+bool contains_operator(const std::string& input) {
+    if (input.find("pow") != std::string::npos) {
+        return true;
+    }
+    for (char ch : input) {
+        if (ch == '+' || ch == '-' || ch == '*' || ch == '/') {
+            return true;
+        }
+    }
+    return false;
 }
 void update_options() {
     if (auto taskbar_client = client_by_name(app, "taskbar")) {
@@ -471,7 +482,7 @@ void update_options() {
                         on_menu_items = false;
                         active_menu_item = 0;
 
-                        if (data->state->text[0] == '=') {
+                        if (evaluate_math(data->state->text) != "" && contains_operator(data->state->text)){
                           mathQuery = true;
                           math_input_text = data->state->text;
 
@@ -479,64 +490,9 @@ void update_options() {
                           for (auto l: launchers) {
                              launchers_copy.push_back(l);
                           }
-                          sort_and_add<Launcher *>(&launchers_copy, bottom, math_input_text.substr(1),
+                          sort_and_add<Launcher *>(&launchers_copy, bottom, math_input_text,
                                                    global->history_apps);
 
-                          //std::string result = evaluate_math(data->state->text);
-                          //printf("Math Result: %s\n", result.c_str()); 
-                          // UI BULLSHIT
-                        //  sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
-                          /*
-                          Container *title = content->child(::hbox, FILL_SPACE, 32 * config->dpi);
-                          title->when_paint = paint_title;
-                          auto *title_data = new TitleData;
-                          title_data->text = "Math query";
-                          title->user_data = title_data;
-
-
-                          Container *content = scroll->content;
-                          content->spacing = 0;
-                          if (auto client = client_by_name(app, "search_menu")) {
-                              if (can_pop) {
-                                  can_pop = false;
-                                  content->spacing = 16 * config->dpi;
-                                  client_create_animation(app, client, &content->spacing, content->lifetime, 0, 120, nullptr, 0, true);
-                              }
-                          }
-
-                          content->when_paint = paint_content;
-                          content->clip_children =
-                                  false;// We have to do custom clipping so don't waste calls on this
-                          content->automatically_paint_children = false;
-                          content->name = "content";
-
-
-                          Container *title = content->child(::hbox, FILL_SPACE, 32 * config->dpi);
-                          title->when_paint = paint_title;
-                          auto *title_data = new TitleData;
-                          title_data->text = "Math query";
-                          title->user_data = title_data;
-                          */ 
-
-                          /*
-                          Container *hbox = bottom->child(::hbox, FILL_SPACE, FILL_SPACE);
-                          Container *left = hbox->child(::vbox, 344 * config->dpi, FILL_SPACE);
-                          left->when_paint = paint_left_bg;
-                          Container *right = hbox->child(::vbox, FILL_SPACE, FILL_SPACE);
-                          right->when_paint = paint_right_bg;
-                          right->wanted_pad = Bounds(12 * config->dpi, 12 * config->dpi, 12 * config->dpi, 0);
-                          
-                          // Top part which displays user input. 
-                          Container *input_display_box = right->child(FILL_SPACE, 150 * config->dpi);
-                          input_display_box->when_paint = paint_calc_result;
-                          input_display_box->user_data = new Label(data->state->text.substr(1) + " =");
-                          
-                          // Bottom part which displays result.
-                          Container *result_display_box = right->child(FILL_SPACE, 150 * config->dpi);
-                          result_display_box->when_paint = paint_calc_result;
-                          result_display_box->user_data = new Label("result: "+result);
-
-                          */
                         } else {
                           mathQuery = false;
                           math_input_text = "";
@@ -1007,12 +963,20 @@ void sort_and_add(std::vector<T> *sortables,
             // Top part which displays user input. 
             Container *input_display_box = right_fg->child(FILL_SPACE, 100 * config->dpi);
             input_display_box->when_paint = paint_calc_result;
-            input_display_box->user_data = new Label(math_input_text.substr(1) + " =");
+            input_display_box->user_data = new Label(math_input_text + " =");
+            //if (auto *search_menu_client = client_by_name(app, "search_menu")) {
                           
             // Bottom part which displays result.
             Container *result_display_box = right_fg->child(FILL_SPACE, 100 * config->dpi);
             result_display_box->when_paint = paint_calc_result;
             result_display_box->user_data = new Label(result);
+            
+            /* this doesnt work ;-;
+            
+            if (auto client = client_by_name(app, "search_menu")) {
+              draw_colored_rect(client, ArgbColor(20,30,100,1), result_display_box->real_bounds);
+            }
+            */
             return;
         }        
         if (sorted.empty() && !mathQuery) {
