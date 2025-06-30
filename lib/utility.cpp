@@ -1054,3 +1054,21 @@ cairo_surface_t* clone_cairo_surface(cairo_surface_t* original) {
 
     return clone;
 }
+
+void reserve(AppClient *client, int amount) {
+    xcb_ewmh_wm_strut_partial_t wm_strut = {};
+    wm_strut.bottom = amount;
+    wm_strut.bottom_start_x = client->bounds->x;
+    wm_strut.bottom_end_x = client->bounds->w;
+    xcb_ewmh_set_wm_strut_partial(&client->app->ewmh,
+                                  client->window,
+                                  wm_strut);
+    
+    xcb_ewmh_set_wm_strut(&client->app->ewmh,
+                          client->window,
+                          0,
+                          0,
+                          0,
+                          amount);
+    
+}

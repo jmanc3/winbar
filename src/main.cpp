@@ -153,10 +153,10 @@ int main_actual(int argc, char *argv[]) {
     
     read_settings_file();
     if (!winbar_settings->auto_dpi) {
-        config->dpi = winbar_settings->scale_factor;
+        config->dpi = ((float) winbar_settings->scale_amount) / 100.0f;
     }
  
-    config->taskbar_height = config->taskbar_height * config->dpi;
+    config->taskbar_height = winbar_settings->taskbar_height * config->dpi;
     if (!winbar_settings->user_font.empty()) {
         config->font = winbar_settings->user_font;
     }

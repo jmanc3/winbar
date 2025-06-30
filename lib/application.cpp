@@ -2901,6 +2901,20 @@ void app_clean(App *app) {
         delete handler;
     }
     
+    auto &data = app->data;
+    for (auto it = data.begin(); it != data.end();) {
+        auto &vec = it->second;
+        for (auto &item: vec->everything) {
+            auto user_data = static_cast<UserData *>(item.data());
+            user_data->destroy();
+        }
+        vec->everything.clear();
+        delete it->second;
+        it = data.erase(it);  // erase returns the next valid iterator
+    }
+    data.clear();
+
+    
     cleanup_cached_fonts();
     cleanup_cached_atoms();
     
@@ -3320,4 +3334,21 @@ void set_active(AppClient *client, Container *c, bool state) {
     std::vector<Container *> containers;
     containers.push_back(c);
     set_active(client, containers, client->root, state);
+}
+
+void clear_data_for(Container *c) {
+    auto i = app->data.find(c->uuid);
+    if (i == app->data.end())
+        return;
+    auto udata = i->second;
+    if (udata) {
+        auto vec = i->second;
+        for (auto &item: vec->everything) {
+            auto user_data = static_cast<UserData *>(item.data());
+            user_data->destroy();
+        }
+        vec->everything.clear();
+        delete i->second;
+    }
+    app->data.erase(c->uuid);
 }

@@ -16,6 +16,7 @@
 #include <hb-ft.h>
 #include <freetype/ftlcdfil.h>
 #include <freetype/ftsynth.h>
+#include <random>
 
 #include FT_GLYPH_H  // This header provides functions like FT_GlyphSlot_Embolden.
 #include <codecvt>
@@ -918,6 +919,27 @@ void Bounds::grow(double amount) {
     this->h += amount * 2;
 }
 
+std::string get_uuid() {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 15);
+    std::uniform_int_distribution<> dis2(8, 11); // for variant
+
+    std::stringstream ss;
+    ss << std::hex;
+    for (int i = 0; i < 8; i++) ss << dis(gen);
+    ss << "-";
+    for (int i = 0; i < 4; i++) ss << dis(gen);
+    ss << "-4"; // UUID version 4
+    for (int i = 0; i < 3; i++) ss << dis(gen);
+    ss << "-";
+    ss << dis2(gen); // UUID variant
+    for (int i = 0; i < 3; i++) ss << dis(gen);
+    ss << "-";
+    for (int i = 0; i < 12; i++) ss << dis(gen);
+    return ss.str();
+}
+
 Container *
 Container::child(int wanted_width, int wanted_height) {
     Container *child_container = new Container(wanted_width, wanted_height);
@@ -939,16 +961,19 @@ Container::Container(layout_type type, double wanted_width, double wanted_height
     this->type = type;
     wanted_bounds.w = wanted_width;
     wanted_bounds.h = wanted_height;
+    uuid = get_uuid();
 }
 
 Container::Container(double wanted_width, double wanted_height) {
     wanted_bounds.w = wanted_width;
     wanted_bounds.h = wanted_height;
+    uuid = get_uuid();
 }
 
 Container::Container(const Container &c) {
     parent = c.parent;
     name = c.name;
+    uuid = c.uuid;
     
     for (auto child: c.children) {
         children.push_back(new Container(*child));
@@ -997,6 +1022,8 @@ Container::~Container() {
     if (data != nullptr) {
         data->destroy();
     }
+    
+    clear_data_for(this);
 //    ((UserData *) user_data)->destroy();
 }
 
@@ -1007,6 +1034,7 @@ Container::Container() {
     spacing = 0;
     should_layout_children = true;
     user_data = nullptr;
+    uuid = get_uuid();
 }
 
 ScrollContainer *Container::scrollchild(const ScrollPaneSettings &scroll_pane_settings) {
@@ -2533,6 +2561,42 @@ Sizes FontReference::begin(std::string text, float r, float g, float b, float a)
 void FontReference::draw_text_end(int x, int y, int param) {
     draw_text(x, y, param);
     end();
+}
+
+double get_line_height(PangoLayout *layout) {
+    PangoContext *context = pango_layout_get_context(layout);
+    const PangoFontDescription *desc = pango_layout_get_font_description(layout);
+    if (!desc) {
+        assert(desc);
+        exit(0);
+        return 11;
+    }
+    
+    PangoFont *font = pango_context_load_font(context, desc);
+    if (!font) {
+        assert(font);
+        exit(0);
+        return 0.0;
+    }
+    
+    PangoFontMetrics *metrics = pango_font_get_metrics(font, pango_language_get_default());
+    
+    int ascent = pango_font_metrics_get_ascent(metrics);
+    int descent = pango_font_metrics_get_descent(metrics);
+    
+    pango_font_metrics_unref(metrics);
+    g_object_unref(font);
+    
+    // Convert from Pango units to pixels
+    return (ascent + descent) / (double)PANGO_SCALE;
+}
+
+float FontReference::line_height() {
+    if (layout) {
+        return get_line_height(layout);
+    } else {
+        return font->face->size->metrics.height >> 6;
+    }
 }
 
 OffscreenFrameBuffer::OffscreenFrameBuffer(int width, int height) : width(width), height(height) {

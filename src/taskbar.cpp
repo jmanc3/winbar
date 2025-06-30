@@ -152,25 +152,6 @@ icon_width(AppClient *client) {
 }
 
 static void
-reserve(AppClient *client, int amount) {
-    xcb_ewmh_wm_strut_partial_t wm_strut = {};
-    wm_strut.bottom = amount;
-    wm_strut.bottom_start_x = client->bounds->x;
-    wm_strut.bottom_end_x = client->bounds->w;
-    xcb_ewmh_set_wm_strut_partial(&client->app->ewmh,
-                                  client->window,
-                                  wm_strut);
-    
-    xcb_ewmh_set_wm_strut(&client->app->ewmh,
-                          client->window,
-                          0,
-                          0,
-                          0,
-                          amount);
-
-}
-
-static void
 paint_background(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -565,12 +546,18 @@ static int get_label_width(AppClient *client, Container *container) {
             
             std::string ss = line1;
             if (!line2.empty()) {
-                ss += "\n";
+                if (f->line_height() * 2 + 8 * config->dpi > container->real_bounds.h) {
+                    ss += " ";
+                } else {
+                    ss += "\n";
+                }
                 ss += line2;
             }
             
             auto [w_f, h_f] = f->begin(ss, EXPAND(config->color_taskbar_button_icons));
             f->end();
+            if (w_f > label_width)
+                w_f = label_width;
             actual_w = client->bounds->h + 14 * config->dpi + w_f;
         }
         
@@ -606,7 +593,8 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
             pad = container->real_bounds.h - w;
         }
         
-        Bounds b = Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w - 2 * config->dpi,
+        Bounds b = Bounds(container->real_bounds.x, container->real_bounds.y,
+                          container->real_bounds.w - 14 * config->dpi,
                           container->real_bounds.h);
         draw_clip_begin(client, b);
         
@@ -621,7 +609,11 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
         
         std::string ss = line1;
         if (!line2.empty()) {
-            ss += "\n";
+            if (f->line_height() * 2 + 8 * config->dpi > container->real_bounds.h) {
+                ss += " ";
+            } else {
+                ss += "\n";
+            }
             ss += line2;
         }
 
@@ -732,6 +724,7 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         double w = surface_width;
         
         auto scale_amount = 1 - (data->animation_zoom_amount * (1 - scale_afterwards));
+        scale_amount *= (container->real_bounds.h / (40.0 * config->dpi)); // generic scale based on taskbar height
         if (data->animation_zoom_locked) {
             auto current = client->app->current;
             auto elapsed = current - data->animation_zoom_locked_time;
@@ -2226,7 +2219,7 @@ on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
                     if (winbar_settings->pinned_icon_style != "macos")
                         if (!data->windows_data_list.empty())
                             continue;
-                            
+                    
                     if (container->state.mouse_hovering) {
                         t->keep_running = true;
                         auto label = (Label *) tooltip->root->user_data;

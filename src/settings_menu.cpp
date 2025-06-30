@@ -862,11 +862,20 @@ void bool_checkbox(const std::string &text, bool *boolean, Container *container,
 }
 
 struct SliderInfo : UserData {
+    int start = 0;
+    int end = 100;
+    int incr = 1;
+    bool is_perc = true;
     float value = 0;
-    float *target = nullptr;
+    int *target = nullptr;
+    bool *disabled_by = nullptr;
+    
+    void (*callback)(SliderInfo *) = nullptr;
 };
 
-void slider(const std::string &text, int indent, float *target, Container *container, AppClient *client) {
+void
+slider(const std::string &text, int indent, int *target, Container *container, AppClient *client, int start, int end,
+       int incr, bool is_perc, bool *disabled_by, void (*callback)(SliderInfo *) = nullptr) {
     float font_size = std::round(10);
     float pad = std::round(12 * config->dpi);
     PangoLayout *layout = get_cached_pango_font(client->cr, config->font, font_size * config->dpi, PANGO_WEIGHT_NORMAL);
@@ -874,7 +883,7 @@ void slider(const std::string &text, int indent, float *target, Container *conta
     int height;
     pango_layout_set_text(layout, text.c_str(), text.length());
     pango_layout_get_pixel_size_safe(layout, &width, &height);
-        
+    
     float slider_width = 200 * config->dpi;
     float size = 14 * config->dpi; // of checkbox that is
     auto full_label_container = container->child(layout_type::hbox, FILL_SPACE, 32 * config->dpi);
@@ -888,7 +897,9 @@ void slider(const std::string &text, int indent, float *target, Container *conta
     label->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
         auto *data = (Label *) container->user_data;
         ArgbColor text_color = config->color_pinned_icon_editor_field_default_text;
-        if (winbar_settings->auto_dpi) {
+        auto c = container->parent->children[1];
+        auto slider_info = (SliderInfo *) c->user_data;
+        if (slider_info->disabled_by && *slider_info->disabled_by) {
             text_color.a = .4f;
         }
         data->color = text_color;
@@ -896,20 +907,26 @@ void slider(const std::string &text, int indent, float *target, Container *conta
     };
 
     label->user_data = label_data;
-     
+    
     auto slider_container = full_label_container->child(slider_width, FILL_SPACE);
     auto slider_info = new SliderInfo;
+    slider_info->callback = callback;
+    slider_info->is_perc = is_perc;
     slider_container->user_data = slider_info;
     slider_info->target = target;
     // TODO: the value is being set wrong here
     slider_info->value = (*target) - 1.0f;
+    slider_info->start = start;
+    slider_info->end = end;
+    slider_info->incr = incr;
+    slider_info->disabled_by = disabled_by;
     
     slider_container->when_paint = [](AppClient *client, cairo_t *cr, Container *container) {
         auto slider_info = (SliderInfo *) container->user_data;
         //draw_colored_rect(client, ArgbColor(.4, .4, .4, .8), container->real_bounds);
         //draw_round_rect(client, color, Bounds(x, y, width, height), corner_radius, stroke_w);
         auto foreground = config->color_volume_slider_foreground;
-        if (winbar_settings->auto_dpi) {
+        if (slider_info->disabled_by && *slider_info->disabled_by) {
             foreground = config->color_volume_slider_background;
         }
         
@@ -919,7 +936,9 @@ void slider(const std::string &text, int indent, float *target, Container *conta
                 container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
                 container->real_bounds.w, line_height));
         // value can be between .5 to 3
-        float marker_position = slider_info->value * container->real_bounds.w;
+        float marker_position =
+                ((((float) slider_info->value) - slider_info->start) / (slider_info->end - slider_info->start)) *
+                container->real_bounds.w;
         draw_colored_rect(client, foreground, Bounds(container->real_bounds.x,
                 container->real_bounds.y + container->real_bounds.h / 2 - line_height / 2,
                 marker_position, line_height));
@@ -935,11 +954,11 @@ void slider(const std::string &text, int indent, float *target, Container *conta
              marker_height, color);
     };
     slider_container->when_drag = [](AppClient *client, cairo_t *cr, Container *container) {
-        if (winbar_settings->auto_dpi)
+        auto slider_info = (SliderInfo *) container->user_data;
+        if (slider_info->disabled_by && *slider_info->disabled_by)
             return; // early out
  
         // TODO: check mouse position in reference to container real_bounds.x and real_bounds.w and then store that in the label, which can then be applied later
-        auto slider_info = (SliderInfo *) container->user_data;
         
         int x_offset_within_slider = client->mouse_current_x;
         if (x_offset_within_slider < container->real_bounds.x) {
@@ -948,36 +967,42 @@ void slider(const std::string &text, int indent, float *target, Container *conta
             x_offset_within_slider = container->real_bounds.x + container->real_bounds.w;
         }
         x_offset_within_slider -= container->real_bounds.x; // because we're trying to extract the scalar, we need to remove the left indent offset
-        slider_info->value = x_offset_within_slider / container->real_bounds.w;
-        if (slider_info->value < 0) {
-            slider_info->value = 0;
-        } else if (slider_info->value > 1) {
-            slider_info->value = 1;
+        float value = x_offset_within_slider / container->real_bounds.w;
+        if (value < 0) {
+            value = 0;
+        } else if (value > 1) {
+            value = 1;
         }
-        float notch_count = 10.0f;
-        float notch = std::round(slider_info->value * notch_count);
-        slider_info->value = notch / notch_count;
+        float notch_count = slider_info->incr;
+        float notch = std::round(value * notch_count);
+        value = notch / notch_count;
+        
+        slider_info->value = value * (slider_info->end - slider_info->start) + slider_info->start;
         
         bool found_me = false;
         for (auto c: container->parent->children) {
             if (found_me) {
                 auto data = (Label *) c->user_data;
-                data->text = std::to_string((int) std::round(slider_info->value *  100) + 100) + "%";
+                data->text = std::to_string((int) std::round(slider_info->value)) + (slider_info->is_perc ? "%" : "");
                 break;
             }
             if (c == container) {
                 found_me = true;
             }
         }
+        if (slider_info->callback)
+            slider_info->callback(slider_info);
     };
-    
+    slider_container->when_mouse_down = slider_container->when_drag;
+        
     int perc_width;
     int perc_height;
     pango_layout_set_text(layout, "100%", -1);
     pango_layout_get_pixel_size_safe(layout, &perc_width, &perc_height);
     
     auto scale_label = full_label_container->child(perc_width, FILL_SPACE);
-    auto scale_data = new Label(std::to_string((int) std::round(slider_info->value * 100) + 100) + "%");
+    auto s = std::to_string((int) std::round(*target)) + (slider_info->is_perc ? "%" : "");
+    auto scale_data = new Label(s);
     scale_data->size = font_size;
     scale_label->when_paint = label->when_paint;
     scale_label->user_data = scale_data;
@@ -994,13 +1019,16 @@ void slider(const std::string &text, int indent, float *target, Container *conta
         auto label = (Label *) container->user_data;
         int size = label->size;
         ArgbColor color = config->color_pinned_icon_editor_field_default_text;
-        if (winbar_settings->auto_dpi) {
+        
+        auto c = container->parent->children[1];
+        auto slider_info = (SliderInfo *) c->user_data;
+        if (slider_info->disabled_by && *slider_info->disabled_by) {
             color.a = .4f;
         }
 
         draw_text(client, size * config->dpi, config->font, EXPAND(color), label->text, container->real_bounds, 5);
         
-        if (winbar_settings->auto_dpi)
+        if (slider_info->disabled_by && *slider_info->disabled_by)
             return; // early out
             
         if (container->state.mouse_hovering || container->state.mouse_pressing) {
@@ -1015,13 +1043,11 @@ void slider(const std::string &text, int indent, float *target, Container *conta
         }
     };
     apply_label->when_clicked = [](AppClient *client, cairo_t *cr, Container *container) {
-        if (winbar_settings->auto_dpi)
-            return; // early out
         auto c = container->parent->children[1];
         auto slider_info = (SliderInfo *) c->user_data;
-        // .2 == 1.0;
-        auto scalar = slider_info->value + 1.0f;
-        winbar_settings->scale_factor = scalar;
+        if (slider_info->disabled_by && *slider_info->disabled_by)
+            return; // early out
+        *slider_info->target = slider_info->value;
         save_settings_file();
         client->app->running = false;
         restart = true;
@@ -1164,8 +1190,8 @@ setting_bool(Container *container, std::string icon, std::string title, std::str
             data->on_change();
         data->slide_amount = data->position_scalar_read_only;
     };
- 
-    full_label_container->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) 
+    
+    full_label_container->when_clicked = [](AppClient *client, cairo_t *cr, Container *c)
     {
         auto data = (SettingBoolData *) c->user_data;
         if (data->target != nullptr) {
@@ -1176,8 +1202,8 @@ setting_bool(Container *container, std::string icon, std::string title, std::str
         save_settings_file();
         request_refresh(app, client_by_name(app, "taskbar"));
    };
-
-    full_label_container->when_paint = [](AppClient *client, cairo_t *cr, Container *c) 
+    
+    full_label_container->when_paint = [](AppClient *client, cairo_t *cr, Container *c)
     {
         Bounds backup = c->real_bounds;
         c->real_bounds.x += .5;
@@ -1443,7 +1469,7 @@ setting_bool_attachment(Container *scroll_root, std::string icon, std::string ti
         }
         
         float size = 18 * config->dpi;
-        draw_round_rect(client, ArgbColor(.984, .988, .992, 1), 
+        draw_round_rect(client, ArgbColor(.984, .988, .992, 1),
                         Bounds(c->real_bounds.x + 60 * config->dpi,
                                c->real_bounds.y + c->real_bounds.h / 2 - size / 2,
                                size,
@@ -1478,8 +1504,8 @@ setting_field(AppClient *client, Container *container, std::string icon, std::st
     data->target_str = target_str;
     data->squares_up = squared;
     full->user_data = data;
-
-    full->when_paint = [](AppClient *client, cairo_t *cr, Container *c) 
+    
+    full->when_paint = [](AppClient *client, cairo_t *cr, Container *c)
     {
         Bounds backup = c->real_bounds;
         c->real_bounds.x += .5;
@@ -1934,10 +1960,11 @@ fill_root(AppClient *client, Container *root) {
             for (auto &i: screens) {
                 auto *screen = (ScreenInformation *) i;
                 if (screen->is_primary) {
-                    winbar_settings->scale_factor = screen->height_in_pixels / 1080.0;
-                    winbar_settings->scale_factor = std::round(winbar_settings->scale_factor * 2) / 2;
-                    if (winbar_settings->scale_factor < 1)
-                        winbar_settings->scale_factor = 1;
+                    auto scale_factor = screen->height_in_pixels / 1080.0;
+                    scale_factor = std::round(scale_factor * 2) / 2;
+                    if (scale_factor < 1)
+                        scale_factor = 1;
+                    winbar_settings->scale_amount = scale_factor * 100.0f;
                     break;
                 }
             }
@@ -1947,9 +1974,69 @@ fill_root(AppClient *client, Container *root) {
             restart = true;
         }
     });
-    slider("Global scale:", 16 * config->dpi, &winbar_settings->scale_factor, other_root, client);
+    slider("Global scale:", 16 * config->dpi, &winbar_settings->scale_amount, other_root, client, 100, 200, 10, true,
+           &winbar_settings->auto_dpi, nullptr);
     other_root->child(FILL_SPACE, 9.5 * config->dpi);
     text_input("\uE185", "Font", "Segoe UI Variable Mod", "The font used by the interface", 0, &winbar_settings->user_font, other_root, client);
+    
+    other_root->child(FILL_SPACE, 9.5 * config->dpi);
+    slider("Taskbar height:", 16 * config->dpi, &winbar_settings->taskbar_height, other_root, client, 24, 48, 24, false,
+           nullptr, [](SliderInfo *s) {
+                static float target = 0;
+                float max = 48;
+                float min = 24;
+                float full_scale = max - min;
+                target = std::round(s->value);
+                winbar_settings->taskbar_height = target;
+                target = target * config->dpi;
+                config->taskbar_height = target;
+                for (auto t: app->timeouts)
+                    if (t->text == "taskbar_height_timeout")
+                        return;
+                
+                auto taskbar = client_by_name(app, "taskbar");
+                if (!taskbar)
+                    return;
+                app_timeout_create(app, taskbar, 200, [](App *, AppClient *taskbar, Timeout *, void *) {
+                    uint32_t value_mask = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
+                                          XCB_CONFIG_WINDOW_HEIGHT;
+                    
+                    ScreenInformation *primary_screen_info = nullptr;
+                    for (auto s: screens) {
+                        if (s->is_primary) primary_screen_info = s;
+                    }
+                    if (primary_screen_info == nullptr) {
+                        if (screens.empty()) {
+                            xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(app->connection)).data;
+                            auto psi = new ScreenInformation;
+                            psi->root_window = screen->root;
+                            psi->width_in_pixels = screen->width_in_pixels;
+                            psi->width_in_millimeters = screen->width_in_millimeters;
+                            psi->height_in_pixels = screen->height_in_pixels;
+                            psi->height_in_millimeters = screen->height_in_millimeters;
+                            psi->is_primary = true;
+                            psi->dpi_scale = 1;
+                            psi->x = 0;
+                            psi->y = 0;
+                            screens.push_back(psi);
+                            primary_screen_info = screens[0];
+                        } else {
+                            primary_screen_info = screens[0];
+                        }
+                    }
+                    
+                    uint32_t value_list_resize[] = {
+                            (uint32_t) (primary_screen_info->x),
+                            (uint32_t) (primary_screen_info->y + primary_screen_info->height_in_pixels - target),
+                            (uint32_t) primary_screen_info->width_in_pixels,
+                            (uint32_t) target};
+                    xcb_configure_window(app->connection, taskbar->window, value_mask, value_list_resize);
+                    
+                    reserve(taskbar, target);
+                    
+                    save_settings_file();
+                }, nullptr, "taskbar_height_timeout");
+            });
     
     for (int i = 0; i < 3; ++i) {
         auto tab = tabs->child(FILL_SPACE, 36 * config->dpi);
@@ -2088,6 +2175,10 @@ void save_settings_file() {
     char *home = getenv("HOME");
     std::string path = std::string(home) + "/.config/winbar/settings.conf";
     std::ofstream out_file(path);
+    
+    // version
+    out_file << "version=\"" << winbar_settings->version << "\"";
+    out_file << std::endl << std::endl;
     
     // Taskbar order
     out_file << "order=";
@@ -2244,9 +2335,12 @@ void save_settings_file() {
     out_file << "auto_dpi=" << (winbar_settings->auto_dpi ? "true" : "false");
     out_file << std::endl << std::endl;
     
-    out_file << "scale_factor=\"" << std::to_string(winbar_settings->scale_factor) << "\"";
+    out_file << "scale_amount=\"" << std::to_string(winbar_settings->scale_amount) << "\"";
     out_file << std::endl << std::endl;
-      
+    
+    out_file << "taskbar_height=\"" << std::to_string(winbar_settings->taskbar_height) << "\"";
+    out_file << std::endl << std::endl;
+    
     out_file << "use_opengl=" << (winbar_settings->use_opengl ? "true" : "false");
     out_file << std::endl << std::endl;
     
@@ -2315,6 +2409,7 @@ void read_settings_file() {
     std::string path = std::string(home) + "/.config/winbar/settings.conf";
     std::ifstream input_file(path);
     bool was_good = input_file.good();
+    std::string found_version = "0";
     if (was_good) {
         std::string line;
         while (std::getline(input_file, line)) {
@@ -2401,7 +2496,19 @@ void read_settings_file() {
                         }
                     }
                 }
-            }  else if (key == "search_behaviour") {
+            } else if (key == "version") {
+                parser.until(LineParser::Token::QUOTE);
+                if (parser.current_token == LineParser::Token::QUOTE) {
+                    parser.next();
+                    std::string text = parser.until(LineParser::Token::QUOTE);
+                    if (parser.current_token == LineParser::Token::QUOTE) {
+                        trim(text);
+                        if (!text.empty()) {
+                            found_version = text;
+                        }
+                    }
+                }
+            } else if (key == "search_behaviour") {
                 parser.until(LineParser::Token::QUOTE);
                 if (parser.current_token == LineParser::Token::QUOTE) {
                     parser.next();
@@ -2467,8 +2574,36 @@ void read_settings_file() {
                     trim(text);
                     if (!text.empty()) {
                         try {
-                            float scale_factor = std::atof(text.c_str());
-                            winbar_settings->scale_factor = scale_factor;
+                            float amount = std::atof(text.c_str());
+                            winbar_settings->scale_factor = amount;
+                        } catch (...) {
+                        
+                        }
+                    }
+                }
+            } else if (key == "scale_amount") {
+                parser.until(LineParser::Token::IDENT);
+                if (parser.current_token == LineParser::Token::IDENT) {
+                    std::string text = parser.until(LineParser::Token::END_OF_LINE);
+                    trim(text);
+                    if (!text.empty()) {
+                        try {
+                            float amount = std::atoi(text.c_str());
+                            winbar_settings->scale_amount = amount;
+                        } catch (...) {
+                        
+                        }
+                    }
+                }
+            } else if (key == "taskbar_height") {
+                parser.until(LineParser::Token::IDENT);
+                if (parser.current_token == LineParser::Token::IDENT) {
+                    std::string text = parser.until(LineParser::Token::END_OF_LINE);
+                    trim(text);
+                    if (!text.empty()) {
+                        try {
+                            float amount = std::atoi(text.c_str());
+                            winbar_settings->taskbar_height = amount;
                         } catch (...) {
                         
                         }
@@ -2525,6 +2660,15 @@ void read_settings_file() {
                 parse_string(&parser, key, "user_font", &winbar_settings->user_font);
             }
         }
+    }
+    
+    if (found_version == "0") {
+        // Transition deprecated variables to v1
+        if (!winbar_settings->auto_dpi) {
+            winbar_settings->scale_amount = std::round(winbar_settings->scale_factor * 100.f);
+        }
+    } else if (found_version == "1") {
+    
     }
     
     for (auto &order: winbar_settings->taskbar_order) {

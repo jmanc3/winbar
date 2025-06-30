@@ -362,4 +362,6 @@ bool already_began(AppClient *client, double *value, double target);
 
 cairo_surface_t* clone_cairo_surface(cairo_surface_t* original);
 
+void reserve(AppClient *client, int amount);
+
 #endif
