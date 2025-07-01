@@ -1211,15 +1211,17 @@ client_new(App *app, Settings settings, const std::string &name) {
                                 1,
                                 &app->delete_window_atom);
     
-    long zero = 0;
-    xcb_change_property_checked(app->connection,
-                                XCB_PROP_MODE_REPLACE,
-                                window,
-                                get_cached_atom(app, "_KDE_NET_WM_BLUR_BEHIND_REGION"),
-                                XCB_ATOM_CARDINAL,
-                                32,
-                                1,
-                                &zero);
+    if (settings.blur) {
+        long zero = 0;
+        xcb_change_property_checked(app->connection,
+                                    XCB_PROP_MODE_REPLACE,
+                                    window,
+                                    get_cached_atom(app, "_KDE_NET_WM_BLUR_BEHIND_REGION"),
+                                    XCB_ATOM_CARDINAL,
+                                    32,
+                                    1,
+                                    &zero);
+    }
     
     // strut (a.k.a what part we want to reserve for ourselves)
     if (settings.reserve_side) {

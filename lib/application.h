@@ -62,6 +62,7 @@ struct Settings {
     bool tooltip = false;
     bool sticky = false;
     bool window_transparent = true;
+    bool blur = true;
     bool override_redirect = false;
     bool keep_above = false;
     bool on_close_is_unmap = false;

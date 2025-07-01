@@ -88,6 +88,8 @@ public:
     
     xcb_window_t id = -1;
     
+    int stacking_index = 1000;
+    
     std::string title;
     
     // Window is shown on screen

@@ -693,11 +693,11 @@ paint_icon_surface_macos(AppClient *client, cairo_t *cr, Container *container) {
         if (container->state.mouse_pressing && container->state.mouse_button_pressed == 1 && !container->state.mouse_dragging) {
             draw_gl_texture(client, data->clicked_gsurf, data->clicked_surface__,
                                 xpos,
-                                container->real_bounds.y + container->real_bounds.h * .5 - surface_width * .5 + y_off);
+                                container->real_bounds.y + container->real_bounds.h * .5 - surface_width * .5 + y_off - std::round(1.5 * config->dpi));
         } else {
             draw_gl_texture(client, data->gsurf, data->surface__,
                             xpos,
-                            container->real_bounds.y + container->real_bounds.h * .5 - surface_width * .5 + y_off);
+                            container->real_bounds.y + container->real_bounds.h * .5 - surface_width * .5 + y_off - std::round(1.5 * config->dpi));
         }
         // 7 * 16.6 darken when opening
         // 1 * 16.6 when closing
@@ -942,10 +942,10 @@ paint_icon_background_macos(AppClient *client, cairo_t *cr, Container *container
         data->actual_border_color = data->actual_pane_color;
     }
     
-    float dot_size = 3.0 * config->dpi;
+    float dot_size = std::round(4.0 * config->dpi);
     
     Bounds dot_bounds = Bounds(container->real_bounds.x + container->real_bounds.w * .5 - dot_size * .5,
-                                   container->real_bounds.y + container->real_bounds.h - dot_size * 1.4,
+                                   container->real_bounds.y + container->real_bounds.h - dot_size - std::round(1.5 * config->dpi),
                                    dot_size, dot_size);
     if (winbar_settings->labels && !data->windows_data_list.empty()) {
         auto title = data->windows_data_list[0]->title;
@@ -2815,6 +2815,40 @@ static void start_zoom_animation(AppClient *client, Container *pinned_icon) {
     client_register_animation(app, client);
 }
 
+static void focus_window_after_pinned_icon_clicked(xcb_window_t window, LaunchableButton *data) {
+    std::thread t([data, window]() -> void {
+        if (winbar_settings->pinned_icon_style == "macos") {
+            std::vector<WindowsData *> windows;
+            for (auto window_data : data->windows_data_list) {
+                windows.push_back(window_data);
+            }
+            std::sort(windows.begin(), windows.end(), [](WindowsData *a, WindowsData *b){
+                          return a->stacking_index < b->stacking_index;
+                      });
+            
+            for (auto window_data : windows) {
+                xcb_ewmh_request_change_active_window(&app->ewmh,
+                                                      app->screen_number,
+                                                      window_data->id,
+                                                      XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                                      XCB_CURRENT_TIME,
+                                                      XCB_NONE);
+                xcb_flush(app->connection);
+            }
+        } else {
+            
+            xcb_ewmh_request_change_active_window(&app->ewmh,
+                                                  app->screen_number,
+                                                  window,
+                                                  XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+                                                  XCB_CURRENT_TIME,
+                                                  XCB_NONE);
+            xcb_flush(app->connection);
+        }
+    });
+    t.detach();
+}
+
 static void
 pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) {
 #ifdef TRACY_ENABLE
@@ -2861,31 +2895,13 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                         } else {
                             window = data->windows_data_list[i + 1]->id;
                         }
-                        std::thread t([window]() -> void {
-                            xcb_ewmh_request_change_active_window(&app->ewmh,
-                                                                  app->screen_number,
-                                                                  window,
-                                                                  XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
-                                                                  XCB_CURRENT_TIME,
-                                                                  XCB_NONE);
-                            xcb_flush(app->connection);
-                        });
-                        t.detach();
+                        focus_window_after_pinned_icon_clicked(window, data);
                         break;
                     }
                 }
                 if (!contains_active) {
                     xcb_window_t window = data->windows_data_list[0]->id;
-                    std::thread t([window]() -> void {
-                        xcb_ewmh_request_change_active_window(&app->ewmh,
-                                                              app->screen_number,
-                                                              window,
-                                                              XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
-                                                              XCB_CURRENT_TIME,
-                                                              XCB_NONE);
-                        xcb_flush(app->connection);
-                    });
-                    t.detach();
+                    focus_window_after_pinned_icon_clicked(window, data);
                 }
                 possibly_close(app, container, data);
                 possibly_open(app, container, data);
@@ -2936,27 +2952,10 @@ pinned_icon_mouse_clicked(AppClient *client, cairo_t *cr, Container *container) 
                     client_create_animation(app, client, &data->animation_bounce_amount, data->lifetime, 0,
                                             2000.2, nullptr, 1);
                 } else {
-                    std::thread t([window]() -> void {
-                        xcb_ewmh_request_change_active_window(&app->ewmh,
-                                                              app->screen_number,
-                                                              window,
-                                                              XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
-                                                              XCB_CURRENT_TIME,
-                                                              XCB_NONE);
-                        xcb_flush(app->connection);
-                    });
-                    t.detach();
+                    focus_window_after_pinned_icon_clicked(window, data);
                 }
             } else {
-                std::thread t([window]() -> void {
-                    xcb_ewmh_request_change_active_window(&app->ewmh,
-                                                          app->screen_number,
-                                                          window,
-                                                          XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
-                                                          XCB_CURRENT_TIME,
-                                                          XCB_NONE);
-                });
-                t.detach();
+                focus_window_after_pinned_icon_clicked(window, data);
                 data->animation_bounce_amount = 0;
                 data->animation_bounce_direction = 1;
                 client_create_animation(app, client, &data->animation_bounce_amount, data->lifetime, 0,
@@ -5631,6 +5630,12 @@ void stacking_order_changed(xcb_window_t *all_windows, int windows_count) {
         auto *data = static_cast<LaunchableButton *>(icon->user_data);
         for (auto window_data: data->windows_data_list) {
             old_windows.emplace_back(window_data->id);
+            for (int i = 0; i < new_windows.size(); i++) {
+                xcb_window_t id = new_windows[i];
+                if (window_data->id == id) {
+                    window_data->stacking_index = i;
+                }
+            }
         }
     }
     
