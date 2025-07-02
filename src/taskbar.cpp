@@ -594,7 +594,7 @@ paint_icon_label(AppClient *client, cairo_t *cr, Container *container) {
         }
         
         Bounds b = Bounds(container->real_bounds.x, container->real_bounds.y,
-                          container->real_bounds.w - 14 * config->dpi,
+                          container->real_bounds.w - 7 * config->dpi,
                           container->real_bounds.h);
         draw_clip_begin(client, b);
         
