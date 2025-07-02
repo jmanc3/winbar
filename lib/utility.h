@@ -254,6 +254,8 @@ extern std::vector<CachedFont *> cached_fonts;
 
 void dye_surface(cairo_surface_t *surface, ArgbColor argb_color);
 
+void tint_surface(cairo_surface_t *surface, ArgbColor argb_color);
+
 void dye_opacity(cairo_surface_t *surface, double amount, int thresh_hold);
 
 long get_current_time_in_ms();
@@ -339,6 +341,9 @@ bool overlaps(double ax, double ay, double aw, double ah,
 double calculate_overlap_percentage(double ax, double ay, double aw, double ah,
                                     double bx, double by, double bw, double bh);
 
+double calculate_b_covered_by_a(double ax, double ay, double aw, double ah,
+                                double bx, double by, double bw, double bh);
+
 bool is_light_theme(const ArgbColor &color);
 
 std::string clipboard();
@@ -354,5 +359,9 @@ starts_with(const std::string &str, const std::string &prefix);
 float random_float();
 
 bool already_began(AppClient *client, double *value, double target);
+
+cairo_surface_t* clone_cairo_surface(cairo_surface_t* original);
+
+void reserve(AppClient *client, int amount);
 
 #endif

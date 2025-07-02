@@ -129,9 +129,6 @@ struct MouseState {
     // XCB_BUTTON_INDEX_3 = 3,
     int mouse_button_pressed = 0;
     
-    // Wether the minimum distance moved to be a drag vs a click was achived
-    bool passed_threshold = false;
-    
     void reset() {
         this->concerned = false;
         this->mouse_hovering = false;
@@ -641,6 +638,7 @@ struct FontReference {
     void draw_text(int x, int y, int param = 5);
     void draw_text(int align, int x, int y, int wrap);
     void draw_text_end(int x, int y, int param = 5);
+    float line_height();
     void end();
     Sizes sizes();
     
@@ -811,6 +809,9 @@ struct Container {
     
     // The way children are laid out
     int type = vbox;
+    
+    // Unique id for this container
+    std::string uuid;
     
     // A higher z_index will mean it will be rendered above everything else
     int z_index = 0;

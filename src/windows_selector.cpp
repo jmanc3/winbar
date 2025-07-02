@@ -55,6 +55,8 @@ static void on_close_timeout(App *app, AppClient *client, Timeout *, void *user_
 }
 
 void possibly_open(App *app, Container *container, LaunchableButton *data) {
+    if (winbar_settings->click_icon_tab_next_window)
+        return;
     if (data->windows_data_list.empty()) {
         return;
     }

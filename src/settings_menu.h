@@ -20,6 +20,8 @@ struct TaskbarItem {
 };
 
 struct WinbarSettings {
+    std::string version = "1";
+    
     std::vector<TaskbarItem> taskbar_order;
     bool bluetooth_enabled = true;
     container_alignment icons_alignment = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
@@ -55,7 +57,9 @@ struct WinbarSettings {
     bool always_hide = false;
     bool on_drag_show_trash = false;
     bool auto_dpi = true;
-    float scale_factor = 1.0;
+    float scale_factor = 1.0; // @Deprecated since v1
+    int scale_amount = 100.0;
+    int taskbar_height = 40.0;
     std::string shutdown_command;
     std::string restart_command;
     std::string user_font;

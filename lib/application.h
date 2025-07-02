@@ -23,6 +23,12 @@
 #include <xcb/xcb_icccm.h>
 #include <zconf.h>
 #include <X11/Xlib.h>
+#include <GL/glew.h>
+#include <GL/glx.h>
+#include <X11/extensions/Xrender.h>
+#include <map>
+#include <any>
+#include <typeindex>
 
 struct Settings {
     int16_t x = 0;
@@ -56,6 +62,7 @@ struct Settings {
     bool tooltip = false;
     bool sticky = false;
     bool window_transparent = true;
+    bool blur = true;
     bool override_redirect = false;
     bool keep_above = false;
     bool on_close_is_unmap = false;
@@ -115,9 +122,35 @@ struct PolledDescriptor {
 
 struct DBusConnection;
 
-#include <GL/glew.h>
-#include <GL/glx.h>
-#include <X11/extensions/Xrender.h>
+class AnyPtr {
+public:
+    template<typename T>
+    AnyPtr(T* ptr) : ptr_(static_cast<void*>(ptr)), type_(typeid(T)) {}
+    
+    template<typename T>
+    T* get() const {
+        if (type_ == typeid(T)) {
+            return static_cast<T*>(ptr_);
+        }
+        return nullptr;
+    }
+    
+    std::type_index type() const {
+        return type_;
+    }
+    
+    void *data() {
+        return ptr_;
+    }
+
+private:
+    void* ptr_;
+    std::type_index type_;
+};
+
+struct UData {
+    std::vector<AnyPtr> everything;
+};
 
 struct App {
     xcb_ewmh_connection_t ewmh;
@@ -128,6 +161,8 @@ struct App {
     Bounds bounds;// these are the bounds of the entire screen
     
     std::vector<AppClient *> clients;
+    
+    std::map<std::string, UData *> data;
     
     std::mutex thread_mutex;
     
@@ -336,5 +371,45 @@ command_with_client(AppClient *client, const std::string &c, int timeout_in_ms, 
                     void *user_data);
 
 void set_cursor(App *app, xcb_screen_t *screen, AppClient *client, const std::string &name, uint8_t backup);
+
+template<typename T>
+T* get(AppClient* client, Container* c) {
+    // Ensure required pointers are not null
+    if (!client || !client->app || !c)
+        return nullptr;
+
+    // Get the UUID from the container
+    const std::string& uuid = c->uuid;
+
+    // Look up the UUID in the app data map
+    auto it = client->app->data.find(uuid);
+    if (it == client->app->data.end())
+        return nullptr;
+
+    // Try to find a matching T in the vector of std::any
+    for (auto& any : it->second->everything) {
+        if (T* result = any.get<T>())
+            return result;
+    }
+
+    return nullptr;
+}
+
+template<typename T>
+void set_data(AppClient* client, Container* c, T* value) {
+    if (!client || !client->app || !c || !value)
+        return;
+
+    auto f = client->app->data.find(c->uuid);
+    if (f == client->app->data.end()) {
+        client->app->data[c->uuid] = new UData;
+    }
+    auto& udata = client->app->data[c->uuid];
+    
+    // If not found, insert it
+    udata->everything.push_back(value);
+}
+
+void clear_data_for(Container *c);
 
 #endif

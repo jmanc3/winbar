@@ -1211,15 +1211,17 @@ client_new(App *app, Settings settings, const std::string &name) {
                                 1,
                                 &app->delete_window_atom);
     
-    long zero = 0;
-    xcb_change_property_checked(app->connection,
-                                XCB_PROP_MODE_REPLACE,
-                                window,
-                                get_cached_atom(app, "_KDE_NET_WM_BLUR_BEHIND_REGION"),
-                                XCB_ATOM_CARDINAL,
-                                32,
-                                1,
-                                &zero);
+    if (settings.blur) {
+        long zero = 0;
+        xcb_change_property_checked(app->connection,
+                                    XCB_PROP_MODE_REPLACE,
+                                    window,
+                                    get_cached_atom(app, "_KDE_NET_WM_BLUR_BEHIND_REGION"),
+                                    XCB_ATOM_CARDINAL,
+                                    32,
+                                    1,
+                                    &zero);
+    }
     
     // strut (a.k.a what part we want to reserve for ourselves)
     if (settings.reserve_side) {
@@ -1764,7 +1766,7 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
                 //client->ctx->round.update_projection(glm::ortho(0.0f, (float) client->bounds->w, 0.0f, (float) client->bounds->h, 1.0f, -1.0f));
                 client->ctx->round.update_projection(client->projection);
                 for (auto f: client->ctx->font_manager->fonts) {
-                    if (f->font) {
+                    if (f->font && f->creation_client == client) {
                         f->font->update_projection(client->projection);
                     }
                 }
@@ -1954,25 +1956,20 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
                 auto move_distance_y = abs(client->mouse_initial_y - client->mouse_current_y);
                 if (move_distance_x >= c->minimum_x_distance_to_move_before_drag_begins ||
                         move_distance_y >= c->minimum_y_distance_to_move_before_drag_begins) {
-                    // handle when_drag_start
-                    c->state.passed_threshold = true;
-                }
-
-                // handle when_drag
-                if (c->when_drag) {
-                    c->when_drag(client, client->cr, c);
+                    // handle when_drag
+                    if (c->when_drag) {
+                        c->when_drag(client, client->cr, c);
+                    }
                 }
             } else if (c->state.mouse_pressing) {
-                c->state.mouse_dragging = true;
-                if (c->when_drag_start) {
-                    c->when_drag_start(client, client->cr, c);
-                }
                 auto move_distance_x = abs(client->mouse_initial_x - client->mouse_current_x);
                 auto move_distance_y = abs(client->mouse_initial_y - client->mouse_current_y);
                 if (move_distance_x >= c->minimum_x_distance_to_move_before_drag_begins ||
                     move_distance_y >= c->minimum_y_distance_to_move_before_drag_begins) {
-                    // handle when_drag_start
-                    c->state.passed_threshold = true;
+                    c->state.mouse_dragging = true;
+                    if (c->when_drag_start) {
+                        c->when_drag_start(client, client->cr, c);
+                    }
                 }
             }
         } else if (in_pierced) {
@@ -2273,9 +2270,9 @@ bool handle_mouse_button_release(App *app) {
             continue;
         
         if (c->when_clicked) {
-            if (c->when_drag_end_is_click && c->state.mouse_dragging && p && c->state.passed_threshold) {
+            if (c->when_drag_end_is_click && c->state.mouse_dragging && p) {
                 c->when_clicked(client, client->cr, c);
-            } else if ((!c->state.mouse_dragging || !c->state.passed_threshold)) {
+            } else if ((!c->state.mouse_dragging)) {
                 c->when_clicked(client, client->cr, c);
             }
         }
@@ -2285,7 +2282,6 @@ bool handle_mouse_button_release(App *app) {
         // TODO: when_clicked could've delete'd 'c' so recheck for it
         c->state.mouse_pressing = false;
         c->state.mouse_dragging = false;
-        c->state.passed_threshold = false;
         c->state.mouse_hovering = p;
         c->state.concerned = p;
         if (c->name == "asdfasdfasdf")
@@ -2609,6 +2605,9 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
         case XCB_UNMAP_NOTIFY: {
             if (auto client = client_by_window(app, window_number)) {
                 client->mapped = false;
+                if (winbar_settings->use_opengl && client->name != "taskbar") {
+                    client_unregister_animation(app, client);
+                }
             }
             break;
         }
@@ -2646,6 +2645,9 @@ void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t 
                     }
                 }
                 xcb_flush(app->connection);
+                if (winbar_settings->use_opengl && client->name != "taskbar") {
+                    client_register_animation(app, client);
+                }
             }
             break;
         }
@@ -2894,6 +2896,20 @@ void app_clean(App *app) {
     for (auto handler: app->handlers) {
         delete handler;
     }
+    
+    auto &data = app->data;
+    for (auto it = data.begin(); it != data.end();) {
+        auto &vec = it->second;
+        for (auto &item: vec->everything) {
+            auto user_data = static_cast<UserData *>(item.data());
+            user_data->destroy();
+        }
+        vec->everything.clear();
+        delete it->second;
+        it = data.erase(it);  // erase returns the next valid iterator
+    }
+    data.clear();
+
     
     cleanup_cached_fonts();
     cleanup_cached_atoms();
@@ -3314,4 +3330,21 @@ void set_active(AppClient *client, Container *c, bool state) {
     std::vector<Container *> containers;
     containers.push_back(c);
     set_active(client, containers, client->root, state);
+}
+
+void clear_data_for(Container *c) {
+    auto i = app->data.find(c->uuid);
+    if (i == app->data.end())
+        return;
+    auto udata = i->second;
+    if (udata) {
+        auto vec = i->second;
+        for (auto &item: vec->everything) {
+            auto user_data = static_cast<UserData *>(item.data());
+            user_data->destroy();
+        }
+        vec->everything.clear();
+        delete i->second;
+    }
+    app->data.erase(c->uuid);
 }
