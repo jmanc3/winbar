@@ -1956,25 +1956,20 @@ void handle_mouse_motion(App *app, AppClient *client, int x, int y) {
                 auto move_distance_y = abs(client->mouse_initial_y - client->mouse_current_y);
                 if (move_distance_x >= c->minimum_x_distance_to_move_before_drag_begins ||
                         move_distance_y >= c->minimum_y_distance_to_move_before_drag_begins) {
-                    // handle when_drag_start
-                    c->state.passed_threshold = true;
-                }
-
-                // handle when_drag
-                if (c->when_drag) {
-                    c->when_drag(client, client->cr, c);
+                    // handle when_drag
+                    if (c->when_drag) {
+                        c->when_drag(client, client->cr, c);
+                    }
                 }
             } else if (c->state.mouse_pressing) {
-                c->state.mouse_dragging = true;
-                if (c->when_drag_start) {
-                    c->when_drag_start(client, client->cr, c);
-                }
                 auto move_distance_x = abs(client->mouse_initial_x - client->mouse_current_x);
                 auto move_distance_y = abs(client->mouse_initial_y - client->mouse_current_y);
                 if (move_distance_x >= c->minimum_x_distance_to_move_before_drag_begins ||
                     move_distance_y >= c->minimum_y_distance_to_move_before_drag_begins) {
-                    // handle when_drag_start
-                    c->state.passed_threshold = true;
+                    c->state.mouse_dragging = true;
+                    if (c->when_drag_start) {
+                        c->when_drag_start(client, client->cr, c);
+                    }
                 }
             }
         } else if (in_pierced) {
@@ -2275,9 +2270,9 @@ bool handle_mouse_button_release(App *app) {
             continue;
         
         if (c->when_clicked) {
-            if (c->when_drag_end_is_click && c->state.mouse_dragging && p && c->state.passed_threshold) {
+            if (c->when_drag_end_is_click && c->state.mouse_dragging && p) {
                 c->when_clicked(client, client->cr, c);
-            } else if ((!c->state.mouse_dragging || !c->state.passed_threshold)) {
+            } else if ((!c->state.mouse_dragging)) {
                 c->when_clicked(client, client->cr, c);
             }
         }
@@ -2287,7 +2282,6 @@ bool handle_mouse_button_release(App *app) {
         // TODO: when_clicked could've delete'd 'c' so recheck for it
         c->state.mouse_pressing = false;
         c->state.mouse_dragging = false;
-        c->state.passed_threshold = false;
         c->state.mouse_hovering = p;
         c->state.concerned = p;
         if (c->name == "asdfasdfasdf")
