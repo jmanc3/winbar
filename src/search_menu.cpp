@@ -421,9 +421,7 @@ std::string clean_double(double val) {
   oss << std::fixed << std::setprecision(6) << val;
   std::string result = oss.str();
 
-  // Remove trailing zeros
   result.erase(result.find_last_not_of('0') + 1);
-  // Remove trailing dot, if any
   if (result.back() == '.') {
     result.pop_back();
   }
@@ -954,8 +952,6 @@ void sort_and_add(std::vector<T> *sortables,
             auto *title_data = new TitleData;
             title_data->text = "Math query";
             title->user_data = title_data;
-            printf("math query!");
-            printf("query: %s\n", math_input_text.c_str());
             std::string result = evaluate_math(math_input_text);
             
             // gsurf64 = new gl_surface;
@@ -970,13 +966,6 @@ void sort_and_add(std::vector<T> *sortables,
             Container *result_display_box = right_fg->child(FILL_SPACE, 100 * config->dpi);
             result_display_box->when_paint = paint_calc_result;
             result_display_box->user_data = new Label(result);
-            
-            /* this doesnt work ;-;
-            
-            if (auto client = client_by_name(app, "search_menu")) {
-              draw_colored_rect(client, ArgbColor(20,30,100,1), result_display_box->real_bounds);
-            }
-            */
             return;
         }        
         if (sorted.empty() && !mathQuery) {
