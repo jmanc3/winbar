@@ -2516,12 +2516,14 @@ app_menu_closed(AppClient *client) {
     save_live_tiles();
 }
 
+static std::mutex paint_mutex;
+
 static void
 paint_desktop_files() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-//    std::lock_guard m(app->running_mutex); // No one is allowed to stop Winbar until this function finishes
+    std::lock_guard m(paint_mutex); // No one is allowed to stop Winbar until this function finishes
     
     std::vector<IconTarget> targets;
     for (auto *launcher: launchers) {
@@ -2846,6 +2848,7 @@ void load_all_desktop_files() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    std::lock_guard m(paint_mutex); // No one is allowed to stop Winbar until this function finishes
     
     for (auto *l: launchers) {
         delete l;

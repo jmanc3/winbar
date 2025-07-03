@@ -1443,16 +1443,14 @@ paint_icon_background_win7(AppClient *client, cairo_t *cr, Container *container)
         cairo_curve_to(cr,
                        x + container->real_bounds.w,
                        y + container->real_bounds.h * .2, // First control point (slightly above the line)
+                       
                        x + container->real_bounds.w * .15,
                        y + container->real_bounds.h * .15, // Second control point (slightly above the line)
-                       x + container->real_bounds.w * .1, y + container->real_bounds.h * .8); // End point
+                       
+                       x,  y + container->real_bounds.h); // End point
         
-        cairo_line_to(cr, x, y + container->real_bounds.h * .8);
-
-//        cairo_line_to(cr, x, y + container->real_bounds.h);
         cairo_line_to(cr, x, y);
 
-//        set_rect(cr, container->real_bounds);
         cairo_clip(cr);
         
         // Draw the circle

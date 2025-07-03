@@ -527,6 +527,8 @@ bool paint_svg_to_surface(cairo_surface_t *surface, std::string path, int target
     ZoneScoped;
 #endif
     GFile *gfile = g_file_new_for_path(path.c_str());
+    if (gfile == nullptr)
+        return false;
     RsvgHandle *handle = rsvg_handle_new_from_gfile_sync(gfile, RSVG_HANDLE_FLAGS_NONE, NULL, NULL);
     
     // TODO: is this correct?

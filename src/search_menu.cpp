@@ -220,11 +220,11 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
     
     auto *data = (SearchItemData *) container->parent->user_data;
    
-    draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary), data->sortable->name, container->real_bounds, 5, 56 * config->dpi, 10 * config->dpi);
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary), data->sortable->name, container->real_bounds, 5, 56 * config->dpi, (int) (13 * config->dpi));
     
     auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_search_content_text_secondary), active_tab);
     f->draw_text_end((int) (container->real_bounds.x + 56 * config->dpi),
-                     (int) (container->real_bounds.y + container->real_bounds.h - 10 * config->dpi - h));
+                     (int) (container->real_bounds.y + container->real_bounds.h - 13 * config->dpi - h));
     if (active_tab == "Scripts") {
         if (script_32) {
             if (!gsurf32)
@@ -259,16 +259,16 @@ paint_generic_item(AppClient *client, cairo_t *cr, Container *container, std::st
     
     int text_off = 56 * config->dpi;
     draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary),
-              data->sortable->name, container->real_bounds, 5, text_off, (int) (10 * config->dpi));
+              data->sortable->name, container->real_bounds, 5, text_off, (int) (13 * config->dpi));
     
     {
         auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font,
                                          EXPAND(config->color_search_content_text_secondary), subtitle_text);
         f->draw_text_end((int) (container->real_bounds.x + text_off),
-                         (int) (container->real_bounds.y + container->real_bounds.h - 10 * config->dpi - h));
+                         (int) (container->real_bounds.y + container->real_bounds.h - 13 * config->dpi - h));
     }
     
-    if (subtitle_text == "Calculation Equation") {
+    if (starts_with(subtitle_text, "= ")) {
         auto [f, w, h] = draw_text_begin(client, 24 * config->dpi, config->icons,
                                          EXPAND(config->color_search_content_text_primary), "\uE8EF");
         f->draw_text_end((int) (container->real_bounds.x + ((float) text_off) * .5 - w * .5),
@@ -517,7 +517,8 @@ void fill_calc_root(Container *bottom, std::string text_input) {
         // Setup main left container
         Container *main_item_on_left = hbox->child(FILL_SPACE, FILL_SPACE);
         main_item_on_left->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
-            paint_generic_item(client, cr, c, "Calculation Equation");
+            auto data = (Label *) c->user_data;
+            paint_generic_item(client, cr, c, "= " + evaluate_math(data->text));
         };
         main_item_on_left->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
             auto data = (Label *) c->user_data;
