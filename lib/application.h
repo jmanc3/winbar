@@ -416,4 +416,6 @@ void clear_data_for(Container *c);
 
 void clipboard_set(App *app, std::string text);
 
+bool am_clipboard(Window owner, std::string *text);
+
 #endif

@@ -492,6 +492,8 @@ lighten(ArgbColor color, double amount) {
 
 bool paint_xpm_to_surface(cairo_surface_t *surface, std::string path, int target_size);
 
+bool am_clipboard(Window owner, std::string *pString);
+
 void
 load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surface, std::string path, int target_size) {
 #ifdef TRACY_ENABLE
@@ -944,6 +946,10 @@ std::string clipboard() {
     owner = XGetSelectionOwner(dpy, sel);
     if (owner == None) {
         return "";
+    }
+    std::string text;
+    if (am_clipboard(owner, &text)) {
+        return text;
     }
 
     /* The selection owner will store the data in a property on this

@@ -3411,3 +3411,11 @@ void clipboard_set(App *app, std::string text) {
     xcb_flush(app->connection);
     app->clipboard_content = text;
 }
+
+bool am_clipboard(Window owner, std::string *text) {
+    if (owner == client_by_name(app, "taskbar")->window) {
+        *text = app->clipboard_content;
+        return true;
+    }
+    return false;
+}
