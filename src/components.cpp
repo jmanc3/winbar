@@ -2328,7 +2328,16 @@ textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string,
             }
         } else if (keysym == XKB_KEY_c) {
             if (control) {
-            
+                // copy current selection or whole text if no selection
+                if (data->state->selection_x == -1) {
+                    // copy whole text
+                    clipboard_set(client->app, data->state->text);
+                } else {
+                    int min_pos = std::min(data->state->cursor, data->state->selection_x);
+                    int max_pos = std::max(data->state->cursor, data->state->selection_x);
+                    std::string selected_text = data->state->text.substr(min_pos, max_pos - min_pos);
+                    clipboard_set(client->app, selected_text);
+                }
             }
         } else if (keysym == XKB_KEY_x) {
             if (control) {
