@@ -399,7 +399,7 @@ class Expression {
     auto parsePrefixUnaryOperator() -> Result {
         char op = consume();
         consumeSpace();
-        Result unary = parseSubExpression();
+        Result unary = parseExponentiation();
         if (PM_UNLIKELY(unary.isError())) {
             return unary;
         }
@@ -541,7 +541,7 @@ class Expression {
 
     auto parseMultiplication() -> Result {
         consumeSpace();
-        Result left = parseSubExpression();
+        Result left = parseExponentiation();
         if (PM_UNLIKELY(left.isError())) {
             return left;
         }
@@ -549,7 +549,7 @@ class Expression {
         while (*str == '*' || *str == '/') {
             char op = consume();
             consumeSpace();
-            Result right = parseSubExpression();
+            Result right = parseExponentiation();
             if (PM_UNLIKELY(right.isError())) {
                 return right;
             }
@@ -559,6 +559,28 @@ class Expression {
                 left.result /= right.result;
             }
             consumeSpace();
+        }
+        return left;
+    }
+
+    // New function to handle exponentiation (^ operator)
+    auto parseExponentiation() -> Result {
+        consumeSpace();
+        Result left = parseSubExpression();
+        if (PM_UNLIKELY(left.isError())) {
+            return left;
+        }
+        consumeSpace();
+        
+        // Exponentiation is right-associative, so we handle it recursively
+        if (*str == '^') {
+            consume();
+            consumeSpace();
+            Result right = parseExponentiation(); // Right-associative recursion
+            if (PM_UNLIKELY(right.isError())) {
+                return right;
+            }
+            left.result = std::pow(left.result, right.result);
         }
         return left;
     }
