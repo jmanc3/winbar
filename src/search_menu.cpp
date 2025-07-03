@@ -476,7 +476,7 @@ bool contains_operator(const std::string& input) {
         return true;
     }
     for (char ch : input) {
-        if (ch == '+' || ch == '-' || ch == '*' || ch == '/') {
+        if (ch == '+' || ch == '-' || ch == '*' || ch == '/' || ch == '^') {
             return true;
         }
     }
