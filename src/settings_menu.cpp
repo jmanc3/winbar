@@ -2989,7 +2989,7 @@ void read_settings_file() {
 }
 
 void load_colors() {
-    config->color_taskbar_background = ArgbColor("#dd101010");
+    config->color_taskbar_background = ArgbColor("#aa101010");
     config->color_taskbar_button_icons = ArgbColor("#ffffffff");
     config->color_taskbar_button_default = ArgbColor("#00ffffff");
     config->color_taskbar_button_hovered = ArgbColor("#23ffffff");
