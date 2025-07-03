@@ -584,8 +584,6 @@ void update_options() {
         if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
             if (auto *search_menu_client = client_by_name(app, "search_menu")) {
                 auto *data = (TextAreaData *) textarea->user_data;
-                
-                printf("Input: %s\n", data->state->text.c_str());
 
                 auto *bottom = container_by_name("bottom", search_menu_client->root);
                 if (bottom) {
@@ -1212,10 +1210,30 @@ when_key_event(AppClient *client,
     
     if (!is_string) {
         if (keysym == XKB_KEY_Left) {
+            if (on_menu_items == false) {
+                if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
+                    textarea_handle_keypress(client, textarea, is_string, keysym, string, mods, direction);
+                    request_refresh(app, taskbar_client);
+                    update_options();
+                }
+                return;
+            }
             on_menu_items = false;
             active_menu_item = 0;
             return;
         } else if (keysym == XKB_KEY_Right) {
+            bool inside_text = false;
+            if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
+                auto data = (TextAreaData*) textarea->user_data;
+                inside_text = data->state->text.size() > data->state->cursor;
+
+                if (on_menu_items == false && inside_text) {
+                    textarea_handle_keypress(client, textarea, is_string, keysym, string, mods, direction);
+                    request_refresh(app, taskbar_client);
+                    update_options();
+                    return;
+                }
+            }
             on_menu_items = true;
             active_menu_item = 0;
             return;
