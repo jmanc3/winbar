@@ -3010,7 +3010,7 @@ void load_colors() {
     config->color_taskbar_search_bar_hovered_border = ArgbColor("#ffb4b4b4");
     config->color_taskbar_search_bar_pressed_border = ArgbColor("#ff0078d7");
     config->color_taskbar_date_time_text = ArgbColor("#ffffffff");
-    config->color_taskbar_application_icons_background = ArgbColor("#dd474747");
+    config->color_taskbar_application_icons_background = ArgbColor("#aa474747");
     config->color_taskbar_application_icons_accent = ArgbColor("#ff76b9ed");
     config->color_taskbar_minimize_line = ArgbColor("#ff222222");
     config->color_taskbar_attention_accent = ArgbColor("#ffffa21d");
