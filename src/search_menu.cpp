@@ -20,6 +20,11 @@
 #include "defer.h"
 #include "simple_dbus.h"
 #include "settings_menu.h"
+#include <sstream>
+#include <iomanip>
+
+#include "picomath.hpp"
+using namespace picomath;
 
 #include <algorithm>
 #include <fstream>
@@ -63,6 +68,10 @@ static int scroll_amount = 0;
 static int on_menu_items = 0;
 static int active_menu_item = 0;
 
+static bool mathQuery = false;
+
+std::string math_input_text = "";
+
 static cairo_surface_t *script_16 = nullptr;
 static cairo_surface_t *script_32 = nullptr;
 static cairo_surface_t *script_64 = nullptr;
@@ -82,6 +91,9 @@ void sort_and_add(std::vector<T> *sortables,
                   const std::vector<HistoricalNameUsed *> &history);
 
 void update_options();
+
+static void paint_left_bg(AppClient *client, cairo_t *cr, Container *container); 
+static void paint_right_bg(AppClient *client, cairo_t *cr, Container *container); 
 
 static void
 paint_top(AppClient *client, cairo_t *cr, Container *container) {
@@ -403,12 +415,59 @@ paint_live_tile_button(AppClient *client, cairo_t *cr, Container *container) {
     }
 }
 
+// cleans up trailing zeros.
+std::string clean_double(double val) {
+  std::ostringstream oss;
+  oss << std::fixed << std::setprecision(6) << val;
+  std::string result = oss.str();
+
+  result.erase(result.find_last_not_of('0') + 1);
+  if (result.back() == '.') {
+    result.pop_back();
+  }
+  return result;
+}
+
+// evalutes inputted equation 
+std::string evaluate_math(std::string input) {
+  PicoMath pm;
+
+  auto result = pm.evalExpression(input.c_str());
+  if (result.isOk()) {
+      double r = result.getResult();
+      return clean_double(r);
+  }else{
+    // error.
+    return "";
+  }
+}
+
+static void
+paint_calc_result(AppClient *client, cairo_t *cr, Container *container) {
+  auto data = (Label*) container->user_data;
+  draw_colored_rect(client, ArgbColor(config->color_search_content_left_background), container->real_bounds); 
+  draw_text(client, 10 * config->dpi, config->font, EXPAND(ArgbColor(config->color_search_content_text_primary)), data->text, container->real_bounds);
+
+}
+bool contains_operator(const std::string& input) {
+    if (input.find("pow") != std::string::npos) {
+        return true;
+    }
+    for (char ch : input) {
+        if (ch == '+' || ch == '-' || ch == '*' || ch == '/') {
+            return true;
+        }
+    }
+    return false;
+}
 void update_options() {
     if (auto taskbar_client = client_by_name(app, "taskbar")) {
         if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
             if (auto *search_menu_client = client_by_name(app, "search_menu")) {
                 auto *data = (TextAreaData *) textarea->user_data;
                 
+                printf("Input: %s\n", data->state->text.c_str());
+
                 auto *bottom = container_by_name("bottom", search_menu_client->root);
                 if (bottom) {
                     for (auto *c: bottom->children)
@@ -420,17 +479,32 @@ void update_options() {
                         scroll_amount = 0;
                         on_menu_items = false;
                         active_menu_item = 0;
-                        
-                        if (active_tab == "Scripts") {
-                            sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
-                        } else if (active_tab == "Apps") {
-                            // We create a copy because app_menu relies on the order
-                            std::vector<Launcher *> launchers_copy;
-                            for (auto l: launchers) {
-                                launchers_copy.push_back(l);
-                            }
-                            sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text,
-                                                     global->history_apps);
+
+                        if (evaluate_math(data->state->text) != "" && contains_operator(data->state->text)){
+                          mathQuery = true;
+                          math_input_text = data->state->text;
+
+                          std::vector<Launcher *> launchers_copy;
+                          for (auto l: launchers) {
+                             launchers_copy.push_back(l);
+                          }
+                          sort_and_add<Launcher *>(&launchers_copy, bottom, math_input_text,
+                                                   global->history_apps);
+
+                        } else {
+                          mathQuery = false;
+                          math_input_text = "";
+                          if (active_tab == "Scripts") {
+                              sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
+                          } else if (active_tab == "Apps") {
+                              // We create a copy because app_menu relies on the order
+                              std::vector<Launcher *> launchers_copy;
+                              for (auto l: launchers) {
+                                  launchers_copy.push_back(l);
+                              }
+                              sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text,
+                                                       global->history_apps);
+                          }
                         }
                     }
                     client_layout(app, search_menu_client);
@@ -870,8 +944,31 @@ void sort_and_add(std::vector<T> *sortables,
         max_items = sorted.size() - 1;
         if (max_items < 0)
             max_items = 0;
-        
-        if (sorted.empty()) {
+
+        if (mathQuery) {
+
+            Container *title = content->child(::hbox, FILL_SPACE, 32 * config->dpi);
+            title->when_paint = paint_title;
+            auto *title_data = new TitleData;
+            title_data->text = "Math query";
+            title->user_data = title_data;
+            std::string result = evaluate_math(math_input_text);
+            
+            // gsurf64 = new gl_surface;
+            //draw_gl_texture(client, gsurf64, script_64, term->real_bounds.x + term->real_bounds.w / 2 - 32 * config->dpi, ->real_bounds.y + 21 * config->dpi);
+            // Top part which displays user input. 
+            Container *input_display_box = right_fg->child(FILL_SPACE, 100 * config->dpi);
+            input_display_box->when_paint = paint_calc_result;
+            input_display_box->user_data = new Label(math_input_text + " =");
+            //if (auto *search_menu_client = client_by_name(app, "search_menu")) {
+                          
+            // Bottom part which displays result.
+            Container *result_display_box = right_fg->child(FILL_SPACE, 100 * config->dpi);
+            result_display_box->when_paint = paint_calc_result;
+            result_display_box->user_data = new Label(result);
+            return;
+        }        
+        if (sorted.empty() && !mathQuery) {
             Container *title = content->child(::hbox, FILL_SPACE, 32 * config->dpi);
             title->when_paint = paint_title;
             auto *title_data = new TitleData;

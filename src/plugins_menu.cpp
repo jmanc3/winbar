@@ -107,7 +107,7 @@ clicked_plugin(AppClient *, cairo_t *cr, Container *container) {
         settings.sticky = true;
         settings.w = 376 * config->dpi;
         settings.h = true_height(data->root) + data->root->real_bounds.h;
-        settings.x = app->bounds.w - settings.w;
+        settings.x = app->bounds.x + container->real_bounds.x - (settings.w - container->real_bounds.w) / 2;
         settings.y = app->bounds.h - settings.h - config->taskbar_height;
         settings.force_position = true;
         settings.override_redirect = true;
