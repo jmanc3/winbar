@@ -174,6 +174,8 @@ struct App {
     
     xcb_connection_t *connection = nullptr;
     
+    std::string clipboard_content;
+    
     // Drawing stuff
     
     XVisualInfo *visual = nullptr;
@@ -411,5 +413,7 @@ void set_data(AppClient* client, Container* c, T* value) {
 }
 
 void clear_data_for(Container *c);
+
+void clipboard_set(App *app, std::string text);
 
 #endif

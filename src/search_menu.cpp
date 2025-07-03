@@ -68,10 +68,6 @@ static int scroll_amount = 0;
 static int on_menu_items = 0;
 static int active_menu_item = 0;
 
-static bool mathQuery = false;
-
-std::string math_input_text = "";
-
 static cairo_surface_t *script_16 = nullptr;
 static cairo_surface_t *script_32 = nullptr;
 static cairo_surface_t *script_64 = nullptr;
@@ -92,8 +88,15 @@ void sort_and_add(std::vector<T> *sortables,
 
 void update_options();
 
-static void paint_left_bg(AppClient *client, cairo_t *cr, Container *container); 
-static void paint_right_bg(AppClient *client, cairo_t *cr, Container *container); 
+static void paint_left_bg(AppClient *client, cairo_t *cr, Container *container);
+
+static void paint_right_bg(AppClient *client, cairo_t *cr, Container *container);
+
+static void paint_right_fg(AppClient *client, cairo_t *cr, Container *container);
+
+static void paint_content(AppClient *client, cairo_t *cr, Container *container);
+
+static void paint_hbox(AppClient *client, cairo_t *cr, Container *container);
 
 static void
 paint_top(AppClient *client, cairo_t *cr, Container *container) {
@@ -246,7 +249,7 @@ paint_top_item(AppClient *client, cairo_t *cr, Container *container) {
 }
 
 static void
-paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
+paint_generic_item(AppClient *client, cairo_t *cr, Container *container, std::string subtitle_text) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -254,18 +257,37 @@ paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
     
     auto *data = (SearchItemData *) container->parent->user_data;
     
-    draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary), data->sortable->name, container->real_bounds, 5, (int) (56 * config->dpi), (int) (10 * config->dpi));
+    int text_off = 56 * config->dpi;
+    draw_text(client, 11 * config->dpi, config->font, EXPAND(config->color_search_content_text_primary),
+              data->sortable->name, container->real_bounds, 5, text_off, (int) (10 * config->dpi));
     
-    std::string subtitle_text = "Run command anyways";
-    auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_search_content_text_secondary), subtitle_text);
-    f->draw_text_end((int) (container->real_bounds.x + 56 * config->dpi),
-                     (int) (container->real_bounds.y + container->real_bounds.h - 10 * config->dpi - h));
+    {
+        auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font,
+                                         EXPAND(config->color_search_content_text_secondary), subtitle_text);
+        f->draw_text_end((int) (container->real_bounds.x + text_off),
+                         (int) (container->real_bounds.y + container->real_bounds.h - 10 * config->dpi - h));
+    }
     
-    cairo_set_source_surface(cr,
-                             script_32,
-                             container->real_bounds.x + 12 * config->dpi,
-                             container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
-    cairo_paint(cr);
+    if (subtitle_text == "Calculation Equation") {
+        auto [f, w, h] = draw_text_begin(client, 24 * config->dpi, config->icons,
+                                         EXPAND(config->color_search_content_text_primary), "\uE8EF");
+        f->draw_text_end((int) (container->real_bounds.x + ((float) text_off) * .5 - w * .5),
+                         (int) (container->real_bounds.y + container->real_bounds.h * .5 - h * .5));
+    } else {
+        cairo_set_source_surface(cr,
+                                 script_32,
+                                 container->real_bounds.x + 12 * config->dpi,
+                                 container->real_bounds.y + container->real_bounds.h / 2 - 16 * config->dpi);
+        cairo_paint(cr);
+    }
+}
+
+static void
+paint_no_result_item(AppClient *client, cairo_t *cr, Container *container) {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
+    paint_generic_item(client, cr, container, "Run command anyways");
 }
 
 static void
@@ -460,6 +482,103 @@ bool contains_operator(const std::string& input) {
     }
     return false;
 }
+
+void fill_calc_root(Container *bottom, std::string text_input) {
+    Container *hbox = bottom->child(::hbox, FILL_SPACE, FILL_SPACE);
+    
+    Container *left = hbox->child(::vbox, 344 * config->dpi, FILL_SPACE);
+    left->when_paint = paint_left_bg;
+    Container *right = hbox->child(::vbox, FILL_SPACE, FILL_SPACE);
+    right->when_paint = paint_right_bg;
+    right->wanted_pad = Bounds(12 * config->dpi, 12 * config->dpi, 12 * config->dpi, 0);
+    
+    Container *right_fg = right->child(::vbox, FILL_SPACE, FILL_SPACE);
+    right_fg->when_paint = paint_right_fg;
+    right_fg->name = "right_fg";
+    
+    // Setup the title on the left side
+    Container *title = left->child(::hbox, FILL_SPACE, 32 * config->dpi);
+    title->when_paint = paint_title;
+    auto *title_data = new TitleData;
+    title_data->text = "Math result";
+    title->user_data = title_data;
+    
+    {
+        Container *hbox = left->child(::hbox, FILL_SPACE, 64 * config->dpi);
+        hbox->when_paint = paint_hbox;
+        auto *data = new SearchItemData;
+        auto *sortable_data = new Script;
+        sortable_data->name = text_input;
+        data->sortable = sortable_data;
+        data->user_data = sortable_data;
+        data->delete_user_data_as_script = true; // aka delete 'new Script'
+        hbox->user_data = data;
+        
+        // Setup main left container
+        Container *main_item_on_left = hbox->child(FILL_SPACE, FILL_SPACE);
+        main_item_on_left->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
+            paint_generic_item(client, cr, c, "Calculation Equation");
+        };
+        main_item_on_left->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
+            auto data = (Label *) c->user_data;
+            clipboard_set(app, evaluate_math(data->text));
+            client_close_threaded(app, client);
+        };
+        main_item_on_left->user_data = new Label(text_input);
+        
+        // Setup main right container
+        Container *right_active_title = right_fg->child(FILL_SPACE, 176 * config->dpi);
+        right_active_title->user_data = new Label(text_input);
+        right_active_title->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
+            auto data = (Label *) c->user_data;
+            clipboard_set(app, evaluate_math(data->text));
+            client_close_threaded(app, client);
+        };
+        right_active_title->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
+            auto data = (Label *) c->user_data;
+            // Icon
+            {
+                auto [f, w, h] = draw_text_begin(client, 44 * config->dpi, config->icons,
+                                                 EXPAND(config->color_search_content_text_primary), "\uE8EF");
+                f->draw_text_end((int) (c->real_bounds.x + c->real_bounds.w * .5 - w * .5),
+                                 (int) (c->real_bounds.y + 21 * config->dpi));
+            }
+            
+            // Result
+            auto [f, w, h] = draw_text_begin(client, 17 * config->dpi, config->font,
+                                             EXPAND(config->color_search_content_text_primary),
+                                             evaluate_math(data->text));
+            int x = (int) (c->real_bounds.x + c->real_bounds.w / 2 - w / 2);
+            if (x < c->real_bounds.x)
+                x = c->real_bounds.x;
+            f->draw_text_end(x, (int) (c->real_bounds.y + 106 * config->dpi - h / 2));
+            
+            // Equation subtitle
+            std::string subtitle_text = data->text;
+            auto ff = draw_text_begin(client, 9 * config->dpi, config->font,
+                                      EXPAND(config->color_search_content_text_secondary), subtitle_text);
+            ff.f->draw_text_end((int) (c->real_bounds.x + c->real_bounds.w / 2 - ff.w / 2),
+                                (int) (c->real_bounds.y + 116 * config->dpi + ff.h - (ff.h / 3)));
+        };
+        
+        auto *spacer = right_fg->child(FILL_SPACE, 2 * config->dpi);
+        spacer->when_paint = paint_spacer;
+        
+        right_fg->child(FILL_SPACE, 12 * config->dpi);
+        
+        Container *copy = right_fg->child(FILL_SPACE, 32 * config->dpi);
+        copy->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
+            paint_sub_option(client, cr, c, "Copy", "\uE8C8");
+        };
+        copy->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
+            auto data = (Label *) c->user_data;
+            clipboard_set(app, evaluate_math(data->text));
+            client_close_threaded(app, client);
+        };
+        copy->user_data = new Label(text_input);
+    }
+}
+
 void update_options() {
     if (auto taskbar_client = client_by_name(app, "taskbar")) {
         if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
@@ -479,32 +598,19 @@ void update_options() {
                         scroll_amount = 0;
                         on_menu_items = false;
                         active_menu_item = 0;
-
-                        if (evaluate_math(data->state->text) != "" && contains_operator(data->state->text)){
-                          mathQuery = true;
-                          math_input_text = data->state->text;
-
-                          std::vector<Launcher *> launchers_copy;
-                          for (auto l: launchers) {
-                             launchers_copy.push_back(l);
-                          }
-                          sort_and_add<Launcher *>(&launchers_copy, bottom, math_input_text,
-                                                   global->history_apps);
-
-                        } else {
-                          mathQuery = false;
-                          math_input_text = "";
-                          if (active_tab == "Scripts") {
-                              sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
-                          } else if (active_tab == "Apps") {
-                              // We create a copy because app_menu relies on the order
-                              std::vector<Launcher *> launchers_copy;
-                              for (auto l: launchers) {
-                                  launchers_copy.push_back(l);
-                              }
-                              sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text,
-                                                       global->history_apps);
-                          }
+                        
+                        if (!evaluate_math(data->state->text).empty() && contains_operator(data->state->text)) {
+                            fill_calc_root(bottom, data->state->text);
+                        } else if (active_tab == "Scripts") {
+                            sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
+                        } else if (active_tab == "Apps") {
+                            // We create a copy because app_menu relies on the order
+                            std::vector<Launcher *> launchers_copy;
+                            for (auto l: launchers) {
+                                launchers_copy.push_back(l);
+                            }
+                            sort_and_add<Launcher *>(&launchers_copy, bottom, data->state->text,
+                                                     global->history_apps);
                         }
                     }
                     client_layout(app, search_menu_client);
@@ -944,31 +1050,8 @@ void sort_and_add(std::vector<T> *sortables,
         max_items = sorted.size() - 1;
         if (max_items < 0)
             max_items = 0;
-
-        if (mathQuery) {
-
-            Container *title = content->child(::hbox, FILL_SPACE, 32 * config->dpi);
-            title->when_paint = paint_title;
-            auto *title_data = new TitleData;
-            title_data->text = "Math query";
-            title->user_data = title_data;
-            std::string result = evaluate_math(math_input_text);
-            
-            // gsurf64 = new gl_surface;
-            //draw_gl_texture(client, gsurf64, script_64, term->real_bounds.x + term->real_bounds.w / 2 - 32 * config->dpi, ->real_bounds.y + 21 * config->dpi);
-            // Top part which displays user input. 
-            Container *input_display_box = right_fg->child(FILL_SPACE, 100 * config->dpi);
-            input_display_box->when_paint = paint_calc_result;
-            input_display_box->user_data = new Label(math_input_text + " =");
-            //if (auto *search_menu_client = client_by_name(app, "search_menu")) {
-                          
-            // Bottom part which displays result.
-            Container *result_display_box = right_fg->child(FILL_SPACE, 100 * config->dpi);
-            result_display_box->when_paint = paint_calc_result;
-            result_display_box->user_data = new Label(result);
-            return;
-        }        
-        if (sorted.empty() && !mathQuery) {
+        
+        if (sorted.empty()) {
             Container *title = content->child(::hbox, FILL_SPACE, 32 * config->dpi);
             title->when_paint = paint_title;
             auto *title_data = new TitleData;
@@ -1214,6 +1297,16 @@ when_key_event(AppClient *client,
             update_options();
             return;
         } else if (keysym == XKB_KEY_Return) {
+            if (auto *textarea = container_by_name("main_text_area", taskbar_client->root)) {
+                auto data = (TextAreaData *) textarea->user_data;
+                if (!evaluate_math(data->state->text).empty()) {
+                    clipboard_set(app, evaluate_math(data->state->text));
+                    client_close(app, search_menu_client);
+                    set_textarea_inactive();
+                    return;
+                }
+            }
+            
             if (on_menu_items) {
                 execute_active_menu_item(search_menu_client);
                 return;
