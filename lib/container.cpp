@@ -424,7 +424,7 @@ void layout_hbox(AppClient *client, cairo_t *cr, Container *container, const Bou
             double total_children_w = (last->real_bounds.x + last->real_bounds.w) - first->real_bounds.x;
             
             for (auto c: container->children) {
-                modify_all(c, (container->real_bounds.w - total_children_w), 0);
+                modify_all(c, (container->real_bounds.w - container->wanted_pad.w - total_children_w), 0);
             }
         }
     }
@@ -1639,27 +1639,92 @@ ImmediateTexture::ImmediateTexture(const char *filename, int w, int h, bool keep
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+
 void ImmediateTexture::create(unsigned char *pixels, int w, int h, bool keep_aspect_ratio, int gl_order) {
     this->width = w;
     this->height = h;
+    std::string vertexShaderCode = "#version 330 core\n"
+                                   "layout(location = 0) in vec2 aPos;\n"
+                                   "layout(location = 1) in vec2 aTexCoord;\n"
+                                   "\n"
+                                   "uniform mat4 uModel;\n"
+                                   "uniform mat4 uProjection;\n"
+                                   "\n"
+                                   "out vec2 TexCoord;\n"
+                                   "\n"
+                                   "void main() {\n"
+                                   "    gl_Position = uProjection * uModel * vec4(aPos, 0.0, 1.0);\n"
+                                   "    TexCoord = aTexCoord;\n"
+                                   "}";
+    std::string fragmentShaderCode = "#version 330 core\n"
+                                     "in vec2 TexCoord;\n"
+                                     "out vec4 FragColor;\n"
+                                     "\n"
+                                     "uniform sampler2D uTexture;\n"
+                                     "\n"
+                                     "void main() {\n"
+                                     "    FragColor = texture(uTexture, TexCoord);\n"
+                                     "}";
     
-    // TODO: resize after stb loads based of w and h set
+    if (shaderProgram == 0) {
+        GLuint vertexShader = compileShader(vertexShaderCode, GL_VERTEX_SHADER);
+        GLuint fragmentShader = compileShader(fragmentShaderCode, GL_FRAGMENT_SHADER);
+        
+        shaderProgram = glCreateProgram();
+        glAttachShader(shaderProgram, vertexShader);
+        glAttachShader(shaderProgram, fragmentShader);
+        glLinkProgram(shaderProgram);
+        
+        GLint success;
+        glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+        if (!success) {
+            char infoLog[512];
+            glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+            fprintf(stderr, "Shader Program Linking Failed:\n%s\n", infoLog);
+        }
+        
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
+    }
+    
     glGenTextures(1, &textureID);
     glBindTexture(GL_TEXTURE_2D, textureID);
     
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    
-    // Use trilinear filtering (mipmaps + linear filtering)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);  // GL_REPEAT is okay too
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-//    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, gl_order, GL_UNSIGNED_BYTE, pixels);
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, gl_order, GL_UNSIGNED_BYTE, pixels);
     glGenerateMipmap(GL_TEXTURE_2D);
     
-    // Unbind the texture
     glBindTexture(GL_TEXTURE_2D, 0);
+    
+    // Vertex positions and texture coordinates for a full quad
+    float vertices[] = {
+            // x     y     u     v
+            0.0f, 0.0f, 0.0f, 0.0f,
+            1.0f, 0.0f, 1.0f, 0.0f,
+            1.0f, 1.0f, 1.0f, 1.0f,
+            0.0f, 1.0f, 0.0f, 1.0f
+    };
+    
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    
+    // Position attribute
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    
+    // TexCoord attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    
+    glBindVertexArray(0);
 }
 
 void ImmediateTexture::bind() const {
@@ -1667,38 +1732,35 @@ void ImmediateTexture::bind() const {
 }
 
 void ImmediateTexture::draw(float x, float y, float w, float h) const {
-    glEnable(GL_TEXTURE_2D);
-    bind();
+    if (w == 0) w = width;
+    if (h == 0) h = height;
     
-    x = std::round(x);
-    y = std::round(y);
+    // Activate shader
+    glUseProgram(shaderProgram);  // Assume this is globally bound or passed in
     
-    /* Draw quad with texture */
-    glBegin(GL_QUADS);
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex2f(x, y);
-    glTexCoord2f(1.0f, 0.0f);
-    if (w == 0)
-        glVertex2f(x + (float) width, y);
-    else
-        glVertex2f(x + w, y);
-    glTexCoord2f(1.0f, 1.0f);
-    if (w == 0 || h == 0)
-        glVertex2f(x + (float) width, y + (float) height);
-    else
-        glVertex2f(x + w, y + h);
-    glTexCoord2f(0.0f, 1.0f);
-    if (h == 0)
-        glVertex2f(x, y + (float) height);
-    else
-        glVertex2f(x, y + h);
-    glEnd();
-    glDisable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    update_my_projection([](glm::mat4 projection, int shaderProgram) {
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uProjection"), 1, GL_FALSE, glm::value_ptr(projection));
+    }, shaderProgram);
+    
+    // Bind texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
+    
+    // Set transform matrix (assumes orthographic projection is already in shader)
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f));
+    model = glm::scale(model, glm::vec3(w, h, 1.0f));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(model));
+    
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    glBindVertexArray(0);
 }
 
 ImmediateTexture::~ImmediateTexture() {
     glDeleteTextures(1, &textureID);
+    if (vbo) glDeleteBuffers(1, &vbo);
+    if (vao) glDeleteVertexArrays(1, &vao);
 }
 
 ImageData ImmediateTexture::get(const char *filename, int w, int h, bool keep_aspect_ratio) {
@@ -1740,6 +1802,7 @@ FreeFont::~FreeFont() {
     glDeleteProgram(shader_program);
     glDeleteBuffers(1, &VBO);
     glDeleteTextures(1, &texture_id);
+    glDeleteVertexArrays(1, &VAO);
     
     // Release FreeType resources
     FT_Done_Face(face);
@@ -1763,6 +1826,7 @@ int FreeFont::force_ucs2_charmap(FT_Face ftf) {
     }
     return -1;
 }
+
 FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
     if (FT_Init_FreeType(&ft)) {
         fprintf(stderr, "Could not init freetype library\n");
@@ -1892,6 +1956,13 @@ FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
     glAttachShader(shader_program, vertexShader);
     glAttachShader(shader_program, fragmentShader);
     glLinkProgram(shader_program);
+    GLint success;
+    glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetProgramInfoLog(shader_program, 512, NULL, infoLog);
+        fprintf(stderr, "Shader Program Linking Failed:\n%s\n", infoLog);
+    }
     
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
@@ -1904,6 +1975,14 @@ FreeFont::FreeFont(int size, std::string font_name, bool bold, bool italic) {
     uniform_color = glGetUniformLocation(shader_program, "color");
     
     glGenBuffers(1, &VBO);
+    
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glEnableVertexAttribArray(attribute_coord);
+    glVertexAttribPointer(attribute_coord, 4, GL_FLOAT, GL_FALSE, 0, (void*)0);
+    glBindVertexArray(0);
     
     /* Create a texture that will be used to hold all ASCII glyphs */
     glActiveTexture(GL_TEXTURE0);
@@ -2090,6 +2169,7 @@ void FreeFont::begin() {
 }
 
 void FreeFont::end() {
+    glBindVertexArray(0);
     glDisableVertexAttribArray(attribute_coord);
     glUseProgram(0);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -2151,13 +2231,14 @@ void FreeFont::draw_text(PangoAlignment align, float x, float y, float wrap) {
     if (current_text_raw.empty())
         return;
     glUniformMatrix4fv(projection_uniform, 1, GL_FALSE, glm::value_ptr(projection));
+    update_my_projection([](glm::mat4 projection, int a) {
+        glUniformMatrix4fv(a, 1, GL_FALSE, glm::value_ptr(projection));
+    }, projection_uniform);
     
     glUniform4f(uniform_color, color.r, color.g, color.b, color.a);
     
     /* Set up the VBO for our vertex data */
-    glEnableVertexAttribArray(attribute_coord);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glVertexAttribPointer(attribute_coord, 4, GL_FLOAT, GL_FALSE, 0, 0);
+    glBindVertexArray(VAO);
 
 //        glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1.0);
@@ -2292,7 +2373,12 @@ void FreeFont::draw_text(PangoAlignment align, float x, float y, float wrap) {
         line.push_back(current_text[current_index]);
     }
     
-    glBufferData(GL_ARRAY_BUFFER, sizeof vertex_corners, vertex_corners, GL_DYNAMIC_DRAW);
+    //glBufferData(GL_ARRAY_BUFFER, sizeof vertex_corners, vertex_corners, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, current_corner * sizeof(point), vertex_corners, GL_DYNAMIC_DRAW);
+    
+    //glBindVertexArray(VAO); // ← This is required in Core Profile!
+    //glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    
     glDrawArrays(GL_TRIANGLES, 0, current_corner);
 }
 

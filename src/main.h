@@ -9,4 +9,6 @@ extern App *app;
 
 extern bool restart;
 
+extern bool force_close;
+
 #endif// MAIN_H

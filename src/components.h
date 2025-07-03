@@ -230,6 +230,9 @@ struct Checkbox : UserData {
 
 struct GenericComboBox : UserData {
     std::string name; // of creation container
+    Container *creator_container = nullptr;
+    AppClient *creator_client = nullptr;
+    std::weak_ptr<bool> lifetime;
     std::string prompt;
     std::vector<std::string> options;
     
@@ -251,5 +254,7 @@ void paint_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *cont
 void clicked_expand_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *container);
 
 void paint_reordable_item(AppClient *client, cairo_t *cr, Container *container);
+
+void clicked_expand_generic_combobox_base(AppClient *client, cairo_t *cr, Container *container, double option_h, bool down, bool dark = false);
 
 #endif// SCROLL_COMPONENTS_H

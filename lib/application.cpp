@@ -44,6 +44,10 @@
 
 #undef explicit
 
+// First, make sure you declare this somewhere:
+PFNGLXCREATECONTEXTATTRIBSARBPROC glXCreateContextAttribsARB = (PFNGLXCREATECONTEXTATTRIBSARBPROC)
+glXGetProcAddressARB((const GLubyte *)"glXCreateContextAttribsARB");
+
 int
 update_keymap(struct ClientKeyboard *kbd) {
 #ifdef TRACY_ENABLE
@@ -849,12 +853,34 @@ App *app_new() {
     visualID = app->visual->visualid;
     glXGetFBConfigAttrib(display, app->chosen_config, GLX_VISUAL_ID, &visualID);
     
+    
+    /* Create OpenGL context with attribs */
+    int context_attribs[] = {
+        GLX_CONTEXT_MAJOR_VERSION_ARB, 3,   // Request OpenGL 3.3 (change if needed)
+        GLX_CONTEXT_MINOR_VERSION_ARB, 3,
+        //GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+        GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+        GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_DEBUG_BIT_ARB,  // optional: debug context
+        None
+    };
+    
     /* Create OpenGL context */
-    app->version_check_context = glXCreateNewContext(display, app->chosen_config, GLX_RGBA_TYPE, 0, True);
+    //app->version_check_context = glXCreateNewContext(display, app->chosen_config, GLX_RGBA_TYPE, 0, True);
+    app->version_check_context = glXCreateContextAttribsARB(display,
+                                                                app->chosen_config,
+                                                                0,        // no sharing
+                                                                True,     // direct
+                                                                context_attribs
+                                                                );
+
     if (!app->version_check_context) {
         fprintf(stderr, "glXCreateNewContext failed\n");
         
     }
+    const char *renderer = (const char *)glGetString(GL_RENDERER);
+    const char *version = (const char *)glGetString(GL_VERSION);
+    printf("Renderer: %s\n", renderer);
+    printf("Version: %s\n", version);
     
     xcb_colormap_t colormap;
     colormap = xcb_generate_id(connection);
@@ -1301,8 +1327,25 @@ client_new(App *app, Settings settings, const std::string &name) {
     }
     client->gl_drawable = client->gl_window;
     
+    /* Create OpenGL context with attribs */
+    int context_attribs[] = {
+            GLX_CONTEXT_MAJOR_VERSION_ARB, 3,   // Request OpenGL 3.3 (change if needed)
+            GLX_CONTEXT_MINOR_VERSION_ARB, 3,
+            //GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+            GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+            GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_DEBUG_BIT_ARB,  // optional: debug context
+            None
+    };
+    
     /* Create OpenGL context */
-    client->context = glXCreateNewContext(client->app->display, client->app->chosen_config, GLX_RGBA_TYPE, 0, True);
+    //client->context = glXCreateNewContext(client->app->display, client->app->chosen_config, GLX_RGBA_TYPE, 0, True);
+    client->context = glXCreateContextAttribsARB(client->app->display,
+                               app->chosen_config,
+                               0,        // no sharing
+                               True,     // direct
+                               context_attribs
+    );
+    
     if (!client->context) {
         glXDestroyContext(client->app->display, client->context);
         fprintf(stderr, "glXCreateNewContext failed\n");
@@ -1754,6 +1797,9 @@ void client_paint(App *app, AppClient *client, bool force_repaint) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    app->client_being_painted = client;
+    defer(app->client_being_painted = nullptr);
+    
     if (valid_client(app, client)) {
         if (client->cr && client->root) {
             if (!client->mapped)
@@ -2445,55 +2491,6 @@ send_key(App *app, AppClient *client, Container *container) {
 //    }
 //}
 
-void handle_selection_request(xcb_connection_t* conn, xcb_selection_request_event_t* req, const std::string& clipboard_text, xcb_atom_t utf8_atom, xcb_atom_t targets_atom) {
-    xcb_selection_notify_event_t notify = {};
-    notify.response_type = XCB_SELECTION_NOTIFY;
-    notify.requestor = req->requestor;
-    notify.selection = req->selection;
-    notify.target = req->target;
-    notify.time = req->time;
-    notify.property = XCB_ATOM_NONE;
-    
-    if (req->target == utf8_atom) {
-        // Application wants UTF8_STRING format clipboard text
-        xcb_change_property(
-                conn,
-                XCB_PROP_MODE_REPLACE,
-                req->requestor,
-                req->property,
-                utf8_atom,
-                8, // format: 8-bit text
-                clipboard_text.size(),
-                clipboard_text.c_str()
-        );
-        
-        notify.property = req->property;
-        
-    } else if (req->target == targets_atom) {
-        // Application is asking "what formats do you support?"
-        xcb_atom_t supported_targets[] = { utf8_atom, targets_atom };
-        xcb_change_property(
-                conn,
-                XCB_PROP_MODE_REPLACE,
-                req->requestor,
-                req->property,
-                XCB_ATOM_ATOM,
-                32,
-                2,
-                supported_targets
-        );
-        
-        notify.property = req->property;
-        
-    } else {
-        // Unsupported target; reply with property = NONE
-        notify.property = XCB_ATOM_NONE;
-    }
-    
-    xcb_send_event(conn, false, req->requestor, 0, reinterpret_cast<const char*>(&notify));
-    xcb_flush(conn);
-}
-
 void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event, bool change_event_source) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -2810,23 +2807,14 @@ void handle_xcb_event(App *app) {
     std::lock_guard lock(app->thread_mutex);
     
     while ((event = xcb_poll_for_event(app->connection))) {
-        uint8_t type = event->response_type & ~0x80;
-        if (type == XCB_SELECTION_REQUEST) {
-            auto *e = (xcb_selection_request_event_t *) event;
-            handle_selection_request(app->connection, e, app->clipboard_content, get_cached_atom(app, "UTF8_STRING"), get_cached_atom(app, "TARGETS"));
-            free(event);
-            continue;
-        } else {
-            handle_event(app);
-            free(event);
-        }
+        handle_event(app);
+        free(event);
     }
 }
 
 void xcb_poll_wakeup(App *app, int fd, void *) {
     if (xcb_connection_has_error(app->connection) > 0) {
-        restart = true;
-        app->running = false;
+        exit(1337);
         return;
     }
     
@@ -3404,6 +3392,14 @@ void clear_data_for(Container *c) {
         delete i->second;
     }
     app->data.erase(c->uuid);
+}
+
+void update_my_projection(void (*function)(glm::mat4, int), GLuint program) {
+    if (app->client_being_painted) {
+        if (function) {
+            function(app->client_being_painted->projection, program);
+        }
+    }
 }
 
 void clipboard_set(App *app, std::string text) {

@@ -722,6 +722,7 @@ when_key_event(AppClient *client,
 static void
 clicked_off(AppClient *client, cairo_t *cr, Container *container) {
     client->app->running = false;
+    force_close = true;
 }
 
 static void
@@ -2557,6 +2558,8 @@ paint_desktop_files() {
     
     for (const auto &t: targets) {
         if (t.user_data) {
+            if (!app->running)
+                return;
             auto launcher = (Launcher *) t.user_data;
             launcher->icon_16__ = accelerated_surface(app, client_by_name(app, "taskbar"), 16 * config->dpi,
                                                     16 * config->dpi);

@@ -8,6 +8,7 @@
 #include <iostream>
 #include <utility>
 #include <any>
+#include <unordered_set>
 #include "settings_menu.h"
 #include "main.h"
 #include "config.h"
@@ -18,6 +19,7 @@
 #include "search_menu.h"
 #include "drawer.h"
 #include "dpi.h"
+#include "icons.h"
 
 #ifdef TRACY_ENABLE
 
@@ -1157,6 +1159,30 @@ struct SettingBoolData : UserData {
     std::shared_ptr<bool> lifetime = std::make_shared<bool>();
 };
 
+struct SettingComboBoxData : UserData {
+    std::string icon;
+    std::string title;
+    std::string description;
+    std::string *target_str = nullptr;
+    bool *existance_target = nullptr;
+    bool squares_up = false;
+    long open_start = 0;
+    long close_start = 0;
+    double open_amount = 0;
+    double slide_amount = 0;
+    double slide_open = 0;
+    bool dragging = false;
+    float position_scalar_read_only = 0;
+    double drag_start_x = 0;
+    std::shared_ptr<bool> lifetime = std::make_shared<bool>();
+    
+    std::string *target = nullptr;
+    std::vector<std::string> options;
+    std::string selected_option;
+    
+    void (*on_change)(std::string option) = nullptr;
+};
+
 static void
 setting_bool(Container *container, std::string icon, std::string title, std::string description, bool *target, bool squares_up = false,
              void (*on_change)() = nullptr) {
@@ -1826,6 +1852,242 @@ setting_subheading_no_indent(Container *container, std::string title) {
 }
 
 static void
+fill_plugins_root(AppClient *client, Container *plugins_root) {
+
+}
+
+static void
+setting_combobox(AppClient *client, Container *container, std::string icon, std::string title, std::string description,
+                 std::vector<std::string> options, std::string *target, bool squares_up = false,
+                 void (*on_change)(std::string option) = nullptr) {
+    auto full_label_container = container->child(layout_type::hbox, FILL_SPACE, 69 * config->dpi);
+    auto data = new SettingComboBoxData;
+    data->icon = icon;
+    data->title = title;
+    data->description = description;
+    data->target = target;
+    data->on_change = on_change;
+    data->squares_up = squares_up;
+    full_label_container->user_data = data;
+    full_label_container->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
+        Bounds backup = c->real_bounds;
+        c->real_bounds.x += .5;
+        c->real_bounds.y += .5;
+        c->real_bounds.w -= 1;
+        c->real_bounds.h -= 1;
+        
+        auto data = (SettingBoolData *) c->user_data;
+        
+        
+        if (data->squares_up) {
+            if (data->target != nullptr && *data->target) {
+                draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y, c->real_bounds.w,
+                                               c->real_bounds.h - 6 * config->dpi));
+            }
+        }
+        
+        // bg
+        ArgbColor bg_color;
+        if (c->state.mouse_hovering || c->state.mouse_pressing) {
+            bg_color = ArgbColor(.965, .965, .965, 1);
+            draw_round_rect(client, bg_color, c->real_bounds, 5 * config->dpi, 0);
+        } else {
+            //draw_round_rect(client, ArgbColor(.984, .984, .984, 1), c->real_bounds, 5 * config->dpi, 0);
+            bg_color = ArgbColor(.984, .988, .992, 1);
+            draw_round_rect(client, bg_color, c->real_bounds, 5 * config->dpi, 0);
+        }
+        
+        // border
+        ArgbColor border_color;
+        if (c->state.mouse_hovering || c->state.mouse_pressing) {
+            border_color = ArgbColor(.818, .818, .818, .75);
+            draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+            int height = 3 * config->dpi;
+            draw_clip_begin(client,
+                            Bounds(c->real_bounds.x, c->real_bounds.y + c->real_bounds.h - height, c->real_bounds.w,
+                                   height));
+            if (!c->state.mouse_pressing) {
+                border_color = ArgbColor(.75, .75, .75, 1);
+                draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+            }
+            draw_clip_end(client);
+        } else {
+            border_color = ArgbColor(.818, .818, .818, 1);
+            draw_round_rect(client, border_color, c->real_bounds, 5 * config->dpi, std::floor(1.0 * config->dpi));
+        }
+        
+        if (data->squares_up) {
+            if (data->target != nullptr && *data->target) {
+                draw_clip_end(client);
+                
+                draw_clip_begin(client, Bounds(c->real_bounds.x, c->real_bounds.y + c->real_bounds.h - 6 * config->dpi,
+                                               c->real_bounds.w, 6 * config->dpi));
+                draw_round_rect(client, bg_color, c->real_bounds, 0, 0);
+                draw_round_rect(client, border_color, c->real_bounds, 0, std::floor(1.0 * config->dpi));
+                draw_clip_end(client);
+            }
+        }
+        
+        if (!data->icon.empty()) {
+            draw_text(client, 16 * config->dpi, config->icons,
+                      EXPAND(config->color_pinned_icon_editor_field_default_text), data->icon, c->real_bounds, -5,
+                      19 * config->dpi);
+        }
+        
+        
+        static int size_title = 11;
+        static int size_description = 9;
+        int kern_y_off = 3 * config->dpi;
+        
+        auto color = config->color_pinned_icon_editor_field_default_text;
+        // d = description
+        auto [d_f, d_w, d_h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color),
+                                               data->description);
+        d_f->end();
+        
+        draw_clip_begin(client, c->real_bounds);
+        color.a = .92;
+        auto [f, w, h] = draw_text_begin(client, size_title * config->dpi, config->font, EXPAND(color), data->title);
+        float total_height = h + d_h;
+        f->draw_text_end(c->real_bounds.x + 60 * config->dpi,
+                         c->real_bounds.y + c->real_bounds.h / 2 - total_height / 2 + kern_y_off);
+        
+        color.a = .7;
+        // d_r = description real (in terms of drawing the text)
+        auto [d_r_f, d_r_w, d_r_h] = draw_text_begin(client, size_description * config->dpi, config->font,
+                                                     EXPAND(color), data->description);
+        d_r_f->draw_text_end(c->real_bounds.x + 60 * config->dpi,
+                             c->real_bounds.y + c->real_bounds.h / 2 - total_height / 2 + h + kern_y_off);
+        draw_clip_end(client);
+        
+        if (data->squares_up) {
+            if (data->target != nullptr && *data->target) {
+                draw_clip_begin(client, c->real_bounds);
+                // TODO:??????
+                draw_clip_end(client);
+            }
+        }
+        
+        c->real_bounds = backup;
+    };
+    
+    full_label_container->alignment = ALIGN_RIGHT;
+    auto combobox_parent = full_label_container->child(200 * config->dpi, FILL_SPACE);
+    full_label_container->wanted_pad = Bounds(0, 15 * config->dpi, 20 * config->dpi, 15 * config->dpi);
+    {
+        auto combo_data = new GenericComboBox("color_mode_combobox", "");
+        combo_data->options = options;
+        
+        combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
+            if (auto s = (SettingComboBoxData *) self->parent->parent->user_data) {
+                return *s->target;
+            }
+            return "";
+        };
+        combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
+            std::string option = ((Label *) (self->user_data))->text;
+            client_close_threaded(app, client);
+            if (client->root->user_data) {
+                if (auto data = (GenericComboBox *) client->root->user_data) {
+                    if (data->lifetime.lock()) {
+                        if (auto s = (SettingComboBoxData *) data->creator_container->parent->parent->user_data) {
+                            if (s->on_change) {
+                                s->on_change(option);
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        
+        auto combo_box = combobox_parent->child(FILL_SPACE, FILL_SPACE);
+        combo_box->name = combo_data->name;
+        combo_box->when_clicked = [](AppClient *client, cairo_t *cr, Container *container) {
+            clicked_expand_generic_combobox_base(client, cr, container, 22 * config->dpi, true, true);
+        };
+        
+        combo_box->when_paint = paint_generic_combobox;
+        combo_box->user_data = combo_data;
+    }
+};
+
+static void
+fill_themes_root(AppClient *client, Container *themes_root) {
+    setting_combobox(client, themes_root,
+                     "\uE790",
+                     "Choose your color",
+                     "Adjust how apps and Windows surfaces appear on your screen",
+                     {"Dark (Clear)", "Light", "Default"},
+                     &winbar_settings->color_mode, true, [](std::string option) {
+                winbar_settings->color_mode = option;
+                save_settings_file();
+                app_timeout_create(app, client_by_name(app, "taskbar"), 100, [](App *app, AppClient *tooltip, Timeout *t, void *userdata) {
+                    app->running = false;
+                    restart = true;                               
+                }, nullptr, "killlater");
+            });
+    themes_root->child(FILL_SPACE, 4.5 * config->dpi);
+    
+    setting_bool(themes_root, "\uF4A5", "Transparency", "Windows and surfaces appear translucent",
+                 &winbar_settings->transparency);
+    themes_root->child(FILL_SPACE, 4.5 * config->dpi);
+}
+
+static void
+fill_icons_root(AppClient *client, Container *icons_root) {
+    auto root = icons_root; // will probably be changed to a scroll container
+    { // Button with 300 width, Force re-cache icons
+        auto x = root->child(::hbox, 150 * config->dpi, 36 * config->dpi);
+        x->when_paint = paint_centered_text;
+        x->name = "recache";
+        x->user_data = new Label("Force re-cache icons");
+        x->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
+            auto data = (Label *) c->user_data;
+            if (data->text == "Re-caching...") // already caching so return early
+                return;
+            data->text = "Re-caching...";
+            std::thread t([]() {
+                std::lock_guard m(icon_cache_mutex);
+                generate_cache();
+                if (auto client = client_by_name(app, "settings_menu")) {
+                    if (auto c = container_by_name("recache", client->root)) {
+                        auto data = (Label *) c->user_data;
+                        data->text = "Force re-cache icons";
+                    }
+                }
+            });
+            t.detach();
+        };
+    }
+    
+    root->child(FILL_SPACE, 20 * config->dpi);
+    
+    std::vector<std::string> icon_names = {"firefox", "spotify", "file-manager", "konsole", "system-settings",
+                                           "dolphin"};
+    
+    std::vector<IconTarget> targets;
+    for (auto icon: icon_names)
+        targets.emplace_back(IconTarget(icon));
+    search_icons(targets);
+    pick_best(targets, 64 * config->dpi);
+    
+    std::unordered_set<std::string> themes;
+    for (auto &target: targets)
+        for (auto &cand: target.candidates)
+            themes.insert(cand.theme); // deduplicate
+    
+    // TODO: get scrolling working as there will be too many
+    for (auto theme: themes) {
+        auto x = root->child(::hbox, 150 * config->dpi, 36 * config->dpi);
+        x->when_paint = paint_centered_text;
+        x->user_data = new Label(theme);
+        //root->child(FILL_SPACE, 8 * config->dpi);
+    }
+    
+}
+
+
+static void
 fill_root(AppClient *client, Container *root) {
     auto real_root = root;
     real_root->type = ::hbox;
@@ -2038,7 +2300,22 @@ fill_root(AppClient *client, Container *root) {
                 }, nullptr, "taskbar_height_timeout");
             });
     
-    for (int i = 0; i < 3; ++i) {
+    auto themes_root = root_stack->child(FILL_SPACE, FILL_SPACE);
+    themes_root->exists = false;
+    title("Themes", themes_root);
+    fill_themes_root(client, themes_root);
+    
+    auto icons_root = root_stack->child(FILL_SPACE, FILL_SPACE);
+    icons_root->exists = false;
+    title("Icons", icons_root);
+    fill_icons_root(client, icons_root);
+    
+    auto plugins_root = root_stack->child(FILL_SPACE, FILL_SPACE);
+    plugins_root->exists = false;
+    title("Plugins", plugins_root);
+    fill_plugins_root(client, plugins_root);
+    
+    for (int i = 0; i < root_stack->children.size(); ++i) {
         auto tab = tabs->child(FILL_SPACE, 36 * config->dpi);
         if (i == 0) {
             tab->user_data = new SelectedLabel("Taskbar Order");
@@ -2047,6 +2324,12 @@ fill_root(AppClient *client, Container *root) {
             tab->user_data = new SelectedLabel("Winbar Behaviour");
         } else if (i == 2) {
             tab->user_data = new SelectedLabel("Other");
+        } else if (i == 3) {
+            tab->user_data = new SelectedLabel("Themes");
+        } else if (i == 4) {
+            tab->user_data = new SelectedLabel("Icons");
+        } else if (i == 5) {
+            tab->user_data = new SelectedLabel("Plugins");
         }
         ((SelectedLabel *) tab->user_data)->index = i;
         
@@ -2057,9 +2340,8 @@ fill_root(AppClient *client, Container *root) {
                 data->selected = false;
             }
             auto *data = (SelectedLabel *) container->user_data;
-            client->root->children[1]->children[0]->exists = false;
-            client->root->children[1]->children[1]->exists = false;
-            client->root->children[1]->children[2]->exists = false;
+            for (auto c: client->root->children[1]->children)
+                c->exists = false;
             client->root->children[1]->children[data->index]->exists = true;
             client_layout(app, client);
             data->selected = true;
@@ -2304,6 +2586,9 @@ void save_settings_file() {
     out_file << "restart_command=" << winbar_settings->restart_command;
     out_file << std::endl << std::endl;
     
+    out_file << "color_mode=" << winbar_settings->color_mode;
+    out_file << std::endl << std::endl;
+    
     out_file << "custom_desktops_directory_exclusive="
              << (winbar_settings->custom_desktops_directory_exclusive ? "true" : "false");
     out_file << std::endl << std::endl;
@@ -2324,6 +2609,9 @@ void save_settings_file() {
     out_file << std::endl << std::endl;
     
     out_file << "minimize_maximize_animation=" << (winbar_settings->minimize_maximize_animation ? "true" : "false");
+    out_file << std::endl << std::endl;
+    
+    out_file << "transparency=" << (winbar_settings->transparency ? "true" : "false");
     out_file << std::endl << std::endl;
     
     out_file << "always_hide=" << (winbar_settings->always_hide ? "true" : "false");
@@ -2473,7 +2761,7 @@ void read_settings_file() {
                         }
                     }
                 }
-            } else if (key == "date_alignment") {
+           } else if (key == "date_alignment") {
                 parser.until(LineParser::Token::IDENT);
                 if (parser.current_token == LineParser::Token::IDENT) {
                     std::string text = parser.until(LineParser::Token::END_OF_LINE);
@@ -2537,7 +2825,7 @@ void read_settings_file() {
             } else if (key == "date_size") {
                 parser.until(LineParser::Token::IDENT);
                 if (parser.current_token == LineParser::Token::IDENT) {
-                    std::string text = parser.until(LineParser::Token::END_OF_LINE);
+                   std::string text = parser.until(LineParser::Token::END_OF_LINE);
                     trim(text);
                     if (!text.empty()) {
                         try {
@@ -2649,12 +2937,14 @@ void read_settings_file() {
                 parse_bool(&parser, key, "labels", &winbar_settings->labels);
                 parse_bool(&parser, key, "label_uniform_size", &winbar_settings->label_uniform_size);
                 parse_bool(&parser, key, "minimize_maximize_animation", &winbar_settings->minimize_maximize_animation);
+                parse_bool(&parser, key, "transparency", &winbar_settings->transparency);
                 parse_bool(&parser, key, "always_hide", &winbar_settings->always_hide);
                 parse_bool(&parser, key, "show_windows_from_all_desktops", &winbar_settings->show_windows_from_all_desktops);
                 parse_bool(&parser, key, "auto_dpi", &winbar_settings->auto_dpi);
                 parse_bool(&parser, key, "use_opengl", &winbar_settings->use_opengl);
                 parse_bool(&parser, key, "on_drag_show_trash", &winbar_settings->on_drag_show_trash);
                 parse_string(&parser, key, "custom_desktops_directory", &winbar_settings->custom_desktops_directory);
+                parse_string(&parser, key, "color_mode", &winbar_settings->color_mode);
                 parse_string(&parser, key, "shutdown_command", &winbar_settings->shutdown_command);
                 parse_string(&parser, key, "restart_command", &winbar_settings->restart_command);
                 parse_string(&parser, key, "user_font", &winbar_settings->user_font);
@@ -2694,5 +2984,358 @@ void read_settings_file() {
             }
         }
     }
+    load_colors(); 
     merge_order_with_taskbar();
+}
+
+void load_colors() {
+    config->color_taskbar_background = ArgbColor("#dd101010");
+    config->color_taskbar_button_icons = ArgbColor("#ffffffff");
+    config->color_taskbar_button_default = ArgbColor("#00ffffff");
+    config->color_taskbar_button_hovered = ArgbColor("#23ffffff");
+    config->color_taskbar_button_pressed = ArgbColor("#35ffffff");
+    config->color_taskbar_windows_button_default_icon = ArgbColor("#ffffffff");
+    config->color_taskbar_windows_button_hovered_icon = ArgbColor("#ff429ce3");
+    config->color_taskbar_windows_button_pressed_icon = ArgbColor("#ff0078d7");
+    config->color_taskbar_search_bar_default_background = ArgbColor("#fff3f3f3");
+    config->color_taskbar_search_bar_hovered_background = ArgbColor("#ffffffff");
+    config->color_taskbar_search_bar_pressed_background = ArgbColor("#ffffffff");
+    config->color_taskbar_search_bar_default_text = ArgbColor("#ff2b2b2b");
+    config->color_taskbar_search_bar_hovered_text = ArgbColor("#ff2d2d2d");
+    config->color_taskbar_search_bar_pressed_text = ArgbColor("#ff020202");
+    config->color_taskbar_search_bar_default_icon = ArgbColor("#ff020202");
+    config->color_taskbar_search_bar_hovered_icon = ArgbColor("#ff020202");
+    config->color_taskbar_search_bar_pressed_icon = ArgbColor("#ff020202");
+    config->color_taskbar_search_bar_default_border = ArgbColor("#ffb4b4b4");
+    config->color_taskbar_search_bar_hovered_border = ArgbColor("#ffb4b4b4");
+    config->color_taskbar_search_bar_pressed_border = ArgbColor("#ff0078d7");
+    config->color_taskbar_date_time_text = ArgbColor("#ffffffff");
+    config->color_taskbar_application_icons_background = ArgbColor("#dd474747");
+    config->color_taskbar_application_icons_accent = ArgbColor("#ff76b9ed");
+    config->color_taskbar_minimize_line = ArgbColor("#ff222222");
+    config->color_taskbar_attention_accent = ArgbColor("#ffffa21d");
+    config->color_taskbar_attention_background = ArgbColor("#ffffa21d");
+    config->color_systray_background = ArgbColor("#f3282828");
+    config->color_battery_background = ArgbColor("#f31f1f1f");
+    config->color_battery_text = ArgbColor("#ffffffff");
+    config->color_battery_icons = ArgbColor("#ffffffff");
+    config->color_battery_slider_background = ArgbColor("#ff797979");
+    config->color_battery_slider_foreground = ArgbColor("#ff0178d6");
+    config->color_battery_slider_active = ArgbColor("#ffffffff");
+    config->color_wifi_background = ArgbColor("#f31f1f1f");
+    config->color_wifi_icons = ArgbColor("#ffffffff");
+    config->color_wifi_default_button = ArgbColor("#00ffffff");
+    config->color_wifi_hovered_button = ArgbColor("#22ffffff");
+    config->color_wifi_pressed_button = ArgbColor("#44ffffff");
+    config->color_wifi_text_title = ArgbColor("#ffffffff");
+    config->color_wifi_text_title_info = ArgbColor("#ffadadad");
+    config->color_wifi_text_settings_default_title = ArgbColor("#ffa5d6fd");
+    config->color_wifi_text_settings_hovered_title = ArgbColor("#ffa4a4a4");
+    config->color_wifi_text_settings_pressed_title = ArgbColor("#ff787878");
+    config->color_wifi_text_settings_title_info = ArgbColor("#ffa4a4a4");
+    config->color_date_background = ArgbColor("#f31f1f1f");
+    config->color_date_seperator = ArgbColor("#ff4b4b4b");
+    config->color_date_text = ArgbColor("#ffffffff");
+    config->color_date_text_title = ArgbColor("#ffffffff");
+    config->color_date_text_title_period = ArgbColor("#ffa5a5a5");
+    config->color_date_text_title_info = ArgbColor("#ffa5dafd");
+    config->color_date_text_month_year = ArgbColor("#ffdedede");
+    config->color_date_text_week_day = ArgbColor("#ffffffff");
+    config->color_date_text_current_month = ArgbColor("#ffffffff");
+    config->color_date_text_not_current_month = ArgbColor("#ff808080");
+    config->color_date_cal_background = ArgbColor("#ff006fd8");
+    config->color_date_cal_foreground = ArgbColor("#ff000000");
+    config->color_date_cal_border = ArgbColor("#ff797979");
+    config->color_date_weekday_monthday = ArgbColor("#ffffffff");
+    config->color_date_default_arrow = ArgbColor("#ffdfdfdf");
+    config->color_date_hovered_arrow = ArgbColor("#ffefefef");
+    config->color_date_pressed_arrow = ArgbColor("#ffffffff");
+    config->color_date_text_default_button = ArgbColor("#ffa5d6fd");
+    config->color_date_text_hovered_button = ArgbColor("#ffa4a4a4");
+    config->color_date_text_pressed_button = ArgbColor("#ff787878");
+    config->color_date_cursor = ArgbColor("#ffffffff");
+    config->color_date_text_prompt = ArgbColor("#ffcccccc");
+    config->color_volume_background = ArgbColor("#f31f1f1f");
+    config->color_volume_text = ArgbColor("#ffffffff");
+    config->color_volume_default_icon = ArgbColor("#ffd2d2d2");
+    config->color_volume_hovered_icon = ArgbColor("#ffe8e8e8");
+    config->color_volume_pressed_icon = ArgbColor("#ffffffff");
+    config->color_volume_slider_background = ArgbColor("#ff797979");
+    config->color_volume_slider_foreground = ArgbColor("#ff0178d6");
+    config->color_volume_slider_active = ArgbColor("#ffffffff");
+    config->color_apps_background = ArgbColor("#f31f1f1f");
+    config->color_apps_text = ArgbColor("#ffffffff");
+    config->color_apps_text_inactive = ArgbColor("#ff505050");
+    config->color_apps_icons = ArgbColor("#ffffffff");
+    config->color_apps_default_item = ArgbColor("#00ffffff");
+    config->color_apps_hovered_item = ArgbColor("#22ffffff");
+    config->color_apps_pressed_item = ArgbColor("#44ffffff");
+    config->color_apps_item_icon_background = ArgbColor("#ff3380cc");
+    config->color_apps_scrollbar_gutter = ArgbColor("#ff353535");
+    config->color_apps_scrollbar_default_thumb = ArgbColor("#ff5d5d5d");
+    config->color_apps_scrollbar_hovered_thumb = ArgbColor("#ff868686");
+    config->color_apps_scrollbar_pressed_thumb = ArgbColor("#ffaeaeae");
+    config->color_apps_scrollbar_default_button = ArgbColor("#ff353535");
+    config->color_apps_scrollbar_hovered_button = ArgbColor("#ff494949");
+    config->color_apps_scrollbar_pressed_button = ArgbColor("#ffaeaeae");
+    config->color_apps_scrollbar_default_button_icon = ArgbColor("#ffffffff");
+    config->color_apps_scrollbar_hovered_button_icon = ArgbColor("#ffffffff");
+    config->color_apps_scrollbar_pressed_button_icon = ArgbColor("#ff545454");
+    config->color_pin_menu_background = ArgbColor("#f31f1f1f");
+    config->color_pin_menu_hovered_item = ArgbColor("#22ffffff");
+    config->color_pin_menu_pressed_item = ArgbColor("#44ffffff");
+    config->color_pin_menu_text = ArgbColor("#ffffffff");
+    config->color_pin_menu_icons = ArgbColor("#ffffffff");
+    config->color_windows_selector_default_background = ArgbColor("#f3282828");
+    config->color_windows_selector_hovered_background = ArgbColor("#f33d3d3d");
+    config->color_windows_selector_pressed_background = ArgbColor("#f3535353");
+    config->color_windows_selector_close_icon = ArgbColor("#ffffffff");
+    config->color_windows_selector_close_icon_hovered = ArgbColor("#ffffffff");
+    config->color_windows_selector_close_icon_pressed = ArgbColor("#ffffffff");
+    config->color_windows_selector_text = ArgbColor("#ffffffff");
+    config->color_windows_selector_close_icon_hovered_background = ArgbColor("#ffc61a28");
+    config->color_windows_selector_close_icon_pressed_background = ArgbColor("#ffe81123");
+    config->color_windows_selector_attention_background = ArgbColor("#ffffa21d");
+    config->color_search_tab_bar_background = ArgbColor("#f31f1f1f");
+    config->color_search_accent = ArgbColor("#ff0078d7");
+    config->color_search_tab_bar_default_text = ArgbColor("#ffbfbfbf");
+    config->color_search_tab_bar_hovered_text = ArgbColor("#ffd9d9d9");
+    config->color_search_tab_bar_pressed_text = ArgbColor("#ffa6a6a6");
+    config->color_search_tab_bar_active_text = ArgbColor("#ffffffff");
+    config->color_search_empty_tab_content_background = ArgbColor("#f32a2a2a");
+    config->color_search_empty_tab_content_icon = ArgbColor("#ff6b6b6b");
+    config->color_search_empty_tab_content_text = ArgbColor("#ffaaaaaa");
+    config->color_search_content_left_background = ArgbColor("#fff0f0f0");
+    config->color_search_content_right_background = ArgbColor("#fff5f5f5");
+    config->color_search_content_right_foreground = ArgbColor("#ffffffff");
+    config->color_search_content_right_splitter = ArgbColor("#fff2f2f2");
+    config->color_search_content_text_primary = ArgbColor("#ff010101");
+    config->color_search_content_text_secondary = ArgbColor("#ff606060");
+    config->color_search_content_right_button_default = ArgbColor("#00000000");
+    config->color_search_content_right_button_hovered = ArgbColor("#26000000");
+    config->color_search_content_right_button_pressed = ArgbColor("#51000000");
+    config->color_search_content_left_button_splitter = ArgbColor("#ffffffff");
+    config->color_search_content_left_button_default = ArgbColor("#00000000");
+    config->color_search_content_left_button_hovered = ArgbColor("#24000000");
+    config->color_search_content_left_button_pressed = ArgbColor("#48000000");
+    config->color_search_content_left_button_active = ArgbColor("#ffa8cce9");
+    config->color_search_content_left_set_active_button_default = ArgbColor("#00000000");
+    config->color_search_content_left_set_active_button_hovered = ArgbColor("#22000000");
+    config->color_search_content_left_set_active_button_pressed = ArgbColor("#19000000");
+    config->color_search_content_left_set_active_button_active = ArgbColor("#ff97b8d2");
+    config->color_search_content_left_set_active_button_icon_default = ArgbColor("#ff606060");
+    config->color_search_content_left_set_active_button_icon_pressed = ArgbColor("#ffffffff");
+    config->color_pinned_icon_editor_background = ArgbColor("#ffffffff");
+    config->color_pinned_icon_editor_field_default_text = ArgbColor("#ff000000");
+    config->color_pinned_icon_editor_field_hovered_text = ArgbColor("#ff2d2d2d");
+    config->color_pinned_icon_editor_field_pressed_text = ArgbColor("#ff020202");
+    config->color_pinned_icon_editor_field_default_border = ArgbColor("#ffb4b4b4");
+    config->color_pinned_icon_editor_field_hovered_border = ArgbColor("#ff646464");
+    config->color_pinned_icon_editor_field_pressed_border = ArgbColor("#ff0078d7");
+    config->color_pinned_icon_editor_cursor = ArgbColor("#ff000000");
+    config->color_pinned_icon_editor_button_default = ArgbColor("#ffcccccc");
+    config->color_pinned_icon_editor_button_text_default = ArgbColor("#ff000000");
+    config->color_notification_content_background = ArgbColor("#ff1f1f1f");
+    config->color_notification_title_background = ArgbColor("#ff191919");
+    config->color_notification_content_text = ArgbColor("#ffffffff");
+    config->color_notification_title_text = ArgbColor("#ffffffff");
+    config->color_notification_button_default = ArgbColor("#ff545454");
+    config->color_notification_button_hovered = ArgbColor("#ff616161");
+    config->color_notification_button_pressed = ArgbColor("#ff474747");
+    config->color_notification_button_text_default = ArgbColor("#ffffffff");
+    config->color_notification_button_text_hovered = ArgbColor("#ffffffff");
+    config->color_notification_button_text_pressed = ArgbColor("#ffffffff");
+    config->color_notification_button_send_to_action_center_default = ArgbColor("#ff9c9c9c");
+    config->color_notification_button_send_to_action_center_hovered = ArgbColor("#ffcccccc");
+    config->color_notification_button_send_to_action_center_pressed = ArgbColor("#ff888888");
+    config->color_action_center_background = ArgbColor("#ff1f1f1f");
+    config->color_action_center_history_text = ArgbColor("#ffa5d6fd");
+    config->color_action_center_no_new_text = ArgbColor("#ffffffff");
+    config->color_action_center_notification_content_background = ArgbColor("#ff282828");
+    config->color_action_center_notification_title_background = ArgbColor("#ff1f1f1f");
+    config->color_action_center_notification_content_text = ArgbColor("#ffffffff");
+    config->color_action_center_notification_title_text = ArgbColor("#ffffffff");
+    config->color_action_center_notification_button_default = ArgbColor("#ff545454");
+    config->color_action_center_notification_button_hovered = ArgbColor("#ff616161");
+    config->color_action_center_notification_button_pressed = ArgbColor("#ff474747");
+    config->color_action_center_notification_button_text_default = ArgbColor("#ffffffff");
+    config->color_action_center_notification_button_text_hovered = ArgbColor("#ffffffff");
+    config->color_action_center_notification_button_text_pressed = ArgbColor("#ffffffff");
+
+    
+    if (winbar_settings->color_mode == "Light") {
+        config->color_taskbar_background = ArgbColor("#cceeeeee");
+        config->color_taskbar_button_icons = ArgbColor("#ff000000");
+        config->color_taskbar_button_default = ArgbColor("#00ffffff");
+        config->color_taskbar_button_hovered = ArgbColor("#ccffffff");
+        config->color_taskbar_button_pressed = ArgbColor("#ddffffff");
+        config->color_taskbar_windows_button_default_icon = ArgbColor("#ff000000");
+        config->color_taskbar_windows_button_hovered_icon = ArgbColor("#ff429ce3");
+        config->color_taskbar_windows_button_pressed_icon = ArgbColor("#ff0078d7");
+        config->color_taskbar_search_bar_default_background = ArgbColor("#ffffffff");
+        config->color_taskbar_search_bar_hovered_background = ArgbColor("#ffffffff");
+        config->color_taskbar_search_bar_pressed_background = ArgbColor("#ffffffff");
+        config->color_taskbar_search_bar_default_text = ArgbColor("#ff2b2b2b");
+        config->color_taskbar_search_bar_hovered_text = ArgbColor("#ff2d2d2d");
+        config->color_taskbar_search_bar_pressed_text = ArgbColor("#ff020202");
+        config->color_taskbar_search_bar_default_icon = ArgbColor("#ff020202");
+        config->color_taskbar_search_bar_hovered_icon = ArgbColor("#ff020202");
+        config->color_taskbar_search_bar_pressed_icon = ArgbColor("#ff020202");
+        config->color_taskbar_search_bar_default_border = ArgbColor("#ffb4b4b4");
+        config->color_taskbar_search_bar_hovered_border = ArgbColor("#ffb4b4b4");
+        config->color_taskbar_search_bar_pressed_border = ArgbColor("#ff0078d7");
+        config->color_taskbar_date_time_text = ArgbColor("#ff000000");
+        config->color_taskbar_application_icons_background = ArgbColor("#fffafafa");
+        config->color_taskbar_application_icons_accent = ArgbColor("#ff0078d7");
+        config->color_taskbar_minimize_line = ArgbColor("#ffbebebe");
+        config->color_taskbar_attention_accent = ArgbColor("#ffffcd4d");
+        config->color_taskbar_attention_background = ArgbColor("#ffffcd4d");
+        config->color_systray_background = ArgbColor("#f3e4e4e4");
+        config->color_battery_background = ArgbColor("#f3e4e4e4");
+        config->color_battery_text = ArgbColor("#ff020202");
+        config->color_battery_icons = ArgbColor("#ff000000");
+        config->color_battery_slider_background = ArgbColor("#ff8a8a8a");
+        config->color_battery_slider_foreground = ArgbColor("#ff0078d7");
+        config->color_battery_slider_active = ArgbColor("#ff000000");
+        config->color_wifi_background = ArgbColor("#f3e4e4e4");
+        config->color_wifi_icons = ArgbColor("#ff000000");
+        config->color_wifi_default_button = ArgbColor("#00ffffff");
+        config->color_wifi_hovered_button = ArgbColor("#D0ffffff");
+        config->color_wifi_pressed_button = ArgbColor("#90ffffff");
+        config->color_wifi_text_title = ArgbColor("#ff020202");
+        config->color_wifi_text_title_info = ArgbColor("#ff616161");
+        config->color_wifi_text_settings_default_title = ArgbColor("#ff024376");
+        config->color_wifi_text_settings_hovered_title = ArgbColor("#ff5c5c5c");
+        config->color_wifi_text_settings_pressed_title = ArgbColor("#ff8a8a8a");
+        config->color_wifi_text_settings_title_info = ArgbColor("#ff5d5d5d");
+        config->color_date_background = ArgbColor("#f3e4e4e4");
+        config->color_date_seperator = ArgbColor("#ffb7b7b7");
+        config->color_date_text = ArgbColor("#ff020202");
+        config->color_date_text_title = ArgbColor("#ff020202");
+        config->color_date_text_title_period = ArgbColor("#ff5c5c5c");
+        config->color_date_text_title_info = ArgbColor("#ff024376");
+        config->color_date_text_month_year = ArgbColor("#ff020202");
+        config->color_date_text_week_day = ArgbColor("#ff020202");
+        config->color_date_text_current_month = ArgbColor("#ff020202");
+        config->color_date_text_not_current_month = ArgbColor("#ff8a8a8a");
+        config->color_date_cal_background = ArgbColor("#ff006fd8");
+        config->color_date_cal_foreground = ArgbColor("#ffffffff");
+        config->color_date_cal_border = ArgbColor("#fff4f4f4");
+        config->color_date_weekday_monthday = ArgbColor("#ff020202");
+        config->color_date_default_arrow = ArgbColor("#ff3a3a3a");
+        config->color_date_hovered_arrow = ArgbColor("#ff3a3a3a");
+        config->color_date_pressed_arrow = ArgbColor("#ff6f6f6f");
+        config->color_date_text_default_button = ArgbColor("#ff024376");
+        config->color_date_text_hovered_button = ArgbColor("#ff5c5c5c");
+        config->color_date_text_pressed_button = ArgbColor("#ff8a8a8a");
+        config->color_date_cursor = ArgbColor("#ff020202");
+        config->color_date_text_prompt = ArgbColor("#ff424242");
+        config->color_volume_background = ArgbColor("#f3e4e4e4");
+        config->color_volume_text = ArgbColor("#ff020202");
+        config->color_volume_default_icon = ArgbColor("#ff2e2e2e");
+        config->color_volume_hovered_icon = ArgbColor("#ff000000");
+        config->color_volume_pressed_icon = ArgbColor("#ff1f1f1f");
+        config->color_volume_slider_background = ArgbColor("#ff8a8a8a");
+        config->color_volume_slider_foreground = ArgbColor("#ff0078d7");
+        config->color_volume_slider_active = ArgbColor("#ff000000");
+        config->color_apps_background = ArgbColor("#f3e4e4e4");
+        config->color_apps_text = ArgbColor("#ff000000");
+        config->color_apps_text_inactive = ArgbColor("#ff505050");
+        config->color_apps_icons = ArgbColor("#ff000000");
+        config->color_apps_default_item = ArgbColor("#00ffffff");
+        config->color_apps_hovered_item = ArgbColor("#D0ffffff");
+        config->color_apps_pressed_item = ArgbColor("#90ffffff");
+        config->color_apps_item_icon_background = ArgbColor("#ff3380cc");
+        config->color_apps_scrollbar_gutter = ArgbColor("#ffcecece");
+        config->color_apps_scrollbar_default_thumb = ArgbColor("#ffa5a5a5");
+        config->color_apps_scrollbar_hovered_thumb = ArgbColor("#ff7c7c7c");
+        config->color_apps_scrollbar_pressed_thumb = ArgbColor("#ff525252");
+        config->color_apps_scrollbar_default_button = ArgbColor("#ffcecece");
+        config->color_apps_scrollbar_hovered_button = ArgbColor("#ffbababa");
+        config->color_apps_scrollbar_pressed_button = ArgbColor("#ff535353");
+        config->color_apps_scrollbar_default_button_icon = ArgbColor("#ff646464");
+        config->color_apps_scrollbar_hovered_button_icon = ArgbColor("#ff5a5a5a");
+        config->color_apps_scrollbar_pressed_button_icon = ArgbColor("#ffd1d1d1");
+        config->color_pin_menu_background = ArgbColor("#f3e4e4e4");
+        config->color_pin_menu_hovered_item = ArgbColor("#D0ffffff");
+        config->color_pin_menu_pressed_item = ArgbColor("#90ffffff");
+        config->color_pin_menu_text = ArgbColor("#ff000000");
+        config->color_pin_menu_icons = ArgbColor("#ff000000");
+        config->color_windows_selector_default_background = ArgbColor("#f3e4e4e4");
+        config->color_windows_selector_hovered_background = ArgbColor("#D0ffffff");
+        config->color_windows_selector_pressed_background = ArgbColor("#90ffffff");
+        config->color_windows_selector_close_icon = ArgbColor("#ff0d0d0d");
+        config->color_windows_selector_close_icon_hovered = ArgbColor("#ffffffff");
+        config->color_windows_selector_close_icon_pressed = ArgbColor("#ffffffff");
+        config->color_windows_selector_text = ArgbColor("#ff000000");
+        config->color_windows_selector_close_icon_hovered_background = ArgbColor("#ffc61a28");
+        config->color_windows_selector_close_icon_pressed_background = ArgbColor("#ffe81123");
+        config->color_windows_selector_attention_background = ArgbColor("#ffFFAB3C");
+        config->color_search_tab_bar_background = ArgbColor("#f3e4e4e4");
+        config->color_search_accent = ArgbColor("#ff0078d7");
+        config->color_search_tab_bar_default_text = ArgbColor("#ff5c5c5c");
+        config->color_search_tab_bar_hovered_text = ArgbColor("#ff3c3c3c");
+        config->color_search_tab_bar_pressed_text = ArgbColor("#ff4c4c4c");
+        config->color_search_tab_bar_active_text = ArgbColor("#ff000000");
+        config->color_search_empty_tab_content_background = ArgbColor("#f3ececec");
+        config->color_search_empty_tab_content_icon = ArgbColor("#ffbdbdbd");
+        config->color_search_empty_tab_content_text = ArgbColor("#ff5f5f5f");
+        config->color_search_content_left_background = ArgbColor("#fff0f0f0");
+        config->color_search_content_right_background = ArgbColor("#fff5f5f5");
+        config->color_search_content_right_foreground = ArgbColor("#ffffffff");
+        config->color_search_content_right_splitter = ArgbColor("#fff2f2f2");
+        config->color_search_content_text_primary = ArgbColor("#ff010101");
+        config->color_search_content_text_secondary = ArgbColor("#ff606060");
+        config->color_search_content_right_button_default = ArgbColor("#00000000");
+        config->color_search_content_right_button_hovered = ArgbColor("#26000000");
+        config->color_search_content_right_button_pressed = ArgbColor("#51000000");
+        config->color_search_content_left_button_splitter = ArgbColor("#ffffffff");
+        config->color_search_content_left_button_default = ArgbColor("#00000000");
+        config->color_search_content_left_button_hovered = ArgbColor("#24000000");
+        config->color_search_content_left_button_pressed = ArgbColor("#48000000");
+        config->color_search_content_left_button_active = ArgbColor("#ffa8cce9");
+        config->color_search_content_left_set_active_button_default = ArgbColor("#00000000");
+        config->color_search_content_left_set_active_button_hovered = ArgbColor("#22000000");
+        config->color_search_content_left_set_active_button_pressed = ArgbColor("#19000000");
+        config->color_search_content_left_set_active_button_active = ArgbColor("#ff97b8d2");
+        config->color_search_content_left_set_active_button_icon_default = ArgbColor("#ff606060");
+        config->color_search_content_left_set_active_button_icon_pressed = ArgbColor("#ffffffff");
+        config->color_pinned_icon_editor_background = ArgbColor("#ffffffff");
+        config->color_pinned_icon_editor_field_default_text = ArgbColor("#ff000000");
+        config->color_pinned_icon_editor_field_hovered_text = ArgbColor("#ff2d2d2d");
+        config->color_pinned_icon_editor_field_pressed_text = ArgbColor("#ff020202");
+        config->color_pinned_icon_editor_field_default_border = ArgbColor("#ffb4b4b4");
+        config->color_pinned_icon_editor_field_hovered_border = ArgbColor("#ff646464");
+        config->color_pinned_icon_editor_field_pressed_border = ArgbColor("#ff0078d7");
+        config->color_pinned_icon_editor_cursor = ArgbColor("#ff000000");
+        config->color_pinned_icon_editor_button_default = ArgbColor("#ffcccccc");
+        config->color_pinned_icon_editor_button_text_default = ArgbColor("#ff000000");
+        config->color_notification_content_background = ArgbColor("#ffe4e4e4");
+        config->color_notification_title_background = ArgbColor("#ffCBCBCB");
+        config->color_notification_content_text = ArgbColor("#ff000000");
+        config->color_notification_title_text = ArgbColor("#ff000000");
+        config->color_notification_button_default = ArgbColor("#ffffffff");
+        config->color_notification_button_hovered = ArgbColor("#fff2f2f2");
+        config->color_notification_button_pressed = ArgbColor("#ffbfbfbf");
+        config->color_notification_button_text_default = ArgbColor("#ff000000");
+        config->color_notification_button_text_hovered = ArgbColor("#ff000000");
+        config->color_notification_button_text_pressed = ArgbColor("#ff000000");
+        config->color_notification_button_send_to_action_center_default = ArgbColor("#ff3c3c3c");
+        config->color_notification_button_send_to_action_center_hovered = ArgbColor("#ff222222");
+        config->color_notification_button_send_to_action_center_pressed = ArgbColor("#ff000000");
+        config->color_action_center_background = ArgbColor("#ffe4e4e4");
+        config->color_action_center_history_text = ArgbColor("#ff002642");
+        config->color_action_center_no_new_text = ArgbColor("#ff5b5b5b");
+        config->color_action_center_notification_content_background = ArgbColor("#fff4f4f4");
+        config->color_action_center_notification_title_background = ArgbColor("#ffe4e4e4");
+        config->color_action_center_notification_content_text = ArgbColor("#ff000000");
+        config->color_action_center_notification_title_text = ArgbColor("#ff000000");
+        config->color_action_center_notification_button_default = ArgbColor("#ffffffff");
+        config->color_action_center_notification_button_hovered = ArgbColor("#fff2f2f2");
+        config->color_action_center_notification_button_pressed = ArgbColor("#ffbfbfbf");
+        config->color_action_center_notification_button_text_default = ArgbColor("#ff000000");
+        config->color_action_center_notification_button_text_hovered = ArgbColor("#ff000000");
+        config->color_action_center_notification_button_text_pressed = ArgbColor("#ff000000");
+    }
+
 }

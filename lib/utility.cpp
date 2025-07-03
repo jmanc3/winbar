@@ -1,6 +1,7 @@
 
 #include "utility.h"
 #include "hsluv.h"
+#include "../src/settings_menu.h"
 #include <stdio.h>
 #include <X11/Xlib.h>
 
@@ -792,8 +793,8 @@ bool screen_has_transparency(App *app) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
-    long current_time = get_current_time_in_ms();
-    if ((current_time - last_check) > 1000) { // Recheck every so often
+    long current_time = app->current;
+    if ((current_time - last_check) > 5000) { // Recheck every so often
         last_check = current_time;
         previous_result = there_is_a_compositor(app);
     }
@@ -805,7 +806,7 @@ ArgbColor correct_opaqueness(AppClient *client, ArgbColor color) {
     ZoneScoped;
 #endif
     double alpha;
-    if (screen_has_transparency(client->app)) {
+    if (screen_has_transparency(client->app) && winbar_settings->transparency) {
         alpha = color.a;
     } else {
         alpha = 1;

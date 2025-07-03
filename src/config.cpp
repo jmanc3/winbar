@@ -57,8 +57,6 @@ void config_load() {
 
     success = cfg.lookupValue("pinned_icon_shortcut", config->pinned_icon_shortcut);
 
-    success = cfg.lookupValue("battery_life_extender", config->battery_life_extender);
-
     success = cfg.lookupValue("open_pinned_icon_editor", config->open_pinned_icon_editor);
     
     success = cfg.lookupValue("volume_command", config->volume_command);

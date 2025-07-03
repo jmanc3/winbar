@@ -2870,8 +2870,11 @@ static void paint_combox_item_dark(AppClient *client, cairo_t *cr, Container *co
     draw_text(client, 9 * config->dpi, config->font, EXPAND(config->color_wifi_icons), label->text, container->real_bounds, 5, container->wanted_pad.x + 12 * config->dpi);
 }
 
-void clicked_expand_generic_combobox_base(AppClient *client, cairo_t *cr, Container *container, double option_h, bool down, bool dark = false) {
+void clicked_expand_generic_combobox_base(AppClient *client, cairo_t *cr, Container *container, double option_h, bool down, bool dark) {
     auto *data = (GenericComboBox *) container->user_data;
+    data->creator_container = container;
+    data->lifetime = container->lifetime;
+    data->creator_client = client;
     if (data->options.empty())
         return;
     
@@ -2886,7 +2889,7 @@ void clicked_expand_generic_combobox_base(AppClient *client, cairo_t *cr, Contai
         pango_layout_get_pixel_size_safe(layout, &width, &height);
         total_text_height += height;
     }
-    total_text_height += data->options.size() * (option_h * config->dpi); // pad
+    total_text_height += data->options.size() * (option_h); // pad
     
     Settings settings;
     settings.force_position = true;
@@ -2905,7 +2908,7 @@ void clicked_expand_generic_combobox_base(AppClient *client, cairo_t *cr, Contai
     settings.slide_data[3] = 100;
     settings.slide_data[4] = 80;
     if (!down) {
-        settings.y = client->bounds->y + container->real_bounds.y + 1 * config->dpi - settings.h;
+        settings.y = client->bounds->y + container->real_bounds.y + 2 * config->dpi - settings.h;
         settings.slide_data[1] = 3;
         int w = 1;
         settings.x += w * config->dpi;
@@ -2920,6 +2923,8 @@ void clicked_expand_generic_combobox_base(AppClient *client, cairo_t *cr, Contai
     auto popup = client->create_popup(popup_settings, settings);
     popup->root->when_paint = paint_combobox_root;
     popup->root->type = ::vbox;
+    popup->root->skip_delete = true;
+    popup->root->user_data = data;
     for (const auto &m: data->options) {
         auto c = popup->root->child(FILL_SPACE, FILL_SPACE);
         c->when_paint = paint_combox_item;
@@ -2934,11 +2939,11 @@ void clicked_expand_generic_combobox_base(AppClient *client, cairo_t *cr, Contai
 }
 
 void clicked_expand_generic_combobox(AppClient *client, cairo_t *cr, Container *container) {
-    clicked_expand_generic_combobox_base(client, cr, container, 12, true);
+    clicked_expand_generic_combobox_base(client, cr, container, 12 * config->dpi, true);
 }
 
 void clicked_expand_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *container) {
-    clicked_expand_generic_combobox_base(client, cr, container, 22, false, true);
+    clicked_expand_generic_combobox_base(client, cr, container, 22 * config->dpi, false, true);
 }
 
 void paint_generic_combobox_dark(AppClient *client, cairo_t *cr, Container *container) {

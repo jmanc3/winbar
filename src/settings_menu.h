@@ -64,6 +64,8 @@ struct WinbarSettings {
     std::string restart_command;
     std::string user_font;
     std::string pinned_icon_style = "win7";
+    bool transparency = true;
+    std::string color_mode = "Dark (Clear)";
     
     std::vector<std::string> preferred_interfaces;
     
@@ -93,5 +95,7 @@ void read_settings_file();
 void save_settings_file();
 
 void merge_order_with_taskbar();
+
+void load_colors();
 
 #endif //WINBAR_SETTINGS_MENU_H

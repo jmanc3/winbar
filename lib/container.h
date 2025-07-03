@@ -383,6 +383,9 @@ public:
     float width = 0;
     float height = 0;
     unsigned int textureID;
+    GLuint vao = 0;
+    GLuint vbo = 0;
+    GLuint shaderProgram = 0; // Shared among all ImmediateTexture instances
     
     void draw(float x, float y, float w = 0, float h = 0) const;
     
@@ -407,6 +410,7 @@ struct FreeFont {
     GLuint shader_program;
     GLuint VBO;
     GLuint texture_id;
+    GLuint VAO;
     
     GLuint projection_uniform;
     GLint attribute_coord;

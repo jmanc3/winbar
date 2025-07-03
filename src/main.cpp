@@ -26,6 +26,7 @@
 App *app;
 
 bool restart = false;
+bool force_close = false;
 
 void check_config_version();
 
@@ -36,9 +37,13 @@ bool copy_resources_from_system_to_user();
 int main_actual(int argc, char *argv[]);
 
 static long last_crash_time = 0;
+int first = 0;
 static int crash_under_20_count = 0;
 
 int main(int argc, char* argv[]) {
+    main_actual(argc, argv);
+    return 0;
+    
     /*
 #ifndef defined(NDEBUG) || defined(TRACY_ENABLE)
     main_actual(argc, argv);
@@ -46,7 +51,8 @@ int main(int argc, char* argv[]) {
 #endif
 */
     bool keep_going = true;
-    while (keep_going) {
+    while (keep_going && !force_close) {
+        first = 0;
         pid_t pid = fork();
         
         if (pid == -1) {
@@ -103,6 +109,8 @@ int main(int argc, char* argv[]) {
 }
 
 int main_actual(int argc, char *argv[]) {
+    restart = false;
+    force_close = false;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--create-cache") == 0) {
             printf("Creating icon cache...\n");
@@ -196,7 +204,6 @@ int main_actual(int argc, char *argv[]) {
 
     xcb_set_input_focus(app->connection, XCB_INPUT_FOCUS_PARENT, taskbar->window, XCB_CURRENT_TIME);
     
-    static int first = 0;
     if (first++ == 0) {
         dbus_start(DBUS_BUS_SESSION);
         dbus_start(DBUS_BUS_SYSTEM);

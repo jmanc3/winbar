@@ -961,8 +961,12 @@ void pick_best(std::vector<IconTarget> &targets, int target_size, IconContext ta
     }
 }
 
+std::mutex icon_cache_mutex;
+
 void check_if_cache_needs_update(App *app, AppClient *, Timeout *timeout, void *) {
     std::thread t([app]() -> void {
+        std::lock_guard m(icon_cache_mutex); // No one is allowed to stop Winbar until this function finishes
+
 #ifdef TRACY_ENABLE
         ZoneScopedN("icon directory timeout");
 #endif

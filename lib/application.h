@@ -162,6 +162,8 @@ struct App {
     
     std::vector<AppClient *> clients;
     
+    AppClient *client_being_painted = nullptr;
+    
     std::map<std::string, UData *> data;
     
     std::mutex thread_mutex;
@@ -413,6 +415,8 @@ void set_data(AppClient* client, Container* c, T* value) {
 }
 
 void clear_data_for(Container *c);
+
+void update_my_projection(void (*pFunction)(glm::mat4, int), GLuint program);
 
 void clipboard_set(App *app, std::string text);
 

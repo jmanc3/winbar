@@ -1092,8 +1092,13 @@ paint_icon_background_win11(AppClient *client, cairo_t *cr, Container *container
         cairo_push_group(cr);
         cairo_save(cr);
         cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-        if (data->actual_border_color.a != 0)
-            paint_pinnned_icon_border(client, bounds, corner_radius, outline_width, data->actual_border_color);
+        if (data->actual_border_color.a != 0) {
+            auto co = data->actual_border_color;
+            if (winbar_settings->color_mode == "Light") {
+                co.a = .5;
+            }
+            paint_pinnned_icon_border(client, bounds, corner_radius, outline_width, co);
+        }
         if (data->actual_gradient_color.a != 0)
             paint_pinnned_icon_gradient(client, bounds, corner_radius, outline_width, data->actual_gradient_color);
         if (data->actual_pane_color.a != 0)
@@ -1604,6 +1609,9 @@ static void draw_win7_pane(cairo_t *cr, const Bounds &real_bounds, bool active, 
     cairo_stroke(cr);
     
     set_argb(cr, ArgbColor(0, 0, 0, .8 * alpha));
+    if (winbar_settings->color_mode == "Light") {
+        set_argb(cr, ArgbColor(0, 0, 0, .60 * alpha));
+    }
     drawRoundedRect(cr, pos_x, real_bounds.y, real_bounds.w, real_bounds.h, radius, line_w);
     cairo_stroke(cr);
     if (clip) {
@@ -2075,7 +2083,11 @@ static void
 paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
     pixel_spacing = 1;
     if (winbar_settings->pinned_icon_style == "win7" || winbar_settings->pinned_icon_style == "win7flat") {
-        pixel_spacing = 0;
+        if (winbar_settings->color_mode == "Light") {
+            pixel_spacing = 1;
+        } else {
+            pixel_spacing = 0; // because black border is not seen on black background
+        }
     }
     position_icons(client_entity, cr, container);
     

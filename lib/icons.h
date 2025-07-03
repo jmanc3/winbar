@@ -11,12 +11,15 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <mutex>
 
 // Load icons into memory
 void set_icons_path_and_possibly_update(App *app);
 
 // Remove all icons from memory
 void unload_icons();
+
+extern std::mutex icon_cache_mutex;
 
 void generate_cache();
 
