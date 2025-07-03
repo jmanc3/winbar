@@ -39,10 +39,12 @@ static long last_crash_time = 0;
 static int crash_under_20_count = 0;
 
 int main(int argc, char* argv[]) {
+    /*
 #ifndef defined(NDEBUG) || defined(TRACY_ENABLE)
     main_actual(argc, argv);
     return 0;
 #endif
+*/
     bool keep_going = true;
     while (keep_going) {
         pid_t pid = fork();
