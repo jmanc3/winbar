@@ -5125,6 +5125,13 @@ static inline void rtrim(std::string &s) {
 
 std::string find_icon_string_from_window_properties(xcb_window_t window);
 
+std::string get_steam_launch_command(const std::string& app_name) {
+    const std::string prefix = "steam_icon_";
+    if (app_name.rfind(prefix, 0) == 0 && app_name.size() > prefix.size())
+        return "steam steam://rungameid/" + app_name.substr(prefix.size());
+    return "";
+}
+
 void add_window(App *app, xcb_window_t window) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -5443,6 +5450,13 @@ void add_window(App *app, xcb_window_t window) {
         pick_best(targets, icon_width(client));
         path = targets[0].best_full_path;
         data->icon_name = window_class_name;
+    }
+    
+    if (!path.empty()) {
+        if (starts_with(data->icon_name, "steam_icon_")) {
+            data->has_launchable_info = true;
+            data->command_launched_by = get_steam_launch_command(data->icon_name);
+        }
     }
     
     if (!path.empty()) {
