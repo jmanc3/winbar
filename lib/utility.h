@@ -364,4 +364,6 @@ cairo_surface_t* clone_cairo_surface(cairo_surface_t* original);
 
 void reserve(AppClient *client, int amount);
 
+bool icon(AppClient *client, cairo_surface_t **surface, std::string path_or_name, int size);
+
 #endif

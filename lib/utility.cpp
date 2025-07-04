@@ -1,6 +1,7 @@
 
 #include "utility.h"
 #include "hsluv.h"
+#include "icons.h"
 #include "../src/settings_menu.h"
 #include <stdio.h>
 #include <X11/Xlib.h>
@@ -1077,3 +1078,21 @@ void reserve(AppClient *client, int amount) {
                           amount);
     
 }
+
+bool icon(AppClient *client, cairo_surface_t **surface, std::string path_or_name, int size) {
+    std::vector<IconTarget> targets;
+    targets.emplace_back(path_or_name);
+    search_icons(targets);
+    pick_best(targets, size);
+    for (const auto &item: targets[0].candidates) {
+        *surface = accelerated_surface(client->app, client, size, size);
+        if (*surface) {
+            paint_surface_with_image(*surface, item.full_path(), size, nullptr);
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+

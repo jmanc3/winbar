@@ -20,6 +20,7 @@
 #include "defer.h"
 #include "simple_dbus.h"
 #include "settings_menu.h"
+#include "icons.h"
 #include <sstream>
 #include <iomanip>
 
@@ -268,12 +269,7 @@ paint_generic_item(AppClient *client, cairo_t *cr, Container *container, std::st
                          (int) (container->real_bounds.y + container->real_bounds.h - 13 * config->dpi - h));
     }
     
-    if (starts_with(subtitle_text, "= ")) {
-        auto [f, w, h] = draw_text_begin(client, 24 * config->dpi, config->icons,
-                                         EXPAND(config->color_search_content_text_primary), "\uE8EF");
-        f->draw_text_end((int) (container->real_bounds.x + ((float) text_off) * .5 - w * .5),
-                         (int) (container->real_bounds.y + container->real_bounds.h * .5 - h * .5));
-    } else {
+    if (!starts_with(subtitle_text, "=")) {
         cairo_set_source_surface(cr,
                                  script_32,
                                  container->real_bounds.x + 12 * config->dpi,
@@ -483,7 +479,7 @@ bool contains_operator(const std::string& input) {
     return false;
 }
 
-void fill_calc_root(Container *bottom, std::string text_input) {
+void fill_calc_root(AppClient *client, Container *bottom, std::string text_input) {
     Container *hbox = bottom->child(::hbox, FILL_SPACE, FILL_SPACE);
     
     Container *left = hbox->child(::vbox, 344 * config->dpi, FILL_SPACE);
@@ -508,7 +504,7 @@ void fill_calc_root(Container *bottom, std::string text_input) {
         hbox->when_paint = paint_hbox;
         auto *data = new SearchItemData;
         auto *sortable_data = new Script;
-        sortable_data->name = text_input;
+        sortable_data->name = evaluate_math(text_input);
         data->sortable = sortable_data;
         data->user_data = sortable_data;
         data->delete_user_data_as_script = true; // aka delete 'new Script'
@@ -516,9 +512,21 @@ void fill_calc_root(Container *bottom, std::string text_input) {
         
         // Setup main left container
         Container *main_item_on_left = hbox->child(FILL_SPACE, FILL_SPACE);
+        auto left_ic = new IconButton();
+        icon(client, &left_ic->surface__, "accessories-calculator", 24 * config->dpi);
+        set_data<IconButton>(client, main_item_on_left, left_ic);
         main_item_on_left->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
             auto data = (Label *) c->user_data;
-            paint_generic_item(client, cr, c, "= " + evaluate_math(data->text));
+            paint_generic_item(client, cr, c, "=" + data->text);
+            
+            if (auto ic = get<IconButton>(client, c)) {
+                if (ic->gsurf && ic->surface__) {
+                    draw_gl_texture(client, ic->gsurf,
+                                    ic->surface__,
+                                    c->real_bounds.x + 12 * config->dpi,
+                                    c->real_bounds.y + c->real_bounds.h / 2 - 16 * config->dpi);
+                }
+            }
         };
         main_item_on_left->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
             auto data = (Label *) c->user_data;
@@ -535,14 +543,20 @@ void fill_calc_root(Container *bottom, std::string text_input) {
             clipboard_set(app, evaluate_math(data->text));
             client_close_threaded(app, client);
         };
+        auto ic = new IconButton();
+        icon(client, &ic->surface__, "accessories-calculator", 64 * config->dpi);
+        set_data<IconButton>(client, right_active_title, ic);
+        
         right_active_title->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
             auto data = (Label *) c->user_data;
             // Icon
-            {
-                auto [f, w, h] = draw_text_begin(client, 44 * config->dpi, config->icons,
-                                                 EXPAND(config->color_search_content_text_primary), "\uE8EF");
-                f->draw_text_end((int) (c->real_bounds.x + c->real_bounds.w * .5 - w * .5),
-                                 (int) (c->real_bounds.y + 21 * config->dpi));
+            if (auto ic = get<IconButton>(client, c)) {
+                if (ic->gsurf && ic->surface__) {
+                    draw_gl_texture(client, ic->gsurf,
+                                    ic->surface__,
+                                    c->real_bounds.x + c->real_bounds.w / 2 - 32 * config->dpi,
+                                    c->real_bounds.y + 21 * config->dpi);
+                }
             }
             
             // Result
@@ -557,7 +571,7 @@ void fill_calc_root(Container *bottom, std::string text_input) {
             // Equation subtitle
             std::string subtitle_text = data->text;
             auto ff = draw_text_begin(client, 9 * config->dpi, config->font,
-                                      EXPAND(config->color_search_content_text_secondary), subtitle_text);
+                                      EXPAND(config->color_search_content_text_secondary), "=" + subtitle_text);
             ff.f->draw_text_end((int) (c->real_bounds.x + c->real_bounds.w / 2 - ff.w / 2),
                                 (int) (c->real_bounds.y + 116 * config->dpi + ff.h - (ff.h / 3)));
         };
@@ -599,7 +613,7 @@ void update_options() {
                         active_menu_item = 0;
                         
                         if (!evaluate_math(data->state->text).empty() && contains_operator(data->state->text)) {
-                            fill_calc_root(bottom, data->state->text);
+                            fill_calc_root(search_menu_client, bottom, data->state->text);
                         } else if (active_tab == "Scripts") {
                             sort_and_add<Script *>(&scripts, bottom, data->state->text, global->history_scripts);
                         } else if (active_tab == "Apps") {

@@ -2100,14 +2100,21 @@ fill_icons_root(AppClient *client, Container *icons_root) {
         x->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
             auto data = (IconList *) c->user_data;
             
-            bool before = c->state.mouse_pressing;
-            if (data->text == winbar_settings->active_icon_theme)
-                c->state.mouse_pressing = true;
-            paint_reordable_item(client, cr, c);
-            if (data->text == winbar_settings->active_icon_theme)
-                c->state.mouse_pressing = before;
-            
-            auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text), data->text);
+            auto text_color = config->color_pinned_icon_editor_field_default_text;
+            if (data->text == winbar_settings->active_icon_theme) {
+                text_color = ArgbColor(1, 1, 1, 1);
+                rounded_rect(client, 4 * config->dpi, c->real_bounds.x, c->real_bounds.y, c->real_bounds.w, c->real_bounds.h, config->color_pinned_icon_editor_field_pressed_border);
+            } else {
+                rounded_rect(client, 4 * config->dpi, c->real_bounds.x, c->real_bounds.y, c->real_bounds.w,c->real_bounds.h, ArgbColor(.984, .988, .992, 1));
+                
+                auto color = config->color_pinned_icon_editor_field_default_border;
+                if (c->state.mouse_hovering)
+                    color = config->color_pinned_icon_editor_field_hovered_border;
+                if (c->state.mouse_pressing)
+                    color = config->color_pinned_icon_editor_field_pressed_border;
+                rounded_rect(client, 4 * config->dpi, c->real_bounds.x, c->real_bounds.y, c->real_bounds.w, c->real_bounds.h, color, std::floor(1 * config->dpi));
+            }
+            auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(text_color), data->text);
             f->draw_text_end(c->real_bounds.x + 12 * config->dpi,
                                  c->real_bounds.y + c->real_bounds.h - h * 1.2);
             
