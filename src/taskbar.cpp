@@ -5452,11 +5452,18 @@ void add_window(App *app, xcb_window_t window) {
         data->icon_name = window_class_name;
     }
     
-    if (!path.empty()) {
-        if (starts_with(data->icon_name, "steam_icon_")) {
-            data->has_launchable_info = true;
-            data->command_launched_by = get_steam_launch_command(data->icon_name);
-        }
+    if (starts_with(data->icon_name, "steam_app_")) {
+        const std::string prefix = "steam_app_";
+        data->icon_name = "steam_icon_" + data->icon_name.substr(prefix.size());
+    }
+    if (starts_with(data->icon_name, "steam_icon_")) {
+        data->has_launchable_info = true;
+        data->command_launched_by = get_steam_launch_command(data->icon_name);
+        std::vector<IconTarget> targets;
+        targets.emplace_back(IconTarget(data->icon_name));
+        search_icons(targets);
+        pick_best(targets, icon_width(client));
+        path = targets[0].best_full_path;
     }
     
     if (!path.empty()) {
