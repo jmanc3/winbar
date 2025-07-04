@@ -66,6 +66,7 @@ struct WinbarSettings {
     std::string pinned_icon_style = "win7";
     bool transparency = true;
     std::string color_mode = "Dark (Clear)";
+    std::string active_icon_theme = "";
     
     std::vector<std::string> preferred_interfaces;
     

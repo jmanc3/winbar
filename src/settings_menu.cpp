@@ -2035,12 +2035,18 @@ fill_themes_root(AppClient *client, Container *themes_root) {
 
 static void
 fill_icons_root(AppClient *client, Container *icons_root) {
-    auto root = icons_root; // will probably be changed to a scroll container
+    ScrollPaneSettings ss(config->dpi);
+    auto scroll_container = make_newscrollpane_as_child(icons_root, ss);
+    scroll_container->name = "icons_scroll_container";
+    scroll_container->wanted_pad = Bounds(3 * config->dpi, 3 *config->dpi, 3*config->dpi, 3*config->dpi);
+    auto scroll_root = scroll_container->content;
+    
+    auto root = scroll_root; // will probably be changed to a scroll container
     { // Button with 300 width, Force re-cache icons
         auto x = root->child(::hbox, 150 * config->dpi, 36 * config->dpi);
         x->when_paint = paint_centered_text;
         x->name = "recache";
-        x->user_data = new Label("Force re-cache icons");
+        x->user_data = new Label("Re-create icon cache");
         x->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
             auto data = (Label *) c->user_data;
             if (data->text == "Re-caching...") // already caching so return early
@@ -2052,7 +2058,7 @@ fill_icons_root(AppClient *client, Container *icons_root) {
                 if (auto client = client_by_name(app, "settings_menu")) {
                     if (auto c = container_by_name("recache", client->root)) {
                         auto data = (Label *) c->user_data;
-                        data->text = "Force re-cache icons";
+                        data->text = "Re-create icon cache";
                     }
                 }
             });
@@ -2062,27 +2068,107 @@ fill_icons_root(AppClient *client, Container *icons_root) {
     
     root->child(FILL_SPACE, 20 * config->dpi);
     
-    std::vector<std::string> icon_names = {"firefox", "spotify", "file-manager", "konsole", "system-settings",
-                                           "dolphin"};
+    std::vector<std::string> icon_names = {"firefox", "spotify", "system-file-manager", "computer", "system-settings", "pavucontrol", "clion", "discord", "folder", "application-x-executable", "show-desktop" };
     
     std::vector<IconTarget> targets;
     for (auto icon: icon_names)
         targets.emplace_back(IconTarget(icon));
     search_icons(targets);
-    pick_best(targets, 64 * config->dpi);
+    static int icon_size = 48 * config->dpi;
+    pick_best(targets, icon_size);
     
     std::unordered_set<std::string> themes;
     for (auto &target: targets)
         for (auto &cand: target.candidates)
             themes.insert(cand.theme); // deduplicate
     
+    struct IconList : UserData {
+        std::string text;
+       std::vector<cairo_surface_t *> surfaces;
+        
+        ~IconList() {
+            for (auto s: surfaces) {
+                if (s)
+                    cairo_surface_destroy(s);
+            }
+        }
+    };
+    
     // TODO: get scrolling working as there will be too many
     for (auto theme: themes) {
-        auto x = root->child(::hbox, 150 * config->dpi, 36 * config->dpi);
-        x->when_paint = paint_centered_text;
-        x->user_data = new Label(theme);
-        //root->child(FILL_SPACE, 8 * config->dpi);
+        auto x = root->child(::hbox, FILL_SPACE, 80 * config->dpi);
+        x->when_paint = [](AppClient *client, cairo_t *cr, Container *c) {
+            auto data = (IconList *) c->user_data;
+            
+            bool before = c->state.mouse_pressing;
+            if (data->text == winbar_settings->active_icon_theme)
+                c->state.mouse_pressing = true;
+            paint_reordable_item(client, cr, c);
+            if (data->text == winbar_settings->active_icon_theme)
+                c->state.mouse_pressing = before;
+            
+            auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->font, EXPAND(config->color_pinned_icon_editor_field_default_text), data->text);
+            f->draw_text_end(c->real_bounds.x + 12 * config->dpi,
+                                 c->real_bounds.y + c->real_bounds.h - h * 1.2);
+            
+            auto b = c->real_bounds;
+            b.shrink(2 * config->dpi);
+            draw_clip_begin(client, b);
+            int off = 11 * config->dpi;
+            for (auto s : data->surfaces) {
+                if (s) {
+                    int w = cairo_image_surface_get_width(s);
+                    cairo_set_source_surface(cr, s, c->real_bounds.x + off, c->real_bounds.y + 6 * config->dpi);
+                    cairo_paint(cr);
+                }
+                off += icon_size + 8 * config->dpi;
+            }
+            draw_clip_end(client);
+        };
+        auto list = new IconList();
+        list->text = theme;
+        
+        // we have theme name,
+        // now add each surface, for that theme, for the icon_names
+        for (auto icon_name: icon_names) {
+            for (auto &target : targets) {
+                if (target.name == icon_name) {
+                    std::string path;
+                    
+                    for (auto &option : target.candidates) {
+                        if (option.theme == theme) {
+                            // todo break at first find
+                            path = option.full_path();
+                            break;
+                        }
+                    }
+                    if (path.empty()) {
+                        list->surfaces.push_back(nullptr);
+                    } else {
+                        auto surface = accelerated_surface(app, client, icon_size, icon_size);
+                        paint_surface_with_image(surface, path, icon_size, nullptr);
+                        list->surfaces.push_back(surface);
+                    }
+                }
+            }
+        }
+        
+        x->user_data = list;
+        x->when_clicked = [](AppClient *client, cairo_t *cr, Container *c) {
+            auto data = (IconList *) c->user_data;
+            if (winbar_settings->active_icon_theme == data->text) {
+                winbar_settings->active_icon_theme = "";
+            } else {
+                winbar_settings->active_icon_theme = data->text;
+            }
+            save_settings_file();
+            client->app->running = false;
+            restart = true;
+        };
+        
+        root->child(FILL_SPACE, 6 * config->dpi);
     }
+    root->child(FILL_SPACE, 60 * config->dpi);
     
 }
 
@@ -2239,9 +2325,7 @@ fill_root(AppClient *client, Container *root) {
     slider("Global scale:", 16 * config->dpi, &winbar_settings->scale_amount, other_root, client, 100, 200, 10, true,
            &winbar_settings->auto_dpi, nullptr);
     other_root->child(FILL_SPACE, 9.5 * config->dpi);
-    text_input("\uE185", "Font", "Segoe UI Variable Mod", "The font used by the interface", 0, &winbar_settings->user_font, other_root, client);
-    
-    other_root->child(FILL_SPACE, 9.5 * config->dpi);
+
     slider("Taskbar height:", 16 * config->dpi, &winbar_settings->taskbar_height, other_root, client, 24, 48, 24, false,
            nullptr, [](SliderInfo *s) {
                 static float target = 0;
@@ -2300,6 +2384,12 @@ fill_root(AppClient *client, Container *root) {
                 }, nullptr, "taskbar_height_timeout");
             });
     
+    other_root->child(FILL_SPACE, 9.5 * config->dpi);
+    
+    text_input("\uE185", "Font", "Segoe UI Variable Mod", "The font used by the interface", 0, &winbar_settings->user_font, other_root, client);
+    
+    other_root->child(FILL_SPACE, 9.5 * config->dpi);
+    
     auto themes_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     themes_root->exists = false;
     title("Themes", themes_root);
@@ -2308,7 +2398,6 @@ fill_root(AppClient *client, Container *root) {
     auto icons_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     icons_root->exists = false;
     title("Icons", icons_root);
-    fill_icons_root(client, icons_root);
     
     auto plugins_root = root_stack->child(FILL_SPACE, FILL_SPACE);
     plugins_root->exists = false;
@@ -2343,6 +2432,12 @@ fill_root(AppClient *client, Container *root) {
             for (auto c: client->root->children[1]->children)
                 c->exists = false;
             client->root->children[1]->children[data->index]->exists = true;
+            if (data->index == 4) {
+                auto icons_root = client->root->children[1]->children[data->index];
+                if (!container_by_name("icons_scroll_container", icons_root)) {
+                    fill_icons_root(client, icons_root);
+                }
+            }
             client_layout(app, client);
             data->selected = true;
         };
@@ -2587,6 +2682,9 @@ void save_settings_file() {
     out_file << std::endl << std::endl;
     
     out_file << "color_mode=" << winbar_settings->color_mode;
+    out_file << std::endl << std::endl;
+    
+    out_file << "active_icon_theme=" << winbar_settings->active_icon_theme;
     out_file << std::endl << std::endl;
     
     out_file << "custom_desktops_directory_exclusive="
@@ -2945,6 +3043,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "on_drag_show_trash", &winbar_settings->on_drag_show_trash);
                 parse_string(&parser, key, "custom_desktops_directory", &winbar_settings->custom_desktops_directory);
                 parse_string(&parser, key, "color_mode", &winbar_settings->color_mode);
+                parse_string(&parser, key, "active_icon_theme", &winbar_settings->active_icon_theme);
                 parse_string(&parser, key, "shutdown_command", &winbar_settings->shutdown_command);
                 parse_string(&parser, key, "restart_command", &winbar_settings->restart_command);
                 parse_string(&parser, key, "user_font", &winbar_settings->user_font);

@@ -7,6 +7,7 @@
 #include "../src/config.h"
 #include "audio.h"
 #include "drawer.h"
+#include "../src/settings_menu.h"
 
 #include <string>
 #include <vector>
@@ -778,6 +779,9 @@ static std::string get_current_theme_name() {
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
+    if (!winbar_settings->active_icon_theme.empty()) {
+        return winbar_settings->active_icon_theme;
+    }
     static std::string current_theme;
     static long previous_time_cached;
     if (!current_theme.empty()) {
