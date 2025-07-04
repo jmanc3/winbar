@@ -2346,7 +2346,7 @@ textarea_handle_keypress(AppClient *client, Container *textarea, bool is_string,
                 }
             }
         } else if (keysym == XKB_KEY_v) {
-            std::string text = clipboard();
+            std::string text = clipboard(client->app);
             if (data->single_line) {
                 text.erase(std::remove_if(text.begin(), text.end(), [](char c) {
                     return c == '\n' || c == '\r';

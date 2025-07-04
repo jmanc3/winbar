@@ -3758,7 +3758,7 @@ void paint_battery(AppClient *client_entity, cairo_t *cr, Container *container) 
                               "\uE68C", "\uE68D"};
 
     if (winbar_settings->battery_notifications) {
-        if (std::stoi(data->capacity) <= 5) {
+        if (std::stoi(data->capacity) <= 10) {
             draw_colored_rect(client_entity, config->color_taskbar_attention_background, container->real_bounds);
         }
         

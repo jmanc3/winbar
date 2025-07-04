@@ -2491,6 +2491,55 @@ send_key(App *app, AppClient *client, Container *container) {
 //    }
 //}
 
+void handle_selection_request(xcb_connection_t* conn, xcb_selection_request_event_t* req, const std::string& clipboard_text, xcb_atom_t utf8_atom, xcb_atom_t targets_atom) {
+    xcb_selection_notify_event_t notify = {};
+    notify.response_type = XCB_SELECTION_NOTIFY;
+    notify.requestor = req->requestor;
+    notify.selection = req->selection;
+    notify.target = req->target;
+    notify.time = req->time;
+    notify.property = XCB_ATOM_NONE;
+    
+    if (req->target == utf8_atom) {
+        // Application wants UTF8_STRING format clipboard text
+        xcb_change_property(
+                conn,
+                XCB_PROP_MODE_REPLACE,
+                req->requestor,
+                req->property,
+                utf8_atom,
+                8, // format: 8-bit text
+                clipboard_text.size(),
+                clipboard_text.c_str()
+        );
+        
+        notify.property = req->property;
+        
+    } else if (req->target == targets_atom) {
+        // Application is asking "what formats do you support?"
+        xcb_atom_t supported_targets[] = { utf8_atom, targets_atom };
+        xcb_change_property(
+                conn,
+                XCB_PROP_MODE_REPLACE,
+                req->requestor,
+                req->property,
+                XCB_ATOM_ATOM,
+                32,
+                2,
+                supported_targets
+        );
+        
+        notify.property = req->property;
+        
+    } else {
+        // Unsupported target; reply with property = NONE
+        notify.property = XCB_ATOM_NONE;
+    }
+    
+    xcb_send_event(conn, false, req->requestor, 0, reinterpret_cast<const char*>(&notify));
+    xcb_flush(conn);
+}
+
 void handle_xcb_event(App *app, xcb_window_t window_number, xcb_generic_event_t *event, bool change_event_source) {
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -2807,8 +2856,16 @@ void handle_xcb_event(App *app) {
     std::lock_guard lock(app->thread_mutex);
     
     while ((event = xcb_poll_for_event(app->connection))) {
-        handle_event(app);
-        free(event);
+        uint8_t type = event->response_type & ~0x80;
+        if (type == XCB_SELECTION_REQUEST) {
+            auto *e = (xcb_selection_request_event_t *) event;
+            handle_selection_request(app->connection, e, app->clipboard_content, get_cached_atom(app, "UTF8_STRING"), get_cached_atom(app, "TARGETS"));
+            free(event);
+            continue;
+        } else {
+            handle_event(app);
+            free(event);
+        }
     }
 }
 
@@ -3408,10 +3465,3 @@ void clipboard_set(App *app, std::string text) {
     app->clipboard_content = text;
 }
 
-bool am_clipboard(Window owner, std::string *text) {
-    if (owner == client_by_name(app, "taskbar")->window) {
-        *text = app->clipboard_content;
-        return true;
-    }
-    return false;
-}

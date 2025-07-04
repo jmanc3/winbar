@@ -493,8 +493,6 @@ lighten(ArgbColor color, double amount) {
 
 bool paint_xpm_to_surface(cairo_surface_t *surface, std::string path, int target_size);
 
-bool am_clipboard(Window owner, std::string *pString);
-
 void
 load_icon_full_path(App *app, AppClient *client_entity, cairo_surface_t **surface, std::string path, int target_size) {
 #ifdef TRACY_ENABLE
@@ -927,61 +925,59 @@ show_utf8_prop(Display *dpy, Window w, Atom p) {
     return t;
 }
 
-std::string clipboard() {
-    Display *dpy;
-    Window owner, target_window, root;
-    int screen;
-    Atom sel, target_property, utf8;
-    XEvent ev;
-    XSelectionEvent *sev;
-
-    dpy = XOpenDisplay(NULL);
+std::string clipboard(App *app) {
+    auto sel_cookie = xcb_get_selection_owner(app->connection, get_cached_atom(app, "CLIPBOARD"));
+    auto reply = xcb_get_selection_owner_reply(app->connection, sel_cookie, nullptr);
+    if (reply) {
+        defer(free(reply));
+        if (reply->owner == client_by_name(app, "taskbar")->window) {
+            return app->clipboard_content;
+        }
+    } else {
+        return "";
+    }
+    
+    Display *dpy = XOpenDisplay(NULL);
     if (!dpy) {
         return "";
     }
-
-    screen = DefaultScreen(dpy);
-    root = RootWindow(dpy, screen);
-
-    sel = XInternAtom(dpy, "CLIPBOARD", False);
-    utf8 = XInternAtom(dpy, "UTF8_STRING", False);
-
-    owner = XGetSelectionOwner(dpy, sel);
+    
+    std::string result; // Will hold the final return value
+    
+    int screen = DefaultScreen(dpy);
+    Window root = RootWindow(dpy, screen);
+    
+    Atom sel = XInternAtom(dpy, "CLIPBOARD", False);
+    Atom utf8 = XInternAtom(dpy, "UTF8_STRING", False);
+    
+    Window owner = XGetSelectionOwner(dpy, sel);
     if (owner == None) {
+        XCloseDisplay(dpy);
         return "";
     }
-    std::string text;
-    if (am_clipboard(owner, &text)) {
-        return text;
-    }
-
-    /* The selection owner will store the data in a property on this
-     * window: */
-    target_window = XCreateSimpleWindow(dpy, root, -10, -10, 1, 1, 0, 0, 0);
-
-    /* That's the property used by the owner. Note that it's completely
-     * arbitrary. */
-    target_property = XInternAtom(dpy, "PENGUIN", False);
-
-    /* Request conversion to UTF-8. Not all owners will be able to
-     * fulfill that request. */
-    XConvertSelection(dpy, sel, utf8, target_property, target_window,
-                      CurrentTime);
-
+    
+    Window target_window = XCreateSimpleWindow(dpy, root, -10, -10, 1, 1, 0, 0, 0);
+    Atom target_property = XInternAtom(dpy, "PENGUIN", False);
+    
+    XConvertSelection(dpy, sel, utf8, target_property, target_window, CurrentTime);
+    
+    XEvent ev;
     for (;;) {
         XNextEvent(dpy, &ev);
-        switch (ev.type) {
-            case SelectionNotify:
-                sev = (XSelectionEvent *) &ev.xselection;
-                if (sev->property == None) {
-                    printf("Conversion could not be performed.\n");
-                    return "";
-                } else {
-                    return show_utf8_prop(dpy, target_window, target_property);
-                }
-                break;
+        if (ev.type == SelectionNotify) {
+            XSelectionEvent *sev = (XSelectionEvent *) &ev.xselection;
+            if (sev->property == None) {
+                result = "";
+            } else {
+                result = show_utf8_prop(dpy, target_window, target_property);
+            }
+            break;
         }
     }
+    
+    XDestroyWindow(dpy, target_window);
+    XCloseDisplay(dpy);
+    return result;
 }
 
 void pango_layout_get_pixel_size_safe(PangoLayout *layout, int *w, int *h) {

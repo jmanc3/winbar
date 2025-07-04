@@ -346,7 +346,7 @@ double calculate_b_covered_by_a(double ax, double ay, double aw, double ah,
 
 bool is_light_theme(const ArgbColor &color);
 
-std::string clipboard();
+std::string clipboard(App *app);
 
 void
 rounded_rect(AppClient *client, double corner_radius, double x, double y, double width, double height, ArgbColor color, float stroke_w = 0);

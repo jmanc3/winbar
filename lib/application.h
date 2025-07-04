@@ -420,6 +420,4 @@ void update_my_projection(void (*pFunction)(glm::mat4, int), GLuint program);
 
 void clipboard_set(App *app, std::string text);
 
-bool am_clipboard(Window owner, std::string *text);
-
 #endif
