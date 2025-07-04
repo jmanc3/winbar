@@ -6,8 +6,6 @@
 #include <vector>
 
 struct Config {
-    bool found_config = false;
-    
     int config_version = 8;
     
     int taskbar_height = 40;

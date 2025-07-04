@@ -89,7 +89,6 @@ set(
         xcb-icccm # to make it easier to handle icccm request
         xcb-xkb # to handle translating key presses to actual text
         xkbcommon-x11 # to handle translating key presses to actual text
-        libconfig++ # to parse config files
         xcb-cursor # for setting the cursor
         dbus-1 # for interacting with dbus
         alsa # to be able to modify audio volume and mute state on alsa

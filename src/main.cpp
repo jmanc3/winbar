@@ -28,8 +28,6 @@ App *app;
 bool restart = false;
 bool force_close = false;
 
-void check_config_version();
-
 void load_in_fonts();
 
 bool copy_resources_from_system_to_user();
@@ -134,9 +132,6 @@ int main_actual(int argc, char *argv[]) {
         return -1;
     }
     
-    // Load the config
-    config_load();
-    
     // Set DPI if auto
     double total_time_waiting_for_primary_screen = 4000;
     int reattempt_time = 200;
@@ -170,8 +165,6 @@ int main_actual(int argc, char *argv[]) {
     if (!winbar_settings->user_font.empty()) {
         config->font = winbar_settings->user_font;
     }
-    
-    check_config_version();
     
     load_in_fonts();
     
@@ -294,58 +287,6 @@ void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
                   10 * config->dpi,
                   (10 + height + 10 + second_height + 5) * config->dpi);
     pango_cairo_show_layout(cr, layout);
-}
-
-void check_config_version() {
-    if (config->config_version == 0 ||
-        config->config_version > acceptable_config_version ||
-        config->config_version < acceptable_config_version ||
-        !config->found_config) {
-        Settings settings;
-        settings.w = 400 * config->dpi;
-        settings.h = 200 * config->dpi;
-        auto client = client_new(app, settings, "winbar_version_check");
-        client->root->when_paint = paint_wrong_version;
-    
-        first_message = "Couldn't start WinBar";
-        char *string = getenv("HOME");
-        std::string config_directory(string);
-        config_directory += "/.config/winbar/winbar.cfg";
-    
-        if (!config->found_config) {
-            second_message = "We didn't find a Winbar config at: " + config_directory;
-            third_message = "To fix this, head over to https://github.com/jmanc3/winbar, "
-                            "read the README.md (in particular the section about missing icons), "
-                            "and make sure you unzip \"winbar.zip\" into the correct place.";
-        } else if (config->config_version == 0) {
-            second_message = "We found a config file, but there was no version number in it, which means it is out of date.";
-            third_message = "To fix this, head over to https://github.com/jmanc3/winbar, "
-                            "download the resources: \"winbar.zip\", "
-                            "and unzip them into the correct place (as you've done once already) overriding the old files.";
-        } else if (config->config_version > acceptable_config_version) {
-            second_message = "The config version is \"";
-            second_message += std::to_string(config->config_version);
-            second_message += "\", which is too new compared to Winbar's acceptable config version \"";
-            second_message += std::to_string(acceptable_config_version);
-            second_message += "\".";
-            third_message = "To fix this, pull the latest https://github.com/jmanc3/winbar, compile, and install it.";
-        } else if (config->config_version < acceptable_config_version) {
-            second_message = "Your config version is \"";
-            second_message += std::to_string(config->config_version);
-            second_message += "\", which is too old compared to Winbar's acceptable config version \"";
-            second_message += std::to_string(acceptable_config_version);
-            second_message += "\".";
-            third_message = "To fix this, head over to https://github.com/jmanc3/winbar, "
-                            "download the resources: \"winbar.zip\", "
-                            "and unzip them into the correct place (as you have already done once) overriding the old files.";
-        }
-    
-        client_layout(app, client);
-        request_refresh(app, client);
-        client_show(app, client);
-        app_main(app);
-        app_clean(app);
-    }
 }
 
 #include <fontconfig/fontconfig.h>
