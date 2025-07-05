@@ -1188,8 +1188,13 @@ client_new(App *app, Settings settings, const std::string &name) {
         xcb_icccm_set_wm_hints(app->connection, window, &hints);
 */
     }
-    
-    if (settings.dock) {
+    if (settings.dropdown) {
+        xcb_atom_t atom = get_cached_atom(app, "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU");
+        xcb_ewmh_set_wm_window_type(&app->ewmh, window, 1, &atom);
+    } else if (settings.popup) {
+        xcb_atom_t atom = get_cached_atom(app, "_NET_WM_WINDOW_TYPE_POPUP_MENU");
+        xcb_ewmh_set_wm_window_type(&app->ewmh, window, 1, &atom);
+    } else if (settings.dock) {
         xcb_atom_t atom = get_cached_atom(app, "_NET_WM_WINDOW_TYPE_DOCK");
         xcb_ewmh_set_wm_window_type(&app->ewmh, window, 1, &atom);
     } else if (settings.tooltip) {

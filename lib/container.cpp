@@ -1047,6 +1047,7 @@ AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client
         this->wants_popup_events = false;
     
     AppClient *popup_client = nullptr;
+    client_settings.dropdown = true;
     if (popup_settings.name.empty()) {
         popup_client = client_new(app, client_settings, this->name + "_popup");
     } else {
@@ -1057,7 +1058,7 @@ AppClient *AppClient::create_popup(PopupSettings popup_settings, Settings client
     
         this->child_popup = popup_client;
         // TODO: is this the correct order (Why is teh comment on the function so useless!)
-        xcb_icccm_set_wm_transient_for(app->connection, this->window, popup_client->window);
+        xcb_icccm_set_wm_transient_for(app->connection, popup_client->window, this->window);
         popup_client->wants_popup_events = true;
         popup_client->popup_info.is_popup = true;
     }
