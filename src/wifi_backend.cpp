@@ -56,6 +56,7 @@ static void wifi_wpa_parse_scan_results(InterfaceLink *link);
 
 void wifi_wpa_has_message(App *app, int fd, void *data) {
     auto link = (InterfaceLink *) data;
+    if (!link) return;
     char buf[1000];
     size_t len = 1000;
     
@@ -232,6 +233,8 @@ void parse_wifi_flags(ScanResult *result) {
 }
 
 void get_scan_results(InterfaceLink *link) {
+    if (!link) return;
+    
     std::vector<std::string> lines;
     
     char buf[10000];
@@ -315,6 +318,8 @@ void get_scan_results(InterfaceLink *link) {
 }
 
 void get_network_list(InterfaceLink *link) {
+    if (!link) return;
+    
     std::vector<std::string> lines;
     
     char buf[10000];
@@ -420,18 +425,6 @@ void wifi_stop() {
     
     delete wifi_data;
     wifi_data = new WifiData;
-}
-
-int set_network_param(int id, const char *field,
-                      const char *value, bool quote, InterfaceLink *link) {
-    char reply[10], cmd[256];
-    size_t reply_len;
-    snprintf(cmd, sizeof(cmd), "SET_NETWORK %d %s %s%s%s",
-             id, field, quote ? "\"" : "", value, quote ? "\"" : "");
-    reply_len = sizeof(reply);
-    wpa_ctrl_request(link->wpa_message_listener, cmd, strlen(cmd),
-                     reply, &reply_len, NULL);
-    return strncmp(reply, "OK", 2) == 0 ? 0 : -1;
 }
 
 InterfaceLink *get_link(const ScanResult &scan) {
@@ -719,15 +712,18 @@ void nm_wifi_start(App *app) {
 }
 
 void nm_wifi_scan(InterfaceLink *link) {
-    network_manager_request_scan(link->device_object_path);
+    if (link)
+        network_manager_request_scan(link->device_object_path);
 }
 
 void nm_wifi_scan_cached(InterfaceLink *link) {
-    network_manager_request_scan(link->device_object_path);
+    if (link)
+        network_manager_request_scan(link->device_object_path);
 }
 
 void nm_wifi_networks_and_cached_scan(InterfaceLink *link) {
-    network_manager_request_scan(link->device_object_path);
+    if (link)
+        network_manager_request_scan(link->device_object_path);
 }
 
 //little hard
