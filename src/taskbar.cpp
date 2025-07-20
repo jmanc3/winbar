@@ -3592,6 +3592,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     
     // Paint border
 //    set_rect(cr, container->real_bounds);
+    int top_off = 0;
     ArgbColor color;
     if (active || container->state.mouse_pressing || container->state.mouse_hovering) {
         if (active || container->state.mouse_pressing) {
@@ -3601,15 +3602,18 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
         }
     } else {
         color = config->color_taskbar_search_bar_default_border;
+        if (winbar_settings->pinned_icon_style == "win7" || winbar_settings->pinned_icon_style == "win7flat") {
+            top_off = 1 * std::floor(config->dpi);
+        }
     }
     
     draw_colored_rect(client, color,
-                      Bounds(container->real_bounds.x, container->real_bounds.y, container->real_bounds.w,
-                             border_size));
-    draw_colored_rect(client, color, Bounds(container->real_bounds.x, container->real_bounds.y, border_size,
-                                            container->real_bounds.h));
+                      Bounds(container->real_bounds.x, container->real_bounds.y + top_off, container->real_bounds.w,
+                             border_size - top_off));
+    draw_colored_rect(client, color, Bounds(container->real_bounds.x, container->real_bounds.y + top_off, border_size,
+                                            container->real_bounds.h - top_off));
     draw_colored_rect(client, color, Bounds(container->real_bounds.x + container->real_bounds.w - border_size,
-                                            container->real_bounds.y, border_size, container->real_bounds.h));
+                                            container->real_bounds.y + top_off, border_size, container->real_bounds.h - top_off));
     draw_colored_rect(client, color, Bounds(container->real_bounds.x,
                                             container->real_bounds.y + container->real_bounds.h - border_size,
                                             container->real_bounds.w,

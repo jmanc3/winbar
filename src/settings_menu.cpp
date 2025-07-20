@@ -3269,7 +3269,20 @@ void load_colors() {
     config->color_action_center_notification_button_text_pressed = ArgbColor("#ffffffff");
 
     
-    if (winbar_settings->color_mode == "Light") {
+    if (winbar_settings->color_mode == "Dark (Clear)") {
+        config->color_taskbar_search_bar_default_background = ArgbColor("#00101010");
+        config->color_taskbar_search_bar_hovered_background = ArgbColor("#00101010");
+        config->color_taskbar_search_bar_pressed_background = ArgbColor("#ffffffff");
+        config->color_taskbar_search_bar_default_text = ArgbColor("#dddadada");
+        config->color_taskbar_search_bar_hovered_text = ArgbColor("#dddcdcdc");
+        config->color_taskbar_search_bar_pressed_text = ArgbColor("#ff020202");
+        config->color_taskbar_search_bar_default_icon = ArgbColor("#ddf9f9f9");
+        config->color_taskbar_search_bar_hovered_icon = ArgbColor("#ddf9f9f9");
+        config->color_taskbar_search_bar_pressed_icon = ArgbColor("#ff020202");
+        config->color_taskbar_search_bar_default_border = ArgbColor("#ff5c5c5c");
+        config->color_taskbar_search_bar_hovered_border = ArgbColor("#ff777777");
+        config->color_taskbar_search_bar_pressed_border = ArgbColor("#ff0078d7");
+    } else if (winbar_settings->color_mode == "Light") {
         config->color_taskbar_background = ArgbColor("#cceeeeee");
         config->color_taskbar_button_icons = ArgbColor("#ff000000");
         config->color_taskbar_button_default = ArgbColor("#00ffffff");
