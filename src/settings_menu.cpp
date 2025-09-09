@@ -10,6 +10,7 @@
 #include <any>
 #include <unordered_set>
 #include "settings_menu.h"
+#include "container.h"
 #include "main.h"
 #include "config.h"
 #include "components.h"
@@ -349,39 +350,72 @@ static void add_item(Container *reorder_list, std::string n, bool on_off_state) 
     label->user_data = data;
     
     if (n == "Search Field") {
-        auto combo_data = new GenericComboBox("combo", "Behaviour: ");
-        combo_data->options.emplace_back("Default");
-        combo_data->options.emplace_back("Fully Hidden");
-        combo_data->options.emplace_back("Fully Disabled");
-        combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
-            if (winbar_settings->search_behaviour == "Default") {
-                return "Default";
-            } else if (winbar_settings->search_behaviour == "Fully Hidden") {
-                return "Fully Hidden";
-            }
-            return "Fully Disabled";
-        };
-        combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
-            if (((Label *) (self->user_data))->text == "Default") {
-                winbar_settings->search_behaviour = "Default";
-            } else if (((Label *) (self->user_data))->text == "Fully Hidden") {
-                winbar_settings->search_behaviour = "Fully Hidden";
-            } else if (((Label *) (self->user_data))->text == "Fully Disabled") {
-                winbar_settings->search_behaviour = "Fully Disabled";
-            }
-            client_close_threaded(app, client);
-            merge_order_with_taskbar();
-        };
-        
-        std::string longest_text = "Behaviour: Fully Disabled";
-        pango_layout_set_text(layout, longest_text.c_str(), -1);
-        pango_layout_get_pixel_size_safe(layout, &width, &height);
-        
-        auto combobox = r->child(width * 1.5, FILL_SPACE);
-        combobox->name = combo_data->name;
-        combobox->when_clicked = clicked_expand_generic_combobox;
-        combobox->when_paint = paint_generic_combobox;
-        combobox->user_data = combo_data;
+        {
+            auto combo_data = new GenericComboBox("combo", "Behaviour: ");
+            combo_data->options.emplace_back("Default");
+            combo_data->options.emplace_back("Fully Hidden");
+            combo_data->options.emplace_back("Fully Disabled");
+            combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
+                if (winbar_settings->search_behaviour == "Default") {
+                    return "Default";
+                } else if (winbar_settings->search_behaviour == "Fully Hidden") {
+                    return "Fully Hidden";
+                }
+                return "Fully Disabled";
+            };
+            combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
+                if (((Label *) (self->user_data))->text == "Default") {
+                    winbar_settings->search_behaviour = "Default";
+                } else if (((Label *) (self->user_data))->text == "Fully Hidden") {
+                    winbar_settings->search_behaviour = "Fully Hidden";
+                } else if (((Label *) (self->user_data))->text == "Fully Disabled") {
+                    winbar_settings->search_behaviour = "Fully Disabled";
+                }
+                client_close_threaded(app, client);
+                merge_order_with_taskbar();
+            };
+
+            std::string longest_text = "Behaviour: Fully Disabled";
+            pango_layout_set_text(layout, longest_text.c_str(), -1);
+            pango_layout_get_pixel_size_safe(layout, &width, &height);
+
+            auto combobox = r->child(width * 1.5, FILL_SPACE);
+            combobox->name = combo_data->name;
+            combobox->when_clicked = clicked_expand_generic_combobox;
+            combobox->when_paint = paint_generic_combobox;
+            combobox->user_data = combo_data;
+        }
+        r->child(14 * config->dpi, FILL_SPACE);
+        {
+            auto combo_data = new GenericComboBox("combo", "Size: ");
+            combo_data->options.emplace_back("Full");
+            combo_data->options.emplace_back("Short");
+            combo_data->determine_selected = [](AppClient *client, cairo_t *cr, Container *self) -> std::string {
+                if (winbar_settings->field_size == "Short") {
+                    return "Short";
+                }
+                return "Full";
+            };
+            combo_data->when_clicked = [](AppClient *client, cairo_t *cr, Container *self) -> void {
+                if (((Label *) (self->user_data))->text == "Full") {
+                    winbar_settings->field_size = "Full";
+                } else if (((Label *) (self->user_data))->text == "Short") {
+                    winbar_settings->field_size = "Short";
+                }
+                client_close_threaded(app, client);
+                merge_order_with_taskbar();
+            };
+
+            std::string longest_text = "Behaviour: Short";
+            pango_layout_set_text(layout, longest_text.c_str(), -1);
+            pango_layout_get_pixel_size_safe(layout, &width, &height);
+
+            auto combobox = r->child(width * 1.5, FILL_SPACE);
+            combobox->name = combo_data->name;
+            combobox->when_clicked = clicked_expand_generic_combobox;
+            combobox->when_paint = paint_generic_combobox;
+            combobox->user_data = combo_data;
+        }
     } else if (n == "Pinned Icons") {
         {
             auto combo_data = new GenericComboBox("combo", "Alignment: ");
@@ -735,7 +769,15 @@ void merge_order_with_taskbar() {
     // No matter what, bluetooth does not exist until dbus says it does.
     container_by_name("bluetooth", taskbar->root)->exists = false;
     container_by_name("icons", taskbar->root)->alignment = winbar_settings->icons_alignment;
-    
+
+    if (auto field = container_by_name("field_search", taskbar->root)) {
+        if (winbar_settings->field_size == "Full") {
+            field->wanted_bounds.w = 344 * config->dpi;
+        } else {
+            field->wanted_bounds.w = 48 * config->dpi;
+        }
+    }
+
     client_layout(app, taskbar);
     request_refresh(app, taskbar);
 }
@@ -760,6 +802,7 @@ static void clicked_reset(AppClient *client, cairo_t *, Container *) {
         winbar_settings->taskbar_order.push_back(item);
     }
     winbar_settings->search_behaviour = "Default";
+    winbar_settings->field_size = "Full";
     winbar_settings->icons_alignment = container_alignment::ALIGN_LEFT;
     winbar_settings->pinned_icon_style = "win10";
     winbar_settings->bluetooth_enabled = true;
@@ -2030,6 +2073,17 @@ fill_themes_root(AppClient *client, Container *themes_root) {
     
     setting_bool(themes_root, "\uF4A5", "Transparency", "Windows and surfaces appear translucent",
                  &winbar_settings->transparency);
+
+    themes_root->child(FILL_SPACE, 4.5 * config->dpi);
+
+    setting_bool(themes_root, "", "Perfect Match", "Greater accuracy",
+                 &winbar_settings->perfect_match);
+
+    themes_root->child(FILL_SPACE, 4.5 * config->dpi);
+    
+    setting_bool(themes_root, "", "Icons from font", "Use icons from a font",
+                 &winbar_settings->icons_from_font);
+ 
     themes_root->child(FILL_SPACE, 4.5 * config->dpi);
 }
 
@@ -2615,7 +2669,11 @@ void save_settings_file() {
     // Search Behaviour
     out_file << "search_behaviour=\"" << winbar_settings->search_behaviour << "\"";
     out_file << std::endl << std::endl;
-    
+
+    // Search Behaviour
+    out_file << "field_size=\"" << winbar_settings->field_size << "\"";
+    out_file << std::endl << std::endl;
+
     // Date alignment
     out_file << "date_alignment=";
     if (winbar_settings->date_alignment == PangoAlignment::PANGO_ALIGN_RIGHT) {
@@ -2715,7 +2773,13 @@ void save_settings_file() {
     
     out_file << "minimize_maximize_animation=" << (winbar_settings->minimize_maximize_animation ? "true" : "false");
     out_file << std::endl << std::endl;
-    
+
+    out_file << "perfect_match=" << (winbar_settings->perfect_match ? "true" : "false");
+    out_file << std::endl << std::endl;
+
+    out_file << "icons_from_font=" << (winbar_settings->icons_from_font ? "true" : "false");
+    out_file << std::endl << std::endl;
+
     out_file << "transparency=" << (winbar_settings->transparency ? "true" : "false");
     out_file << std::endl << std::endl;
     
@@ -2913,6 +2977,18 @@ void read_settings_file() {
                         }
                     }
                 }
+            } else if (key == "field_size") {
+                parser.until(LineParser::Token::QUOTE);
+                if (parser.current_token == LineParser::Token::QUOTE) {
+                    parser.next();
+                    std::string text = parser.until(LineParser::Token::QUOTE);
+                    if (parser.current_token == LineParser::Token::QUOTE) {
+                        trim(text);
+                        if (!text.empty()) {
+                            winbar_settings->field_size = text;
+                        }
+                    }
+                }
             } else if (key == "tab") {
                 parser.until(LineParser::Token::QUOTE);
                 if (parser.current_token == LineParser::Token::QUOTE) {
@@ -3042,6 +3118,8 @@ void read_settings_file() {
                 parse_bool(&parser, key, "labels", &winbar_settings->labels);
                 parse_bool(&parser, key, "label_uniform_size", &winbar_settings->label_uniform_size);
                 parse_bool(&parser, key, "minimize_maximize_animation", &winbar_settings->minimize_maximize_animation);
+                parse_bool(&parser, key, "perfect_match", &winbar_settings->perfect_match);
+                parse_bool(&parser, key, "icons_from_font", &winbar_settings->icons_from_font);
                 parse_bool(&parser, key, "transparency", &winbar_settings->transparency);
                 parse_bool(&parser, key, "always_hide", &winbar_settings->always_hide);
                 parse_bool(&parser, key, "show_windows_from_all_desktops", &winbar_settings->show_windows_from_all_desktops);

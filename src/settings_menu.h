@@ -26,6 +26,7 @@ struct WinbarSettings {
     bool bluetooth_enabled = true;
     container_alignment icons_alignment = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
     std::string search_behaviour = "Default";
+    std::string field_size = "Full";
     std::string date_style = "windows 11";
     PangoAlignment date_alignment = PangoAlignment::PANGO_ALIGN_RIGHT;
     int date_size = 9;
@@ -54,6 +55,8 @@ struct WinbarSettings {
     bool use_opengl = false;
     bool show_windows_from_all_desktops = false;
     bool minimize_maximize_animation = true;
+    bool perfect_match = false;
+    bool icons_from_font = true;
     bool always_hide = false;
     bool on_drag_show_trash = false;
     bool auto_dpi = true;

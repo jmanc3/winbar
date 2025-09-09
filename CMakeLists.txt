@@ -4,6 +4,7 @@ project(${project_name})
 
 set(CMAKE_CXX_STANDARD 17) ## or 14 !!
 set(CMAKE_CXX_EXTENSIONS OFF) ## on g++ this ensures: -std=c++11 and not -std=gnu++11
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads)
 link_libraries(${CMAKE_THREAD_LIBS_INIT})

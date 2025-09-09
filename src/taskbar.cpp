@@ -1,5 +1,6 @@
 
 #include "taskbar.h"
+#include "application.h"
 
 #ifdef TRACY_ENABLE
 
@@ -146,6 +147,10 @@ icon_width(AppClient *client) {
     // So that we are pixel perfectly centered
     if ((max_container_even && !tentative_even) || (!max_container_even && tentative_even)) {
         tentative_icon_size++;
+    }
+
+    if (winbar_settings->perfect_match) {
+        return 24 * config->dpi;
     }
     
     return tentative_icon_size;
@@ -474,7 +479,9 @@ paint_double_bar(AppClient *client, cairo_t *cr, Container *container, ArgbColor
     double bar_inset = squish_factor * (1 - bar_amount);
     
     Bounds bounds = container->real_bounds;
-    float height = std::round(config->dpi * 2) + 1;
+    float height = std::round(config->dpi * 2);
+    if (!winbar_settings->perfect_match)
+        height += 1;
     // setting the appropriate height
     bounds.y = bounds.y + bounds.h - height;
     bounds.h = height;
@@ -722,7 +729,11 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         double scale_afterwards = .81;
         double surface_width = cairo_image_surface_get_width(data->surface__);
         double w = surface_width;
-        
+
+        if (winbar_settings->perfect_match) {
+            data->animation_zoom_amount = 0.0;
+            data->animation_zoom_locked = 0.0;
+        }
         auto scale_amount = 1 - (data->animation_zoom_amount * (1 - scale_afterwards));
         scale_amount *= (container->real_bounds.h / (40.0 * config->dpi)); // generic scale based on taskbar height
         if (data->animation_zoom_locked) {
@@ -3146,9 +3157,9 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     paint_hoverable_button_background(client, cr, container);
-    
+
     draw_text(client, 10 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), "\uE971", container->real_bounds,
-              -5, -1, container->real_bounds.h / 2 - (10 * config->dpi) / 2);
+              -5, -1, -1);
 }
 
 static void
@@ -3571,6 +3582,11 @@ clicked_search(AppClient *client, cairo_t *cr, Container *container) {
 static void
 paint_search(AppClient *client, cairo_t *cr, Container *container) {
     IconButton *data = (IconButton *) container->user_data;
+    if (winbar_settings->field_size != "Full" && container->real_bounds.w < 100 * config->dpi) {
+        paint_hoverable_button_background(client, cr, container);
+        draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_search_bar_default_icon), "\uE721", container->real_bounds);
+        return;
+    }
 
 #ifdef TRACY_ENABLE
     ZoneScoped;
@@ -3584,6 +3600,12 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
         text_empty = text_data->state->text.empty();
         active = con->parent->active;
     }
+    if (auto *c = client_by_name(client->app, "search_menu"))
+        if (!c->marked_to_close)
+            active = true;
+    if (auto *c = client_by_name(client->app, "app_menu"))
+        if (!c->marked_to_close)
+            active = true;
     
     if (active)
         border_size = 2;
@@ -4038,6 +4060,10 @@ fill_root(App *app, AppClient *client, Container *root) {
     
     Container *button_super = root->child(48 * config->dpi, FILL_SPACE);
     Container *field_search = root->child(344 * config->dpi, FILL_SPACE);
+    if (winbar_settings->field_size == "Short") {
+        field_search->wanted_bounds.w = 48 * config->dpi;
+    }
+
 //    Container *button_chatgpt = root->child(48 * config->dpi, FILL_SPACE);
     Container *button_workspace = root->child(48 * config->dpi, FILL_SPACE);
     Container *container_icons = root->child(FILL_SPACE, FILL_SPACE);
@@ -4080,7 +4106,17 @@ fill_root(App *app, AppClient *client, Container *root) {
     field_search->receive_events_even_if_obstructed = true;
     field_search->user_data = new IconButton;
     field_search->name = "field_search";
-    
+    field_search->when_active_status_changed = [](AppClient *client, cairo_t *cr, Container *self) {
+        bool ignore = false;
+        if (auto *c = client_by_name(client->app, "search_menu"))
+            if (!c->marked_to_close)
+                ignore = true;
+        if (auto *c = client_by_name(client->app, "app_menu"))
+            if (!c->marked_to_close)
+                ignore = true;
+        self->active = ignore;
+    };
+
     TextAreaSettings settings(config->dpi);
     settings.font_size__ = 12 * config->dpi;
     settings.font = config->font;
@@ -4095,6 +4131,16 @@ fill_root(App *app, AppClient *client, Container *root) {
     auto *con = field_search->child(FILL_SPACE, FILL_SPACE);
     Container *textarea = make_textarea(app, client, con, settings);
     textarea->name = "main_text_area";
+    textarea->when_active_status_changed = [](AppClient *client, cairo_t *cr, Container *self) {
+        bool ignore = false;
+        if (auto *c = client_by_name(client->app, "search_menu"))
+            if (!c->marked_to_close)
+                ignore = true;
+        if (auto *c = client_by_name(client->app, "app_menu"))
+            if (!c->marked_to_close)
+                ignore = true;
+        self->active = ignore;
+    };
     textarea->parent->alignment = ALIGN_CENTER | ALIGN_LEFT;
     
     button_workspace->when_paint = paint_workspace;
@@ -6075,11 +6121,14 @@ void update_taskbar_volume_icon() {
 
 void set_textarea_active() {
     if (auto *client = client_by_name(app, "taskbar")) {
-        if (auto *container = container_by_name("field_search", client->root))
+        if (auto *container = container_by_name("field_search", client->root)) {
             container->exists = true;
+            container->wanted_bounds.w = 344 * config->dpi;
+        }
         if (auto *container = container_by_name("main_text_area", client->root)) {
             auto *text_data = (TextAreaData *) container->user_data;
-            container->parent->active = true;
+            set_active(client, container->parent, true);
+            //container->parent->active = true;
         }
         client_layout(app, client);
         request_refresh(client->app, client);
@@ -6090,17 +6139,34 @@ void set_textarea_active() {
 }
 
 void set_textarea_inactive() {
+    bool ignore = false;
+    if (auto *client = client_by_name(app, "search_menu"))
+        if (!client->marked_to_close)
+            ignore = true;
+    if (auto *client = client_by_name(app, "app_menu"))
+        if (!client->marked_to_close)
+            ignore = true;
+    if (ignore)
+        return;
+
     if (auto *client = client_by_name(app, "taskbar")) {
-        if (auto *container = container_by_name("field_search", client->root))
+        if (auto *container = container_by_name("field_search", client->root)) {
             for (auto a: winbar_settings->taskbar_order)
                 if (a.name == "Search Field")
                     container->exists = a.on;
+            if (winbar_settings->field_size == "Short") {
+                container->wanted_bounds.w = 48 * config->dpi;
+            } else if (winbar_settings->field_size == "Full") {
+                container->wanted_bounds.w = 344 * config->dpi;
+            }
+        }
         if (auto *container = container_by_name("main_text_area", client->root)) {
             auto *text_data = (TextAreaData *) container->user_data;
             app_timeout_stop(app, client, text_data->state->cursor_blink);
             delete text_data->state;
             text_data->state = new TextState;
-            container->parent->active = false;
+            set_active(client, container->parent, false);
+            //container->parent->active = false;
             blink_on(app, client, container);
         }
         client_layout(app, client);
