@@ -329,7 +329,7 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
             right = true;
         }
 
-        if (winbar_settings->icons_from_font) {
+        if (winbar_settings->icons_from_font || icon_path.empty()) {
             if (right) {
                 auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->icons, EXPAND(config->color_apps_icons), "\uE974");
                 f->draw_text(
