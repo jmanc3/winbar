@@ -3620,6 +3620,16 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     if (auto *c = client_by_name(client->app, "app_menu"))
         if (!c->marked_to_close)
             active = true;
+
+    if (active) {
+        if (auto *container = container_by_name("main_text_area", client->root)) {
+            auto *text_data = (TextAreaData *) container->user_data;
+            set_active(client, container->parent, true);
+            if (!text_data->state->timeout_alive.lock()) {
+                blink_on(app, client, container);
+            }
+        }
+    }
     
     if (active)
         border_size = 2;
@@ -6181,7 +6191,6 @@ void set_textarea_inactive() {
             text_data->state = new TextState;
             set_active(client, container->parent, false);
             //container->parent->active = false;
-            blink_on(app, client, container);
         }
         client_layout(app, client);
         request_refresh(client->app, client);
