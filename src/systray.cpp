@@ -1,7 +1,9 @@
 #include "systray.h"
+#include "application.h"
 #include "config.h"
 #include "main.h"
 #include "taskbar.h"
+#include <xcb/xcb.h>
 
 #ifdef TRACY_ENABLE
 
@@ -30,6 +32,8 @@ display_close();
 class Systray_Icon {
 public:
     xcb_window_t window;
+    bool reparented = false;
+    int times = 0;
 };
 
 std::vector<Systray_Icon *> systray_icons;
@@ -104,11 +108,13 @@ systray_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t) {
 //                    printf("ADD: %d\n", icon->window);
                     systray_icons.push_back(icon);
                     
-                    if (display) {
-                        xcb_reparent_window(app->connection, icon->window, display->window, -512, -512);
-                    } else if (systray) {
-                        xcb_reparent_window(app->connection, icon->window, systray->window, 0, 0);
-                    }
+                    // if (display) {
+                    //     xcb_reparent_window(app->connection, icon->window, display->window, -512, -512);
+                    //     icon->reparented = true;
+                    // } else if (systray) {
+                    //     xcb_reparent_window(app->connection, icon->window, systray->window, 0, 0);
+                    //     icon->reparented = true;
+                    // }
                     xcb_unmap_window(app->connection, icon->window);
                     
                     layout_invalid = true;
@@ -222,6 +228,12 @@ layout_systray() {
                 icon_size,
                 icon_size};
         xcb_configure_window(app->connection, icon->window, value_mask, value_list_resize);
+        if (!systray_icons[i]->reparented && systray_icons[i]->times++) {
+            xcb_reparent_window(app->connection, systray_icons[i]->window, display->window, value_list_resize[0], value_list_resize[1]);
+            if (systray_icons[i]->times > 10) {
+                systray_icons[i]->reparented = true;
+            }
+        }
         
         x++;
     }
@@ -261,8 +273,11 @@ layout_systray() {
 static void
 on_display_closed(AppClient *) {
     if (systray)
-        for (auto icon: systray_icons)
+        for (auto icon: systray_icons) {
             xcb_reparent_window(app->connection, icon->window, systray->window, 0, 0);
+            icon->reparented = false;
+            icon->times = 0;
+        }
     display = nullptr;
 }
 
@@ -271,6 +286,8 @@ on_systray_closed(AppClient *) {
     if (systray)
         for (auto icon: systray_icons) {
             xcb_reparent_window(app->connection, icon->window, app->screen->root, 0, 0);
+            icon->reparented = false;
+            icon->times = 0;
         }
 }
 
@@ -357,11 +374,14 @@ void open_systray() {
         
         display->root->when_paint = paint_display;
         display->when_closed = on_display_closed;
-        
-        for (auto icon: systray_icons)
-            xcb_reparent_window(app->connection, icon->window, display->window, -512, -512);
-        
         client_show(app, display);
+        static int times = 0;
+        times = 0;
+        app_timeout_create(taskbar->app, display, 50, [](App *, AppClient *client, Timeout *t, void *) {
+            t->keep_running = times++ < 10;
+            layout_systray();
+            request_refresh(app, client);
+        }, nullptr, "systray relayout");
         
         layout_systray();
         
