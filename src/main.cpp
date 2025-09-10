@@ -277,7 +277,7 @@ void paint_wrong_version(AppClient *client, cairo_t *cr, Container *container) {
                   10 * config->dpi,
                   (10 + height + 10) * config->dpi);
     pango_cairo_show_layout(cr, layout);
-    
+
     pango_layout_set_text(layout, third_message.data(), third_message.size());
     pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
     pango_layout_set_width(layout, (container->real_bounds.w - (20 * config->dpi)) * PANGO_SCALE);
@@ -314,7 +314,7 @@ bool copy_resources_from_system_to_user() {
             return false;
         }
     }
-    itemPath += "/winbar/";
+    itemPath += "winbar/";
     if (mkdir(itemPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
         if (errno != EEXIST) {
             printf("Couldn't mkdir %s\n", itemPath.c_str());

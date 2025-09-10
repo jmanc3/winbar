@@ -1095,4 +1095,60 @@ bool icon(AppClient *client, cairo_surface_t **surface, std::string path_or_name
     return false;
 }
 
+struct OnceIcon {
+    std::string path;
+    cairo_surface_t *surface = nullptr;
+    bool success = false;
+    int size = 0;
+};
+
+std::vector<OnceIcon *> once;
+
+void once_cleaner() {
+    for (auto o : once) {
+        cairo_surface_destroy(o->surface);
+        delete o;
+    }
+}
+
+void paint_once(App *app, AppClient *client, OnceIcon *icon, int size, int x, int y) {
+    if (!icon->success)
+        return;
+
+    cairo_set_source_surface(client->cr, icon->surface, x, y);
+    cairo_paint(client->cr);
+}
+
+void load_and_paint(App *app, AppClient *client, std::string path, int size, int x, int y) {
+    if (path.empty())
+        return;
+    bool needs_cleaner = true;
+    for (auto c : app->cleaners)
+        if (c == once_cleaner)
+            needs_cleaner = false;
+    if (needs_cleaner)
+        app->cleaners.push_back(once_cleaner);
+
+    for (auto o : once) {
+        if (o->path == path && o->size == size) {
+            paint_once(app, client, o, size, x, y);
+            return;
+        }
+    }
+
+    auto o = new OnceIcon();
+    o->path = path;
+    o->size = size;
+    o->surface = accelerated_surface(app, client, o->size, o->size);
+    o->success = paint_surface_with_image(o->surface, as_resource_path(o->path), o->size, nullptr);
+    once.push_back(o);
+
+    paint_once(app, client, o, size, x, y);
+}
+
+void load_and_paint(App *app, AppClient *client, std::string path, int size, Bounds position) {
+    load_and_paint(app, client, path, size, position.x + position.w * .5  - size * .5,
+                   position.y + position.h * .5  - size * .5);
+}
+
 

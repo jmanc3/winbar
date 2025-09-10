@@ -266,29 +266,41 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
         std::string text;
         
         bool right = false;
+        std::string icon_path;
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
         if (data->text == "START") {
             text = "\uE700";
+            icon_path = "starticons/START.png";
         } else if (data->text == "Documents") {
             text = "\uE7C3";
+            icon_path = "starticons/Documents.png";
         } else if (data->text == "Downloads") {
             text = "\uE896";
+            icon_path = "starticons/Downloads.png";
         } else if (data->text == "Music") {
             text = "\uEC4F";
+            icon_path = "starticons/Music.png";
         } else if (data->text == "Pictures") {
             text = "\uEB9F";
+            icon_path = "starticons/Pictures.png";
         } else if (data->text == "Videos") {
             text = "\uE714";
+            icon_path = "starticons/Videos.png";
         } else if (data->text == "Network") {
             text = "\uEC27";
+            icon_path = "starticons/Network.png";
         } else if (data->text == "Personal Folder") {
             text = "\uEC25";
+            icon_path = "starticons/Personal Folder.png";
         } else if (data->text == "File Explorer") {
             text = "\uEC50";
+            icon_path = "starticons/File Explorer.png";
         } else if (data->text == "Settings") {
             text = "\uE713";
+            icon_path = "starticons/Settings.png";
         } else if (data->text == "Power") {
             text = "\uE7E8";
+            icon_path = "starticons/Power.png";
         } else if (data->text == "Off") {
             text = "\uE947";
         } else if (data->text == "Sign Out") {
@@ -316,18 +328,25 @@ paint_button(AppClient *client, cairo_t *cr, Container *container) {
         } else if (data->text == "Resize") {
             right = true;
         }
-        
-        if (right) {
-            auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->icons, EXPAND(config->color_apps_icons), "\uE974");
-            f->draw_text(
-                    (int) (container->real_bounds.x + container->real_bounds.w - container->real_bounds.h / 2 - h / 2),
-                    (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
-            f->end();
+
+        if (winbar_settings->icons_from_font) {
+            if (right) {
+                auto [f, w, h] = draw_text_begin(client, 9 * config->dpi, config->icons, EXPAND(config->color_apps_icons), "\uE974");
+                f->draw_text(
+                        (int) (container->real_bounds.x + container->real_bounds.w - container->real_bounds.h / 2 - h / 2),
+                        (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
+                f->end();
+            } else {
+                auto [f, w, h] = draw_text_begin(client, 12 * config->dpi, config->icons, EXPAND(config->color_apps_icons), text);
+                f->draw_text((int) (container->real_bounds.x + container->real_bounds.h / 2 - w / 2),
+                             (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
+                f->end();
+            }
         } else {
-            auto [f, w, h] = draw_text_begin(client, 12 * config->dpi, config->icons, EXPAND(config->color_apps_icons), text);
-            f->draw_text((int) (container->real_bounds.x + container->real_bounds.h / 2 - w / 2),
-                         (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
-            f->end();
+            auto w = icon_width();
+            load_and_paint(app, client, icon_path, w,
+                container->real_bounds.x + (container->real_bounds.h - w) * .5,
+                container->real_bounds.y + (container->real_bounds.h - w) * .5);
         }
     }
     

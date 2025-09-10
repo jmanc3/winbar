@@ -245,4 +245,9 @@ void battery_display_device_state_changed();
 
 void on_desktop_change();
 
+int icon_width(AppClient *client);
+
+int icon_width();
+
+
 #endif// TASKBAR_H

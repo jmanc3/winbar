@@ -136,9 +136,9 @@ std::string trimnewlines(std::string str) {
     return copy;
 }
 
-static int
-icon_width(AppClient *client) {
-    int max_container_w = (int) (client->bounds->h + 4 * config->dpi);
+int icon_width(AppClient *client) {
+    auto c = client_by_name(app, "taskbar");
+    int max_container_w = (int) (c->bounds->h + 4 * config->dpi);
     bool max_container_even = max_container_w % 2 == 0;
     
     int tentative_icon_size = (int) (24.0 * config->dpi * (scale_ratio));
@@ -154,6 +154,10 @@ icon_width(AppClient *client) {
     }
     
     return tentative_icon_size;
+}
+
+int icon_width() {
+    return icon_width(nullptr);
 }
 
 static void
@@ -286,6 +290,11 @@ paint_super(AppClient *client, cairo_t *cr, Container *container) {
     SuperButton *data = (SuperButton *) container->user_data;
     
     paint_hoverable_button_background(client, cr, container);
+
+    if (!winbar_settings->icons_from_font) {
+        load_and_paint(app, client, "windows.png", icon_width(client), container->real_bounds);
+        return;
+    }
     
     if (winbar_settings->super_icon_default) {
         float icon_size = icon_width(client) * .73;
@@ -426,7 +435,12 @@ paint_workspace(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     paint_hoverable_button_background(client, cr, container);
-    
+
+    if (!winbar_settings->icons_from_font) {
+        load_and_paint(app, client, "taskview.png", icon_width(client), container->real_bounds);
+        return;
+    }
+
     std::string text = "\uE7C4";
     if (container->state.mouse_hovering || container->state.mouse_pressing) {
         text = "\uEB91";

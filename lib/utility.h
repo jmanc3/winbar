@@ -366,4 +366,8 @@ void reserve(AppClient *client, int amount);
 
 bool icon(AppClient *client, cairo_surface_t **surface, std::string path_or_name, int size);
 
+void load_and_paint(App *app, AppClient *client, std::string path, int size, int x, int y);
+
+void load_and_paint(App *app, AppClient *client, std::string path, int size, Bounds position);
+
 #endif

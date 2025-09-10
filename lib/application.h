@@ -171,7 +171,9 @@ struct App {
     std::mutex thread_mutex;
     
     std::vector<Handler *> handlers;
-    
+
+    std::vector<void(*)()> cleaners;
+
     xcb_window_t grab_window;
     
     Display *display = nullptr;
@@ -244,6 +246,7 @@ struct App {
     int on_kde = 0;
     
     App();
+    ~App();
 };
 
 struct Handler {

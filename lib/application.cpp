@@ -396,6 +396,12 @@ void timeout_poll_wakeup(App *app, int fd, void *) {
 App::App() {
 }
 
+App::~App() {
+    for (auto c : cleaners) {
+        c();
+    }
+}
+
 const xcb_query_extension_reply_t *input_query = nullptr;
 
 std::map<xcb_input_device_id_t, int> devices_type;
