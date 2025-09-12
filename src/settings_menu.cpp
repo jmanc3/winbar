@@ -2916,6 +2916,8 @@ void read_settings_file() {
                         winbar_settings->icons_alignment = container_alignment::ALIGN_GLOBAL_CENTER_HORIZONTALLY;
                     } else if (text == "center local") {
                         winbar_settings->icons_alignment = container_alignment::ALIGN_CENTER_HORIZONTALLY;
+                    } else if (text == "left") {
+                        winbar_settings->icons_alignment = container_alignment::ALIGN_LEFT;
                     }
                 }
             } else if (key == "pinned_icon_style") {
