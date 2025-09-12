@@ -367,18 +367,29 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     std::string text;
+    std::string path;
     if (mute_state) {
         text = "\uE74F";
+        path = "audio/mute24.png";
     } else if (val == 0) {
         text = "\uE992";
+        path = "audio/low24.png";
     } else if (val < 33) {
         text = "\uE993";
+        path = "audio/low24.png";
     } else if (val < 66) {
         text = "\uE994";
+        path = "audio/medium24.png";
     } else {
         text = "\uE995";
+        path = "audio/high24.png";
     }
-    
+
+    if (!winbar_settings->icons_from_font) {
+        load_and_paint(app, client, path, 16 * config->dpi, container->real_bounds);
+        return;
+    }
+
     auto [w, h] = f->begin(text, EXPAND(config->color_taskbar_button_icons));
     f->draw_text((int) (container->real_bounds.x + (container->real_bounds.w - 12 * config->dpi) - w / 2),
                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
@@ -3072,7 +3083,19 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
     
     auto data = (ActionCenterButtonData *) container->user_data;
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
-    
+
+    if (!winbar_settings->icons_from_font) {
+        auto s = 24 * config->dpi;
+        if (data->some_unseen) {
+            load_and_paint(app, client, "taskbar-notification-available.png", s, container->real_bounds.x +
+                (container->real_bounds.h - s) * .5, container->real_bounds.y + container->real_bounds.h * .5 - s * .5);
+        } else {
+            load_and_paint(app, client, "taskbar-notification-empty.png", s, container->real_bounds.x +
+                (container->real_bounds.h - s) * .5, container->real_bounds.y + container->real_bounds.h * .5 - s * .5);
+        }
+        return;
+    }
+
     draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), "\uE91C", container->real_bounds,
               5, 12 * config->dpi, container->real_bounds.h / 2 - (8 * config->dpi));
     
@@ -3177,6 +3200,11 @@ paint_systray(AppClient *client, cairo_t *cr, Container *container) {
 #endif
     paint_hoverable_button_background(client, cr, container);
 
+    if (!winbar_settings->icons_from_font) {
+        load_and_paint(app, client, "arrow.png", 16 * config->dpi, container->real_bounds);
+        return;
+    }
+
     draw_text(client, 10 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), "\uE971", container->real_bounds,
               -5, -1, -1);
 }
@@ -3199,7 +3227,12 @@ paint_bluetooth(AppClient *client, cairo_t *cr, Container *container) {
     ZoneScoped;
 #endif
     paint_hoverable_button_background(client, cr, container);
-    
+
+    if (!winbar_settings->icons_from_font) {
+        load_and_paint(app, client, "bluetooth.svg", 16 * config->dpi, container->real_bounds);
+        return;
+    }
+
     draw_text(client, 10 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), "\uE702", container->real_bounds);
 }
 
@@ -3603,6 +3636,10 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     IconButton *data = (IconButton *) container->user_data;
     if (winbar_settings->field_size != "Full" && container->real_bounds.w < 100 * config->dpi) {
         paint_hoverable_button_background(client, cr, container);
+        if (!winbar_settings->icons_from_font) {
+            load_and_paint(app, client, "search.png", icon_width(client), container->real_bounds);
+            return;
+        }
         draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_search_bar_default_icon_short), "\uE721", container->real_bounds);
         return;
     }
@@ -4073,7 +4110,7 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
             text = "\uEB5E";
         }
     }
-    
+
     draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), text, container->real_bounds);
 }
 
