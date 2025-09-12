@@ -48,6 +48,7 @@ struct Config {
     ArgbColor color_taskbar_search_bar_hovered_text = ArgbColor("#ff2d2d2d");
     ArgbColor color_taskbar_search_bar_pressed_text = ArgbColor("#ff020202");
     ArgbColor color_taskbar_search_bar_default_icon = ArgbColor("#ff020202");
+    ArgbColor color_taskbar_search_bar_default_icon_short = ArgbColor("#ffffffff");
     ArgbColor color_taskbar_search_bar_hovered_icon = ArgbColor("#ff020202");
     ArgbColor color_taskbar_search_bar_pressed_icon = ArgbColor("#ff020202");
     ArgbColor color_taskbar_search_bar_default_border = ArgbColor("#ffb4b4b4");

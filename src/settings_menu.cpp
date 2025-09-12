@@ -3188,6 +3188,7 @@ void load_colors() {
     config->color_taskbar_search_bar_hovered_text = ArgbColor("#ff2d2d2d");
     config->color_taskbar_search_bar_pressed_text = ArgbColor("#ff020202");
     config->color_taskbar_search_bar_default_icon = ArgbColor("#ff020202");
+    config->color_taskbar_search_bar_default_icon_short = ArgbColor("#ffffffff");
     config->color_taskbar_search_bar_hovered_icon = ArgbColor("#ff020202");
     config->color_taskbar_search_bar_pressed_icon = ArgbColor("#ff020202");
     config->color_taskbar_search_bar_default_border = ArgbColor("#ffb4b4b4");
@@ -3355,6 +3356,7 @@ void load_colors() {
         config->color_taskbar_search_bar_hovered_text = ArgbColor("#dddcdcdc");
         config->color_taskbar_search_bar_pressed_text = ArgbColor("#ff020202");
         config->color_taskbar_search_bar_default_icon = ArgbColor("#ddf9f9f9");
+        config->color_taskbar_search_bar_default_icon_short = ArgbColor("#ddf9f9f9");
         config->color_taskbar_search_bar_hovered_icon = ArgbColor("#ddf9f9f9");
         config->color_taskbar_search_bar_pressed_icon = ArgbColor("#ff020202");
         config->color_taskbar_search_bar_default_border = ArgbColor("#ff5c5c5c");
@@ -3376,6 +3378,7 @@ void load_colors() {
         config->color_taskbar_search_bar_hovered_text = ArgbColor("#ff2d2d2d");
         config->color_taskbar_search_bar_pressed_text = ArgbColor("#ff020202");
         config->color_taskbar_search_bar_default_icon = ArgbColor("#ff020202");
+        config->color_taskbar_search_bar_default_icon_short = ArgbColor("#ff020202");
         config->color_taskbar_search_bar_hovered_icon = ArgbColor("#ff020202");
         config->color_taskbar_search_bar_pressed_icon = ArgbColor("#ff020202");
         config->color_taskbar_search_bar_default_border = ArgbColor("#ffb4b4b4");
@@ -3437,7 +3440,7 @@ void load_colors() {
         config->color_volume_slider_active = ArgbColor("#ff000000");
         config->color_apps_background = ArgbColor("#f3e4e4e4");
         config->color_apps_text = ArgbColor("#ff000000");
-        config->color_apps_text_inactive = ArgbColor("#ff505050");
+        config->color_apps_text_inactive = ArgbColor("#aa808080");
         config->color_apps_icons = ArgbColor("#ff000000");
         config->color_apps_default_item = ArgbColor("#00ffffff");
         config->color_apps_hovered_item = ArgbColor("#D0ffffff");

@@ -737,8 +737,13 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         return;
     }
     LaunchableButton *data = (LaunchableButton *) container->user_data;
-    
-    if (data->surface__) {
+    if (winbar_settings->perfect_match && data->surface__) {
+        auto w = cairo_image_surface_get_width(data->surface__);
+        cairo_set_source_surface(cr, data->surface__,
+            container->real_bounds.x + container->real_bounds.w * .5 - w * .5,
+            container->real_bounds.y + container->real_bounds.h * .5 - w * .5);
+        cairo_paint(cr);
+    } else if (data->surface__) {
         cairo_save(cr);
         double scale_afterwards = .81;
         double surface_width = cairo_image_surface_get_width(data->surface__);
@@ -3598,7 +3603,7 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     IconButton *data = (IconButton *) container->user_data;
     if (winbar_settings->field_size != "Full" && container->real_bounds.w < 100 * config->dpi) {
         paint_hoverable_button_background(client, cr, container);
-        draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_search_bar_default_icon), "\uE721", container->real_bounds);
+        draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_search_bar_default_icon_short), "\uE721", container->real_bounds);
         return;
     }
 

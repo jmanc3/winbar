@@ -1890,7 +1890,7 @@ paint_grid_item(AppClient *client, cairo_t *cr, Container *container) {
     std::string text = data->text;
     if (text == "Recently added")
         text = "\uE823";
-    color = ArgbColor(1, 1, 1, 1);
+    // color = ArgbColor(1, 1, 1, 1);
     draw_text(client, 14 * config->dpi, config->font, EXPAND(color), text, container->real_bounds);
 }
 
