@@ -748,7 +748,7 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         return;
     }
     LaunchableButton *data = (LaunchableButton *) container->user_data;
-    if (winbar_settings->perfect_match && data->surface__) {
+    if (winbar_settings->perfect_match && data->surface__ && !winbar_settings->labels) {
         auto w = cairo_image_surface_get_width(data->surface__);
         cairo_set_source_surface(cr, data->surface__,
             container->real_bounds.x + container->real_bounds.w * .5 - w * .5,
