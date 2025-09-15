@@ -3088,7 +3088,7 @@ paint_action_center(AppClient *client, cairo_t *cr, Container *container) {
         // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
 
     if (!winbar_settings->icons_from_font) {
-        auto s = 24 * config->dpi;
+        auto s = 16 * config->dpi;
         if (data->some_unseen) {
             load_and_paint(app, client, "taskbar-notification-available.png", s, container->real_bounds.x +
                 (container->real_bounds.h - s) * .5, container->real_bounds.y + container->real_bounds.h * .5 - s * .5);
@@ -3639,10 +3639,6 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     IconButton *data = (IconButton *) container->user_data;
     if (winbar_settings->field_size != "Full" && container->real_bounds.w < 100 * config->dpi) {
         paint_hoverable_button_background(client, cr, container);
-        if (!winbar_settings->icons_from_font) {
-            load_and_paint(app, client, "search.png", icon_width(client), container->real_bounds);
-            return;
-        }
         draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_search_bar_default_icon_short), "\uE721", container->real_bounds);
         return;
     }
@@ -3733,6 +3729,12 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
         }
     }
     // Search icon
+    // Function needs to be revised to support this kind of positioning
+    // if (!winbar_settings->icons_from_font) {
+    //         load_and_paint(app, client, "search.png", icon_width(client), container->real_bounds, 5, 12 * config->dpi,
+    //         container->real_bounds.h / 2 - 8 * config->dpi);
+    //         return;
+    // }
     draw_text(client, 12 * config->dpi, config->icons, EXPAND(color), "\uE721", container->real_bounds, 5, 12 * config->dpi,
               container->real_bounds.h / 2 - 8 * config->dpi);
     
@@ -4100,18 +4102,28 @@ paint_wifi(AppClient *client, cairo_t *cr, Container *container) {
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     std::string text;
+    std::string path;
     if (up) {
         if (wired) {
             text = "\uE839";
+            path = "wifi/16/wired_up.png";
         } else {
             text = "\uEC3F";
+            path = "wifi/16/wireless_up.png";
         }
     } else {
         if (wired) {
             text = "\uF384";
+            path = "wifi/16/wired_down.png";
         } else {
             text = "\uEB5E";
+            path = "wifi/16/wireless_down.png";
         }
+    }
+    
+    if (!winbar_settings->icons_from_font) {
+        load_and_paint(app, client, path, 16 * config->dpi, container->real_bounds);
+            return;
     }
 
     draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), text, container->real_bounds);
