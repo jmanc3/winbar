@@ -168,6 +168,7 @@ void start_run_window() {
         options.h = height + pad * 2 + search_pad * 2;
         options.x = taskbar->bounds->x + pad;
         options.y = taskbar->bounds->y - options.h - pad;
+        options.keep_above = true;
         
         PopupSettings popup_settings;
         popup_settings.name = "winbar_run";
