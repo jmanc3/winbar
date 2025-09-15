@@ -210,7 +210,7 @@ void start_run_window() {
         area_options.color_cursor = fg;
         area_options.bottom_show_amount = ScrollShow::SNever;
         area_options.bottom_show_amount = ScrollShow::SNever;
-        area_options.font_size__ = area_options.font_size__ + std::round((1 * config->dpi));
+        area_options.font_size__ = 10 * config->dpi;
         area_options.single_line = true;
         area_options.pad = Bounds(search_pad, search_pad, search_pad, search_pad);
         auto textarea = make_textarea(app, run_client, text_box, area_options);
