@@ -3639,7 +3639,12 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     IconButton *data = (IconButton *) container->user_data;
     if (winbar_settings->field_size != "Full" && container->real_bounds.w < 100 * config->dpi) {
         paint_hoverable_button_background(client, cr, container);
-        draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_search_bar_default_icon_short), "\uE721", container->real_bounds);
+        if (!winbar_settings->icons_from_font) {
+            auto w = icon_width(client);
+            load_and_paint(app, client, "search.png", w, container->real_bounds); 
+        } else {
+            draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_search_bar_default_icon_short), "\uE721", container->real_bounds);
+        }
         return;
     }
 
@@ -3730,13 +3735,14 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     }
     // Search icon
     // Function needs to be revised to support this kind of positioning
-    // if (!winbar_settings->icons_from_font) {
-    //         load_and_paint(app, client, "search.png", icon_width(client), container->real_bounds, 5, 12 * config->dpi,
-    //         container->real_bounds.h / 2 - 8 * config->dpi);
-    //         return;
-    // }
-    draw_text(client, 12 * config->dpi, config->icons, EXPAND(color), "\uE721", container->real_bounds, 5, 12 * config->dpi,
-              container->real_bounds.h / 2 - 8 * config->dpi);
+    if (!winbar_settings->icons_from_font) {
+        auto w = icon_width(client);
+        load_and_paint(app, client, "search.png", w, 
+            container->real_bounds.x + (container->real_bounds.h - w) * .5, container->real_bounds.y + container->real_bounds.h * .5 - w * .5); 
+    } else {
+        draw_text(client, 12 * config->dpi, config->icons, EXPAND(color), "\uE721", container->real_bounds, 5, 12 * config->dpi,
+            container->real_bounds.h / 2 - 8 * config->dpi);
+    }
     
     if (text_empty) {
         std::string text("Type here to search");

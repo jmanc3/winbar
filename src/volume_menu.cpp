@@ -101,7 +101,9 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
         auto [w, h] = f->sizes();
         f->end();
         // Background empty bars
-        draw_text(client_entity, 20 * config->dpi, config->icons, .4, .4, .4, 1, "\uEBC5", container->real_bounds, 5,  container->real_bounds.w / 2 - w / 2, container->real_bounds.h / 2 - h / 2);
+        if (winbar_settings->icons_from_font) {
+            draw_text(client_entity, 20 * config->dpi, config->icons, .4, .4, .4, 1, "\uEBC5", container->real_bounds, 5,  container->real_bounds.w / 2 - w / 2, container->real_bounds.h / 2 - h / 2);
+        }
     }
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
@@ -126,10 +128,10 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     }
 
     // Does not display properly, TODO fix
-    // if (!winbar_settings->icons_from_font) {
-    //     load_and_paint(app, client_entity, path, 20 * config->dpi, container->real_bounds);
-    //     return;
-    // }
+    if (!winbar_settings->icons_from_font) {
+        load_and_paint(app, client_entity, path, 20 * config->dpi, container->real_bounds);
+        return;
+    }
 
     draw_text(client_entity, 20 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), text,
               container->real_bounds);

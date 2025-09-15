@@ -107,9 +107,10 @@ paint_icon(AppClient *client, cairo_t *cr, Container *container, bool dye) {
         text = "\uE713";
     } else if (data->text == "Pin to taskbar") {
         text = "\uE718";
-        path = "open.png";
+        path = "taskbar-pin.png";
     } else if (data->text == "Unpin from taskbar") {
         text = "\uE77A";
+        path = "taskbar-unpin.png";
     }else if (data->text == "End task" || data->text == "End tasks") {
       text = "\uF140";
     } else if (data->text == "Close window" || data->text == "Close all windows") {
@@ -125,9 +126,12 @@ paint_icon(AppClient *client, cairo_t *cr, Container *container, bool dye) {
                         (int) (container->real_bounds.y + container->real_bounds.h / 2 - height / 2));
         return;
     }
-    if (!winbar_settings->icons_from_font) {
+    if (!winbar_settings->icons_from_font && !path.empty()) {
         // Function needs to be revised to support this kind of positioning
-        // load_and_paint(app, client, path, 16 * config->dpi, container->real_bounds, 5, 12 * config->dpi);
+        auto w = 16 * config->dpi;
+        load_and_paint(app, client, path, w, 
+            container->real_bounds.x + 12 * config->dpi, 
+            container->real_bounds.y + container->real_bounds.h * .5 - w * .5);
         return;
     }
     draw_text(client, 10 * config->dpi, config->icons, EXPAND(config->color_pin_menu_icons), text, container->real_bounds, 5, 12 * config->dpi);
