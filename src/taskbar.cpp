@@ -3636,18 +3636,6 @@ clicked_search(AppClient *client, cairo_t *cr, Container *container) {
 
 static void
 paint_search(AppClient *client, cairo_t *cr, Container *container) {
-    IconButton *data = (IconButton *) container->user_data;
-    if (winbar_settings->field_size != "Full" && container->real_bounds.w < 100 * config->dpi) {
-        paint_hoverable_button_background(client, cr, container);
-        if (!winbar_settings->icons_from_font) {
-            auto w = icon_width(client);
-            load_and_paint(app, client, "search.png", w, container->real_bounds); 
-        } else {
-            draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_search_bar_default_icon_short), "\uE721", container->real_bounds);
-        }
-        return;
-    }
-
 #ifdef TRACY_ENABLE
     ZoneScoped;
 #endif
@@ -3658,7 +3646,6 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
     if (auto *con = container_by_name("main_text_area", container)) {
         auto *text_data = (TextAreaData *) con->user_data;
         text_empty = text_data->state->text.empty();
-        active = con->parent->active;
     }
     if (auto *c = client_by_name(client->app, "search_menu"))
         if (!c->marked_to_close)
@@ -3681,7 +3668,19 @@ paint_search(AppClient *client, cairo_t *cr, Container *container) {
         border_size = 2;
     if (container->state.mouse_hovering)
         border_size = 2;
-    
+
+    IconButton *data = (IconButton *) container->user_data;
+    if (winbar_settings->field_size != "Full" && container->real_bounds.w < 100 * config->dpi) {
+        paint_hoverable_button_background(client, cr, container);
+        if (!winbar_settings->icons_from_font) {
+            auto w = icon_width(client);
+            load_and_paint(app, client, "search.png", w, container->real_bounds);
+        } else {
+            draw_text(client, 12 * config->dpi, config->icons, EXPAND(config->color_taskbar_search_bar_default_icon_short), "\uE721", container->real_bounds);
+        }
+        return;
+    }
+
     // Paint border
 //    set_rect(cr, container->real_bounds);
     int top_off = 0;
