@@ -2213,6 +2213,9 @@ paint_all_icons(AppClient *client_entity, cairo_t *cr, Container *container) {
 static void
 on_tooltip_open(App *app, AppClient *client, Timeout *timeout, void *data) {
 #define PAD (4 * config->dpi)
+    if (winbar_settings->perfect_match) {
+        return;
+    }
     if (auto c = client_by_name(app, "tooltip_taskbar")) {
         return;
     }
