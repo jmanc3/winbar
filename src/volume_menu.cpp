@@ -9,6 +9,8 @@
 #include "taskbar.h"
 #include "components.h"
 #include "icons.h"
+#include "settings_menu.h"
+#include "container.h"
 
 #ifdef TRACY_ENABLE
 
@@ -104,18 +106,31 @@ paint_volume_icon(AppClient *client_entity, cairo_t *cr, Container *container) {
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
     std::string text;
+    std::string path;
+
     if (is_muted) {
         text = "\uE74F";
+        path = "audio/mute24.png";
     } else if (val == 0) {
         text = "\uE992";
+        path = "audio/low24.png";
     } else if (val < 33) {
         text = "\uE993";
+        path = "audio/low24.png";
     } else if (val < 66) {
         text = "\uE994";
+        path = "audio/medium24.png";
     } else {
         text = "\uE995";
+        path = "audio/high24.png";
     }
-    
+
+    // Does not display properly, TODO fix
+    // if (!winbar_settings->icons_from_font) {
+    //     load_and_paint(app, client_entity, path, 20 * config->dpi, container->real_bounds);
+    //     return;
+    // }
+
     draw_text(client_entity, 20 * config->dpi, config->icons, EXPAND(config->color_taskbar_button_icons), text,
               container->real_bounds);
 }
