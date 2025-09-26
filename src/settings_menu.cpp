@@ -2,6 +2,7 @@
 // Created by jmanc3 on 10/18/23.
 //
 
+#include <filesystem>
 #include <pango/pangocairo.h>
 #include <cmath>
 #include <fstream>
@@ -2861,9 +2862,20 @@ void read_settings_file() {
     }
     std::vector<TaskbarItem> file_order;
     bool found_order = false;
+
+    std::string default_settings = "/usr/share/winbar/settings.conf";
     
     char *home = getenv("HOME");
     std::string path = std::string(home) + "/.config/winbar/settings.conf";
+    if (!std::filesystem::exists((path))) {
+        if (std::filesystem::exists((default_settings))) {
+            try {
+                std::filesystem::copy_file(default_settings, path);
+            } catch (...) {
+                printf("Copying default settings file failed for some reason!\n");
+            }
+        }
+    }
     std::ifstream input_file(path);
     bool was_good = input_file.good();
     std::string found_version = "0";
