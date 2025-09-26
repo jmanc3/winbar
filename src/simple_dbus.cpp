@@ -1778,7 +1778,8 @@ void network_manager_request_scan(std::string device_path) {
     // Send the message
     DBusMessage *iface_reply = dbus_connection_send_with_reply_and_block(dbus_connection_system,
                                                                          scan, 50, NULL);
-    defer(dbus_message_unref(iface_reply));
+    if (iface_reply)
+        dbus_message_unref(iface_reply);
 }
 
 enum WIFISecurityMode : uint8_t {
