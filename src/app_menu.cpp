@@ -1632,10 +1632,10 @@ void paint_live_tile_bg(AppClient *client, cairo_t *cr, Container *container) {
                 live->vis_y = item->real_bounds.y;
             }
             if (!already_began(client, &live->vis_x, item->real_bounds.x))
-                client_create_animation(app, client, &live->vis_x, client->lifetime, 0, 130.0f, getEasingFunction(EaseInOutSine),
+                client_create_animation(app, client, &live->vis_x, item->lifetime, 0, 130.0f, getEasingFunction(EaseInOutSine),
                                         item->real_bounds.x);
             if (!already_began(client, &live->vis_y, item->real_bounds.y))
-                client_create_animation(app, client, &live->vis_y, client->lifetime, 0, 130.0f, getEasingFunction(EaseInOutSine),
+                client_create_animation(app, client, &live->vis_y, item->lifetime, 0, 130.0f, getEasingFunction(EaseInOutSine),
                                         item->real_bounds.y);
             item->real_bounds.x = live->vis_x;
             item->real_bounds.y = live->vis_y;
