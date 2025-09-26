@@ -628,7 +628,16 @@ void wifi_state(AppClient *client, bool *up, bool *wired) {
     }
     last_check = client->app->current;
     std::string status = "down";
-    const std::string &default_interface = get_default_wifi_interface(client);
+    std::string default_interface = get_default_wifi_interface(client);
+    if (!winbar_settings->preferred_interfaces.empty()) {
+        if (wifi_data) {
+            for (auto f : wifi_data->seen_interfaces) {
+                if (f == winbar_settings->preferred_interfaces[0]) {
+                    default_interface = winbar_settings->preferred_interfaces[0];
+                }
+            }
+        }
+    }
     std::ifstream status_file("/sys/class/net/" + default_interface + "/operstate");
     if (status_file.is_open()) {
         std::string line;

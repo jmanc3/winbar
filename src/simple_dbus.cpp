@@ -2169,20 +2169,20 @@ void network_manager_service_get_all_devices() {
                 if (dbus_message_get_args(dbus_reply, NULL, DBUS_TYPE_STRING, &output, DBUS_TYPE_INVALID)) {
                     std::string xml(output);
                     
-                    if (xml.find("org.freedesktop.NetworkManager.Device.Wireless") != std::string::npos) {
-                        std::string interface = get_str_property("org.freedesktop.NetworkManager", object_path,
-                                                                 "org.freedesktop.NetworkManager.Device", "Interface");
-                        if (!interface.empty()) {
-                            auto link = new InterfaceLink;
-                            link->interface = interface;
-                            link->device_object_path = object_path;
-                            wifi_data->links.push_back(link);
-                            wifi_data->seen_interfaces.emplace_back(interface);
-                            winbar_settings->set_preferred_interface(interface);
-                            
-                            network_manager_service_get_all_access_points_of_device(object_path);
-                        }
+                    //if (xml.find("org.freedesktop.NetworkManager.Device.Wireless") != std::string::npos) {
+                    std::string interface = get_str_property("org.freedesktop.NetworkManager", object_path, "org.freedesktop.NetworkManager.Device", "Interface");
+
+                    if (!interface.empty()) {
+                        auto link = new InterfaceLink;
+                        link->interface = interface;
+                        link->device_object_path = object_path;
+                        wifi_data->links.push_back(link);
+                        wifi_data->seen_interfaces.emplace_back(interface);
+                        //winbar_settings->set_preferred_interface(interface);
+
+                        network_manager_service_get_all_access_points_of_device(object_path);
                     }
+                    //}
                 }
             }
         } else {

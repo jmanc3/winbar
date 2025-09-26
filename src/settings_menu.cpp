@@ -2666,7 +2666,12 @@ void save_settings_file() {
     // Pinned icon style
     out_file << "pinned_icon_style=\"" << winbar_settings->pinned_icon_style << "\"";
     out_file << std::endl << std::endl;
-    
+
+    if (!winbar_settings->preferred_interfaces.empty()) {
+        out_file << "preferred_interfaces=\"" << winbar_settings->preferred_interfaces[0] << "\"";
+        out_file << std::endl << std::endl;
+    }
+
     // Search Behaviour
     out_file << "search_behaviour=\"" << winbar_settings->search_behaviour << "\"";
     out_file << std::endl << std::endl;
@@ -2944,7 +2949,19 @@ void read_settings_file() {
                         }
                     }
                 }
-           } else if (key == "date_alignment") {
+            } else if (key == "preferred_interfaces") {
+                parser.until(LineParser::Token::QUOTE);
+                if (parser.current_token == LineParser::Token::QUOTE) {
+                    parser.next();
+                    std::string text = parser.until(LineParser::Token::QUOTE);
+                    if (parser.current_token == LineParser::Token::QUOTE) {
+                        trim(text);
+                        if (!text.empty()) {
+                            winbar_settings->preferred_interfaces.push_back(text);
+                        }
+                    }
+                }
+            } else if (key == "date_alignment") {
                 parser.until(LineParser::Token::IDENT);
                 if (parser.current_token == LineParser::Token::IDENT) {
                     std::string text = parser.until(LineParser::Token::END_OF_LINE);

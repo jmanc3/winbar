@@ -133,11 +133,11 @@ void wifi_update_network_cards() {
     if (do_sort) {
         for (auto i: wifi_data->seen_interfaces) {
             if (i.find("-") == std::string::npos) {
-                wifi_set_active(i);
+                //wifi_set_active(i);
             }
         }
         // Don't prefer p2p or names with - in them
-        
+
         // Maximally prefer get_default_wifi_interface(client_by_name(app, "taskbar"), If it returns non-empty
     }
 }
@@ -148,7 +148,7 @@ void wifi_start(App *app) {
         return;
     }
     wifi_update_network_cards();
-    
+
     for (auto i: wifi_data->seen_interfaces) {
         wifi_wpa_start(app, i);
     }
@@ -205,7 +205,7 @@ void parse_wifi_flags(ScanResult *result) {
         result->state_for_saved_networks = flags;
         return;
     }
-    
+
     int auth, encr = 0;
     if (flags.find("[WPA2-EAP") != std::string::npos)
         auth = AUTH_WPA2_EAP;
@@ -217,7 +217,7 @@ void parse_wifi_flags(ScanResult *result) {
         auth = AUTH_WPA_PSK;
     else
         auth = AUTH_NONE_OPEN;
-    
+
     if (flags.find("-CCMP") != std::string::npos)
         encr = 1;
     else if (flags.find("-TKIP") != std::string::npos)
@@ -680,6 +680,7 @@ void wifi_set_active(std::string interface) {
     for (const auto &i: wifi_data->seen_interfaces) {
         if (i == interface) {
             winbar_settings->set_preferred_interface(i);
+            save_settings_file();
         }
     }
 }
