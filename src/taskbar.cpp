@@ -360,9 +360,11 @@ paint_volume(AppClient *client, cairo_t *cr, Container *container) {
     auto f = draw_get_font(client, 12 * config->dpi, config->icons);
     if (!mute_state) { // Volume background bars
         auto [w, h] = f->begin("\uEBC5", .4, .4, .4, .8);
+        if (!winbar_settings->icons_from_font) {
         f->draw_text((int) (container->real_bounds.x + (container->real_bounds.w - 12 * config->dpi) - w / 2),
                      (int) (container->real_bounds.y + container->real_bounds.h / 2 - h / 2));
         f->end();
+        }
     }
     
     // from https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
