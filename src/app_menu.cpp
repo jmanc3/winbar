@@ -1692,7 +1692,7 @@ paint_live_tile_data(AppClient *client, cairo_t *cr, Container *container, cairo
 void paint_live_tile(AppClient *client, cairo_t *cr, Container *container) {
     auto data = (LiveTileData *) container->user_data;
     int size = 36 * config->dpi;
-    if (data->__surface == nullptr) {
+    if (data && data->__surface == nullptr) {
         data->__surface = accelerated_surface(app, client, size, size);
         delete data->gsurf;
         data->gsurf = new gl_surface;
