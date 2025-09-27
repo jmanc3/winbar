@@ -631,11 +631,22 @@ void wifi_state(AppClient *client, bool *up, bool *wired) {
     std::string default_interface = get_default_wifi_interface(client);
     if (!winbar_settings->preferred_interfaces.empty()) {
         if (wifi_data) {
+            bool found = false;
             for (auto f : wifi_data->seen_interfaces) {
                 if (f == winbar_settings->preferred_interfaces[0]) {
                     default_interface = winbar_settings->preferred_interfaces[0];
+                    found = true;
                 }
             }
+            if (!found) {
+                if (!default_interface.empty()) {
+                    wifi_set_active(default_interface);
+                }
+            }
+        }
+    } else {
+        if (!default_interface.empty()) {
+            wifi_set_active(default_interface);
         }
     }
     std::ifstream status_file("/sys/class/net/" + default_interface + "/operstate");
