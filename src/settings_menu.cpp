@@ -768,7 +768,7 @@ void merge_order_with_taskbar() {
         taskbar->root->children.push_back(c);
     }
     // No matter what, bluetooth does not exist until dbus says it does.
-    container_by_name("bluetooth", taskbar->root)->exists = false;
+    container_by_name("bluetooth", taskbar->root)->exists = bluetooth_running && winbar_settings->bluetooth_enabled;
     container_by_name("icons", taskbar->root)->alignment = winbar_settings->icons_alignment;
 
     if (auto field = container_by_name("field_search", taskbar->root)) {
