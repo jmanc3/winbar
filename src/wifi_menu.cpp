@@ -3,6 +3,7 @@
 #include "application.h"
 #include "config.h"
 #include "main.h"
+#include "simple_dbus.h"
 #include "taskbar.h"
 #include "utility.h"
 #include "wifi_backend.h"
@@ -647,6 +648,22 @@ void wifi_state(AppClient *client, bool *up, bool *wired) {
     } else {
         if (!default_interface.empty()) {
             wifi_set_active(default_interface);
+        }
+    }
+    if (network_manager_running) {
+        bool found = false;
+        for (auto l: wifi_data->links) {
+            if (l->interface == default_interface) {
+                found = true;
+                *up = wifi_global_status(l);
+                break;
+            }
+        }
+        if (found) {
+            *wired = std::string::npos == default_interface.find("wlp");
+            last_up = *up;
+            last_wired = *wired;
+            return;
         }
     }
     std::ifstream status_file("/sys/class/net/" + default_interface + "/operstate");
