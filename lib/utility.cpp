@@ -810,7 +810,7 @@ ArgbColor correct_opaqueness(AppClient *client, ArgbColor color) {
     } else {
         alpha = 1;
     }
-    return ArgbColor(color.r, color.g, color.g, alpha);
+    return ArgbColor(color.r, color.g, color.b, alpha);
 }
 
 
