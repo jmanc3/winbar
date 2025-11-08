@@ -660,7 +660,7 @@ void wifi_state(AppClient *client, bool *up, bool *wired) {
             }
         }
         if (found) {
-            *wired = std::string::npos == default_interface.find("wlp");
+            *wired = !std::filesystem::exists("/sys/class/net/" + default_interface + "/wireless");
             last_up = *up;
             last_wired = *wired;
             return;
@@ -679,7 +679,7 @@ void wifi_state(AppClient *client, bool *up, bool *wired) {
     *up = status == "up";
     
     // Wireless interfaces are prefixed with wlp
-    *wired = std::string::npos == default_interface.find("wlp");
+    *wired = !std::filesystem::exists("/sys/class/net/" + default_interface + "/wireless");
     
     last_up = *up;
     last_wired = *wired;
