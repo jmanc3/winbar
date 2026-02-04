@@ -53,6 +53,7 @@ struct ScanResult {
 struct InterfaceLink {
     std::string interface;
     std::string device_object_path;
+    bool is_wireless = false;
     wpa_ctrl *wpa_message_sender = nullptr;
     wpa_ctrl *wpa_message_listener = nullptr;
     std::vector<ScanResult> results;

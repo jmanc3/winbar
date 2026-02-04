@@ -1748,7 +1748,21 @@ dbus_int64_t get_boottime_millis() {
     return (uint64_t(ts.tv_sec) * 1000) + (ts.tv_nsec / 1000000);
 }
 
+static bool nm_device_supports_wireless(const std::string &device_path) {
+    if (!wifi_data)
+        return false;
+    for (auto *link: wifi_data->links) {
+        if (!link)
+            continue;
+        if (link->device_object_path == device_path)
+            return link->is_wireless;
+    }
+    return false;
+}
+
 bool nm_scan_too_soon(std::string device_path) {
+    if (!nm_device_supports_wireless(device_path))
+        return true;
     dbus_int64_t time = get_num_property<dbus_int64_t>("org.freedesktop.NetworkManager", device_path.c_str(),
                                                        "org.freedesktop.NetworkManager.Device.Wireless", "LastScan");
     if (time == -1) // -1 means never scanned (or error)
@@ -1759,6 +1773,8 @@ bool nm_scan_too_soon(std::string device_path) {
 }
 
 void network_manager_request_scan(std::string device_path) {
+    if (!nm_device_supports_wireless(device_path))
+        return;
     if (nm_scan_too_soon(device_path))
         return;
     
@@ -2008,6 +2024,8 @@ void add_access_point(std::string device_path, std::string ap_path) {
 }
 
 void network_manager_service_get_all_access_points_of_device(std::string device_path) {
+    if (!nm_device_supports_wireless(device_path))
+        return;
     DBusError error;
     dbus_error_init(&error);
     
@@ -2140,6 +2158,7 @@ void network_manager_service_get_all_devices() {
     for (auto links: wifi_data->links)
         delete links;
     wifi_data->links.clear();
+    wifi_data->seen_interfaces.clear();
     
     while (dbus_message_iter_get_arg_type(&array_iter) != DBUS_TYPE_INVALID) {
         if (dbus_message_iter_get_arg_type(&array_iter) == DBUS_TYPE_OBJECT_PATH) {
@@ -2169,20 +2188,23 @@ void network_manager_service_get_all_devices() {
                 if (dbus_message_get_args(dbus_reply, NULL, DBUS_TYPE_STRING, &output, DBUS_TYPE_INVALID)) {
                     std::string xml(output);
                     
-                    //if (xml.find("org.freedesktop.NetworkManager.Device.Wireless") != std::string::npos) {
-                    std::string interface = get_str_property("org.freedesktop.NetworkManager", object_path, "org.freedesktop.NetworkManager.Device", "Interface");
+                    bool is_wireless = xml.find("org.freedesktop.NetworkManager.Device.Wireless") != std::string::npos;
+                    std::string interface = get_str_property("org.freedesktop.NetworkManager", object_path,
+                                                             "org.freedesktop.NetworkManager.Device", "Interface");
 
                     if (!interface.empty()) {
                         auto link = new InterfaceLink;
                         link->interface = interface;
                         link->device_object_path = object_path;
+                        link->is_wireless = is_wireless;
                         wifi_data->links.push_back(link);
                         wifi_data->seen_interfaces.emplace_back(interface);
                         //winbar_settings->set_preferred_interface(interface);
 
-                        network_manager_service_get_all_access_points_of_device(object_path);
+                        if (is_wireless) {
+                            network_manager_service_get_all_access_points_of_device(object_path);
+                        }
                     }
-                    //}
                 }
             }
         } else {

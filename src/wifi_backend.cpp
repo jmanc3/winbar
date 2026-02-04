@@ -93,6 +93,7 @@ bool wifi_wpa_start(App *app, const std::string &interface) {
     std::string wpa_supplicant_path = "/var/run/wpa_supplicant/" + interface;
     auto link = new InterfaceLink();
     link->interface = interface;
+    link->is_wireless = true;
     link->wpa_message_sender = wpa_ctrl_open(wpa_supplicant_path.data());
     if (!link->wpa_message_sender)
         return false;
