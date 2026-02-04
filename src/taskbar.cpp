@@ -42,6 +42,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <cassert>
+#include <string_view>
 #include <pango/pangocairo.h>
 #include <xcb/xproto.h>
 #include <dpi.h>
@@ -60,6 +61,7 @@ static Container *active_container = nullptr;
 static xcb_window_t active_window = 0;
 static xcb_window_t backup_active_window = 0;
 static bool someone_is_fullscreen_and_covering = false;
+static bool taskbar_hidden_for_fullscreen = false;
 static int times_painted = 0;
 
 static std::string time_text("N/A");
@@ -86,6 +88,9 @@ static void
 fill_root(Container *root);
 
 static void
+set_fullscreen_covering(bool fullscreen);
+
+static void
 late_classes_update(App *app, AppClient *client, Timeout *, void *data);
 
 static void
@@ -105,20 +110,20 @@ float zoom_rem(AppClient *client, double *target) {
 }
 
 
-// Trim leading and trailing whitespace from a string in-place
-std::string trim(std::string str) {
-    std::string copy = str;
-    // Remove leading whitespace
-    copy.erase(copy.begin(), std::find_if(copy.begin(), copy.end(), [](int ch) {
-        return !std::isspace(ch);
-    }));
-    
-    // Remove trailing whitespace
-    copy.erase(std::find_if(copy.rbegin(), copy.rend(), [](int ch) {
-        return !std::isspace(ch);
-    }).base(), copy.end());
-    
-    return copy;
+static std::string_view
+trim_view(std::string_view str) {
+    auto start = str.find_first_not_of(" \t\n\r\f\v");
+    if (start == std::string_view::npos) {
+        return {};
+    }
+    auto end = str.find_last_not_of(" \t\n\r\f\v");
+    return str.substr(start, end - start + 1);
+}
+
+static std::string
+trim_copy(std::string_view str) {
+    auto view = trim_view(str);
+    return std::string(view.data(), view.size());
 }
 
 std::string trimnewlines(std::string str) {
@@ -549,7 +554,7 @@ static int get_label_width(AppClient *client, Container *container) {
     std::string title;
     if (!data->windows_data_list.empty())
         title = data->windows_data_list[0]->title;
-    if (winbar_settings->labels && !data->windows_data_list.empty() && !trim(title).empty()) {
+    if (winbar_settings->labels && !data->windows_data_list.empty() && !trim_view(title).empty()) {
         float label_width = 0;
         
         {
@@ -719,7 +724,7 @@ paint_icon_surface_macos(AppClient *client, cairo_t *cr, Container *container) {
         float xpos = container->real_bounds.x + container->real_bounds.w * .5 - surface_width * .5;
         if (winbar_settings->labels && !data->windows_data_list.empty()) {
             auto title = data->windows_data_list[0]->title;
-            if (!trim(title).empty()) {
+            if (!trim_view(title).empty()) {
                 xpos = container->real_bounds.x + 8 * config->dpi;
             }
         }
@@ -787,7 +792,7 @@ paint_icon_surface(AppClient *client, cairo_t *cr, Container *container) {
         double ypos = container->real_bounds.y + container->real_bounds.h * .5 -surface_width * .5;
         if (winbar_settings->labels && !data->windows_data_list.empty()) {
             auto title = data->windows_data_list[0]->title;
-            if (!trim(title).empty()) {
+            if (!trim_view(title).empty()) {
                 xpos = container->real_bounds.x + 8 * config->dpi;
             }
         }
@@ -992,7 +997,7 @@ paint_icon_background_macos(AppClient *client, cairo_t *cr, Container *container
                                    dot_size, dot_size);
     if (winbar_settings->labels && !data->windows_data_list.empty()) {
         auto title = data->windows_data_list[0]->title;
-        if (!trim(title).empty()) {
+        if (!trim_view(title).empty()) {
             double w = cairo_image_surface_get_width(data->surface__);
             dot_bounds.x = container->real_bounds.x + 8 * config->dpi + w * .5 - dot_size * .5;
         }
@@ -2475,6 +2480,28 @@ Container *get_pinned_icon_representing_window(xcb_window_t window) {
     return nullptr;
 }
 
+static void
+set_fullscreen_covering(bool fullscreen) {
+    someone_is_fullscreen_and_covering = fullscreen;
+    if (fullscreen) {
+        client_close_threaded(app, client_by_name(app, "windows_selector"));
+    }
+
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        if (fullscreen) {
+            if (!taskbar_hidden_for_fullscreen) {
+                client_hide(app, taskbar);
+                taskbar_hidden_for_fullscreen = true;
+            }
+        } else if (taskbar_hidden_for_fullscreen) {
+            if (!winbar_settings->always_hide) {
+                client_show(app, taskbar);
+            }
+            taskbar_hidden_for_fullscreen = false;
+        }
+    }
+}
+
 void throttled_active_window_changed(xcb_window_t new_active_window) {
     defer(active_window = new_active_window);
     if (new_active_window == active_window)
@@ -2491,9 +2518,7 @@ void throttled_active_window_changed(xcb_window_t new_active_window) {
             for (unsigned int a = 0; a < reply->length; a++)
                 if (state_atoms[a] == fullscreen)
                     found_fullscreen = true;
-            someone_is_fullscreen_and_covering = found_fullscreen;
-            if (someone_is_fullscreen_and_covering)
-                client_close_threaded(app, client_by_name(app, "windows_selector"));
+            set_fullscreen_covering(found_fullscreen);
         }
         if (reply)
             free(reply);
@@ -4637,9 +4662,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                             }
                         }
                         if (active_window == e->window) {
-                            someone_is_fullscreen_and_covering = found_fullscreen;
-                            if (someone_is_fullscreen_and_covering)
-                                client_close_threaded(app, client_by_name(app, "windows_selector"));
+                            set_fullscreen_covering(found_fullscreen);
                         }
                         if (!attention) {
                             if (auto client = client_by_name(app, "taskbar")) {
@@ -4809,7 +4832,7 @@ window_event_handler(App *app, xcb_generic_event_t *event, xcb_window_t window) 
                 if (auto c = client_by_name(app, "pinned_icon_editor")) {
                     if (auto con = container_by_name("launch_command_field", c->root)) {
                         auto launch_command_field_data = (TextAreaData *) con->user_data;
-                        launch_command_field_data->state->text = trim(files);
+                        launch_command_field_data->state->text = trim_copy(files);
                     }
                 }
             }
