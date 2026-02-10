@@ -3307,10 +3307,25 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
         
         bool wants_to_relayout = false;
         
+        auto finish_animation = [&](ClientAnimation &animation) {
+            *animation.value = animation.target;
+            animation.done = true;
+            if (animation.relayout)
+                wants_to_relayout = true;
+            client_unregister_animation(app, client);
+            if (animation.finished) {
+                animation.finished(client);
+            }
+        };
+        
         for (auto &animation: client->animations) {
             if (!animation.lifetime.lock()) {
                 animation.done = true;
                 client_unregister_animation(app, client);
+                continue;
+            }
+            if (!std::isfinite(animation.length) || animation.length <= 0.0) {
+                finish_animation(animation);
                 continue;
             }
             long elapsed_time = now - (animation.start_time + animation.delay);
@@ -3329,11 +3344,7 @@ void client_animation_paint(App *app, AppClient *client, Timeout *timeout, void 
                 wants_to_relayout = true;
             
             if (animation.done) {
-                *animation.value = animation.target;
-                client_unregister_animation(app, client);
-                if (animation.finished) {
-                    animation.finished(client);
-                }
+                finish_animation(animation);
             }
         }
         
