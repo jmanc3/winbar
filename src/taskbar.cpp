@@ -62,6 +62,7 @@ static xcb_window_t active_window = 0;
 static xcb_window_t backup_active_window = 0;
 static bool someone_is_fullscreen_and_covering = false;
 static bool taskbar_hidden_for_fullscreen = false;
+static bool taskbar_forced_visible_for_start_menu = false;
 static int times_painted = 0;
 
 static std::string time_text("N/A");
@@ -2498,6 +2499,31 @@ set_fullscreen_covering(bool fullscreen) {
                 client_show(app, taskbar);
             }
             taskbar_hidden_for_fullscreen = false;
+        }
+    }
+}
+
+void show_taskbar_for_start_menu() {
+    taskbar_forced_visible_for_start_menu = false;
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        if (!taskbar->mapped) {
+            client_show(app, taskbar);
+            taskbar_forced_visible_for_start_menu = true;
+        }
+    }
+}
+
+void restore_taskbar_after_start_menu() {
+    if (!taskbar_forced_visible_for_start_menu) {
+        return;
+    }
+    taskbar_forced_visible_for_start_menu = false;
+
+    if (auto taskbar = client_by_name(app, "taskbar")) {
+        if (someone_is_fullscreen_and_covering || winbar_settings->always_hide) {
+            client_hide(app, taskbar);
+            taskbar->mouse_current_x = -1;
+            taskbar->mouse_current_y = -1;
         }
     }
 }

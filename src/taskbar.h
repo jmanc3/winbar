@@ -229,6 +229,10 @@ void set_textarea_active();
 
 void set_textarea_inactive();
 
+void show_taskbar_for_start_menu();
+
+void restore_taskbar_after_start_menu();
+
 void register_popup(xcb_window_t window);
 
 void taskbar_launch_index(int index);
