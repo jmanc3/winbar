@@ -2532,6 +2532,7 @@ app_menu_closed(AppClient *client) {
      }
     left_open_fd = nullptr;
     set_textarea_inactive();
+    restore_taskbar_after_start_menu();
     save_settings_file();
     save_live_tiles();
 }
@@ -2935,6 +2936,7 @@ void load_all_desktop_files() {
 
 void start_app_menu(bool autoclose) {
     left_locked = false;
+    show_taskbar_for_start_menu();
     if (auto *c = client_by_name(app, "search_menu")) {
         client_close(app, c);
     }
