@@ -10,12 +10,18 @@
 #include <pulse/mainloop.h>
 #include <thread>
 #include <pulse/pulseaudio.h>
+#include <vector>
+#include <functional>
+#include <pipewire/node.h>
 
 extern bool audio_running;
 extern bool allow_audio_thread_creation;
 
 struct AudioClient {
     int index = PA_INVALID_INDEX;
+    uint32_t pw_node_id = SPA_ID_INVALID;
+    pw_node *pw_node_ref = nullptr;
+    std::string pw_node_name;
     std::string monitor_source_name;
     std::string title;
     std::string subtitle;
@@ -25,7 +31,8 @@ struct AudioClient {
     bool mute = 0;
     double peak = 0;
     pa_stream *stream = nullptr; // for showing uv meter
-    
+    std::vector<float> pw_channel_volumes;
+
     long last_time_peak_changed = 0;
     double cached_volume = 1;
     double alsa_volume = 0;
@@ -41,6 +48,8 @@ struct AudioClient {
 };
 
 extern std::vector<AudioClient *> audio_clients;
+
+struct App;
 
 void audio_start(App *app);
 

@@ -97,6 +97,7 @@ set(
         xrender
         gl
         glew
+        libpipewire-0.3
 )
 
 find_package(glm REQUIRED)

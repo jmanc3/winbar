@@ -70,6 +70,7 @@ struct WinbarSettings {
     bool transparency = true;
     std::string color_mode = "Dark (Clear)";
     std::string active_icon_theme = "";
+    bool prefer_pipewire_audio_backend = false;
     
     std::vector<std::string> preferred_interfaces;
     

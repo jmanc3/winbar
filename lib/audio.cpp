@@ -25,6 +25,15 @@
 #include <cmath>
 #include <condition_variable>
 
+#include <pipewire/pipewire.h>
+#include <pipewire/extensions/metadata.h>
+#include <pipewire/keys.h>
+#include <spa/param/audio/raw.h>
+#include <spa/param/props.h>
+#include <spa/pod/builder.h>
+#include <spa/pod/parser.h>
+#include <spa/utils/dict.h>
+
 // Global stuff
 bool audio_running = false;
 bool allow_audio_thread_creation = true;
@@ -34,6 +43,7 @@ static App *app;
 enum AudioBackend {
     UNSET,
     PULSEAUDIO,
+    PIPEWIRE,
     ALSA
 };
 
@@ -68,7 +78,177 @@ static void (*audio_change_callback)() = nullptr;
 
 std::vector<AudioClient *> audio_clients;
 
+// PipeWire stuff
+struct PipeWireBoundNode {
+    uint32_t id = SPA_ID_INVALID;
+    bool is_master = false;
+    pw_node *node = nullptr;
+    spa_hook listener = {};
+    AudioClient *client = nullptr;
+};
+
+static pw_thread_loop *pw_thread_loop_instance = nullptr;
+static pw_context *pw_context_instance = nullptr;
+static pw_core *pw_core_instance = nullptr;
+static pw_registry *pw_registry_instance = nullptr;
+static pw_metadata *pw_metadata_instance = nullptr;
+static spa_hook pw_core_listener = {};
+static spa_hook pw_registry_listener = {};
+static spa_hook pw_metadata_listener = {};
+static std::vector<PipeWireBoundNode *> pw_bound_nodes;
+static int pw_sync_seq = 1;
+static bool pw_initial_sync_done = false;
+
 void sort();
+
+static void delete_all_audio_clients() {
+    for (auto c: audio_clients)
+        delete c;
+    audio_clients.clear();
+}
+
+static bool pipewire_class_is_master(const char *media_class) {
+    return media_class && strcmp(media_class, "Audio/Sink") == 0;
+}
+
+static bool pipewire_class_is_stream(const char *media_class) {
+    if (!media_class)
+        return false;
+    return strcmp(media_class, "Stream/Output/Audio") == 0 ||
+           strcmp(media_class, "Audio/Stream") == 0 ||
+           strcmp(media_class, "Audio/Source") == 0;
+}
+
+static bool is_default_sink_client(const AudioClient *client) {
+    if (!client || !client->is_master)
+        return false;
+
+    if (backend == AudioBackend::PIPEWIRE) {
+        if (default_sink_name.empty())
+            return false;
+        if (!client->pw_node_name.empty() && client->pw_node_name == default_sink_name)
+            return true;
+        return client->title == default_sink_name;
+    }
+
+    return client->title == default_sink_name;
+}
+
+static std::string parse_pipewire_default_name(const char *value) {
+    if (!value)
+        return "";
+
+    std::string s = value;
+    auto name_pos = s.find("\"name\"");
+    if (name_pos == std::string::npos)
+        return "";
+    auto colon = s.find(':', name_pos);
+    if (colon == std::string::npos)
+        return "";
+    auto quote_start = s.find('"', colon);
+    if (quote_start == std::string::npos)
+        return "";
+    quote_start++;
+    auto quote_end = s.find('"', quote_start);
+    if (quote_end == std::string::npos || quote_end <= quote_start)
+        return "";
+    return s.substr(quote_start, quote_end - quote_start);
+}
+
+static AudioClient *find_or_create_pipewire_client(uint32_t id, bool is_master) {
+    for (auto *c: audio_clients) {
+        if (c->pw_node_id == id && c->is_master == is_master)
+            return c;
+    }
+
+    auto *client = new AudioClient();
+    client->index = static_cast<int>(id);
+    client->pw_node_id = id;
+    client->is_master = is_master;
+    if (is_master) {
+        client->icon_name = "audio-card";
+    }
+    audio_clients.push_back(client);
+    return client;
+}
+
+static PipeWireBoundNode *find_pipewire_bound_node(uint32_t id) {
+    for (auto *bound: pw_bound_nodes) {
+        if (bound->id == id)
+            return bound;
+    }
+    return nullptr;
+}
+
+static void update_pipewire_client_volumes(AudioClient *client, const float *volumes, uint32_t n_values) {
+    if (!client)
+        return;
+
+    client->pw_channel_volumes.clear();
+    if (volumes && n_values > 0) {
+        client->pw_channel_volumes.assign(volumes, volumes + n_values);
+    } else {
+        client->pw_channel_volumes.push_back(1.0f);
+    }
+
+    client->volume.channels = static_cast<uint8_t>(std::min<size_t>(client->pw_channel_volumes.size(), PA_CHANNELS_MAX));
+    if (client->volume.channels == 0)
+        client->volume.channels = 1;
+
+    for (uint8_t i = 0; i < client->volume.channels; ++i) {
+        float linear = client->pw_channel_volumes[i];
+        if (linear < 0.0f)
+            linear = 0.0f;
+        if (linear > 1.0f)
+            linear = 1.0f;
+        client->volume.values[i] = static_cast<pa_volume_t>(std::round(linear * 65535.0f));
+    }
+}
+
+static void cleanup_pipewire_state() {
+    if (pw_thread_loop_instance)
+        pw_thread_loop_lock(pw_thread_loop_instance);
+
+    for (auto *bound: pw_bound_nodes) {
+        spa_hook_remove(&bound->listener);
+        if (bound->node) {
+            pw_proxy_destroy(reinterpret_cast<pw_proxy *>(bound->node));
+            bound->node = nullptr;
+        }
+        delete bound;
+    }
+    pw_bound_nodes.clear();
+
+    if (pw_metadata_instance) {
+        spa_hook_remove(&pw_metadata_listener);
+        pw_proxy_destroy(reinterpret_cast<pw_proxy *>(pw_metadata_instance));
+        pw_metadata_instance = nullptr;
+    }
+    if (pw_registry_instance) {
+        spa_hook_remove(&pw_registry_listener);
+        pw_proxy_destroy(reinterpret_cast<pw_proxy *>(pw_registry_instance));
+        pw_registry_instance = nullptr;
+    }
+    if (pw_core_instance) {
+        spa_hook_remove(&pw_core_listener);
+        pw_core_disconnect(pw_core_instance);
+        pw_core_instance = nullptr;
+    }
+    if (pw_context_instance) {
+        pw_context_destroy(pw_context_instance);
+        pw_context_instance = nullptr;
+    }
+    if (pw_thread_loop_instance)
+        pw_thread_loop_unlock(pw_thread_loop_instance);
+    if (pw_thread_loop_instance) {
+        pw_thread_loop_stop(pw_thread_loop_instance);
+        pw_thread_loop_destroy(pw_thread_loop_instance);
+        pw_thread_loop_instance = nullptr;
+    }
+
+    pw_initial_sync_done = false;
+    pw_sync_seq = 1;
+}
 
 static void on_stream_suspend(pa_stream *s, void *data) {
     auto *client = (AudioClient *) data;
@@ -115,9 +295,9 @@ void sort() {
     std::sort(audio_clients.begin(), audio_clients.end(), [time](AudioClient *a, AudioClient *b) {
         // order: master who is default sink, masters with older indexes first, sink inputs with lower index first
         if (a->is_master && b->is_master) {
-            if (a->title == default_sink_name) {
+            if (is_default_sink_client(a)) {
                 return true;
-            } else if (b->title == default_sink_name) {
+            } else if (is_default_sink_client(b)) {
                 return false;
             } else {
                 return a->index < b->index;
@@ -405,6 +585,319 @@ static bool try_establishing_connection_with_pulseaudio() {
     return ready;
 }
 
+static void pipewire_update_client_identity(AudioClient *client, const spa_dict *props) {
+    if (!client || !props)
+        return;
+
+    const char *node_name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
+    const char *node_description = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);
+    const char *media_name = spa_dict_lookup(props, PW_KEY_MEDIA_NAME);
+    const char *app_name = spa_dict_lookup(props, PW_KEY_APP_NAME);
+    const char *icon_name = spa_dict_lookup(props, PW_KEY_APP_ICON_NAME);
+
+    if (node_name && *node_name)
+        client->pw_node_name = node_name;
+
+    if (client->is_master) {
+        if (node_name && *node_name)
+            client->title = node_name;
+        if (node_description && *node_description)
+            client->subtitle = node_description;
+        if (client->title.empty())
+            client->title = "Master";
+        client->icon_name = "audio-card";
+    } else {
+        if (media_name && *media_name) {
+            client->title = media_name;
+        } else if (node_name && *node_name) {
+            client->title = node_name;
+        }
+        if (app_name && *app_name)
+            client->subtitle = app_name;
+
+        if (icon_name && has_options(icon_name)) {
+            client->icon_name = icon_name;
+        } else if (!client->subtitle.empty() && has_options(client->subtitle)) {
+            client->icon_name = client->subtitle;
+        } else if (!client->title.empty() && has_options(client->title)) {
+            client->icon_name = client->title;
+        } else if (!icon_name) {
+            std::string lowered = !client->subtitle.empty() ? client->subtitle : client->title;
+            for (auto &ch: lowered)
+                ch = static_cast<char>(tolower(static_cast<unsigned char>(ch)));
+            if (has_options(lowered))
+                client->icon_name = lowered;
+        }
+    }
+}
+
+static void pipewire_handle_node_param(AudioClient *client, uint32_t id, const spa_pod *param) {
+    if (!client || !param || id != SPA_PARAM_Props)
+        return;
+
+    bool mute = client->mute;
+    float single_volume = client->get_volume();
+    float channel_volumes[SPA_AUDIO_MAX_CHANNELS] = {};
+    uint32_t channel_value_size = 0;
+    uint32_t channel_value_type = SPA_ID_INVALID;
+    uint32_t n_channel_volumes = 0;
+    void *channel_values = nullptr;
+
+    int parsed = spa_pod_parse_object(param,
+                                      SPA_TYPE_OBJECT_Props, nullptr,
+                                      SPA_PROP_mute, SPA_POD_OPT_Bool(&mute),
+                                      SPA_PROP_channelVolumes, SPA_POD_OPT_Array(&channel_value_size,
+                                                                                  &channel_value_type,
+                                                                                  &n_channel_volumes,
+                                                                                  &channel_values),
+                                      SPA_PROP_volume, SPA_POD_OPT_Float(&single_volume));
+    if (parsed < 0)
+        return;
+
+    client->mute = mute;
+    if (channel_values && channel_value_size == sizeof(float) && channel_value_type == SPA_TYPE_Float &&
+        n_channel_volumes > 0) {
+        uint32_t clamped = std::min(n_channel_volumes, static_cast<uint32_t>(SPA_AUDIO_MAX_CHANNELS));
+        memcpy(channel_volumes, channel_values, clamped * sizeof(float));
+        n_channel_volumes = clamped;
+        update_pipewire_client_volumes(client, channel_volumes, n_channel_volumes);
+    } else {
+        update_pipewire_client_volumes(client, &single_volume, 1);
+    }
+}
+
+static void pipewire_node_info_callback(void *data, const pw_node_info *info) {
+    auto *bound = static_cast<PipeWireBoundNode *>(data);
+    if (!bound || !info)
+        return;
+
+    auto *client = bound->client;
+    if (!client)
+        return;
+
+    if (info->props) {
+        pipewire_update_client_identity(client, info->props);
+        const char *node_name = spa_dict_lookup(info->props, PW_KEY_NODE_NAME);
+        if (client->is_master && node_name && *node_name && default_sink_name.empty()) {
+            default_sink_name = node_name;
+        }
+    }
+
+    client->index = static_cast<int>(bound->id);
+    client->pw_node_id = bound->id;
+    client->pw_node_ref = bound->node;
+    client->is_master = bound->is_master;
+
+    uint32_t ids[] = {SPA_PARAM_Props};
+    pw_node_subscribe_params(bound->node, ids, 1);
+    pw_node_enum_params(bound->node, 0, SPA_PARAM_Props, 0, UINT32_MAX, nullptr);
+
+    sort();
+    if (audio_change_callback)
+        audio_change_callback();
+}
+
+static void pipewire_node_param_callback(void *data, int, uint32_t id, uint32_t, uint32_t, const spa_pod *param) {
+    auto *bound = static_cast<PipeWireBoundNode *>(data);
+    if (!bound || !bound->client)
+        return;
+    pipewire_handle_node_param(bound->client, id, param);
+    sort();
+    if (audio_change_callback)
+        audio_change_callback();
+}
+
+static const pw_node_events pipewire_node_events = {
+        PW_VERSION_NODE_EVENTS,
+        pipewire_node_info_callback,
+        pipewire_node_param_callback,
+};
+
+static int pipewire_metadata_property_callback(void *, uint32_t, const char *key, const char *, const char *value) {
+    if (!key)
+        return 0;
+    if (strcmp(key, "default.audio.sink") != 0 && strcmp(key, "default.configured.audio.sink") != 0)
+        return 0;
+
+    std::string new_default = parse_pipewire_default_name(value);
+    if (!new_default.empty()) {
+        default_sink_name = new_default;
+        sort();
+        if (audio_change_callback)
+            audio_change_callback();
+    }
+    return 0;
+}
+
+static const pw_metadata_events pipewire_metadata_events = {
+        PW_VERSION_METADATA_EVENTS,
+        pipewire_metadata_property_callback,
+};
+
+static void pipewire_registry_global_callback(void *, uint32_t id, uint32_t, const char *type, uint32_t version,
+                                              const spa_dict *props) {
+    if (!type)
+        return;
+
+    if (strcmp(type, PW_TYPE_INTERFACE_Metadata) == 0) {
+        if (pw_metadata_instance)
+            return;
+
+        pw_metadata_instance = static_cast<pw_metadata *>(pw_registry_bind(
+                pw_registry_instance, id, PW_TYPE_INTERFACE_Metadata,
+                std::min(version, static_cast<uint32_t>(PW_VERSION_METADATA)), 0));
+        if (!pw_metadata_instance)
+            return;
+        pw_metadata_add_listener(pw_metadata_instance, &pw_metadata_listener, &pipewire_metadata_events, nullptr);
+        return;
+    }
+
+    if (strcmp(type, PW_TYPE_INTERFACE_Node) != 0 || !props)
+        return;
+
+    const char *media_class = spa_dict_lookup(props, PW_KEY_MEDIA_CLASS);
+    const bool is_master = pipewire_class_is_master(media_class);
+    const bool is_stream = pipewire_class_is_stream(media_class);
+    if (!is_master && !is_stream)
+        return;
+
+    if (find_pipewire_bound_node(id))
+        return;
+
+    auto *bound = new PipeWireBoundNode();
+    bound->id = id;
+    bound->is_master = is_master;
+    bound->node = static_cast<pw_node *>(pw_registry_bind(
+            pw_registry_instance, id, PW_TYPE_INTERFACE_Node,
+            std::min(version, static_cast<uint32_t>(PW_VERSION_NODE)), 0));
+    if (!bound->node) {
+        delete bound;
+        return;
+    }
+
+    bound->client = find_or_create_pipewire_client(id, is_master);
+    bound->client->pw_node_ref = bound->node;
+    bound->client->pw_node_id = id;
+    bound->client->is_master = is_master;
+    pipewire_update_client_identity(bound->client, props);
+    pw_node_add_listener(bound->node, &bound->listener, &pipewire_node_events, bound);
+
+    pw_bound_nodes.push_back(bound);
+    sort();
+    if (audio_change_callback)
+        audio_change_callback();
+}
+
+static void pipewire_registry_global_remove_callback(void *, uint32_t id) {
+    for (size_t i = 0; i < pw_bound_nodes.size(); ++i) {
+        auto *bound = pw_bound_nodes[i];
+        if (bound->id != id)
+            continue;
+
+        for (size_t c = 0; c < audio_clients.size(); ++c) {
+            if (audio_clients[c] == bound->client) {
+                delete audio_clients[c];
+                audio_clients.erase(audio_clients.begin() + static_cast<long>(c));
+                break;
+            }
+        }
+
+        spa_hook_remove(&bound->listener);
+        if (bound->node)
+            pw_proxy_destroy(reinterpret_cast<pw_proxy *>(bound->node));
+        delete bound;
+        pw_bound_nodes.erase(pw_bound_nodes.begin() + static_cast<long>(i));
+        sort();
+        if (audio_change_callback)
+            audio_change_callback();
+        return;
+    }
+}
+
+static const pw_registry_events pipewire_registry_events = {
+        PW_VERSION_REGISTRY_EVENTS,
+        pipewire_registry_global_callback,
+        pipewire_registry_global_remove_callback,
+};
+
+static void pipewire_core_done_callback(void *, uint32_t id, int seq) {
+    if (id == PW_ID_CORE && seq == pw_sync_seq) {
+        pw_initial_sync_done = true;
+        pw_thread_loop_signal(pw_thread_loop_instance, false);
+    }
+}
+
+static void pipewire_core_error_callback(void *, uint32_t, int, int, const char *) {
+    ready = false;
+    audio_running = false;
+    pw_thread_loop_signal(pw_thread_loop_instance, false);
+}
+
+static const pw_core_events pipewire_core_events = {
+        PW_VERSION_CORE_EVENTS,
+        nullptr,
+        pipewire_core_done_callback,
+        nullptr,
+        pipewire_core_error_callback,
+};
+
+static bool try_establishing_connection_with_pipewire() {
+    pw_init(nullptr, nullptr);
+
+    pw_thread_loop_instance = pw_thread_loop_new("winbar-audio-pipewire", nullptr);
+    if (!pw_thread_loop_instance)
+        return false;
+
+    if (pw_thread_loop_start(pw_thread_loop_instance) != 0) {
+        pw_thread_loop_destroy(pw_thread_loop_instance);
+        pw_thread_loop_instance = nullptr;
+        return false;
+    }
+
+    pw_thread_loop_lock(pw_thread_loop_instance);
+
+    pw_context_instance = pw_context_new(pw_thread_loop_get_loop(pw_thread_loop_instance), nullptr, 0);
+    if (!pw_context_instance) {
+        pw_thread_loop_unlock(pw_thread_loop_instance);
+        cleanup_pipewire_state();
+        return false;
+    }
+
+    pw_core_instance = pw_context_connect(pw_context_instance, nullptr, 0);
+    if (!pw_core_instance) {
+        pw_thread_loop_unlock(pw_thread_loop_instance);
+        cleanup_pipewire_state();
+        return false;
+    }
+
+    pw_core_add_listener(pw_core_instance, &pw_core_listener, &pipewire_core_events, nullptr);
+
+    pw_registry_instance = pw_core_get_registry(pw_core_instance, PW_VERSION_REGISTRY, 0);
+    if (!pw_registry_instance) {
+        pw_thread_loop_unlock(pw_thread_loop_instance);
+        cleanup_pipewire_state();
+        return false;
+    }
+
+    pw_registry_add_listener(pw_registry_instance, &pw_registry_listener, &pipewire_registry_events, nullptr);
+
+    pw_initial_sync_done = false;
+    pw_sync_seq = pw_core_sync(pw_core_instance, PW_ID_CORE, pw_sync_seq);
+
+    audio_running = true;
+    int wait_rounds = 0;
+    while (audio_running && !pw_initial_sync_done && wait_rounds < 8) {
+        pw_thread_loop_timed_wait(pw_thread_loop_instance, 1);
+        wait_rounds++;
+    }
+
+    ready = audio_running && pw_initial_sync_done;
+    pw_thread_loop_unlock(pw_thread_loop_instance);
+    if (!ready)
+        cleanup_pipewire_state();
+    return ready;
+}
+
 void alsa_event_pumping_required_callback(App *, int, void *) {
     snd_mixer_handle_events(alsa_handle);
 }
@@ -528,25 +1021,60 @@ void audio_start(App *app_ref) {
     auto t = std::thread([]() -> void {
         if (backend != AudioBackend::UNSET)
             return;
-        if (try_establishing_connection_with_pulseaudio()) {
-            backend = AudioBackend::PULSEAUDIO;
-            audio_thread_id = std::this_thread::get_id();
-            while (audio_running) {
-                iterate_pulseaudio_mainloop();
+        if (winbar_settings->prefer_pipewire_audio_backend) {
+            if (try_establishing_connection_with_pipewire()) {
+                backend = AudioBackend::PIPEWIRE;
+                audio_thread_id = std::this_thread::get_id();
+                while (audio_running) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                }
+                cleanup_pipewire_state();
+                delete_all_audio_clients();
+            } else if (try_establishing_connection_with_pulseaudio()) {
+                backend = AudioBackend::PULSEAUDIO;
+                audio_thread_id = std::this_thread::get_id();
+                while (audio_running) {
+                    iterate_pulseaudio_mainloop();
+                }
+                pa_context_disconnect(context);
+                pa_context_unref(context);
+                pa_mainloop_free(mainloop);
+                context = nullptr;
+                mainloop = nullptr;
+                delete_all_audio_clients();
+            } else if (try_establishing_connection_with_alsa()) {
+                backend = AudioBackend::ALSA;
+                audio_running = true;
+                ready = true;
+                audio_thread_id = std::this_thread::get_id();
             }
-            pa_context_disconnect(context);
-            pa_context_unref(context);
-            pa_mainloop_free(mainloop);
-            context = nullptr;
-            mainloop = nullptr;
-            for (auto c: audio_clients)
-                delete c;
-            audio_clients.clear();
-        } else if (try_establishing_connection_with_alsa()) {
-            backend = AudioBackend::ALSA;
-            audio_running = true;
-            ready = true;
-            audio_thread_id = std::this_thread::get_id();
+        } else {
+            if (try_establishing_connection_with_pulseaudio()) {
+                backend = AudioBackend::PULSEAUDIO;
+                audio_thread_id = std::this_thread::get_id();
+                while (audio_running) {
+                    iterate_pulseaudio_mainloop();
+                }
+                pa_context_disconnect(context);
+                pa_context_unref(context);
+                pa_mainloop_free(mainloop);
+                context = nullptr;
+                mainloop = nullptr;
+                delete_all_audio_clients();
+            } else if (try_establishing_connection_with_pipewire()) {
+                backend = AudioBackend::PIPEWIRE;
+                audio_thread_id = std::this_thread::get_id();
+                while (audio_running) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                }
+                cleanup_pipewire_state();
+                delete_all_audio_clients();
+            } else if (try_establishing_connection_with_alsa()) {
+                backend = AudioBackend::ALSA;
+                audio_running = true;
+                ready = true;
+                audio_thread_id = std::this_thread::get_id();
+            }
         }
     });
     threads.push_back(std::move(t));
@@ -559,6 +1087,9 @@ void audio_stop() {
     audio_running = false;
     if (backend == AudioBackend::PULSEAUDIO) {
         pa_mainloop_wakeup(mainloop);
+    } else if (backend == AudioBackend::PIPEWIRE) {
+        if (pw_thread_loop_instance)
+            pw_thread_loop_signal(pw_thread_loop_instance, false);
     } else if (backend == AudioBackend::ALSA) {
         if (alsa_handle) snd_mixer_close(alsa_handle);
         if (master_sid) snd_mixer_selem_id_free(master_sid);
@@ -568,9 +1099,7 @@ void audio_stop() {
         master_sid = nullptr;
         headphone_sid = nullptr;
         speaker_sid = nullptr;
-        for (auto c: audio_clients)
-            delete c;
-        audio_clients.clear();
+        delete_all_audio_clients();
     }
     backend = AudioBackend::UNSET;
 }
@@ -589,6 +1118,15 @@ void audio(const std::function<void()> &callback) {
     
     if (backend == AudioBackend::ALSA) {
         callback();
+        return;
+    } else if (backend == AudioBackend::PIPEWIRE) {
+        if (callback == nullptr)
+            return;
+        if (!pw_thread_loop_instance)
+            return;
+        pw_thread_loop_lock(pw_thread_loop_instance);
+        callback();
+        pw_thread_loop_unlock(pw_thread_loop_instance);
         return;
     } else if (backend != AudioBackend::PULSEAUDIO) {
         return;
@@ -641,6 +1179,13 @@ void audio_read(const std::function<void()> &callback) {
     
     if (backend == AudioBackend::ALSA) {
         callback();
+        return;
+    } else if (backend == AudioBackend::PIPEWIRE) {
+        if (!pw_thread_loop_instance)
+            return;
+        pw_thread_loop_lock(pw_thread_loop_instance);
+        callback();
+        pw_thread_loop_unlock(pw_thread_loop_instance);
         return;
     } else if (backend != AudioBackend::PULSEAUDIO) {
         return;
@@ -722,6 +1267,33 @@ void AudioClient::set_mute(bool mute_on) {
             pa_op = pa_context_set_sink_input_mute(context, this->index, (int) mute_on, NULL, NULL);
         }
         pa_operation_unref(pa_op);
+    } else if (backend == AudioBackend::PIPEWIRE) {
+        if (!pw_node_ref)
+            return;
+        pw_thread_loop_lock(pw_thread_loop_instance);
+        this->mute = mute_on;
+
+        float channel_volumes[SPA_AUDIO_MAX_CHANNELS];
+        uint32_t n_channels = static_cast<uint32_t>(std::min<size_t>(pw_channel_volumes.size(), SPA_AUDIO_MAX_CHANNELS));
+        if (n_channels == 0) {
+            n_channels = 1;
+            channel_volumes[0] = static_cast<float>(this->get_volume());
+        } else {
+            for (uint32_t i = 0; i < n_channels; ++i)
+                channel_volumes[i] = pw_channel_volumes[i];
+        }
+
+        uint8_t buffer[1024];
+        spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+        const spa_pod *pod = reinterpret_cast<const spa_pod *>(spa_pod_builder_add_object(
+                &b,
+                SPA_TYPE_OBJECT_Props,
+                SPA_PARAM_Props,
+                SPA_PROP_mute, SPA_POD_Bool(mute_on),
+                SPA_PROP_channelVolumes, SPA_POD_Array(sizeof(float), SPA_TYPE_Float, n_channels, channel_volumes)
+        ));
+        pw_node_set_param(pw_node_ref, SPA_PARAM_Props, 0, pod);
+        pw_thread_loop_unlock(pw_thread_loop_instance);
     } else if (backend == AudioBackend::ALSA) {
         if (mute_on) { // mute
             snd_mixer_selem_set_playback_switch_all(master_volume, 0);
@@ -760,6 +1332,33 @@ void AudioClient::set_volume(double value) {
             pa_op = pa_context_set_sink_input_volume(context, index, &copy, NULL, NULL);
         }
         pa_operation_unref(pa_op);
+    } else if (backend == AudioBackend::PIPEWIRE) {
+        if (!pw_node_ref)
+            return;
+        pw_thread_loop_lock(pw_thread_loop_instance);
+
+        float new_volume = static_cast<float>(value);
+        float channel_volumes[SPA_AUDIO_MAX_CHANNELS];
+        uint32_t n_channels = static_cast<uint32_t>(std::min<size_t>(pw_channel_volumes.size(), SPA_AUDIO_MAX_CHANNELS));
+        if (n_channels == 0) {
+            n_channels = 1;
+        }
+        for (uint32_t i = 0; i < n_channels; ++i)
+            channel_volumes[i] = new_volume;
+
+        uint8_t buffer[1024];
+        spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+        const spa_pod *pod = reinterpret_cast<const spa_pod *>(spa_pod_builder_add_object(
+                &b,
+                SPA_TYPE_OBJECT_Props,
+                SPA_PARAM_Props,
+                SPA_PROP_mute, SPA_POD_Bool(mute),
+                SPA_PROP_channelVolumes, SPA_POD_Array(sizeof(float), SPA_TYPE_Float, n_channels, channel_volumes)
+        ));
+
+        pw_node_set_param(pw_node_ref, SPA_PARAM_Props, 0, pod);
+        update_pipewire_client_volumes(this, channel_volumes, n_channels);
+        pw_thread_loop_unlock(pw_thread_loop_instance);
     } else if (backend == AudioBackend::ALSA) {
         this->alsa_volume = value;
         // will determine the bounds? or how the number is round? something like that. it doesn't matter too much from what I can tell
@@ -776,6 +1375,10 @@ bool AudioClient::is_muted() {
 double AudioClient::get_volume() {
     if (backend == AudioBackend::PULSEAUDIO) {
         return ((double) volume.values[0]) / ((double) 65535);
+    } else if (backend == AudioBackend::PIPEWIRE) {
+        if (!pw_channel_volumes.empty())
+            return pw_channel_volumes[0];
+        return ((double) volume.values[0]) / ((double) 65535);
     } else if (backend == AudioBackend::ALSA) {
         return alsa_volume;
     }
@@ -783,7 +1386,7 @@ double AudioClient::get_volume() {
 }
 
 bool AudioClient::is_master_volume() {
-    return title == default_sink_name;
+    return is_default_sink_client(this);
 }
 
 void audio_state_change_callback(void (*callback)()) {

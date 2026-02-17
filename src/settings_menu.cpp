@@ -2354,6 +2354,12 @@ fill_root(AppClient *client, Container *root) {
     });
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
 
+    setting_bool(scroll_root, "\uEBDE", "Use PipeWire", "Prefer first PipeWire over Pulseaudio and Alsa", &winbar_settings->prefer_pipewire_audio_backend, false, []() {
+        restart = true;
+        app->running = false;
+    });
+    scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
+
     setting_field(client, scroll_root, "\uE7E8", "Shutdown command", "Command to be executed when attempting to shutdown",  &winbar_settings->shutdown_command);
 //    string_textfield("Shutdown command: ", &winbar_settings->shutdown_command, scroll_root, client, "pkexec shutdown -P now");
     scroll_root->child(FILL_SPACE, 4.5 * config->dpi);
@@ -2797,6 +2803,9 @@ void save_settings_file() {
     
     out_file << "auto_dpi=" << (winbar_settings->auto_dpi ? "true" : "false");
     out_file << std::endl << std::endl;
+
+    out_file << "prefer_pipewire_audio_backend=" << (winbar_settings->prefer_pipewire_audio_backend ? "true" : "false");
+    out_file << std::endl << std::endl;
     
     out_file << "scale_amount=\"" << std::to_string(winbar_settings->scale_amount) << "\"";
     out_file << std::endl << std::endl;
@@ -3155,6 +3164,7 @@ void read_settings_file() {
                 parse_bool(&parser, key, "always_hide", &winbar_settings->always_hide);
                 parse_bool(&parser, key, "show_windows_from_all_desktops", &winbar_settings->show_windows_from_all_desktops);
                 parse_bool(&parser, key, "auto_dpi", &winbar_settings->auto_dpi);
+                parse_bool(&parser, key, "prefer_pipewire_audio_backend", &winbar_settings->prefer_pipewire_audio_backend);
                 parse_bool(&parser, key, "use_opengl", &winbar_settings->use_opengl);
                 parse_bool(&parser, key, "on_drag_show_trash", &winbar_settings->on_drag_show_trash);
                 parse_string(&parser, key, "custom_desktops_directory", &winbar_settings->custom_desktops_directory);
