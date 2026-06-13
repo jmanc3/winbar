@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <sstream>
 
 #include <glm/gtc/type_ptr.hpp>
 #include <gdk-pixbuf/gdk-pixbuf.h>

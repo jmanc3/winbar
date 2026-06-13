@@ -18,6 +18,7 @@
 #include <librsvg/rsvg.h>
 #include <pango/pangocairo.h>
 #include <zconf.h>
+#include <sstream>
 #include <cassert>
 #include <sys/wait.h>
 #include <xcb/xcb_aux.h>
