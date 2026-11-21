@@ -12,4 +12,8 @@ void register_as_systray();
 
 void open_systray();
 
+void systray_dbus_start();
+
+void systray_dbus_stop();
+
 #endif// APP_SYSTRAY_H

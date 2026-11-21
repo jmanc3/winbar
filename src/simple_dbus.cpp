@@ -14,6 +14,7 @@
 #include "settings_menu.h"
 #include "wifi_backend.h"
 #include "dbus_helper.h"
+#include "systray.h"
 
 #include <dbus/dbus.h>
 #include <defer.h>
@@ -159,7 +160,7 @@ static DBusHandlerResult signal_handler(DBusConnection *dbus_connection,
         }
         // TODO: do I have to free "name" and others???
         
-        return DBUS_HANDLER_RESULT_HANDLED;
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     } else if (dbus_message_is_signal(message, "org.freedesktop.DBus",
                                       "NameAcquired")) {
         const char *name;
@@ -1283,11 +1284,9 @@ void dbus_start(DBusBusType dbusType) {
                 fprintf(stderr, "Ran into error when trying to become the sessions notification manager (%s)\n",
                         error.message);
                 dbus_error_free(&error);
-                return;
             }
     
-            // create_status_notifier_watcher();
-            // create_status_notifier_host();
+            systray_dbus_start();
         }
         
         dbus_poll_wakeup(nullptr, 0, dbus_connection);
@@ -1333,17 +1332,7 @@ void dbus_end() {
         }
         
         if (dbus_connection == dbus_connection_session) {
-            dbus_bus_release_name(dbus_connection, "org.kde.StatusNotifierWatcher", &error);
-            if (dbus_error_is_set(&error)) {
-                fprintf(stderr, "Error releasing name: %s\n%s\n", error.name, error.message);
-            }
-            
-            int pid = 23184910;
-            auto host = std::string("org.kde.StatusNotifierHost-" + std::to_string(pid));
-            dbus_bus_release_name(dbus_connection, host.c_str(), &error);
-            if (dbus_error_is_set(&error)) {
-                fprintf(stderr, "Error releasing name: %s\n%s\n", error.name, error.message);
-            }
+            systray_dbus_stop();
         }
         
         dbus_bus_remove_match(dbus_connection,
